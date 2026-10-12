@@ -11,14 +11,13 @@ pub(super) struct VaultDeletionStage {
     quarantine_path: PathBuf,
 }
 
-pub(crate) fn ensure_app_directory(documents: &Path) -> Result<PathBuf, String> {
-    let app_directory = documents.join("Ômega Notes");
-    fs::create_dir_all(&app_directory)
-        .map_err(|error| format!("Não foi possível criar a pasta Ômega Notes: {error}"))?;
+pub(crate) fn ensure_app_directory(app_directory: &Path) -> Result<PathBuf, String> {
+    fs::create_dir_all(app_directory)
+        .map_err(|error| format!("Não foi possível criar a pasta de dados: {error}"))?;
     let temporary_directory = app_directory.join(".temp");
     fs::create_dir_all(&temporary_directory)
         .map_err(|error| format!("Não foi possível criar a pasta .temp: {error}"))?;
-    Ok(app_directory)
+    Ok(app_directory.to_path_buf())
 }
 
 fn vault_registry_path(directory: &Path) -> PathBuf {

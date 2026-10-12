@@ -1,5 +1,6 @@
 import { Show, type Component } from "solid-js";
 import { cx } from "@/shared/lib/classes";
+import MediaPositioningActions from "../media-positioning-actions";
 import { DEFAULT_AUDIO_VOLUME } from "@/entities/note";
 import AudioPlayer from "../note-audio-player";
 import VideoPlayer from "../note-video-player";
@@ -31,10 +32,6 @@ const NoteMediaNode: Component<NoteMediaNodeProps> = (props) => {
 				cursor: props.editable && props.activePositioningId === props.element().id ? "move" : "default",
 			}}
 			onPointerDown={(event) => media.begin(event, "move")}
-			onPointerEnter={media.onPointerEnter}
-			onPointerLeave={media.onPointerLeave}
-			onFocusIn={media.onFocusIn}
-			onFocusOut={media.onFocusOut}
 			onPointerMove={media.move}
 			onPointerUp={media.finish}
 			onPointerCancel={media.finish}
@@ -84,13 +81,17 @@ const NoteMediaNode: Component<NoteMediaNodeProps> = (props) => {
 					</svg>
 				</div>
 			</Show>
-			<Show when={props.editable && media.active() && props.activePositioningId === props.element().id}>
-				<button
-					class={cx(styles.resizeHandle, props.element().type === "video" && styles.videoResizeHandle)}
-					type="button"
-					aria-label={props.t("resizeMedia")}
-					onPointerDown={(event) => media.begin(event, "resize")}
-					onKeyDown={media.resizeWithKeyboard}
+			<Show when={props.editable && props.activePositioningId === props.element().id}>
+				<MediaPositioningActions
+					x={media.currentPoint().x}
+					width={media.currentPoint().width}
+					pageWidth={props.pageWidth}
+					audio={props.element().type === "audio"}
+					t={props.t}
+					onConfirm={props.onConfirm}
+					onDelete={props.onDelete}
+					onResize={(event) => media.begin(event, "resize")}
+					onResizeKeyDown={media.resizeWithKeyboard}
 				/>
 			</Show>
 		</div>

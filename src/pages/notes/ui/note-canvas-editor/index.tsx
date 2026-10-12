@@ -7,7 +7,6 @@ import {
 	type NoteTextElement,
 } from "@/entities/note";
 import { renderNoteText } from "./render-text";
-import EditorContextMenu from "../editor-context-menu";
 import MediaCatalogDialog from "../media-catalog-dialog";
 import NoteImageNode from "../note-image-node";
 import NoteMediaNode from "../note-media-node";
@@ -48,8 +47,12 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 			<div
 				class={styles.paper}
 				ref={editor.setPaper}
-				style={{ width: `${props.document.page.width}px`, height: `${editor.renderedPageHeight()}px` }}
-				onContextMenu={editor.openContextMenu}
+				style={{
+					width: `${props.document.page.width}px`,
+					height: `${editor.renderedPageHeight()}px`,
+					cursor: editor.editable() && !editor.positioningElementId() ? "text" : "default",
+				}}
+				onContextMenu={(event) => event.preventDefault()}
 			>
 				<Index each={editor.flowDocument().elements}>
 					{(element) => {
@@ -71,8 +74,9 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 													t={props.t}
 													onChange={editor.updateElement}
 													onPreview={editor.setPreviewElement}
-													onInteractionStart={() => editor.setContextMenu(undefined)}
-													onContextMenu={editor.openMediaContextMenu}
+													onContextMenu={editor.startMediaPositioning}
+													onConfirm={editor.placeElement}
+													onDelete={() => editor.removeElement(getElement().id)}
 												/>
 											</Show>
 										}
@@ -86,14 +90,19 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 											t={props.t}
 											onChange={editor.updateElement}
 											onPreview={editor.setPreviewElement}
-											onContextMenu={editor.openImageContextMenu}
-											onInteractionStart={() => editor.setContextMenu(undefined)}
+											onContextMenu={editor.startMediaPositioning}
+											onConfirm={editor.placeElement}
+											onDelete={() => editor.removeElement(getElement().id)}
 										/>
 									</Show>
 								}
 							>
 								<NoteTextNode
 									element={() => getElement() as NoteTextElement}
+									notes={props.notes}
+									t={props.t}
+									onOpenNote={props.onOpenNote}
+									onOpenExternalUrl={editor.openExternalLink}
 									wraps={editor.positionedElementsOnPage}
 									onHeightChange={editor.setTextContentBottom}
 									editable={editor.editable() && !editor.positioningElementId()}
@@ -107,39 +116,6 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 					}}
 				</Index>
 			</div>
-			<Show when={editor.contextMenu()}>
-				{(menu) => (
-					<EditorContextMenu
-						x={menu().x}
-						y={menu().y}
-						t={props.t}
-						onClose={() => editor.setContextMenu(undefined)}
-						onAttach={menu().kind === "note" ? editor.showMediaCatalog : undefined}
-						onPosition={
-							(menu().kind === "image" || menu().kind === "media") && !editor.positioningElementId()
-								? () => editor.positionElement(menu().elementId!)
-								: undefined
-						}
-						onPlace={
-							(menu().kind === "image" || menu().kind === "media") &&
-							editor.positioningElementId() === menu().elementId
-								? editor.placeElement
-								: undefined
-						}
-						onRemove={
-							(menu().kind === "image" || menu().kind === "media") &&
-							editor.positioningElementId() === menu().elementId
-								? editor.removeElement
-								: undefined
-						}
-						onDelete={
-							(menu().kind === "media" || menu().kind === "image") && !editor.positioningElementId()
-								? editor.removeElement
-								: undefined
-						}
-					/>
-				)}
-			</Show>
 			<MediaCatalogDialog
 				open={editor.catalogOpen()}
 				notes={props.notes}

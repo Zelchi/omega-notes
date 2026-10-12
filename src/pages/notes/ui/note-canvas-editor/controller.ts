@@ -31,21 +31,16 @@ export type NoteCanvasEditorProps = {
 };
 
 type AttachmentPosition = { x: number; y: number };
-export type ContextMenuState = { kind: "note" | "image" | "media"; x: number; y: number; elementId?: string };
 const PAGE_MARGIN = 32;
 const PAGE_BORDER = 1;
 const EMPTY_TEXT_HEIGHT = 26.4;
+const POSITIONING_ACTIONS_SPACE = 48;
 
 export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 	let paper!: HTMLDivElement;
 	let textFormatHandler: TextFormatHandler | undefined;
-	const [contextMenu, setContextMenu] = createSignal<ContextMenuState>();
 	const [catalogOpen, setCatalogOpen] = createSignal(false);
 	const [textContentBottom, setTextContentBottom] = createSignal(PAGE_BORDER + PAGE_MARGIN + EMPTY_TEXT_HEIGHT);
-	const [attachmentPosition, setAttachmentPosition] = createSignal<AttachmentPosition>({
-		x: PAGE_MARGIN,
-		y: PAGE_MARGIN,
-	});
 	const [previewElement, setPreviewElement] = createSignal<NotePositionedElement>();
 	const [positioningElementId, setPositioningElementId] = createSignal<string>();
 	const [positioningQueue, setPositioningQueue] = createSignal<string[]>([]);
@@ -60,7 +55,8 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 					.filter((element): element is NotePositionedElement => element.type !== "text")
 					.map((element) => {
 						const positioned = preview?.id === element.id ? preview : element;
-						return positioned.y + positioned.height + PAGE_MARGIN + PAGE_BORDER * 2;
+						return positioned.y + positioned.height + PAGE_MARGIN + PAGE_BORDER * 2 +
+							(positioningElementId() === element.id ? POSITIONING_ACTIONS_SPACE : 0);
 					}),
 			),
 		);
@@ -155,7 +151,7 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		return text!.alignment;
 	});
 
-	const insertMedia = (sources: ImportedMedia[], position = attachmentPosition()): void => {
+	const insertMedia = (sources: ImportedMedia[], position: AttachmentPosition = { x: PAGE_MARGIN, y: PAGE_MARGIN }): void => {
 		if (!sources.length) return;
 		const base = flowDocument();
 		const elements = sources.map((source, index) => {
@@ -180,59 +176,42 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		setPositioningElementId(elements[0]?.id);
 	};
 
-	const openContextMenu = (event: MouseEvent): void => {
-		if (!editable()) return;
+	const startMediaPositioning = (elementId: string, event: MouseEvent): void => {
 		event.preventDefault();
 		event.stopPropagation();
+		if (!editable()) return;
+		if (positioningElementId() === elementId) {
+			placeElement();
+			return;
+		}
 		if (positioningElementId()) return;
-		setAttachmentPosition(pointOnPage(event.clientX, event.clientY));
-		setContextMenu({
-			kind: "note",
-			x: Math.max(8, Math.min(event.clientX, innerWidth - 168)),
-			y: Math.max(8, Math.min(event.clientY, innerHeight - 60)),
-		});
+		positionElement(elementId);
 	};
 
-	const openImageContextMenu = (elementId: string, event: MouseEvent): void => {
-		if (!editable()) return;
-		event.preventDefault();
-		event.stopPropagation();
-		setContextMenu({
-			kind: "image",
-			elementId,
-			x: Math.max(8, Math.min(event.clientX, innerWidth - 168)),
-			y: Math.max(8, Math.min(event.clientY, innerHeight - 60)),
-		});
-	};
-
-	const removeElement = (): void => {
-		const elementId = contextMenu()?.elementId;
-		if (!elementId) return;
+	const removeElement = (elementId: string): void => {
+		if (!editable() || elementId !== positioningElementId()) return;
 		const base = flowDocument();
 		emitDocument({ ...base, elements: base.elements.filter((element) => element.id !== elementId) });
+		setPreviewElement(undefined);
 		if (positioningElementId() === elementId) {
 			const [next, ...remaining] = positioningQueue();
 			setPositioningQueue(remaining);
 			setPositioningElementId(next);
 		}
-		setContextMenu(undefined);
 	};
 
 	const positionElement = (elementId: string): void => {
 		setPositioningQueue([]);
 		setPositioningElementId(elementId);
-		setContextMenu(undefined);
 	};
 
 	const placeElement = (): void => {
 		const [next, ...remaining] = positioningQueue();
 		setPositioningQueue(remaining);
 		setPositioningElementId(next);
-		setContextMenu(undefined);
 	};
 
 	const showMediaCatalog = (): void => {
-		setContextMenu(undefined);
 		setCatalogOpen(true);
 	};
 
@@ -298,7 +277,6 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 	return {
 		setTextFormatHandler: (handler: TextFormatHandler | undefined) => (textFormatHandler = handler),
 		formatText: (format: TextFormat) => textFormatHandler?.(format),
-		contextMenu,
 		catalogOpen,
 		editable,
 		flowDocument,
@@ -307,7 +285,6 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		positioningElementId,
 		renderedPageHeight,
 		setPaper: (element: HTMLDivElement) => (paper = element),
-		setContextMenu,
 		setCatalogOpen,
 		setPreviewElement,
 		setTextContentBottom,
@@ -316,21 +293,8 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		updateTextAlignment,
 		insertMedia,
 		openExternalLink,
-		openContextMenu,
-		openImageContextMenu,
-		openMediaContextMenu: (elementId: string, event: MouseEvent) => {
-			if (!editable()) return;
-			event.preventDefault();
-			event.stopPropagation();
-			setContextMenu({
-				kind: "media",
-				elementId,
-				x: Math.max(8, Math.min(event.clientX, innerWidth - 168)),
-				y: Math.max(8, Math.min(event.clientY, innerHeight - 60)),
-			});
-		},
+		startMediaPositioning,
 		removeElement,
-		positionElement,
 		placeElement,
 		showMediaCatalog,
 		importFiles,

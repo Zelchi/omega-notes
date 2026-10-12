@@ -1,7 +1,7 @@
 import { For, type JSX } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { parseFormattedText, sliceTextRuns, headingScales, type TextRun, type FormattedFragment } from "@/features/format-text";
-import { resolveNoteReference, type StudyNote } from "@/entities/note";
+import { parseNoteTextLinks, resolveNoteReference, type NoteTextLink, type StudyNote } from "@/entities/note";
 import { isTauriRuntime } from "@/shared/lib/tauri";
 
 type RenderTextOptions = {
@@ -17,83 +17,36 @@ const textLinkStyle = {
 	"text-decoration-color": "var(--muted)",
 };
 
-const splitTrailingPunctuation = (value: string): [string, string] => {
-	let end = value.length;
-	while (/[.,!?;:'"“”‘’]/u.test(value[end - 1] ?? "")) end -= 1;
-
-	for (const [closing, opening] of [
-		[")", "("],
-		["]", "["],
-		["}", "{"],
-	] as const) {
-		while (value[end - 1] === closing) {
-			const candidate = value.slice(0, end);
-			const openCount = [...candidate].filter((character) => character === opening).length;
-			const closeCount = [...candidate].filter((character) => character === closing).length;
-			if (closeCount <= openCount) break;
-			end -= 1;
-		}
-	}
-
-	return [value.slice(0, end), value.slice(end)];
+const linkTextParts = (text: string): ({ text: string } | { link: NoteTextLink })[] => {
+    const parts: ({ text: string } | { link: NoteTextLink })[] = [];
+    let offset = 0;
+    for (const link of parseNoteTextLinks(text)) {
+        if (link.start > offset) parts.push({ text: text.slice(offset, link.start) });
+        parts.push({ link });
+        offset = link.end;
+    }
+    if (offset < text.length) parts.push({ text: text.slice(offset) });
+    return parts;
 };
 
 const renderNoteLinks = (text: string, options: RenderTextOptions): JSX.Element => (
-	<For each={text.split(/(\[\[[^\]]+\]\]|(?:https?:\/\/|www\.)[^\s<]+)/gi)}>
-		{(part) => {
-			const match = part.match(/^\[\[([^\]]+)\]\]$/);
-			if (match) {
-				const body = match[1] ?? "";
-				const separator = body.indexOf("|");
-				const target = (separator < 0 ? body : body.slice(0, separator)).trim();
-				const label = (separator < 0 ? target : body.slice(separator + 1)).trim();
-				const note = resolveNoteReference(target, options.notesById, options.notesByTitle);
-				if (!note) return label;
-
-				return (
-					<a
-						href={`#${note.id}`}
-						onClick={(event) => {
-							event.preventDefault();
-							options.onOpenNote(note);
-						}}
-						style={textLinkStyle}
-					>
-						{label}
-					</a>
-				);
-			}
-
-			if (!/^(?:https?:\/\/|www\.)/i.test(part)) return part;
-			const [urlText, punctuation] = splitTrailingPunctuation(part);
-			const href = urlText.toLowerCase().startsWith("www.") ? `https://${urlText}` : urlText;
-			try {
-				const url = new URL(href);
-				if (url.protocol !== "http:" && url.protocol !== "https:") return part;
-			} catch {
-				return part;
-			}
-
-			return (
-				<>
-					<a
-						href={href}
-						target={isTauriRuntime() ? undefined : "_blank"}
-						rel="noopener noreferrer"
-						onClick={(event) => {
-							if (!isTauriRuntime()) return;
-							event.preventDefault();
-							options.onOpenExternalUrl(href);
-						}}
-						style={textLinkStyle}
-					>
-						{urlText}
-					</a>
-					{punctuation}
-				</>
-			);
-		}}
-	</For>
+    <For each={linkTextParts(text)}>{(part) => {
+        if ("text" in part) return part.text;
+        const link = part.link;
+        if (link.kind === "note") {
+            const note = resolveNoteReference(link.target, options.notesById, options.notesByTitle);
+            if (!note) return link.label;
+            return <a href={`#${note.id}`} style={textLinkStyle}
+                onClick={(event) => { event.preventDefault(); options.onOpenNote(note); }}>{link.label}</a>;
+        }
+        return <a href={link.url} target={isTauriRuntime() ? undefined : "_blank"}
+            rel="noopener noreferrer" style={textLinkStyle}
+            onClick={(event) => {
+                if (!isTauriRuntime()) return;
+                event.preventDefault();
+                options.onOpenExternalUrl(link.url);
+            }}>{link.label}</a>;
+    }}</For>
 );
 
 const renderRuns = (runs: TextRun[], options: RenderTextOptions): JSX.Element => (

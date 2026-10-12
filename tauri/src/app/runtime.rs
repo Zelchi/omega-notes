@@ -13,12 +13,17 @@ pub(crate) struct ActiveVaultDirectories {
 
 pub(crate) struct ActiveVault(pub(crate) Mutex<Option<ActiveVaultDirectories>>);
 
+#[cfg(debug_assertions)]
+const DATA_DIRECTORY_NAME: &str = "Ômega Notes Dev";
+#[cfg(not(debug_assertions))]
+const DATA_DIRECTORY_NAME: &str = "Ômega Notes";
+
 pub(crate) fn app_directory(app: &AppHandle) -> Result<PathBuf, String> {
     let documents = app
         .path()
         .document_dir()
         .map_err(|error| format!("Não foi possível localizar a pasta Documentos: {error}"))?;
-    vaults::ensure_app_directory(&documents)
+    vaults::ensure_app_directory(&documents.join(DATA_DIRECTORY_NAME))
 }
 
 pub(crate) fn notes_dir(app: &AppHandle) -> Result<PathBuf, String> {
