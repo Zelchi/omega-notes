@@ -17,6 +17,9 @@ const Canvas: Component<CanvasProps> = (props) => {
 				<Show when={props.layout === "static"} fallback={<DynamicGraph {...props} />}>
 					<GraphCanvas {...props} />
 				</Show>
+				<Show when={props.notes.length === 0}>
+					<p class={styles.empty}>{props.t(props.mode === "edit" ? "emptyCanvasMessage" : "emptyCanvasReadMessage")}</p>
+				</Show>
 
 			</Show>
 		</div>

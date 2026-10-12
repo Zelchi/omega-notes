@@ -15,7 +15,6 @@ export const styles = {
 	draggedDot: style({ outline: "2px solid var(--ink)", outlineOffset: -2 }),
 	dimmedNode: style({ opacity: 0.35 }),
 	label: style({ position: "absolute", left: 0, transform: "translateX(-50%)", width: "max-content", pointerEvents: "none", maxWidth: 150, fontSize: 11, lineHeight: 1.3, textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }),
-	empty: style({ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", maxWidth: 360, width: "80%", margin: 0, textAlign: "center", fontSize: 13, lineHeight: 1.6, color: "var(--muted)", pointerEvents: "none" }),
 	controls: style({ position: "absolute", right: 13, bottom: 13, display: "flex", alignItems: "center", gap: 4, padding: 4, border: "1px solid var(--border-strong)", borderRadius: 6, backgroundColor: "var(--surface-controls)" }),
 	button: style({ display: "grid", placeItems: "center", width: 29, height: 28, padding: 0, border: 0, borderRadius: 4, backgroundColor: "transparent", color: "var(--text-control)", cursor: "pointer", fontSize: 16, selectors: { "&:hover": { backgroundColor: "var(--surface-hover)", color: "var(--ink)" } } }),
 };

@@ -1,6 +1,7 @@
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { For, Show, createEffect, createSignal, type Component } from "solid-js";
 import Icon from "@/shared/ui/icon";
+import ModalError from "@/shared/ui/modal-error";
 import { cx } from "@/shared/lib/classes";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { Vault, VaultDetails } from "@/entities/vault";
@@ -49,6 +50,8 @@ type Props = {
 
 const VaultDialog: Component<Props> = (props) => {
 	const [name, setName] = createSignal("");
+	const [createInputRow, setCreateInputRow] = createSignal<HTMLDivElement>();
+	const [renameInput, setRenameInput] = createSignal<HTMLInputElement>();
 	const [editingVaultId, setEditingVaultId] = createSignal<string>();
 	const [editingName, setEditingName] = createSignal("");
 	const [deletingVault, setDeletingVault] = createSignal<Vault>();
@@ -122,6 +125,10 @@ const VaultDialog: Component<Props> = (props) => {
 					aria-modal="true"
 					aria-label={props.t("vault")}
 				>
+					<Show when={props.errorAction === "create" || props.errorAction === "rename" || props.errorAction === "load"}>
+						<ModalError message={props.error ? props.t(props.error) : undefined}
+							alignTo={() => props.errorAction === "rename" ? renameInput() : createInputRow()} />
+					</Show>
 					<div class={cx(styles.content, props.vaults.length > 0 && styles.contentWithVaults)}>
 						<Show when={props.vaults.length > 0}>
 							<div class={styles.overview}>
@@ -217,7 +224,7 @@ const VaultDialog: Component<Props> = (props) => {
 						</Show>
 						<div class={props.vaults.length > 0 ? styles.listPanel : undefined}>
 							<form class={styles.form} onSubmit={submit}>
-								<div class={styles.createInputRow}>
+								<div ref={setCreateInputRow} class={styles.createInputRow}>
 									<input
 										class={styles.input}
 										autofocus
@@ -237,15 +244,6 @@ const VaultDialog: Component<Props> = (props) => {
 										<Icon name="add" size={18} />
 									</button>
 								</div>
-								<Show
-									when={
-										props.error && (props.errorAction === "create" || props.errorAction === "load")
-									}
-								>
-									<p class={styles.error} role="alert">
-										{props.error && props.t(props.error)}
-									</p>
-								</Show>
 								<Show when={props.errorAction === "load"}>
 									<button
 										class={styles.cancel}
@@ -319,6 +317,7 @@ const VaultDialog: Component<Props> = (props) => {
 														onSubmit={(event) => void submitRename(event, vault)}
 													>
 														<input
+															ref={setRenameInput}
 															class={styles.renameInput}
 															maxLength={64}
 															value={editingName()}
@@ -362,8 +361,7 @@ const VaultDialog: Component<Props> = (props) => {
 							props.vaults.length > 0 ||
 							Boolean(
 								props.error &&
-								(props.errorAction === "rename" ||
-									props.errorAction === "select" ||
+								(props.errorAction === "select" ||
 									props.errorAction === "notice"),
 							)
 						}
@@ -372,8 +370,7 @@ const VaultDialog: Component<Props> = (props) => {
 							<Show
 								when={
 									props.error &&
-									(props.errorAction === "rename" ||
-										props.errorAction === "select" ||
+									(props.errorAction === "select" ||
 										props.errorAction === "notice")
 								}
 							>

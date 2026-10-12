@@ -36,9 +36,9 @@ const NoteEditor: Component<NoteEditorProps> = (props) => {
 						aria-label={props.t("noteTitle")}
 					/>
 				</Show>
-				<Show when={editor.titleError()}>
+				<Show when={editor.visibleTitleError()}>
 					<span class={styles.titleError} role="alert">
-						{editor.titleError()}
+						{editor.visibleTitleError()}
 					</span>
 				</Show>
 			</div>

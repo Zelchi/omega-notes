@@ -63,7 +63,6 @@ const DynamicGraph: Component<GraphCanvasProps> = (props) => {
 				</div>;
 			}}</For>
 		</div>
-		<Show when={!props.notes.length}><p class={styles.empty}>{props.t("emptyDynamicCanvas")}</p></Show>
 		<Show when={!props.hideCanvasControls}>
 			<div class={styles.controls} onPointerDown={(event) => event.stopPropagation()}>
 				<Show when={props.mode === "edit"}>

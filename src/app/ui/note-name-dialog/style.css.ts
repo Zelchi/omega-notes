@@ -14,6 +14,7 @@ export const styles = {
 	}),
 	dialog: style({
 		...motion.dialog,
+		position: "relative",
 		display: "grid",
 		width: "min(360px, 100%)",
 		gap: 17,
@@ -39,7 +40,6 @@ export const styles = {
 		outline: "none",
 		selectors: { "&::placeholder": { color: "var(--subtle)" } },
 	}),
-	error: style({ marginTop: -10, color: "var(--danger, #d86b6b)", fontSize: 11, lineHeight: 1.4 }),
 	actions: style({ display: "flex", justifyContent: "flex-end", gap: 7 }),
 	action: style({
 		minHeight: 32,

@@ -1,4 +1,5 @@
-import { createEffect, createMemo, onCleanup, Show, type Component } from "solid-js";
+import { createEffect, createMemo, createUniqueId, onCleanup, Show, type Component } from "solid-js";
+import ModalError from "@/shared/ui/modal-error";
 import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import type { TranslationKey } from "@/shared/lib/i18n";
@@ -18,6 +19,7 @@ type Props = {
 
 const NoteNameDialog: Component<Props> = (props) => {
 	let titleInput: HTMLInputElement | undefined;
+	const errorId = createUniqueId();
 	const presence = createPresence(() => Boolean(props.mode), 210);
 	const displayedMode = createMemo<Props["mode"]>((previous) => props.mode ?? previous);
 
@@ -47,6 +49,7 @@ const NoteNameDialog: Component<Props> = (props) => {
 					aria-labelledby="note-name-heading"
 					onSubmit={(event) => void props.onSubmit(event)}
 				>
+					<ModalError id={errorId} message={props.error} />
 					<h2 class={styles.title} id="note-name-heading">
 						{props.t(displayedMode() === "create" ? "newNote" : "renameNote")}
 					</h2>
@@ -57,13 +60,10 @@ const NoteNameDialog: Component<Props> = (props) => {
 						onInput={(event) => props.onTitleChange(event.currentTarget.value)}
 						placeholder={props.t("noteName")}
 						aria-label={props.t("noteName")}
+						aria-invalid={Boolean(props.error) || undefined}
+						aria-describedby={props.error ? errorId : undefined}
 						disabled={props.saving}
 					/>
-					<Show when={props.error}>
-						<p class={styles.error} role="alert">
-							{props.error}
-						</p>
-					</Show>
 					<div class={styles.actions}>
 						<button
 							class={cx(styles.action, styles.cancel)}
