@@ -29,7 +29,7 @@ export const useVaults = () => {
 	const [activeVaultId, setActiveVaultId] = createSignal<string>();
 	const [dialogOpen, setDialogOpen] = createSignal(false);
 	const [saving, setSaving] = createSignal(false);
-	const [error, setError] = createSignal<TranslationKey>();
+	const [error, setError] = createSignal<TranslationKey | undefined>(undefined, { equals: false });
 	const [errorAction, setErrorAction] = createSignal<VaultErrorAction>();
 
 	const clearError = (): void => {

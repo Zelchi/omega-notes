@@ -14,6 +14,7 @@ export const styles = {
 	}),
 	dialog: style({
 		...motion.dialog,
+		position: "relative",
 		display: "grid",
 		width: "min(360px, 100%)",
 		gap: 15,
@@ -26,6 +27,7 @@ export const styles = {
 	}),
 	dialogWithVaults: style({
 		...motion.dialog,
+		position: "relative",
 		display: "grid",
 		width: "min(720px, 100%)",
 		height: "min(580px, calc(100vh - 40px))",

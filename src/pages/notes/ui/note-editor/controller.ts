@@ -17,12 +17,21 @@ export const useNoteEditorController = (props: NoteEditorProps) => {
 	const [positioningElement, setPositioningElement] = createSignal(false);
 	const [titleDraft, setTitleDraft] = createSignal(props.note.title);
 	const [titleError, setTitleError] = createSignal<string>();
+	const [titleErrorVisible, setTitleErrorVisible] = createSignal(false);
 	const [savingTitle, setSavingTitle] = createSignal(false);
 	const [titleFontSize, setTitleFontSize] = createSignal(46);
 	const noteTitle = createMemo(() => props.note.title);
 	let headingElement!: HTMLDivElement;
 	let measureElement!: HTMLSpanElement;
 	let fitFrame = 0;
+
+	createEffect(() => {
+		const error = titleError();
+		setTitleErrorVisible(Boolean(error));
+		if (!error) return;
+		const timer = setTimeout(() => setTitleErrorVisible(false), 3000);
+		onCleanup(() => clearTimeout(timer));
+	});
 
 	const fitTitle = () => {
 		const availableWidth = headingElement.clientWidth;
@@ -154,6 +163,7 @@ export const useNoteEditorController = (props: NoteEditorProps) => {
 		positioningElement,
 		titleDraft,
 		titleError,
+		visibleTitleError: () => titleErrorVisible() ? titleError() : undefined,
 		savingTitle,
 		titleFontSize,
 		setHeadingElement: (element: HTMLDivElement) => (headingElement = element),

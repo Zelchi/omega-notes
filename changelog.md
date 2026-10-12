@@ -1,5 +1,19 @@
 # Histórico de atualizações
 
+## v0.1.9
+
+### Interface
+
+- Erros ao criar ou renomear notas e vaults aparecem em uma caixa acima do modal, sem deslocar o formulário.
+- Avisos com texto vermelho centralizado, borda padrão e duração de 1,5 segundo; o mesmo erro reaparece a cada nova ocorrência.
+- No gerenciador de vaults, a caixa acompanha a região do campo de nome. Ao criar, inclui também a largura do botão de adição.
+- O erro do título dentro de uma nota mantém seu formato e desaparece após 3 segundos.
+
+### Canvas
+
+- Mensagem central nos canvases Estático e Dinâmico vazios orienta clicar para criar a primeira nota e começar as anotações.
+- No modo de leitura, a mensagem orienta ativar a edição antes de criar uma nota.
+
 ## v0.1.8
 
 ### Windows
