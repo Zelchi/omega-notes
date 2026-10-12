@@ -27,7 +27,6 @@ export const exportNotePdf = async (root: HTMLElement, title: string, mediaLabel
 	pdf.setProperties({ title, creator: "Ômega Notes" });
 	for (let offset = 0; offset < height;) {
 		let end = Math.min(offset + pageHeight, height);
-		// Move a break above text that would straddle two PDF pages.
 		while (end < height) {
 			const crossing = lines.filter((line) => line.top < end && line.bottom > end);
 			if (!crossing.length) break;
@@ -45,8 +44,10 @@ export const exportNotePdf = async (root: HTMLElement, title: string, mediaLabel
 				for (const type of ["audio", "video"] as const) {
 					for (const media of clonedRoot.querySelectorAll<HTMLElement>(`[data-omega-element="${type}"]`)) {
 						media.textContent = mediaLabels[type];
-						Object.assign(media.style, { display: "flex", alignItems: "center", justifyContent: "center",
-							background: "#f5f5f5", color: "#555", border: "1px solid #ccc", fontSize: "12px" });
+						Object.assign(media.style, {
+							display: "flex", alignItems: "center", justifyContent: "center",
+							background: "#f5f5f5", color: "#555", border: "1px solid #ccc", fontSize: "12px"
+						});
 					}
 				}
 				for (const element of clonedRoot.querySelectorAll<HTMLElement>("*")) {
