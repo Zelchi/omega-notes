@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag existente, por exemplo v0.1.0'
+        description: 'Tag existente, por exemplo v0.1.1'
         required: true
         type: string
 
@@ -46,6 +46,15 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const tag = process.env.RELEASE_TAG;
+            const changelog = require('node:fs').readFileSync('CHANGELOG.md', 'utf8');
+            const heading = `## ${tag}`;
+            const lines = changelog.split(/\r?\n/);
+            const start = lines.indexOf(heading);
+            if (start < 0) throw new Error(`Notas de atualização ausentes para ${tag}.`);
+            const next = lines.findIndex((line, index) => index > start && line.startsWith('## '));
+            const notes = lines.slice(start + 1, next < 0 ? undefined : next).join('\n').trim();
+            if (!notes) throw new Error(`Notas de atualização vazias para ${tag}.`);
+            const body = `${notes}\n\n---\n\nWindows 10/11: instalador .exe. Ubuntu: pacote .deb. Fedora: pacote .rpm. Arquitetura x64.`;
             let release;
             try {
               release = (await github.rest.repos.getReleaseByTag({ owner, repo, tag })).data;
@@ -57,8 +66,10 @@ jobs:
               release = (await github.rest.repos.createRelease({
                 owner, repo, tag_name: tag, name: `Ômega Notes ${tag}`,
                 draft: true, prerelease: false,
-                body: 'Windows 10/11: instalador .exe. Ubuntu: pacote .deb. Fedora: pacote .rpm. Arquitetura x64.',
+                body,
               })).data;
+            } else {
+              await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, body });
             }
             return release.id;
 

@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 const repository = process.env.GITHUB_REPOSITORY;
 const tag = process.env.RELEASE_TAG;
 if (!repository || !/^[\w.-]+\/[\w.-]+$/.test(repository)) throw new Error("GITHUB_REPOSITORY deve usar o formato dono/repositorio.");
-if (!tag || !/^v\d+\.\d+\.\d+$/.test(tag)) throw new Error("RELEASE_TAG deve usar o formato v0.1.0.");
+if (!tag || !/^v\d+\.\d+\.\d+$/.test(tag)) throw new Error("RELEASE_TAG deve usar o formato v0.1.1.");
 const packageJson = JSON.parse(await readFile("package.json", "utf8"));
 const config = JSON.parse(await readFile("tauri/tauri.conf.json", "utf8"));
 const cargo = await readFile("tauri/Cargo.toml", "utf8");
