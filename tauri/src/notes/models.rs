@@ -49,6 +49,8 @@ pub(crate) enum NoteElement {
         height: f64,
         text: String,
         alignment: TextAlignment,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        paragraph_alignments: Vec<TextAlignment>,
     },
     Image {
         id: String,

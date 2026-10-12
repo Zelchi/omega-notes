@@ -1,6 +1,7 @@
 export { useNotes } from "./model/notes-library";
 export type { NotesLibrary } from "./model/notes-library";
 export { parseNoteTextLinks, type NoteTextLink } from "./model/text-links";
+export { paragraphStarts, paragraphIndexAt, remapParagraphAlignments } from "./model/text-alignment";
 
 export type { NoteLoadIssue, StudyNote } from "./model/note";
 export {

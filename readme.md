@@ -28,6 +28,10 @@ No Ômega Notes, suas notas aparecem como bolhas em um **canvas**. Você pode
 movê-las, aproximar assuntos relacionados e navegar com zoom. As referências entre
 notas aparecem como conexões, ajudando a visualizar como os conteúdos se relacionam.
 
+No modo de edição, arraste com o botão esquerdo numa área vazia para selecionar
+várias notas e movê-las juntas. Use Ctrl ou Shift para ajustar a seleção e Escape
+para desfazê-la. Arraste com o botão direito numa área vazia para mover o canvas.
+
 Clique em uma bolha para abrir a nota e volte ao canvas quando quiser ver o conjunto.
 
 ## Escreva do seu jeito
@@ -38,7 +42,7 @@ o conteúdo.
 - **Títulos de H1 a H6** para organizar assuntos e seções.
 - **Negrito e itálico** para destacar trechos.
 - **Separadores** para dividir o conteúdo.
-- **Alinhamento à esquerda, ao centro, à direita ou justificado.**
+- **Alinhamento por parágrafo:** à esquerda, ao centro, à direita ou justificado. Sem seleção, a mudança vale para o parágrafo do cursor; com seleção, vale para os parágrafos selecionados.
 - **Salvamento automático** durante a edição.
 
 Você também pode conectar uma nota a outra usando referências no texto:

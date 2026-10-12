@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { StudyNote } from "@/entities/note";
-import type { ContextMenu, Gesture, PendingMove, Point, View } from "./types";
+import type { ContextMenu, Gesture, PendingMove, Point, SelectionBox, View } from "./types";
 import { defaultPosition, graphEdgePath, graphEdges, HOME_HEIGHT, HOME_WIDTH, nodeSize } from "../../lib/graph";
 import { readGraphState, saveGraphState as persistGraphState } from "../../api/graph.repository";
 import type { GraphCanvasProps } from "./types";
@@ -11,6 +11,8 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	const [view, setView] = createSignal<View>(storedState.view ?? { x: 0, y: 0, scale: 1 });
 	const [contextMenu, setContextMenu] = createSignal<ContextMenu>();
 	const [createdNoteId, setCreatedNoteId] = createSignal<string>();
+	const [selectedIds, setSelectedIds] = createSignal<Set<string>>(new Set<string>());
+	const [selectionBox, setSelectionBox] = createSignal<SelectionBox>();
 	let creationTimer: ReturnType<typeof setTimeout> | undefined;
 	let disposed = false;
 	const edges = createMemo(() => graphEdges(props.notes));
@@ -58,6 +60,17 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		});
 
 		if (changed) setPositions(next);
+		setSelectedIds((current) => {
+			const retained = new Set([...current].filter((id) => activeIds.has(id)));
+			return retained.size === current.size ? current : retained;
+		});
+	});
+
+	createEffect(() => {
+		if (props.mode === "edit") return;
+		setSelectedIds(new Set<string>());
+		setSelectionBox(undefined);
+		gesture = undefined;
 	});
 
 	onCleanup(() => {
@@ -100,39 +113,66 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 				setContextMenu(undefined);
 		};
 		const closeOnEscape = (event: KeyboardEvent) => {
-			if (event.key === "Escape" && contextMenu()) setContextMenu(undefined);
+			if (event.key !== "Escape" || (!contextMenu() && !selectedIds().size && !gesture)) return;
+			if (Array.from(document.querySelectorAll('[aria-modal="true"]')).some((dialog) => !dialog.closest("[inert]"))) return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			if (gesture?.moved && gesture.kind !== "selection") saveGraphState();
+			gesture = undefined;
+			setSelectionBox(undefined);
+			setSelectedIds(new Set<string>());
+			setContextMenu(undefined);
 		};
 		addEventListener("pointerdown", closeOnOutsidePointer);
-		addEventListener("keydown", closeOnEscape);
+		addEventListener("keydown", closeOnEscape, true);
 		onCleanup(() => {
 			removeEventListener("pointerdown", closeOnOutsidePointer);
-			removeEventListener("keydown", closeOnEscape);
+			removeEventListener("keydown", closeOnEscape, true);
 		});
 	});
 
 	const beginPan = (event: PointerEvent & { currentTarget: HTMLElement }): void => {
-		if (event.button !== 0 && event.button !== 2) return;
+		if (gesture || (event.button !== 0 && event.button !== 1 && event.button !== 2)) return;
 		event.preventDefault();
 		setContextMenu(undefined);
 		event.currentTarget.setPointerCapture(event.pointerId);
 		const currentView = view();
+		const selecting = event.button === 0 && props.mode === "edit" && event.pointerType !== "touch";
+		const rect = getBoard().getBoundingClientRect();
+		const nodeSizes = new Map(selecting
+			? Array.from(getBoard().querySelectorAll<HTMLButtonElement>("[data-note-id]"), (element) =>
+				[element.dataset.noteId!, { width: element.offsetWidth, height: element.offsetHeight }] as const)
+			: []);
 		gesture = {
 			pointerId: event.pointerId,
-			kind: "pan",
+			kind: selecting ? "selection" : "pan",
 			startX: event.clientX,
 			startY: event.clientY,
 			originX: currentView.x,
 			originY: currentView.y,
 			button: event.button,
+			selection: selecting ? {
+				baseline: new Set(selectedIds()),
+				additive: event.ctrlKey || event.metaKey || event.shiftKey,
+				boardLeft: rect.left,
+				boardTop: rect.top,
+				scale: currentView.scale,
+				bounds: props.notes.map((note, index) => {
+					const size = nodeSizes.get(note.id) ?? nodeSize(note);
+					const point = positions()[note.id] ?? defaultPosition(index, props.notes.length, nodeSize(note));
+					return { id: note.id, left: point.x, top: point.y, right: point.x + size.width, bottom: point.y + size.height };
+				}),
+			} : undefined,
 			moved: false,
 		};
 	};
 
 	const beginNodeDrag = (event: PointerEvent & { currentTarget: HTMLButtonElement }, note: StudyNote): void => {
-		if (event.button === 2) {
+		if (gesture) return;
+		if (event.button === 2 || event.button === 1) {
 			event.preventDefault();
 			event.stopPropagation();
-			if (props.mode === "view") beginPan(event);
+			if (props.mode === "view" || event.button === 1) beginPan(event);
 			else openContextMenu(event, note);
 			return;
 		}
@@ -140,16 +180,28 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		event.stopPropagation();
 		setContextMenu(undefined);
 		if (props.mode === "view") return;
+		if (event.ctrlKey || event.metaKey || event.shiftKey) {
+			setSelectedIds((current) => {
+				const next = new Set(current);
+				if (next.has(note.id)) next.delete(note.id);
+				else next.add(note.id);
+				return next;
+			});
+			return;
+		}
+		if (!selectedIds().has(note.id)) setSelectedIds(new Set([note.id]));
 		event.currentTarget.setPointerCapture(event.pointerId);
-		const point = positions()[note.id] ?? defaultPosition(0, props.notes.length, nodeSize(note));
+		const nodeOrigins = Object.fromEntries(props.notes.flatMap((item, index) =>
+			selectedIds().has(item.id) ? [[item.id, positions()[item.id] ?? defaultPosition(index, props.notes.length, nodeSize(item))]] : [],
+		));
 		gesture = {
 			pointerId: event.pointerId,
 			kind: "node",
-			nodeId: note.id,
+			nodeOrigins,
 			startX: event.clientX,
 			startY: event.clientY,
-			originX: point.x,
-			originY: point.y,
+			originX: 0,
+			originY: 0,
 			button: event.button,
 			moved: false,
 		};
@@ -167,13 +219,36 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			return;
 		}
 
-		const nodeId = active.nodeId;
-		if (!nodeId || props.mode !== "edit") return;
+		if (!active.moved) return;
+		if (active.kind === "selection" && active.selection) {
+			const selection = active.selection;
+			const left = Math.min(active.startX, move.clientX);
+			const top = Math.min(active.startY, move.clientY);
+			const right = Math.max(active.startX, move.clientX);
+			const bottom = Math.max(active.startY, move.clientY);
+			setSelectionBox({ x: left - selection.boardLeft, y: top - selection.boardTop, width: right - left, height: bottom - top });
+			// Hit testing uses the same world coordinates as positioning and connections.
+			// Transient animations and browser paint bounds must not change selection.
+			const worldLeft = (left - selection.boardLeft - active.originX) / selection.scale;
+			const worldTop = (top - selection.boardTop - active.originY) / selection.scale;
+			const worldRight = (right - selection.boardLeft - active.originX) / selection.scale;
+			const worldBottom = (bottom - selection.boardTop - active.originY) / selection.scale;
+			const next = selection.additive ? new Set(selection.baseline) : new Set<string>();
+			for (const bounds of selection.bounds) {
+				if (bounds.left <= worldRight && bounds.right >= worldLeft && bounds.top <= worldBottom && bounds.bottom >= worldTop) next.add(bounds.id);
+			}
+			setSelectedIds(next);
+			return;
+		}
+		if (!active.nodeOrigins || props.mode !== "edit") return;
 		const scale = view().scale;
-		setPositions((current) => ({
-			...current,
-			[nodeId]: { x: active.originX + dx / scale, y: active.originY + dy / scale },
-		}));
+		setPositions((current) => {
+			const next = { ...current };
+			for (const [id, origin] of Object.entries(active.nodeOrigins!)) {
+				if (current[id]) next[id] = { x: origin.x + dx / scale, y: origin.y + dy / scale };
+			}
+			return next;
+		});
 	};
 
 	const flushPendingMove = (pointerId: number): void => {
@@ -199,16 +274,22 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 
 	const endGesture = (event: PointerEvent): void => {
 		if (!gesture || gesture.pointerId !== event.pointerId) return;
+		pendingMove = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY };
 		flushPendingMove(event.pointerId);
 		const finished = gesture;
 		gesture = undefined;
+		setSelectionBox(undefined);
 
 		if (finished.moved) {
 			suppressClickUntil = Date.now() + 200;
-			saveGraphState();
+			if (finished.kind !== "selection") saveGraphState();
 			return;
 		}
-		if (finished.kind !== "pan" || finished.button === 2 || props.mode === "view") return;
+		if (finished.kind === "selection") {
+			if (finished.selection?.additive) return;
+			setSelectedIds(new Set<string>());
+			if (finished.selection?.baseline.size) return;
+		} else if (finished.kind !== "pan" || finished.button !== 0 || props.mode === "view") return;
 
 		const rect = getBoard().getBoundingClientRect();
 		const currentView = view();
@@ -232,11 +313,14 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	const cancelGesture = (event: PointerEvent): void => {
 		if (!gesture || gesture.pointerId !== event.pointerId) return;
 		flushPendingMove(event.pointerId);
-		if (gesture.moved) saveGraphState();
+		if (gesture.kind === "selection") setSelectedIds(gesture.selection?.baseline ?? new Set<string>());
+		else if (gesture.moved) saveGraphState();
 		gesture = undefined;
+		setSelectionBox(undefined);
 	};
 
 	const zoomTo = (scale: number, anchorX: number, anchorY: number): void => {
+		if (gesture) return;
 		const current = view();
 		const nextScale = Math.max(0.55, Math.min(1.5, scale));
 		const worldX = (anchorX - current.x) / current.scale;
@@ -276,6 +360,8 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 
 	return {
 		createdNoteId,
+		selectedIds,
+		selectionBox,
 		positions,
 		view,
 		contextMenu,
@@ -292,7 +378,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		zoomWithWheel,
 		zoomBy,
 		openContextMenu,
-		shouldIgnoreClick: () => Date.now() < suppressClickUntil,
+		shouldIgnoreClick: (event: MouseEvent) => Date.now() < suppressClickUntil || (props.mode === "edit" && (event.ctrlKey || event.metaKey || event.shiftKey || selectedIds().size > 1)),
 		clearContextMenu: () => setContextMenu(undefined),
 	};
 };

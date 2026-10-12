@@ -14,7 +14,7 @@ type EditableTextLayout = {
 };
 
 export const syncEditableTextDom = (root: HTMLElement, layout: EditableTextLayout): HTMLSpanElement | undefined => {
-	const fragments = layout.fragments ?? [
+	const fragments: TextFlowFragment[] = layout.fragments ?? [
 		{ start: 0, end: layout.text.length, text: layout.text, left: 0, top: 0, width: layout.width },
 	];
 	const existing = [...root.children].filter(
@@ -29,7 +29,9 @@ export const syncEditableTextDom = (root: HTMLElement, layout: EditableTextLayou
 		node.style.left = `${layout.x + fragment.left}px`;
 		node.style.top = `${layout.y + fragment.top}px`;
 		node.style.width = `${fragment.width}px`;
-		node.style.textAlignLast = layout.alignment === "justify" ? "justify" : "auto";
+		const alignment = fragment.alignment ?? layout.alignment;
+		node.style.textAlign = alignment;
+		node.style.textAlignLast = alignment === "justify" && !fragment.paragraphEnd ? "justify" : "auto";
 		const text = !layout.fragments && fragment.text.endsWith("\n")
 			? `${fragment.text}${EMPTY_CHARACTER}`
 			: fragment.text || EMPTY_CHARACTER;

@@ -110,6 +110,8 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 									renderText={renderText}
 									onChange={editor.updateText}
 									onFormattingReady={editor.setTextFormatHandler}
+									onAlignmentReady={editor.setTextAlignmentHandler}
+									onSelectionAlignmentChange={editor.setTextAlignment}
 								/>
 							</Show>
 						);

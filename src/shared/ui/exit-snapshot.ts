@@ -30,7 +30,7 @@ export const animateExitSnapshot = (
 	Object.assign(snapshot.style, {
 		position: "fixed", left: `${bounds.left}px`, top: `${bounds.top}px`,
 		right: "auto", bottom: "auto", width: `${width}px`, height: `${height}px`,
-		maxWidth: "none", maxHeight: "none", margin: "0", transform: "none",
+		maxWidth: "none", maxHeight: "none", margin: "0", transform: "none", translate: "none",
 		transformOrigin: "top left", pointerEvents: "none", zIndex: kind === "card" ? "4" : getComputedStyle(element).zIndex,
 	});
 	document.body.append(snapshot);

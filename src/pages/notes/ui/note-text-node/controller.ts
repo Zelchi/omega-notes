@@ -1,5 +1,7 @@
 import { batch, createEffect, createMemo, createSignal, onCleanup, onMount, untrack, type Accessor, type JSX } from "solid-js";
-import type { NotePositionedElement, NoteTextElement, StudyNote } from "@/entities/note";
+import { paragraphStarts, paragraphIndexAt, remapParagraphAlignments,
+	type NotePositionedElement, type NoteTextElement, type NoteTextAlignment, type StudyNote } from "@/entities/note";
+import { alignParagraphSelection, selectionAlignment, type ParagraphAlignmentHandler } from "@/features/align-text";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { useNoteLinkSuggestions } from "@/features/suggest-note-link";
 import { useClickableNoteLinks } from "@/features/follow-note-link";
@@ -34,6 +36,8 @@ export type NoteTextNodeProps = {
 	locked?: boolean;
 	renderText: (text: string, format?: FormattedFragment) => JSX.Element;
 	onFormattingReady?: (handler: TextFormatHandler | undefined) => void;
+	onAlignmentReady?: (handler: ParagraphAlignmentHandler | undefined) => void;
+	onSelectionAlignmentChange?: (alignment: NoteTextAlignment | undefined) => void;
 	onChange: (element: NoteTextElement) => void;
 };
 
@@ -171,10 +175,15 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	let contentHeightObserver: ResizeObserver | undefined;
 	let enteredNoteId: string | undefined;
 	let enteredEditable: boolean | undefined;
-	const hasPositionedElements = createMemo(() => props.wraps().length > 0);
+	const hasTextFragments = createMemo(() => props.wraps().length > 0 || Boolean(props.element().paragraphAlignments?.length));
 	const measureCaret = (): void => {
 		const root = contentRoot();
 		const selection = getSelection();
+		if (props.editable && root && document.activeElement === root && selection?.anchorNode && selection.focusNode &&
+			root.contains(selection.anchorNode) && root.contains(selection.focusNode)) {
+			rememberedSelection = selectionOffsets();
+			props.onSelectionAlignmentChange?.(selectionAlignment({ ...props.element(), text: draft() }, rememberedSelection));
+		}
 		if (
 			!props.editable ||
 			!root?.isContentEditable ||
@@ -264,7 +273,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			if (observedNaturalTextNode) contentHeightObserver?.unobserve(observedNaturalTextNode);
 			observedNaturalTextNode = node;
 		}
-		if (node && !hasPositionedElements()) contentHeightObserver?.observe(node);
+		if (node && !hasTextFragments()) contentHeightObserver?.observe(node);
 	};
 	const measureText = (value: string): number => {
 		const cached = measureCache.get(value);
@@ -329,7 +338,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 
 	const layout = createMemo<TextFlowLayout>(() => {
 		const currentMetrics = metrics();
-		if (!hasPositionedElements()) {
+		if (!hasTextFragments()) {
 			return {
 				fragments: [],
 				lineCount: 1,
@@ -341,6 +350,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 				text: draft(), x: x(), y: y(), width: width(), lineHeight: currentMetrics.lineHeight,
 				elements: props.wraps(), imageMargin: IMAGE_TEXT_MARGIN,
 				measureRun: measureFormattedRun, displayText,
+				alignment: alignment(), paragraphAlignments: props.element().paragraphAlignments,
 			});
 			return { ...formatted, height: Math.max(formatted.height, height()) };
 		}
@@ -356,8 +366,15 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			displayText: (value) => (props.editable ? value : displayText(value)),
 			imageMargin: IMAGE_TEXT_MARGIN,
 		});
+		const starts = paragraphStarts(draft());
 		return {
 			...currentLayout,
+			fragments: currentLayout.fragments.map((fragment) => {
+				const paragraph = paragraphIndexAt(starts, fragment.start);
+				const end = starts[paragraph + 1] ?? draft().length;
+				return { ...fragment, alignment: props.element().paragraphAlignments?.[paragraph] ?? alignment(),
+					paragraphEnd: fragment.end >= end };
+			}),
 			height: Math.max(currentLayout.height, height()),
 		};
 	});
@@ -385,7 +402,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			y: y(),
 			width: width(),
 			alignment: alignment(),
-			fragments: hasPositionedElements() ? layout().fragments : undefined,
+			fragments: hasTextFragments() ? layout().fragments : undefined,
 			naturalClass: styles.naturalFragment,
 			fragmentClass: styles.fragment,
 		};
@@ -423,7 +440,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		addEventListener("resize", handleViewportChange);
 		contentHeightObserver = new ResizeObserver(() => {
 			scheduleCaretMeasure();
-			if (!naturalTextNode || hasPositionedElements()) return;
+			if (!naturalTextNode || hasTextFragments()) return;
 			props.onHeightChange?.(
 				y() + Math.max(naturalTextNode.getBoundingClientRect().height, metrics().lineHeight),
 			);
@@ -511,7 +528,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	});
 
 	createEffect(() => {
-		const hasWraps = hasPositionedElements();
+		const hasWraps = hasTextFragments();
 		const pageY = y();
 		const naturalNode = naturalTextNode;
 		if (!contentRoot()) return;
@@ -537,7 +554,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	});
 
 	createEffect(() => {
-		if (!hasPositionedElements()) return;
+		if (!hasTextFragments()) return;
 		layout();
 		contentRoot();
 		if (measurementFrame !== undefined) cancelAnimationFrame(measurementFrame);
@@ -589,7 +606,8 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		scheduleCaretMeasure();
 	});
 
-	const emitText = (text: string, caret?: number): void => {
+	const emitText = (text: string, caret?: number, change?: { start: number; end: number; length: number }): void => {
+		const paragraphAlignments = remapParagraphAlignments(draft(), text, props.element().paragraphAlignments, alignment(), change);
 		if (caretFrame !== undefined) cancelAnimationFrame(caretFrame);
 		caretFrame = undefined;
 		setDraft(text);
@@ -606,7 +624,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 				scheduleCaretMeasure();
 			}
 		}
-		if (text !== props.element().text) props.onChange({ ...props.element(), text });
+		if (text !== props.element().text) props.onChange({ ...props.element(), text, paragraphAlignments });
 	};
 
 	const selectionOffsets = (): { start: number; end: number } => {
@@ -632,10 +650,10 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	): void => {
 		const { start, end } = range;
 		const rawValue = contentRoot()?.textContent ?? draft();
-		const value = hasPositionedElements() ? rawValue.replaceAll(EMPTY_CHARACTER, "") : stripEmptyCharacter(rawValue);
+		const value = hasTextFragments() ? rawValue.replaceAll(EMPTY_CHARACTER, "") : stripEmptyCharacter(rawValue);
 		const normalizedReplacement = replacement.replaceAll(EMPTY_CHARACTER, "");
 		const next = value.slice(0, start) + normalizedReplacement + value.slice(end);
-		emitText(next, start + normalizedReplacement.length);
+		emitText(next, start + normalizedReplacement.length, { start, end, length: normalizedReplacement.length });
 	};
 	const linkSuggestions = useNoteLinkSuggestions({
 		notes: () => props.notes,
@@ -664,7 +682,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		const root = contentRoot();
 		if (!root) return;
 		const rawText = root.textContent ?? "";
-		const text = hasPositionedElements() ? rawText.replaceAll(EMPTY_CHARACTER, "") : stripEmptyCharacter(rawText);
+		const text = hasTextFragments() ? rawText.replaceAll(EMPTY_CHARACTER, "") : stripEmptyCharacter(rawText);
 		const selection = getSelection();
 		const caret =
 			preserveCaret && !text
@@ -834,7 +852,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		const root = contentRoot();
 		if (!root?.isContentEditable) return;
 
-		if (hasPositionedElements()) {
+		if (hasTextFragments()) {
 			const bounds = textSurface.getBoundingClientRect();
 			const pageX = event.clientX - bounds.left;
 			const pageY = event.clientY - bounds.top;
@@ -931,10 +949,32 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		if (anchor && focus && selection) selection.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
 		rememberedSelection = result.selection;
 	};
+	const applyAlignment: ParagraphAlignmentHandler = (value) => {
+		const root = contentRoot();
+		if (!props.editable || !root || composing) return;
+		const selection = getSelection();
+		const range = document.activeElement === root && selection?.anchorNode && selection.focusNode &&
+			root.contains(selection.anchorNode) && root.contains(selection.focusNode)
+			? selectionOffsets() : rememberedSelection ?? { start: draft().length, end: draft().length };
+		flushInput(false);
+		const next = alignParagraphSelection({ ...props.element(), text: draft() }, range, value);
+		props.onChange(next);
+		syncEditableContent();
+		const anchor = findTextPosition(root, range.start);
+		const focus = findTextPosition(root, range.end);
+		root.focus({ preventScroll: true });
+		if (selection && anchor && focus) selection.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
+		rememberedSelection = range;
+		props.onSelectionAlignmentChange?.(value);
+		scheduleCaretMeasure();
+	};
+
 	onMount(() => props.onFormattingReady?.(applyFormatting));
+	onMount(() => props.onAlignmentReady?.(applyAlignment));
 
 	onCleanup(() => {
 		props.onFormattingReady?.(undefined);
+		props.onAlignmentReady?.(undefined);
 		if (caretFrame !== undefined) cancelAnimationFrame(caretFrame);
 		if (caretRenderFrame !== undefined) cancelAnimationFrame(caretRenderFrame);
 		if (noteEntryFrame !== undefined) cancelAnimationFrame(noteEntryFrame);
@@ -949,7 +989,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		caretAnchor,
 		linkSuggestions,
 		clickableLinks,
-		hasPositionedElements,
+		hasTextFragments,
 		x,
 		y,
 		width,

@@ -13,7 +13,7 @@ import type { TextFormat } from "@/features/format-text";
 type Props = {
 	exiting?: boolean;
 	t: (key: TranslationKey) => string;
-	alignment: NoteTextAlignment;
+	alignment: NoteTextAlignment | undefined;
 	onAttachMedia: () => void;
 	onAlignmentChange: (alignment: NoteTextAlignment) => void;
 	onFormat: (format: TextFormat) => void;
@@ -41,7 +41,7 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 	const displayedPanel = createMemo<"headings" | "alignment" | undefined>((previous) => activePanel() ?? previous);
 	const panel = createPresence(() => Boolean(activePanel()) && !props.exiting, 220);
 	const panelId = createUniqueId();
-	const alignmentIcon = () => alignmentButtons.find((button) => button.value === props.alignment)?.icon ?? "alignLeft";
+	const alignmentIcon = () => alignmentButtons.find((button) => button.value === props.alignment)?.icon ?? "alignMixed";
 	let exitStarted = false;
 	createRenderEffect(() => {
 		exitStarted = Boolean(props.exiting);
@@ -127,7 +127,8 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 				if (event.key !== "ArrowUp") return;
 				event.preventDefault();
 				setActivePanel("alignment");
-				queueMicrotask(() => panelRoot?.querySelector("button[aria-pressed='true']")?.closest<HTMLButtonElement>("button")?.focus());
+				queueMicrotask(() => (panelRoot?.querySelector<HTMLButtonElement>("button[aria-pressed='true']") ??
+					panelRoot?.querySelector<HTMLButtonElement>("button"))?.focus());
 			}}><Icon name={alignmentIcon()} size={17} /></button>
 		<span class={styles.divider} aria-hidden="true" />
 		<button ref={headingButton} class={cx(styles.button, activePanel() === "headings" && styles.activeButton)} type="button"

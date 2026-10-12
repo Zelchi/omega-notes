@@ -11,6 +11,7 @@ export type NoteTextElement = {
 	height: number;
 	text: string;
 	alignment: NoteTextAlignment;
+	paragraphAlignments?: NoteTextAlignment[];
 };
 
 export type NoteImageElement = {

@@ -1,5 +1,5 @@
 import { parseFormattedText, sliceTextRuns, headingScales, type TextRun } from "@/features/format-text";
-import type { NotePositionedElement } from "@/entities/note";
+import type { NotePositionedElement, NoteTextAlignment } from "@/entities/note";
 import { layoutTextFlow, type TextFlowFragment, type TextFlowLayout } from "./text-flow-layout";
 
 type Options = {
@@ -12,13 +12,15 @@ type Options = {
 	imageMargin: number;
 	measureRun: (run: TextRun, scale: number, heading: boolean) => number;
 	displayText: (text: string) => string;
+	paragraphAlignments?: NoteTextAlignment[];
+	alignment?: NoteTextAlignment;
 };
 
 export const layoutFormattedText = (options: Options): TextFlowLayout => {
 	const fragments: TextFlowFragment[] = [];
 	let top = 0;
 	let lineCount = 0;
-	for (const block of parseFormattedText(options.text)) {
+	for (const [index, block] of parseFormattedText(options.text).entries()) {
 		const scale = headingScales[block.level] ?? 1;
 		const lineHeight = options.lineHeight * scale;
 		const layout = layoutTextFlow({
@@ -36,6 +38,8 @@ export const layoutFormattedText = (options: Options): TextFlowLayout => {
 		});
 		fragments.push(...layout.fragments.map((fragment) => ({
 			...fragment,
+			alignment: options.paragraphAlignments?.[index] ?? options.alignment ?? "left",
+			paragraphEnd: fragment.end >= block.text.length,
 			top: fragment.top + top,
 			fontScale: scale,
 			lineHeight,
