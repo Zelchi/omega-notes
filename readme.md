@@ -13,7 +13,7 @@ e mantenha seus arquivos no seu computador.
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-.deb-E95420?style=flat-square)
 ![Fedora](https://img.shields.io/badge/Fedora-.rpm-51A2DA?style=flat-square)
 
-[**Baixar o aplicativo**](https://github.com/Zelchi/omega-notes/releases/latest) · [Novidades](CHANGELOG.md) · [Reportar um problema](https://github.com/Zelchi/omega-notes/issues)
+[**Baixar o aplicativo**](https://github.com/Zelchi/omega-notes/releases/latest) · [Novidades](changelog.md) · [Reportar um problema](https://github.com/Zelchi/omega-notes/issues)
 
 </div>
 

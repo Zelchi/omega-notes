@@ -1,5 +1,12 @@
 # Histórico de atualizações
 
+## v0.1.2
+
+### Aparência
+
+- Ícone atualizado com cantos arredondados e símbolo ômega menor.
+- Atualizados os ícones da interface e dos instaladores.
+
 ## v0.1.1
 
 ### Correções
