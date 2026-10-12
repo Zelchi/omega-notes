@@ -12,7 +12,7 @@ export const ClickableNoteLinks: Component<{
 	<div class={styles.root}>
 		<For each={props.areas}>{(area) => (
 			<a class={styles.link} href={area.note ? `#${area.note.id}` : area.link.kind === "external" ? area.link.url : undefined}
-				title={area.note?.title ?? area.link.label} aria-label={area.link.label} tabIndex={-1}
+				 aria-label={area.link.label} tabIndex={-1}
 				target={!area.note && !isTauriRuntime() ? "_blank" : undefined} rel="noopener noreferrer"
 				style={{ left: `${area.left}px`, top: `${area.top}px`, width: `${area.width}px`, height: `${area.height}px` }}
 				onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); }}

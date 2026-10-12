@@ -1,4 +1,4 @@
-import { type Component, type JSX } from "solid-js";
+import { Show, type Component, type JSX } from "solid-js";
 import { useCustomScrollArea } from "./controller";
 import { styles } from "./style.css.ts";
 
@@ -8,7 +8,12 @@ const CustomScrollArea: Component<Props> = (props) => {
 	const scroll = useCustomScrollArea();
 
 	return (
-		<div class={styles.root} ref={scroll.setRoot} data-omega-scroll-root>
+		<div class={styles.root} ref={scroll.setRoot} data-omega-scroll-root
+			onPointerMove={scroll.moveThumb}
+			onPointerUp={scroll.finishDrag}
+			onPointerCancel={scroll.finishDrag}
+			onLostPointerCapture={scroll.finishDrag}
+		>
 			<div
 				class={styles.viewport}
 				ref={scroll.setViewport}
@@ -20,7 +25,7 @@ const CustomScrollArea: Component<Props> = (props) => {
 					{props.children}
 				</div>
 			</div>
-			{scroll.metrics().scrollHeight > scroll.metrics().clientHeight + 1 && (
+			<Show when={scroll.metrics().scrollHeight > scroll.metrics().clientHeight + 1}>
 				<div
 					class={styles.verticalTrack}
 					onPointerDown={(event) => scroll.onTrackPointerDown(event, "vertical")}
@@ -38,14 +43,11 @@ const CustomScrollArea: Component<Props> = (props) => {
 							transform: `translateY(${scroll.thumb("vertical").offset}px)`,
 						}}
 						onPointerDown={(event) => scroll.beginDrag(event, "vertical")}
-						onPointerMove={scroll.moveThumb}
-						onPointerUp={scroll.finishDrag}
-						onPointerCancel={scroll.finishDrag}
 						onKeyDown={(event) => scroll.onScrollbarKeyDown(event, "vertical")}
 					/>
 				</div>
-			)}
-			{scroll.metrics().scrollWidth > scroll.metrics().clientWidth + 1 && (
+			</Show>
+			<Show when={scroll.metrics().scrollWidth > scroll.metrics().clientWidth + 1}>
 				<div
 					class={styles.horizontalTrack}
 					onPointerDown={(event) => scroll.onTrackPointerDown(event, "horizontal")}
@@ -63,13 +65,10 @@ const CustomScrollArea: Component<Props> = (props) => {
 							transform: `translateX(${scroll.thumb("horizontal").offset}px)`,
 						}}
 						onPointerDown={(event) => scroll.beginDrag(event, "horizontal")}
-						onPointerMove={scroll.moveThumb}
-						onPointerUp={scroll.finishDrag}
-						onPointerCancel={scroll.finishDrag}
 						onKeyDown={(event) => scroll.onScrollbarKeyDown(event, "horizontal")}
 					/>
 				</div>
-			)}
+			</Show>
 		</div>
 	);
 };

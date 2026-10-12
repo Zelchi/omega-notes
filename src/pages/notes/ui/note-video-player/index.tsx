@@ -141,7 +141,6 @@ const NoteVideoPlayer: Component<NoteVideoPlayerProps> = (props) => {
 					<Show when={document.fullscreenEnabled}>
 						<button class={styles.button} type="button"
 							aria-label={props.t(fullscreen() ? "exitFullscreen" : "enterFullscreen")}
-							title={props.t(fullscreen() ? "exitFullscreen" : "enterFullscreen")}
 							onClick={toggleFullscreen}>
 							<svg class={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
 								<path d={fullscreen() ? "M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" : "M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6"} />

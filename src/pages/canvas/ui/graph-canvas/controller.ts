@@ -1,7 +1,8 @@
-import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import type { StudyNote } from "@/entities/note";
-import type { ContextMenu, Gesture, PendingMove, Point, SelectionBox, View } from "./types";
+import type { ContextMenu, Gesture, PendingMove, Point, NodeSize, SelectionBox, View } from "./types";
 import { defaultPosition, graphEdgePath, graphEdges, HOME_HEIGHT, HOME_WIDTH, nodeSize } from "../../lib/graph";
+import { separateStaticNodes } from "../../lib/static-layout";
 import { readGraphState, saveGraphState as persistGraphState } from "../../api/graph.repository";
 import type { GraphCanvasProps } from "./types";
 
@@ -13,6 +14,12 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	const [createdNoteId, setCreatedNoteId] = createSignal<string>();
 	const [selectedIds, setSelectedIds] = createSignal<Set<string>>(new Set<string>());
 	const [selectionBox, setSelectionBox] = createSignal<SelectionBox>();
+	const [measuredSizes, setMeasuredSizes] = createSignal<Map<string, NodeSize>>(new Map());
+	const nodeElements = new Map<string, HTMLButtonElement>();
+	let sizeObserver: ResizeObserver | undefined;
+	let pendingCreationPoint: Point | undefined;
+	let previousSizes = new Map<string, NodeSize>();
+	const layoutNodes = createMemo(() => props.notes.map((note) => ({ id: note.id, ...(measuredSizes().get(note.id) ?? nodeSize(note)) })));
 	let creationTimer: ReturnType<typeof setTimeout> | undefined;
 	let disposed = false;
 	const edges = createMemo(() => graphEdges(props.notes));
@@ -48,18 +55,31 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 
 	createEffect(() => {
 		const notes = props.notes;
-		const current = positions();
+		const nodes = layoutNodes();
+		const current = untrack(positions);
+		const addedIds = new Set<string>();
+		const resizedIds = new Set(nodes.filter((node) => {
+			const previous = previousSizes.get(node.id);
+			return previous && (previous.width !== node.width || previous.height !== node.height);
+		}).map((node) => node.id));
+		previousSizes = new Map(nodes.map((node) => [node.id, node]));
 		const activeIds = new Set(notes.map((note) => note.id));
 		const next = Object.fromEntries(Object.entries(current).filter(([noteId]) => activeIds.has(noteId)));
 		let changed = Object.keys(next).length !== Object.keys(current).length;
 
 		notes.forEach((note, index) => {
 			if (next[note.id]) return;
-			next[note.id] = defaultPosition(index, notes.length, nodeSize(note));
+			const size = nodes[index];
+			next[note.id] = pendingCreationPoint
+				? { x: pendingCreationPoint.x - size.width / 2, y: pendingCreationPoint.y - size.height / 2 }
+				: defaultPosition(index, notes.length, size);
+			addedIds.add(note.id);
 			changed = true;
 		});
 
-		if (changed) setPositions(next);
+		const priority = gesture?.nodeOrigins ? new Set(Object.keys(gesture.nodeOrigins)) : new Set([...addedIds, ...resizedIds]);
+		const separated = separateStaticNodes(changed ? next : current, nodes, priority);
+		if (changed || separated !== current) setPositions(separated);
 		setSelectedIds((current) => {
 			const retained = new Set([...current].filter((id) => activeIds.has(id)));
 			return retained.size === current.size ? current : retained;
@@ -75,6 +95,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 
 	onCleanup(() => {
 		disposed = true;
+		if (graphSaveTimer !== undefined) saveGraphState();
 		clearTimeout(creationTimer);
 		if (moveFrame !== undefined) cancelAnimationFrame(moveFrame);
 		if (graphSaveTimer !== undefined) clearTimeout(graphSaveTimer);
@@ -82,6 +103,23 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 
 	onMount(() => {
 		const board = getBoard();
+		sizeObserver = new ResizeObserver((entries) => {
+			setMeasuredSizes((current) => {
+				let next = current;
+				for (const entry of entries) {
+					const element = entry.target as HTMLButtonElement;
+					const id = element.dataset.noteId;
+					if (!id || nodeElements.get(id) !== element || !element.offsetWidth || !element.offsetHeight) continue;
+					const previous = current.get(id);
+					if (previous?.width === element.offsetWidth && previous.height === element.offsetHeight) continue;
+					if (next === current) next = new Map(current);
+					next.set(id, { width: element.offsetWidth, height: element.offsetHeight });
+				}
+				return next;
+			});
+		});
+		for (const element of nodeElements.values()) sizeObserver.observe(element);
+		onCleanup(() => sizeObserver?.disconnect());
 		if (props.centerOnMount) {
 			const rect = board.getBoundingClientRect();
 			const scale = view().scale;
@@ -241,13 +279,14 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			return;
 		}
 		if (!active.nodeOrigins || props.mode !== "edit") return;
+		const priority = new Set(Object.keys(active.nodeOrigins));
 		const scale = view().scale;
 		setPositions((current) => {
 			const next = { ...current };
 			for (const [id, origin] of Object.entries(active.nodeOrigins!)) {
 				if (current[id]) next[id] = { x: origin.x + dx / scale, y: origin.y + dy / scale };
 			}
-			return next;
+			return separateStaticNodes(next, layoutNodes(), priority);
 		});
 	};
 
@@ -297,11 +336,15 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			x: (event.clientX - rect.left - currentView.x) / currentView.scale,
 			y: (event.clientY - rect.top - currentView.y) / currentView.scale,
 		};
+		pendingCreationPoint = clickPoint;
 		void props.onCreateNote().then((note) => {
+			pendingCreationPoint = undefined;
 			if (!note || disposed) return;
-			const size = nodeSize(note);
+			const size = measuredSizes().get(note.id) ?? nodeSize(note);
 			const position = { x: clickPoint.x - size.width / 2, y: clickPoint.y - size.height / 2 };
-			const nextPositions = { ...positions(), [note.id]: position };
+			const nodes = layoutNodes();
+			const nextPositions = separateStaticNodes({ ...positions(), [note.id]: position },
+				nodes.some((item) => item.id === note.id) ? nodes : [...nodes, { id: note.id, ...size }], new Set([note.id]));
 			setPositions(nextPositions);
 			setCreatedNoteId(note.id);
 			clearTimeout(creationTimer);
@@ -359,6 +402,15 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	};
 
 	return {
+		registerNode: (id: string, element: HTMLButtonElement): void => {
+			nodeElements.set(id, element);
+			sizeObserver?.observe(element);
+			onCleanup(() => {
+				sizeObserver?.unobserve(element);
+				if (nodeElements.get(id) === element) nodeElements.delete(id);
+				setMeasuredSizes((current) => { if (!current.has(id)) return current; const next = new Map(current); next.delete(id); return next; });
+			});
+		},
 		createdNoteId,
 		selectedIds,
 		selectionBox,

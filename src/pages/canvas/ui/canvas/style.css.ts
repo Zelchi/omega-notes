@@ -2,6 +2,7 @@ import { style } from "@vanilla-extract/css";
 
 export const styles = {
 	canvasScroll: style({
+		position: "relative",
 		flex: 1,
 		minWidth: 0,
 		minHeight: 0,

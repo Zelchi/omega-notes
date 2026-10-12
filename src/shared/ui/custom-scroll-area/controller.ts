@@ -11,7 +11,15 @@ type Metrics = {
 	rootHeight: number;
 	rootWidth: number;
 };
-type Drag = { axis: Axis; pointerStart: number; scrollStart: number; travel: number };
+type Drag = {
+	axis: Axis;
+	pointerId: number;
+	captureTarget: HTMLDivElement;
+	pointerStart: number;
+	scrollStart: number;
+	travel: number;
+	maxScroll: number;
+};
 
 const emptyMetrics: Metrics = {
 	top: 0,
@@ -58,7 +66,8 @@ export const useCustomScrollArea = () => {
 	};
 
 	const onTrackPointerDown = (event: PointerEvent & { currentTarget: HTMLDivElement }, axis: Axis): void => {
-		if (event.target !== event.currentTarget) return;
+		if (event.button !== 0 || event.target !== event.currentTarget || drag()) return;
+		updateMetrics();
 		event.preventDefault();
 		const bounds = event.currentTarget.getBoundingClientRect();
 		const geometry = thumb(axis);
@@ -67,30 +76,39 @@ export const useCustomScrollArea = () => {
 		const ratio = geometry.trackLength > geometry.length ? offset / (geometry.trackLength - geometry.length) : 0;
 		if (axis === "vertical") viewport.scrollTop = ratio * geometry.maxScroll;
 		else viewport.scrollLeft = ratio * geometry.maxScroll;
+		beginDrag(event, axis);
 	};
 
 	const beginDrag = (event: PointerEvent & { currentTarget: HTMLDivElement }, axis: Axis): void => {
+		if (event.button !== 0 || drag()) return;
 		event.preventDefault();
 		event.stopPropagation();
+		updateMetrics();
 		const geometry = thumb(axis);
+		if (geometry.maxScroll <= 0 || geometry.trackLength <= geometry.length) return;
 		const pointerStart = axis === "vertical" ? event.clientY : event.clientX;
 		const scrollStart = axis === "vertical" ? viewport.scrollTop : viewport.scrollLeft;
-		setDrag({ axis, pointerStart, scrollStart, travel: Math.max(1, geometry.trackLength - geometry.length) });
 		event.currentTarget.setPointerCapture(event.pointerId);
+		setDrag({ axis, pointerId: event.pointerId, captureTarget: event.currentTarget,
+			pointerStart, scrollStart, travel: geometry.trackLength - geometry.length, maxScroll: geometry.maxScroll });
 	};
 
 	const moveThumb = (event: PointerEvent): void => {
 		const current = drag();
-		if (!current) return;
+		if (!current || current.pointerId !== event.pointerId) return;
 		const pointer = current.axis === "vertical" ? event.clientY : event.clientX;
 		const delta = (pointer - current.pointerStart) / current.travel;
-		const next = current.scrollStart + delta * thumb(current.axis).maxScroll;
+		const next = current.scrollStart + delta * current.maxScroll;
 		if (current.axis === "vertical") viewport.scrollTop = next;
 		else viewport.scrollLeft = next;
 	};
 
-	const finishDrag = (): void => {
+	const finishDrag = (event?: PointerEvent): void => {
+		const current = drag();
+		if (!current || (event && event.pointerId !== current.pointerId)) return;
 		setDrag(undefined);
+		if (current.captureTarget.hasPointerCapture(current.pointerId))
+			current.captureTarget.releasePointerCapture(current.pointerId);
 	};
 
 	const onScrollbarKeyDown = (event: KeyboardEvent, axis: Axis): void => {
@@ -120,8 +138,12 @@ export const useCustomScrollArea = () => {
 		observer.observe(content);
 		viewport.addEventListener("scroll", updateMetrics, { passive: true });
 		addEventListener("resize", updateMetrics);
+		const cancelDrag = () => finishDrag();
+		addEventListener("blur", cancelDrag);
 		requestAnimationFrame(updateMetrics);
 		onCleanup(() => {
+			finishDrag();
+			removeEventListener("blur", cancelDrag);
 			observer.disconnect();
 			viewport.removeEventListener("scroll", updateMetrics);
 			removeEventListener("resize", updateMetrics);

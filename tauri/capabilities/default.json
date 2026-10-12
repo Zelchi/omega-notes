@@ -15,6 +15,7 @@
     "core:window:allow-start-dragging",
     "opener:allow-open-url",
     "dialog:allow-open",
+    "dialog:allow-message",
     "updater:allow-check",
     "updater:allow-download",
     "updater:allow-install",

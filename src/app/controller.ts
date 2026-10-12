@@ -12,15 +12,15 @@ export const useAppController = () => {
 	const vaults = useVaults();
 	const notes = useNotes(vaults.activeVaultId);
 	const preferences = usePreferences();
+	const t = (key: TranslationKey) => translate(preferences.language(), key);
 	let saveNoteTitle: (() => Promise<boolean>) | undefined;
 	const beforeShutdown = async () => {
 		if (saveNoteTitle && !(await saveNoteTitle())) return false;
 		return notes.flushSave();
 	};
-	const windowControls = useWindowControls(beforeShutdown);
+	const windowControls = useWindowControls(beforeShutdown, t);
 	const [settingsOpen, setSettingsOpen] = createSignal(false);
 	const [vaultActionPending, setVaultActionPending] = createSignal(false);
-	const t = (key: TranslationKey) => translate(preferences.language(), key);
 	const navigation = useNoteNavigationController({
 		notes,
 		activeVaultId: vaults.activeVaultId,

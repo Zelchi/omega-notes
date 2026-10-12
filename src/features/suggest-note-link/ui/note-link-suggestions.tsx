@@ -29,7 +29,7 @@ export const NoteLinkSuggestions: Component<{
 				<For each={props.notes}>{(note, index) => (
 					<button id={`${props.id}-${note.id}`} class={cx(styles.option, index() === props.selectedIndex && styles.selected)}
 						type="button" role="option" aria-selected={index() === props.selectedIndex} tabIndex={-1}
-						onClick={() => props.onSelect(note)} title={note.title}>
+						onClick={() => props.onSelect(note)}>
 						<Icon name="link" size={15} /><span class={styles.title}>{note.title}</span>
 					</button>
 				)}</For>

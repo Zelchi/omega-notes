@@ -60,6 +60,7 @@ const App: Component = () => {
 					}
 				>
 					<Canvas
+						layout={app.preferences.canvasLayout()}
 						ready={!app.notes.loading() || app.notes.hasLoadedVault()}
 						notes={app.notes.sortedNotes()}
 						onCreateNote={app.navigation.createNoteAtCanvas}
@@ -70,7 +71,7 @@ const App: Component = () => {
 						t={app.t}
 						centerOnMount={app.navigation.canvasCenterOnMount()}
 						onCanvasMount={() => app.navigation.setCenteredAtLaunch(true)}
-						hideZoomControls={app.preferences.hideZoomControls()}
+						hideCanvasControls={app.preferences.hideCanvasControls()}
 					/>
 				</Show>
 				<Show when={app.notes.saveError()}>
@@ -83,17 +84,19 @@ const App: Component = () => {
 				</Show>
 			</main>
 			<SettingsDialog
+				canvasLayout={app.preferences.canvasLayout()}
+				onCanvasLayoutChange={app.preferences.setCanvasLayout}
 				footer={<CheckForUpdatesButton t={app.t} updates={app.updates} />}
 				open={app.settingsOpen()}
 				centerCanvasOnLaunch={app.preferences.centerCanvasOnLaunch()}
-				hideZoomControls={app.preferences.hideZoomControls()}
+				hideCanvasControls={app.preferences.hideCanvasControls()}
 				language={app.preferences.language()}
 				theme={app.preferences.theme()}
 				textCursor={app.preferences.textCursor()}
 				t={app.t}
 				onClose={() => app.setSettingsOpen(false)}
 				onCenterCanvasChange={app.preferences.setCenterCanvasOnLaunch}
-				onHideZoomControlsChange={app.preferences.setHideZoomControls}
+				onHideCanvasControlsChange={app.preferences.setHideCanvasControls}
 				onLanguageChange={app.preferences.setLanguage}
 				onThemeChange={app.preferences.setTheme}
 				onTextCursorChange={app.preferences.setTextCursor}

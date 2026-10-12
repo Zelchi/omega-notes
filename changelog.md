@@ -1,5 +1,33 @@
 # Histórico de atualizações
 
+## v0.1.8
+
+### Windows
+
+- Corrigido o salvamento de notas existentes: a sincronização da cópia `.temp` agora usa acesso de escrita, exigido pelo Windows. Isso também evita que alterações pendentes bloqueiem operações de vaults.
+- Corrigida a sincronização dos arquivos durante a importação de mídias.
+- Se o salvamento falhar ao fechar, o aplicativo oferece continuar aberto ou fechar sem salvar após confirmação explícita.
+
+### Canvas
+
+- Dois modos nas configurações: Estático para organização manual e Dinâmico para distribuir automaticamente as mesmas notas e referências `[[nota]]`.
+- Dinâmico com destaque das conexões, fundo pontilhado, zoom, enquadramento e margem circular de clique de 20 px ao redor dos pontos.
+- Clique numa área vazia do Dinâmico cria uma nota no modo de edição; clique direito num ponto abre Renomear/Apagar.
+- Posições e zoom separados entre os modos, preservando a organização manual. A simulação para quando estabiliza e enquanto a janela está oculta.
+- Bolhas do Estático abrem espaço ao criar, arrastar ou alterar o tamanho de uma nota, inclusive no arraste em grupo.
+- A opção Ocultar botões esconde todo o conjunto do canto inferior direito nos dois modos.
+
+### Editor
+
+- Digitar `[[` em até 250 ms completa `[[]]`, deixando o cursor no meio para escrever o link.
+- Apagar os dois colchetes de abertura remove também o fechamento correspondente, preservando o texto do link.
+
+### Interface
+
+- Corrigido o arraste da barra de rolagem personalizada, preservando o elemento e a captura do mouse durante a rolagem.
+- Arraste disponível também pela faixa da barra, com tratamento de perda de captura e foco da janela.
+- Inglês como idioma padrão quando nenhuma preferência de idioma está salva.
+
 ## v0.1.7
 
 ### Canvas

@@ -1,22 +1,25 @@
 import { createSignal } from "solid-js";
 import type { Language } from "@/shared/lib/i18n";
-import type { TextCursor, Theme } from "./preferences";
+import type { CanvasLayout, TextCursor, Theme } from "./preferences";
 import {
+	readCanvasLayout,
 	readCenterCanvasOnLaunch,
-	readHideZoomControls,
+	readHideCanvasControls,
 	readLanguage,
 	readTheme,
 	readTextCursor,
+	saveCanvasLayout,
 	saveCenterCanvasOnLaunch,
-	saveHideZoomControls,
+	saveHideCanvasControls,
 	saveLanguage,
 	saveTheme,
 	saveTextCursor,
 } from "../api/preferences.repository";
 
 export const usePreferences = () => {
+	const [canvasLayout, setCanvasLayout] = createSignal<CanvasLayout>(readCanvasLayout());
 	const [centerCanvasOnLaunch, setCenterCanvasOnLaunch] = createSignal(readCenterCanvasOnLaunch());
-	const [hideZoomControls, setHideZoomControls] = createSignal(readHideZoomControls());
+	const [hideCanvasControls, setHideCanvasControls] = createSignal(readHideCanvasControls());
 	const [language, setLanguage] = createSignal<Language>(readLanguage());
 	const [theme, setTheme] = createSignal<Theme>(readTheme());
 	const [textCursor, setTextCursor] = createSignal<TextCursor>(readTextCursor());
@@ -38,8 +41,10 @@ export const usePreferences = () => {
 	};
 
 	return {
+		canvasLayout,
+		setCanvasLayout: (value: CanvasLayout) => { setCanvasLayout(value); saveCanvasLayout(value); },
 		centerCanvasOnLaunch,
-		hideZoomControls,
+		hideCanvasControls,
 		language,
 		theme,
 		textCursor,
@@ -52,9 +57,9 @@ export const usePreferences = () => {
 			setCenterCanvasOnLaunch(value);
 			saveCenterCanvasOnLaunch(value);
 		},
-		setHideZoomControls: (value: boolean) => {
-			setHideZoomControls(value);
-			saveHideZoomControls(value);
+		setHideCanvasControls: (value: boolean) => {
+			setHideCanvasControls(value);
+			saveHideCanvasControls(value);
 		},
 		setLanguage: updateLanguage,
 		setTheme: updateTheme,

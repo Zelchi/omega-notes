@@ -92,7 +92,7 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 				<Show when={displayedPanel() === "headings"} fallback={
 					<For each={alignmentButtons}>
 						{(button) => <button class={cx(styles.button, props.alignment === button.value && styles.activeButton)} type="button"
-							title={props.t(button.label)} aria-label={props.t(button.label)} aria-pressed={props.alignment === button.value}
+							 aria-label={props.t(button.label)} aria-pressed={props.alignment === button.value}
 							onPointerDown={(event) => event.preventDefault()} onClick={() => {
 								props.onAlignmentChange(button.value);
 								setActivePanel(undefined);
@@ -101,7 +101,7 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 				}>
 				<For each={["h1", "h2", "h3", "h4", "h5", "h6"] as const}>
 					{(heading) => <button class={styles.button} type="button"
-						title={`${props.t("heading")} ${heading.slice(1)}`} aria-label={`${props.t("heading")} ${heading.slice(1)}`}
+						 aria-label={`${props.t("heading")} ${heading.slice(1)}`}
 						onPointerDown={(event) => event.preventDefault()} onClick={() => {
 							props.onFormat(heading);
 							setActivePanel(undefined);
@@ -121,7 +121,7 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 		</button>
 		<span class={styles.divider} aria-hidden="true" />
 		<button ref={alignmentButton} class={cx(styles.button, activePanel() === "alignment" && styles.activeButton)} type="button"
-			title={props.t("textAlignment")} aria-label={props.t("textAlignment")} aria-expanded={activePanel() === "alignment"} aria-controls={panelId}
+			 aria-label={props.t("textAlignment")} aria-expanded={activePanel() === "alignment"} aria-controls={panelId}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => setActivePanel((current) => current === "alignment" ? undefined : "alignment")}
 			onKeyDown={(event) => {
 				if (event.key !== "ArrowUp") return;
@@ -132,7 +132,7 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 			}}><Icon name={alignmentIcon()} size={17} /></button>
 		<span class={styles.divider} aria-hidden="true" />
 		<button ref={headingButton} class={cx(styles.button, activePanel() === "headings" && styles.activeButton)} type="button"
-			title={props.t("heading")} aria-label={props.t("heading")} aria-expanded={activePanel() === "headings"} aria-controls={panelId}
+			 aria-label={props.t("heading")} aria-expanded={activePanel() === "headings"} aria-controls={panelId}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => setActivePanel((current) => current === "headings" ? undefined : "headings")}
 			onKeyDown={(event) => {
 				if (event.key !== "ArrowUp") return;
@@ -140,11 +140,11 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 				setActivePanel("headings");
 				queueMicrotask(() => panelRoot?.querySelector("button")?.focus());
 			}}><Icon name="heading" size={17} /></button>
-		<button class={styles.button} type="button" title={props.t("bold")} aria-label={props.t("bold")}
+		<button class={styles.button} type="button" aria-label={props.t("bold")}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("bold")}><strong>B</strong></button>
-		<button class={styles.button} type="button" title={props.t("italic")} aria-label={props.t("italic")}
+		<button class={styles.button} type="button" aria-label={props.t("italic")}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("italic")}><em>I</em></button>
-		<button class={styles.button} type="button" title={props.t("separator")} aria-label={props.t("separator")}
+		<button class={styles.button} type="button" aria-label={props.t("separator")}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("separator")}>―</button>
 		<Show when={props.onExportPdf}>
 			{(onExport) => <>
