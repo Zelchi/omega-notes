@@ -29,13 +29,13 @@ export type NoteMediaNodeProps = {
 	onChange: (element: NoteMediaElement) => void;
 	onPreview: (element?: NotePositionedElement) => void;
 	onContextMenu: (elementId: string, event: MouseEvent) => void;
-	onInteractionStart: () => void;
+	onConfirm: () => void;
+	onDelete: () => void;
 };
 
 export const useNoteMediaNodeController = (props: NoteMediaNodeProps) => {
 	const [source, setSource] = createSignal("");
 	const [preview, setPreview] = createSignal<Point>();
-	const [active, setActive] = createSignal(false);
 	const sourceKey = createMemo(() => {
 		const element = props.element();
 		return element.dataUrl ?? (element.type === "audio" ? element.audioId : element.videoId) ?? "";
@@ -123,7 +123,6 @@ export const useNoteMediaNodeController = (props: NoteMediaNodeProps) => {
 		const element = props.element();
 		if (!props.editable || event.button !== 0 || props.activePositioningId !== element.id) return;
 
-		props.onInteractionStart();
 		event.preventDefault();
 		event.stopPropagation();
 		const scrollViewport = getScrollViewport();
@@ -170,7 +169,6 @@ export const useNoteMediaNodeController = (props: NoteMediaNodeProps) => {
 		interaction = undefined;
 		setPreview(undefined);
 		props.onPreview();
-		setActive(Boolean(nodeRoot?.matches(":hover") || nodeRoot?.contains(document.activeElement)));
 	};
 
 	const resizeWithKeyboard = (event: KeyboardEvent): void => {
@@ -225,19 +223,6 @@ export const useNoteMediaNodeController = (props: NoteMediaNodeProps) => {
 		props.onContextMenu(props.element().id, event);
 	};
 
-	const onPointerEnter = (): void => {
-		setActive(true);
-	};
-	const onPointerLeave = (): void => {
-		if (!interaction && !nodeRoot?.contains(document.activeElement)) setActive(false);
-	};
-	const onFocusIn = (): void => {
-		setActive(true);
-	};
-	const onFocusOut = (event: FocusEvent & { currentTarget: HTMLDivElement }): void => {
-		if (!nodeRoot?.contains(event.relatedTarget as Node | null)) setActive(false);
-	};
-
 	onCleanup(() => {
 		edgeAutoScroll.stop();
 		interaction?.scrollViewport?.removeEventListener("scroll", updateInteraction);
@@ -245,7 +230,6 @@ export const useNoteMediaNodeController = (props: NoteMediaNodeProps) => {
 
 	return {
 		source,
-		active,
 		currentPoint,
 		begin,
 		move,
@@ -253,10 +237,6 @@ export const useNoteMediaNodeController = (props: NoteMediaNodeProps) => {
 		resizeWithKeyboard,
 		setVideoAspect,
 		handleContextMenu,
-		onPointerEnter,
-		onPointerLeave,
-		onFocusIn,
-		onFocusOut,
 		setNodeRoot: (element: HTMLDivElement) => (nodeRoot = element),
 	};
 };

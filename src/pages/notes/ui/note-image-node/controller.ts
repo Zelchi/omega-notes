@@ -29,13 +29,13 @@ export type NoteImageNodeProps = {
 	onChange: (element: NoteImageElement) => void;
 	onPreview: (element?: NotePositionedElement) => void;
 	onContextMenu: (elementId: string, event: MouseEvent) => void;
-	onInteractionStart: () => void;
+	onConfirm: () => void;
+	onDelete: () => void;
 };
 
 export const useNoteImageNodeController = (props: NoteImageNodeProps) => {
 	const [source, setSource] = createSignal("");
 	const [preview, setPreview] = createSignal<Point>();
-	const [active, setActive] = createSignal(false);
 	const sourceKey = createMemo(() => {
 		const element = props.element();
 		return element.dataUrl ?? element.imageId ?? "";
@@ -113,7 +113,6 @@ export const useNoteImageNodeController = (props: NoteImageNodeProps) => {
 			event.preventDefault();
 			return;
 		}
-		props.onInteractionStart();
 		event.preventDefault();
 		event.stopPropagation();
 		const element = props.element();
@@ -161,7 +160,6 @@ export const useNoteImageNodeController = (props: NoteImageNodeProps) => {
 		interaction = undefined;
 		setPreview(undefined);
 		props.onPreview();
-		setActive(Boolean(nodeRoot?.matches(":hover") || nodeRoot?.contains(document.activeElement)));
 	};
 
 	const resizeWithKeyboard = (event: KeyboardEvent): void => {
@@ -198,19 +196,6 @@ export const useNoteImageNodeController = (props: NoteImageNodeProps) => {
 		props.onContextMenu(props.element().id, event);
 	};
 
-	const onPointerEnter = (): void => {
-		setActive(true);
-	};
-	const onPointerLeave = (): void => {
-		if (!interaction && !nodeRoot?.contains(document.activeElement)) setActive(false);
-	};
-	const onFocusIn = (): void => {
-		setActive(true);
-	};
-	const onFocusOut = (event: FocusEvent & { currentTarget: HTMLDivElement }): void => {
-		if (!nodeRoot?.contains(event.relatedTarget as Node | null)) setActive(false);
-	};
-
 	onCleanup(() => {
 		edgeAutoScroll.stop();
 		interaction?.scrollViewport?.removeEventListener("scroll", updateInteraction);
@@ -218,7 +203,6 @@ export const useNoteImageNodeController = (props: NoteImageNodeProps) => {
 
 	return {
 		source,
-		active,
 		currentPoint,
 		begin,
 		move,
@@ -226,10 +210,6 @@ export const useNoteImageNodeController = (props: NoteImageNodeProps) => {
 		resizeWithKeyboard,
 		setNaturalSize,
 		handleContextMenu,
-		onPointerEnter,
-		onPointerLeave,
-		onFocusIn,
-		onFocusOut,
 		setNodeRoot: (element: HTMLDivElement) => (nodeRoot = element),
 	};
 };

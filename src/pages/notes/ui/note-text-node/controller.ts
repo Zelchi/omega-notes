@@ -1,5 +1,8 @@
-import { createEffect, createMemo, createSignal, onCleanup, onMount, untrack, type Accessor, type JSX } from "solid-js";
-import type { NotePositionedElement, NoteTextElement } from "@/entities/note";
+import { batch, createEffect, createMemo, createSignal, onCleanup, onMount, untrack, type Accessor, type JSX } from "solid-js";
+import type { NotePositionedElement, NoteTextElement, StudyNote } from "@/entities/note";
+import type { TranslationKey } from "@/shared/lib/i18n";
+import { useNoteLinkSuggestions } from "@/features/suggest-note-link";
+import { useClickableNoteLinks } from "@/features/follow-note-link";
 import { layoutTextFlow, type TextFlowLayout } from "../../lib/text-flow-layout";
 import { layoutFormattedText } from "../../lib/formatted-text-layout";
 import { EMPTY_CHARACTER, syncEditableTextDom } from "../../lib/editable-text-dom";
@@ -21,6 +24,10 @@ type TextMetrics = { font: string; lineHeight: number; letterSpacing: number };
 
 export type NoteTextNodeProps = {
 	element: Accessor<NoteTextElement>;
+	notes: StudyNote[];
+	t: (key: TranslationKey) => string;
+	onOpenNote: (note: StudyNote) => void;
+	onOpenExternalUrl: (url: string) => void;
 	wraps: Accessor<NotePositionedElement[]>;
 	onHeightChange?: (height: number) => void;
 	editable: boolean;
@@ -137,6 +144,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	const [draft, setDraft] = createSignal(props.element().text);
 	const [pendingCaret, setPendingCaret] = createSignal<number>();
 	const [caret, setCaret] = createSignal<CaretGeometry>();
+	const [caretOffset, setCaretOffset] = createSignal<number>();
 	const [measurementScale, setMeasurementScale] = createSignal(1);
 	const [metrics, setMetrics] = createSignal<TextMetrics>({
 		font: "400 16px sans-serif",
@@ -176,9 +184,11 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			!root.contains(selection.focusNode)
 		) {
 			setCaret(undefined);
+			setCaretOffset(undefined);
 			return;
 		}
 
+		setCaretOffset(composing ? undefined : getOffsetBeforeNode(root, selection.focusNode, selection.focusOffset));
 		let focusNode = selection.focusNode;
 		let focusOffset = selection.focusOffset;
 		if (!(focusNode instanceof Text)) {
@@ -242,6 +252,12 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			caretRenderFrame = undefined;
 			measureCaret();
 		});
+	};
+	const caretAnchor = (): CaretGeometry | undefined => {
+		const current = caret();
+		if (!current) return;
+		const bounds = textSurface.getBoundingClientRect();
+		return { left: bounds.left + current.left, top: bounds.top + current.top, height: current.height };
 	};
 	const observeNaturalTextNode = (node?: HTMLElement): void => {
 		if (observedNaturalTextNode !== node) {
@@ -561,6 +577,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	createEffect(() => {
 		if (!props.editable) {
 			setCaret(undefined);
+			setCaretOffset(undefined);
 			return;
 		}
 		draft();
@@ -620,6 +637,27 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		const next = value.slice(0, start) + normalizedReplacement + value.slice(end);
 		emitText(next, start + normalizedReplacement.length);
 	};
+	const linkSuggestions = useNoteLinkSuggestions({
+		notes: () => props.notes,
+		text: draft,
+		caretOffset,
+		onSelect: (note, context) => {
+			const target = /[\[\]|\r\n]/.test(note.title) ? note.id : note.title;
+			const link = `[[${target}${context.alias}]]`;
+			batch(() => {
+				replaceSelection(link, { start: context.start, end: context.end });
+				setCaretOffset(context.start + link.length);
+			});
+		},
+	});
+	const clickableLinks = useClickableNoteLinks({
+		editable: () => props.editable,
+		text: draft,
+		notes: () => props.notes,
+		root: contentRoot,
+		surface: () => textSurface,
+		layout,
+	});
 
 	const processInput = (preserveCaret = true): void => {
 		if (composing) return;
@@ -784,10 +822,15 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		rememberedSelection = selectionOffsets();
 		flushInput(false);
 		setCaret(undefined);
+		setCaretOffset(undefined);
 	};
 
 	const handlePointerDown = (event: PointerEvent): void => {
-		if (!props.editable || event.button !== 0) return;
+		if (!props.editable) return;
+		if (event.button !== 0) {
+			if (event.button === 2) event.preventDefault();
+			return;
+		}
 		const root = contentRoot();
 		if (!root?.isContentEditable) return;
 
@@ -823,6 +866,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 
 	const handleKeyDown = (event: KeyboardEvent): void => {
 		if (composing || event.isComposing) return;
+		if (props.editable && linkSuggestions.handleKeyDown(event)) return;
 		if (props.editable && (event.ctrlKey || event.metaKey) && !event.altKey && ["b", "i"].includes(event.key.toLowerCase())) {
 			event.preventDefault();
 			applyFormatting(event.key.toLowerCase() === "b" ? "bold" : "italic");
@@ -902,6 +946,9 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	return {
 		layout,
 		caret,
+		caretAnchor,
+		linkSuggestions,
+		clickableLinks,
 		hasPositionedElements,
 		x,
 		y,
@@ -923,7 +970,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		handleKeyUp,
 		handleBlur,
 		handlePaste,
-		startComposition: () => (composing = true),
+		startComposition: () => { composing = true; setCaretOffset(undefined); },
 		handleCompositionEnd,
 	};
 };

@@ -24,17 +24,17 @@ O workflow identifica o próprio repositório e configura `https://github.com/<d
 
 1. Use a mesma versão em `package.json`, `tauri/Cargo.toml` e `tauri/tauri.conf.json`.
 2. Atualize os arquivos de lock junto com as dependências e a versão do pacote Rust. Registre as novidades em `changelog.md`, em uma seção `## vX.Y.Z`; o workflow usa essa seção na descrição da release.
-3. Faça commit, crie uma tag com essa versão e envie ao GitHub. Atualmente o projeto está em `0.1.3`:
+3. Faça commit, crie uma tag com essa versão e envie ao GitHub. Atualmente o projeto está em `0.1.5`:
 
 ```sh
 git add .
-git commit -m "Prepare release 0.1.3"
-git tag v0.1.3
+git commit -m "Prepare release 0.1.5"
+git tag v0.1.5
 git push origin HEAD
-git push origin v0.1.3
+git push origin v0.1.5
 ```
 
-Uma tag publicada deve apontar para o commit completo da versão. Para outra versão, substitua `0.1.3` nos três arquivos e nos comandos. A preparação recusa uma tag que não corresponda aos arquivos do projeto.
+Uma tag publicada deve apontar para o commit completo da versão. Para outra versão, substitua `0.1.5` nos três arquivos e nos comandos. A preparação recusa uma tag que não corresponda aos arquivos do projeto.
 
 O workflow `.github/workflows/release.yml`:
 
@@ -58,10 +58,21 @@ No navegador, em `make dev` e em builds sem endpoint de release, a atualização
 
 ## Builds locais com atualização habilitada
 
+### Dados de desenvolvimento
+
+O diretório de dados é definido pelo perfil de compilação:
+
+- Desenvolvimento (`make dev`, `make dev-native`, `tauri dev` ou builds com `--debug`): `Documentos/Ômega Notes Dev`.
+- Produção (builds release, incluindo os instaladores): `Documentos/Ômega Notes`.
+
+Cada diretório contém seu próprio `vaults.json`, vaults, notas, mídias e pasta `.temp`. O desenvolvimento começa com uma biblioteca independente. Os dados existentes não são movidos nem copiados. A seleção é feita no Rust em tempo de compilação, antes de qualquer leitura ou escrita dos vaults.
+
+### Compilar para publicação
+
 Depois de configurar a versão e o repositório, no Linux:
 
 ```sh
-GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=v0.1.3 node scripts/prepare-release.mjs
+GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=v0.1.5 node scripts/prepare-release.mjs
 TAURI_SIGNING_PRIVATE_KEY="$PWD/.keys/updater.key" node node_modules/@tauri-apps/cli/tauri.js build --bundles deb,rpm --config tauri/tauri.release.conf.json -- --locked
 ```
 

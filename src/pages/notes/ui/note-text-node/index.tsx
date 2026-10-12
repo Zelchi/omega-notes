@@ -1,10 +1,14 @@
-import { createMemo, Index, Show, type Component } from "solid-js";
+import { createMemo, createUniqueId, Index, Show, type Component } from "solid-js";
+import { NoteLinkSuggestions } from "@/features/suggest-note-link";
+import { ClickableNoteLinks } from "@/features/follow-note-link";
 import { cx } from "@/shared/lib/classes";
 import { useNoteTextNodeController, type NoteTextNodeProps } from "./controller";
 import { styles } from "./style.css.ts";
 
 const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 	const editor = useNoteTextNodeController(props);
+	const suggestionsId = createUniqueId();
+	const suggestionsAnchor = () => editor.linkSuggestions.open() ? editor.caretAnchor() : undefined;
 	const naturalViewText = createMemo(() =>
 		props.editable ? undefined : props.renderText(editor.draft()),
 	);
@@ -79,6 +83,12 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 					data-omega-content=""
 					ref={editor.setContentRoot}
 					contentEditable="plaintext-only"
+					role="textbox"
+					aria-multiline="true"
+					aria-autocomplete="list"
+					aria-controls={editor.linkSuggestions.open() ? suggestionsId : undefined}
+					aria-activedescendant={editor.linkSuggestions.open() && editor.linkSuggestions.suggestions()[editor.linkSuggestions.selectedIndex()]
+						? `${suggestionsId}-${editor.linkSuggestions.suggestions()[editor.linkSuggestions.selectedIndex()]!.id}` : undefined}
 					spellcheck={true}
 					style={{ "text-align-last": editor.alignment() === "justify" ? "justify" : "auto" }}
 					onPointerDown={editor.handlePointerDown}
@@ -106,6 +116,13 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 						}}
 					/>
 				)}
+			</Show>
+			<ClickableNoteLinks areas={editor.clickableLinks.areas()} onOpenNote={props.onOpenNote}
+				onOpenExternalUrl={props.onOpenExternalUrl} />
+			<Show when={suggestionsAnchor()}>
+				{(anchor) => <NoteLinkSuggestions id={suggestionsId} anchor={anchor()}
+					notes={editor.linkSuggestions.suggestions()} selectedIndex={editor.linkSuggestions.selectedIndex()}
+					t={props.t} onSelect={editor.linkSuggestions.select} />}
 			</Show>
 		</div>
 	);

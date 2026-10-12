@@ -1,5 +1,6 @@
 import { Show, type Component } from "solid-js";
 import { cx } from "@/shared/lib/classes";
+import MediaPositioningActions from "../media-positioning-actions";
 import { useNoteImageNodeController, type NoteImageNodeProps } from "./controller";
 import { styles } from "./style.css.ts";
 
@@ -10,6 +11,7 @@ const NoteImageNode: Component<NoteImageNodeProps> = (props) => {
 		<div
 			class={cx(
 				styles.node,
+				props.editable && props.activePositioningId === props.element().id && styles.positioning,
 				Boolean(props.activePositioningId && props.activePositioningId !== props.element().id) &&
 					styles.lockedDuringPositioning,
 			)}
@@ -21,10 +23,6 @@ const NoteImageNode: Component<NoteImageNodeProps> = (props) => {
 				width: `${image.currentPoint().width}px`,
 				height: image.currentPoint().height > 0 ? `${image.currentPoint().height}px` : "auto",
 			}}
-			onPointerEnter={image.onPointerEnter}
-			onPointerLeave={image.onPointerLeave}
-			onFocusIn={image.onFocusIn}
-			onFocusOut={image.onFocusOut}
 			onPointerMove={image.move}
 			onPointerUp={image.finish}
 			onPointerCancel={image.finish}
@@ -42,17 +40,16 @@ const NoteImageNode: Component<NoteImageNodeProps> = (props) => {
 					cursor: props.editable && props.activePositioningId === props.element().id ? "move" : "default",
 				}}
 			/>
-			<Show when={props.editable && image.active() && props.activePositioningId === props.element().id}>
-				<button
-					class={styles.resizeHandle}
-					type="button"
-					aria-label={props.t("resizeImage")}
-					onPointerDown={(event) => image.begin(event, "resize")}
-					onKeyDown={image.resizeWithKeyboard}
-					style={{
-						right: "0px",
-						bottom: "0px",
-					}}
+			<Show when={props.editable && props.activePositioningId === props.element().id}>
+				<MediaPositioningActions
+					x={image.currentPoint().x}
+					width={image.currentPoint().width}
+					pageWidth={props.pageWidth}
+					t={props.t}
+					onConfirm={props.onConfirm}
+					onDelete={props.onDelete}
+					onResize={(event) => image.begin(event, "resize")}
+					onResizeKeyDown={image.resizeWithKeyboard}
 				/>
 			</Show>
 		</div>

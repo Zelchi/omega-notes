@@ -11,6 +11,10 @@ export type IconName =
 	| "edit"
 	| "delete"
 	| "check"
+	| "link"
+	| "resizeDiagonal"
+	| "resizeDiagonalReverse"
+	| "resizeHorizontal"
 	| "add"
 	| "view"
 	| "attachment"
@@ -41,6 +45,10 @@ const paths: Record<IconName, Component> = {
 		</>
 	),
 	check: () => <path d="m5 12 4 4L19 6" />,
+	link: () => <path d="m10 13 4-4M8 15l-1 1a3.5 3.5 0 0 1-5-5l4-4a3.5 3.5 0 0 1 5 0M16 9l1-1a3.5 3.5 0 0 1 5 5l-4 4a3.5 3.5 0 0 1-5 0" />,
+	resizeDiagonal: () => <path d="M5 10V5h5M5 5l14 14M14 19h5v-5" />,
+	resizeDiagonalReverse: () => <path d="M14 5h5v5M19 5 5 19M5 14v5h5" />,
+	resizeHorizontal: () => <path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4" />,
 	add: () => <path d="M12 5v14M5 12h14" />,
 	view: () => (
 		<>

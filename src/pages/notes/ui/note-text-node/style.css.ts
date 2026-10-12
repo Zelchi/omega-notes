@@ -43,7 +43,7 @@ export const styles = {
 	}),
 	content,
 	editing: style({
-		cursor: "default",
+		cursor: "text",
 		caretColor: "transparent",
 	}),
 	caret: style({
