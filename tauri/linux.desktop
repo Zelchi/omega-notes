@@ -3,6 +3,7 @@ Type=Application
 Name=Ômega Notes
 Comment={{comment}}
 Exec={{exec}}
+StartupWMClass={{exec}}
 Icon={{icon}}
 Terminal=false
 Categories=Education;

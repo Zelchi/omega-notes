@@ -1,5 +1,11 @@
 # Histórico de atualizações
 
+## v0.1.6
+
+### Linux
+
+- Restaurada a identificação da janela no lançador para o GNOME associar o Ômega Notes ao ícone do aplicativo.
+
 ## v0.1.5
 
 ### Interface
