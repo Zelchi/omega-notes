@@ -3,7 +3,7 @@ import { paragraphStarts, paragraphIndexAt, remapParagraphAlignments,
 	type NotePositionedElement, type NoteTextElement, type NoteTextAlignment, type StudyNote } from "@/entities/note";
 import { alignParagraphSelection, selectionAlignment, type ParagraphAlignmentHandler } from "@/features/align-text";
 import type { TranslationKey } from "@/shared/lib/i18n";
-import { useNoteLinkSuggestions } from "@/features/suggest-note-link";
+import { noteLinkAtCaret, useNoteLinkSuggestions } from "@/features/suggest-note-link";
 import { useClickableNoteLinks } from "@/features/follow-note-link";
 import { layoutTextFlow, type TextFlowLayout } from "../../lib/text-flow-layout";
 import { layoutFormattedText } from "../../lib/formatted-text-layout";
@@ -12,6 +12,7 @@ import { styles } from "./style.css.ts";
 import { formatSelection, type TextRun, type TextFormatHandler, type TextSelection, type FormattedFragment } from "@/features/format-text";
 
 const IMAGE_TEXT_MARGIN = 15;
+const LINK_BRACKET_INTERVAL = 250;
 const HIGH_SURROGATE = /[\uD800-\uDBFF]/;
 type CaretPlacement = (clientX: number, clientY: number) => boolean;
 type CaretPosition = { node: Node; offset: number };
@@ -166,6 +167,8 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	let measureContext: CanvasRenderingContext2D | null | undefined;
 	const measureCache = new Map<string, number>();
 	let composing = false;
+	let lastOpeningBracket: { time: number; offset: number } | undefined;
+	let pendingBracketDeletion: { key: string; offset: number; start: number; close: number; text: string } | undefined;
 	let rememberedSelection: TextSelection | undefined;
 	let caretFrame: number | undefined;
 	let caretRenderFrame: number | undefined;
@@ -647,13 +650,14 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	const replaceSelection = (
 		replacement: string,
 		range = selectionOffsets(),
+		caretInReplacement?: number,
 	): void => {
 		const { start, end } = range;
 		const rawValue = contentRoot()?.textContent ?? draft();
 		const value = hasTextFragments() ? rawValue.replaceAll(EMPTY_CHARACTER, "") : stripEmptyCharacter(rawValue);
 		const normalizedReplacement = replacement.replaceAll(EMPTY_CHARACTER, "");
 		const next = value.slice(0, start) + normalizedReplacement + value.slice(end);
-		emitText(next, start + normalizedReplacement.length, { start, end, length: normalizedReplacement.length });
+		emitText(next, start + (caretInReplacement ?? normalizedReplacement.length), { start, end, length: normalizedReplacement.length });
 	};
 	const linkSuggestions = useNoteLinkSuggestions({
 		notes: () => props.notes,
@@ -837,6 +841,8 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	const handleKeyUp = (): void => scheduleCaretMeasure();
 	const handlePointerUp = (): void => scheduleCaretMeasure();
 	const handleBlur = (): void => {
+		lastOpeningBracket = undefined;
+		pendingBracketDeletion = undefined;
 		rememberedSelection = selectionOffsets();
 		flushInput(false);
 		setCaret(undefined);
@@ -844,6 +850,8 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	};
 
 	const handlePointerDown = (event: PointerEvent): void => {
+		lastOpeningBracket = undefined;
+		pendingBracketDeletion = undefined;
 		if (!props.editable) return;
 		if (event.button !== 0) {
 			if (event.button === 2) event.preventDefault();
@@ -883,7 +891,52 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	};
 
 	const handleKeyDown = (event: KeyboardEvent): void => {
-		if (composing || event.isComposing) return;
+		if (event.key !== "[" && !["Shift", "Alt", "AltGraph", "Control"].includes(event.key)) lastOpeningBracket = undefined;
+		if (!["Backspace", "Delete"].includes(event.key)) pendingBracketDeletion = undefined;
+		if (composing || event.isComposing) { lastOpeningBracket = undefined; pendingBracketDeletion = undefined; return; }
+		if (props.editable && !props.locked && !event.ctrlKey && !event.metaKey && !event.altKey && ["Backspace", "Delete"].includes(event.key)) {
+			const previous = pendingBracketDeletion;
+			pendingBracketDeletion = undefined;
+			const range = selectionOffsets();
+			const text = draft();
+			if (range.start === range.end && previous?.key === event.key && previous.offset === range.start && previous.text === text) {
+				event.preventDefault();
+				replaceSelection(text.slice(previous.start + 1, previous.close), { start: previous.start, end: previous.close + 2 }, 0);
+				return;
+			}
+			if (range.end - range.start === 2 && text.slice(range.start, range.end) === "[[") {
+				const context = noteLinkAtCaret(text, range.end);
+				if (context?.start === range.start) {
+					event.preventDefault();
+					replaceSelection(text.slice(range.end, context.end - 2), { start: range.start, end: context.end }, 0);
+					return;
+				}
+			}
+			if (range.start === range.end) {
+				const backward = event.key === "Backspace";
+				const context = noteLinkAtCaret(text, backward ? range.start : range.start + 2);
+				if (context?.start === (backward ? range.start - 2 : range.start)) {
+					const removed = backward ? range.start - 1 : range.start;
+					pendingBracketDeletion = { key: event.key, offset: removed, start: context.start, close: context.end - 3,
+						text: text.slice(0, removed) + text.slice(removed + 1) };
+				}
+			}
+		}
+		if (props.editable && !props.locked && event.key === "[" && !event.metaKey && (!event.ctrlKey || event.altKey || event.getModifierState("AltGraph"))) {
+			const previous = lastOpeningBracket;
+			lastOpeningBracket = undefined;
+			if (event.repeat) return;
+			const range = selectionOffsets();
+			const elapsed = previous ? event.timeStamp - previous.time : Infinity;
+			if (range.start === range.end && previous?.offset === range.start && elapsed >= 0 && elapsed <= LINK_BRACKET_INTERVAL && draft()[range.start - 1] === "[") {
+				event.preventDefault();
+				// Reuse an existing closing pair and keep the caret between the brackets.
+				replaceSelection(draft().slice(range.start, range.start + 2) === "]]" ? "[" : "[]]", range, 1);
+				return;
+			}
+			lastOpeningBracket = { time: event.timeStamp, offset: range.start + 1 };
+			return;
+		}
 		if (props.editable && linkSuggestions.handleKeyDown(event)) return;
 		if (props.editable && (event.ctrlKey || event.metaKey) && !event.altKey && ["b", "i"].includes(event.key.toLowerCase())) {
 			event.preventDefault();
@@ -921,6 +974,8 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	};
 
 	const handlePaste = (event: ClipboardEvent): void => {
+		lastOpeningBracket = undefined;
+		pendingBracketDeletion = undefined;
 		event.preventDefault();
 		const text = event.clipboardData?.getData("text/plain");
 		if (text !== undefined) replaceSelection(text);
@@ -1010,7 +1065,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		handleKeyUp,
 		handleBlur,
 		handlePaste,
-		startComposition: () => { composing = true; setCaretOffset(undefined); },
+		startComposition: () => { lastOpeningBracket = undefined; pendingBracketDeletion = undefined; composing = true; setCaretOffset(undefined); },
 		handleCompositionEnd,
 	};
 };

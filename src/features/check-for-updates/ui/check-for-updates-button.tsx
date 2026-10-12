@@ -23,7 +23,7 @@ export const CheckForUpdatesButton: Component<{
 		}
 	};
 	return <button class={styles.button} type="button" disabled={props.updates.busy()}
-		aria-busy={props.updates.busy()} title={props.t(props.updates.status() === "available" ? "installUpdate" : "checkForUpdates")}
+		aria-busy={props.updates.busy()}
 		onClick={() => void props.updates.activate()}>
 		<span aria-live="polite" aria-atomic="true">{label()}</span>
 	</button>;

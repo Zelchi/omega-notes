@@ -1,8 +1,8 @@
-import type { TextCursor, Theme } from "../model/preferences";
+import type { CanvasLayout, TextCursor, Theme } from "../model/preferences";
 import type { Language } from "@/shared/lib/i18n";
 
 const CENTER_CANVAS_KEY = "omega-notes.settings.center-canvas-on-launch";
-const HIDE_ZOOM_KEY = "omega-notes.settings.hide-zoom-controls";
+const HIDE_CANVAS_CONTROLS_KEY = "omega-notes.settings.hide-zoom-controls";
 const THEME_KEY = "omega-notes.settings.theme";
 const LANGUAGE_KEY = "omega-notes.settings.language";
 const TEXT_CURSOR_KEY = "omega-notes.settings.text-cursor";
@@ -38,13 +38,13 @@ const writeBoolean = (key: string, value: boolean): void => {
 };
 
 export const readCenterCanvasOnLaunch = (): boolean => readBoolean(CENTER_CANVAS_KEY, true);
-export const readHideZoomControls = (): boolean => readBoolean(HIDE_ZOOM_KEY, false);
+export const readHideCanvasControls = (): boolean => readBoolean(HIDE_CANVAS_CONTROLS_KEY, false);
 
 export const readLanguage = (): Language => {
 	try {
-		return localStorage.getItem(LANGUAGE_KEY) === "en" ? "en" : "pt-br";
+		return localStorage.getItem(LANGUAGE_KEY) === "pt-br" ? "pt-br" : "en";
 	} catch {
-		return "pt-br";
+		return "en";
 	}
 };
 
@@ -57,7 +57,7 @@ export const saveLanguage = (language: Language): void => {
 };
 
 export const saveCenterCanvasOnLaunch = (value: boolean): void => writeBoolean(CENTER_CANVAS_KEY, value);
-export const saveHideZoomControls = (value: boolean): void => writeBoolean(HIDE_ZOOM_KEY, value);
+export const saveHideCanvasControls = (value: boolean): void => writeBoolean(HIDE_CANVAS_CONTROLS_KEY, value);
 
 export const readTheme = (): Theme => {
 	try {
@@ -73,4 +73,14 @@ export const saveTheme = (value: Theme): void => {
 	} catch (error) {
 		console.error(error);
 	}
+};
+
+export const readCanvasLayout = (): CanvasLayout => {
+	try { return localStorage.getItem("omega-notes.canvas-layout") === "dynamic" ? "dynamic" : "static"; }
+	catch { return "static"; }
+};
+
+export const saveCanvasLayout = (layout: CanvasLayout): void => {
+	try { localStorage.setItem("omega-notes.canvas-layout", layout); }
+	catch { /* The layout can still be switched when storage is unavailable. */ }
 };

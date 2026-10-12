@@ -18,7 +18,6 @@ export const ExportPdfButton: Component<Props> = (props) => {
 	return <div class={styles.root}>
 		<button class={styles.button} type="button" disabled={busy() || props.disabled} aria-busy={busy()}
 			aria-label={props.t(busy() ? "exportingPdf" : "exportPdf")}
-			title={props.t(busy() ? "exportingPdf" : "exportPdf")}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => void exportPdf()}>
 			<Icon name="exportPdf" size={17} />
 		</button>

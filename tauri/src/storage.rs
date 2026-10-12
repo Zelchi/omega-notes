@@ -57,7 +57,8 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8], backup: Option<&Path>) -> 
         if path.is_file() {
             if let Some(backup) = backup {
                 fs::copy(path, backup)?;
-                File::open(backup)?.sync_all()?;
+                // Windows requires a writable handle for FlushFileBuffers.
+                OpenOptions::new().write(true).open(backup)?.sync_all()?;
             }
         }
 
@@ -89,8 +90,15 @@ pub(crate) fn atomic_copy(source: &Path, destination: &Path) -> Result<(), Strin
     let temporary = parent.join(format!(".{file_name}.{}.tmp", Uuid::now_v7()));
 
     let result = (|| -> std::io::Result<()> {
-        fs::copy(source, &temporary)?;
-        File::open(&temporary)?.sync_all()?;
+        let mut source_file = File::open(source)?;
+        let mut target_file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)?;
+        std::io::copy(&mut source_file, &mut target_file)?;
+        target_file.sync_all()?;
+        drop(target_file);
+        drop(source_file);
         replace_file(&temporary, destination)?;
         #[cfg(unix)]
         if let Ok(directory) = File::open(parent) {

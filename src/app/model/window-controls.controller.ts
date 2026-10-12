@@ -1,7 +1,9 @@
 import { createSignal, onCleanup, onMount } from "solid-js";
 import { isTauriRuntime } from "@/shared/lib/tauri";
+import type { TranslationKey } from "@/shared/lib/i18n";
 import {
 	closeWindow,
+	confirmCloseWithoutSaving,
 	isWindowMaximized,
 	minimizeWindow,
 	onWindowCloseRequested,
@@ -9,7 +11,7 @@ import {
 	toggleWindowMaximize,
 } from "../api/window.repository";
 
-export const useWindowControls = (beforeClose: () => Promise<boolean>) => {
+export const useWindowControls = (beforeClose: () => Promise<boolean>, t: (key: TranslationKey) => string) => {
 	const [maximized, setMaximized] = createSignal(false);
 	let unlistenResize: (() => void) | undefined;
 	let unlistenClose: (() => void) | undefined;
@@ -34,10 +36,15 @@ export const useWindowControls = (beforeClose: () => Promise<boolean>) => {
 			if (closePending) return;
 			closePending = true;
 			void beforeClose()
+				.catch((error) => { console.error(error); return false; })
 				.then(async (saved) => {
 					if (!saved) {
-						closePending = false;
-						return;
+						const confirmed = await confirmCloseWithoutSaving(t("closeUnsavedMessage"), t("appName"),
+							t("closeWithoutSaving"), t("keepEditing"));
+						if (!confirmed) {
+							closePending = false;
+							return;
+						}
 					}
 					try {
 						await destroyWindow();

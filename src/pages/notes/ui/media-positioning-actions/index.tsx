@@ -22,16 +22,16 @@ const MediaPositioningActions: Component<{
         onPointerDown={(event) => event.stopPropagation()}
         onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}>
         <button class={`${styles.button} ${styles.danger}`} type="button" onClick={props.onDelete}
-            title={props.t("deleteMediaElement")} aria-label={props.t("deleteMediaElement")}>
+            aria-label={props.t("deleteMediaElement")}>
             <Icon name="delete" size={18} />
         </button>
         <button class={styles.button} type="button" onClick={props.onConfirm}
-            title={props.t("confirmMediaPosition")} aria-label={props.t("confirmMediaPosition")}>
+            aria-label={props.t("confirmMediaPosition")}>
             <Icon name="check" size={18} />
         </button>
         <button class={styles.button} type="button" onPointerDown={props.onResize}
             onKeyDown={props.onResizeKeyDown} style={{ cursor: props.audio ? "ew-resize" : "nwse-resize" }}
-            title={props.t("resizeMedia")} aria-label={props.t("resizeMedia")}>
+            aria-label={props.t("resizeMedia")}>
             <Icon name={props.audio ? "resizeHorizontal" : "resizeDiagonal"} size={16} />
         </button>
     </div>

@@ -13,7 +13,7 @@ export type GraphCanvasProps = {
 	onDeleteNote: (note: StudyNote) => Promise<void>;
 	centerOnMount: boolean;
 	onCanvasMount: () => void;
-	hideZoomControls: boolean;
+	hideCanvasControls: boolean;
 	t: (key: TranslationKey) => string;
 };
 

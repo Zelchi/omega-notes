@@ -53,8 +53,11 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 							return (
 								<button
 									class={cx(styles.bubble, graph.createdNoteId() === note.id && styles.createdBubble, graph.selectedIds().has(note.id) && styles.selectedBubble)}
-									ref={(element) => registerExitSnapshot(element, { kind: "card", key: `canvas-card:${note.id}`,
-										enabled: () => !props.notes.some((current) => current.id === note.id) })}
+									ref={(element) => {
+										graph.registerNode(note.id, element);
+										registerExitSnapshot(element, { kind: "card", key: `canvas-card:${note.id}`,
+											enabled: () => !props.notes.some((current) => current.id === note.id) });
+									}}
 									data-note-id={note.id}
 									aria-pressed={graph.selectedIds().has(note.id)}
 									type="button"
@@ -85,7 +88,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 					}} />}
 				</Show>
 
-				<Show when={!props.hideZoomControls}>
+				<Show when={!props.hideCanvasControls}>
 					<div
 						class={styles.controls}
 						onPointerDown={(event) => {

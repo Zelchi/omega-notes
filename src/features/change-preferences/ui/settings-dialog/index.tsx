@@ -1,14 +1,16 @@
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { Show, type Component, type JSX } from "solid-js";
 import type { Language, TranslationKey } from "@/shared/lib/i18n";
-import type { TextCursor, Theme } from "../../model/preferences";
+import type { CanvasLayout, TextCursor, Theme } from "../../model/preferences";
 import Icon from "@/shared/ui/icon";
 import { styles } from "./style.css.ts";
 
 type Props = {
 	open: boolean;
+	canvasLayout: CanvasLayout;
+	onCanvasLayoutChange: (value: CanvasLayout) => void;
 	centerCanvasOnLaunch: boolean;
-	hideZoomControls: boolean;
+	hideCanvasControls: boolean;
 	language: Language;
 	theme: Theme;
 	textCursor: TextCursor;
@@ -16,7 +18,7 @@ type Props = {
 	t: (key: TranslationKey) => string;
 	onClose: () => void;
 	onCenterCanvasChange: (value: boolean) => void;
-	onHideZoomControlsChange: (value: boolean) => void;
+	onHideCanvasControlsChange: (value: boolean) => void;
 	onLanguageChange: (value: Language) => void;
 	onThemeChange: (value: Theme) => void;
 	onTextCursorChange: (value: TextCursor) => void;
@@ -50,13 +52,21 @@ const SettingsDialog: Component<Props> = (props) => (
 					/>
 				</label>
 				<label class={styles.option}>
-					<span>{props.t("hideZoomControls")}</span>
+					<span>{props.t("hideCanvasControls")}</span>
 					<input
 						class={styles.toggle}
 						type="checkbox"
-						checked={props.hideZoomControls}
-						onChange={(event) => props.onHideZoomControlsChange(event.currentTarget.checked)}
+						checked={props.hideCanvasControls}
+						onChange={(event) => props.onHideCanvasControlsChange(event.currentTarget.checked)}
 					/>
+				</label>
+				<label class={styles.option}>
+					<span>{props.t("canvasLayout")}</span>
+					<select class={styles.select} value={props.canvasLayout}
+						onChange={(event) => props.onCanvasLayoutChange(event.currentTarget.value as CanvasLayout)}>
+						<option value="static">{props.t("staticCanvas")}</option>
+						<option value="dynamic">{props.t("dynamicCanvas")}</option>
+					</select>
 				</label>
 				<label class={styles.option}>
 					<span>{props.t("language")}</span>

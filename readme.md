@@ -28,6 +28,15 @@ No Ômega Notes, suas notas aparecem como bolhas em um **canvas**. Você pode
 movê-las, aproximar assuntos relacionados e navegar com zoom. As referências entre
 notas aparecem como conexões, ajudando a visualizar como os conteúdos se relacionam.
 
+Nas configurações, escolha entre **Estático**, para organizar as bolhas manualmente, e **Dinâmico**,
+que distribui as notas automaticamente como pontos conectados pelas referências
+`[[nota]]`. Os dois mostram as mesmas notas; alternar entre eles preserva a
+organização manual. No Dinâmico, passe o mouse num ponto para destacar suas
+conexões ou use o botão de enquadramento para ver o conjunto.
+
+No Estático, as bolhas abrem espaço umas para as outras ao criar ou mover notas,
+evitando sobreposições sem precisar reorganizar o canvas inteiro.
+
 No modo de edição, arraste com o botão esquerdo numa área vazia para selecionar
 várias notas e movê-las juntas. Use Ctrl ou Shift para ajustar a seleção e Escape
 para desfazê-la. Arraste com o botão direito numa área vazia para mover o canvas.
@@ -92,8 +101,9 @@ Nas configurações, você pode escolher:
 - **Tema claro ou escuro.**
 - **Português do Brasil ou inglês.**
 - **Cursor de linha ou de bloco**, com opções que piscam ou permanecem fixas.
+- Escolher o canvas Estático ou Dinâmico.
 - Centralizar o canvas ao iniciar.
-- Exibir ou ocultar os botões de zoom.
+- Exibir ou ocultar os botões do canto inferior direito do canvas.
 
 ## Seus arquivos ficam com você
 
