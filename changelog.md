@@ -1,5 +1,11 @@
 # Histórico de atualizações
 
+## v0.1.3
+
+### Correções
+
+- Atualizações disponíveis agora são informadas no botão das configurações. O download e a instalação só começam após o clique do usuário.
+
 ## v0.1.2
 
 ### Aparência

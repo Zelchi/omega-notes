@@ -24,17 +24,17 @@ O workflow identifica o próprio repositório e configura `https://github.com/<d
 
 1. Use a mesma versão em `package.json`, `tauri/Cargo.toml` e `tauri/tauri.conf.json`.
 2. Atualize os arquivos de lock junto com as dependências e a versão do pacote Rust. Registre as novidades em `changelog.md`, em uma seção `## vX.Y.Z`; o workflow usa essa seção na descrição da release.
-3. Faça commit, crie uma tag com essa versão e envie ao GitHub. Atualmente o projeto está em `0.1.2`:
+3. Faça commit, crie uma tag com essa versão e envie ao GitHub. Atualmente o projeto está em `0.1.3`:
 
 ```sh
 git add .
-git commit -m "Prepare release 0.1.2"
-git tag v0.1.2
+git commit -m "Prepare release 0.1.3"
+git tag v0.1.3
 git push origin HEAD
-git push origin v0.1.2
+git push origin v0.1.3
 ```
 
-Uma tag publicada deve apontar para o commit completo da versão. Para outra versão, substitua `0.1.2` nos três arquivos e nos comandos. A preparação recusa uma tag que não corresponda aos arquivos do projeto.
+Uma tag publicada deve apontar para o commit completo da versão. Para outra versão, substitua `0.1.3` nos três arquivos e nos comandos. A preparação recusa uma tag que não corresponda aos arquivos do projeto.
 
 O workflow `.github/workflows/release.yml`:
 
@@ -50,7 +50,7 @@ Também é possível executar **Actions → Publicar versão → Run workflow**,
 
 ## Atualização do aplicativo
 
-No aplicativo empacotado, a verificação ocorre ao iniciar. Quando há uma versão mais recente, o pacote é baixado e sua assinatura é verificada pelo Tauri. O aplicativo bloqueia a edição durante a instalação, conclui os salvamentos pendentes, instala e reinicia. Se o salvamento falhar, a instalação é interrompida. Se o diálogo de nome de nota ou o gestor de Vaults estiver aberto, o download é mantido e a instalação automática aguarda o fechamento do diálogo.
+No aplicativo empacotado, a verificação ocorre ao iniciar. Quando há uma versão mais recente, o botão das configurações informa a versão disponível. O download e a instalação só começam depois de clicar no botão; abrir as configurações não inicia a atualização. A assinatura do pacote é verificada pelo Tauri. O aplicativo bloqueia a edição durante a instalação, conclui os salvamentos pendentes, instala e reinicia. Se o salvamento falhar, a instalação é interrompida. Se um diálogo ou uma operação de vault impedir a instalação depois do download, o pacote é mantido e o botão volta a indicar a atualização disponível; é necessário clicar novamente quando a operação terminar.
 
 O botão no final das configurações continua permitindo conferir uma versão e instalar uma atualização disponível. O texto indica verificação, versão disponível, download, instalação ou falha. O aviso “Verificação indisponível” dura dois segundos.
 
@@ -61,7 +61,7 @@ No navegador, em `make dev` e em builds sem endpoint de release, a atualização
 Depois de configurar a versão e o repositório, no Linux:
 
 ```sh
-GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=v0.1.2 node scripts/prepare-release.mjs
+GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=v0.1.3 node scripts/prepare-release.mjs
 TAURI_SIGNING_PRIVATE_KEY="$PWD/.keys/updater.key" node node_modules/@tauri-apps/cli/tauri.js build --bundles deb,rpm --config tauri/tauri.release.conf.json -- --locked
 ```
 
