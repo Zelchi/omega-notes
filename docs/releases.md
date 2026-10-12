@@ -24,17 +24,17 @@ O workflow identifica o próprio repositório e configura `https://github.com/<d
 
 1. Use a mesma versão em `package.json`, `tauri/Cargo.toml` e `tauri/tauri.conf.json`.
 2. Atualize os arquivos de lock junto com as dependências e a versão do pacote Rust. Registre as novidades em `changelog.md`, em uma seção `## vX.Y.Z`; o workflow usa essa seção na descrição da release.
-3. Faça commit, crie uma tag com essa versão e envie ao GitHub. Atualmente o projeto está em `0.1.5`:
+3. Faça commit, crie uma tag com essa versão e envie ao GitHub. Atualmente o projeto está em `0.1.6`:
 
 ```sh
 git add .
-git commit -m "Prepare release 0.1.5"
-git tag v0.1.5
+git commit -m "Prepare release 0.1.6"
+git tag v0.1.6
 git push origin HEAD
-git push origin v0.1.5
+git push origin v0.1.6
 ```
 
-Uma tag publicada deve apontar para o commit completo da versão. Para outra versão, substitua `0.1.5` nos três arquivos e nos comandos. A preparação recusa uma tag que não corresponda aos arquivos do projeto.
+Uma tag publicada deve apontar para o commit completo da versão. Para outra versão, substitua `0.1.6` nos três arquivos e nos comandos. A preparação recusa uma tag que não corresponda aos arquivos do projeto.
 
 O workflow `.github/workflows/release.yml`:
 
@@ -72,7 +72,7 @@ Cada diretório contém seu próprio `vaults.json`, vaults, notas, mídias e pas
 Depois de configurar a versão e o repositório, no Linux:
 
 ```sh
-GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=v0.1.5 node scripts/prepare-release.mjs
+GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=v0.1.6 node scripts/prepare-release.mjs
 TAURI_SIGNING_PRIVATE_KEY="$PWD/.keys/updater.key" node node_modules/@tauri-apps/cli/tauri.js build --bundles deb,rpm --config tauri/tauri.release.conf.json -- --locked
 ```
 
