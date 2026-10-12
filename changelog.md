@@ -1,5 +1,21 @@
 # Histórico de atualizações
 
+## v0.1.7
+
+### Canvas
+
+- Borda de seleção preservada quando a bolha recebe foco e durante o arraste.
+- Seleção calculada pelas posições das notas no canvas, considerando zoom e deslocamento, sem depender das caixas visuais transformadas.
+- Ajustada a camada de desenho e a movimentação das bolhas para evitar rastros de bordas durante o arraste.
+- Seleção de várias notas ao arrastar com o botão esquerdo numa área vazia, com destaque visual e movimento em conjunto.
+- Ctrl ou Shift permite ajustar a seleção; Escape ou um clique vazio desfaz a seleção.
+
+### Editor
+
+- Alinhamento aplicado ao parágrafo do cursor ou aos parágrafos selecionados, com configurações independentes para cada um.
+- A barra de edição acompanha o alinhamento da seleção e indica seleções com alinhamentos diferentes.
+- Novos parágrafos herdam o alinhamento do parágrafo de origem; os alinhamentos são preservados ao editar e ao salvar a nota.
+
 ## v0.1.6
 
 ### Linux

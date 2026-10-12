@@ -23,7 +23,8 @@ export type IconName =
 	| "alignLeft"
 	| "alignCenter"
 	| "alignJustify"
-	| "alignRight";
+	| "alignRight"
+	| "alignMixed";
 
 const paths: Record<IconName, Component> = {
 	heading: () => <path d="M6 5v14M18 5v14M6 12h12" />,
@@ -77,6 +78,7 @@ const paths: Record<IconName, Component> = {
 	alignCenter: () => <path d="M4 6h16M7 10h10M4 14h16M7 18h10" />,
 	alignJustify: () => <path d="M4 6h16M4 10h16M4 14h16M4 18h16" />,
 	alignRight: () => <path d="M4 6h16M10 10h10M4 14h16M10 18h10" />,
+	alignMixed: () => <path d="M4 6h16M4 10h10M7 14h13M4 18h12" />,
 };
 
 const Icon: Component<{ name: IconName; size?: number }> = (props) => (

@@ -25,6 +25,10 @@ const parseNotes = (serialized: string): StudyNote[] => {
 		const texts = document.elements.filter((element) => element.type === "text");
 		return texts.length !== 1 || document.elements.some((element) =>
 			(element.type === "text" && !["left", "center", "justify", "right"].includes(element.alignment)) ||
+			(element.type === "text" && element.paragraphAlignments !== undefined &&
+				(!Array.isArray(element.paragraphAlignments) ||
+					(element.paragraphAlignments.length > 0 && element.paragraphAlignments.length !== element.text.split("\n").length) ||
+					element.paragraphAlignments.some((alignment) => !["left", "center", "justify", "right"].includes(alignment)))) ||
 			(element.type === "audio" && (!Number.isFinite(element.volume) || element.volume < 0 || element.volume > 1)),
 		);
 	})) {

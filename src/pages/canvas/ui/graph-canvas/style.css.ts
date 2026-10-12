@@ -1,5 +1,6 @@
 import { motion } from "@/shared/ui/motion.css";
 import { style } from "@vanilla-extract/css";
+import { HOME_HEIGHT, HOME_WIDTH } from "../../lib/graph";
 
 export const styles = {
 	createdBubble: style(motion.createdNode),
@@ -22,11 +23,10 @@ export const styles = {
 		position: "absolute",
 		top: 0,
 		left: 0,
-		width: 0,
-		height: 0,
+		width: HOME_WIDTH,
+		height: HOME_HEIGHT,
 		overflow: "visible",
 		transformOrigin: "top left",
-		willChange: "transform",
 	}),
 	edges: style({ position: "absolute", top: 0, left: 0, overflow: "visible", pointerEvents: "none" }),
 	edge: style({
@@ -38,6 +38,8 @@ export const styles = {
 	}),
 	bubble: style({
 		position: "absolute",
+		left: 0,
+		top: 0,
 		width: "max-content",
 		minWidth: 42,
 		maxWidth: 222,
@@ -62,6 +64,26 @@ export const styles = {
 			},
 			"&:active": { cursor: "grabbing" },
 		},
+	}),
+	selectedBubble: style({
+		selectors: {
+			"&::after": {
+				content: '""',
+				position: "absolute",
+				inset: -5,
+				border: "2px solid var(--ink)",
+				borderRadius: 11,
+				pointerEvents: "none",
+			},
+		},
+	}),
+	selectionBox: style({
+		position: "absolute",
+		zIndex: 2,
+		border: "1px solid var(--ink)",
+		backgroundColor: "var(--editor-selection)",
+		opacity: 0.45,
+		pointerEvents: "none",
 	}),
 	bubbleCopy: style({ display: "block", minWidth: 0, maxWidth: "100%" }),
 	bubbleTitle: style({

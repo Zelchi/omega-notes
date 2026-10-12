@@ -19,6 +19,7 @@ pub(crate) fn empty_document() -> NoteDocument {
             height: 44.0,
             text: String::new(),
             alignment: TextAlignment::Left,
+            paragraph_alignments: Vec::new(),
         }],
     }
 }
@@ -51,8 +52,15 @@ pub(crate) fn validate_document(document: &NoteDocument) -> Result<(), String> {
                 y,
                 width,
                 height,
+                text,
+                paragraph_alignments,
                 ..
             } => {
+                if !paragraph_alignments.is_empty()
+                    && paragraph_alignments.len() != text.split('\n').count()
+                {
+                    return Err("Alinhamentos de parágrafos inválidos.".to_string());
+                }
                 if ![x, y, width, height].iter().all(|value| value.is_finite())
                     || *width <= 0.0
                     || *height < 0.0

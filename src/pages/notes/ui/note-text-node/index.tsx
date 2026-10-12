@@ -29,7 +29,8 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 						"font-size": `${fragment().fontScale ?? 1}em`,
 						"line-height": fragment().lineHeight ? `${fragment().lineHeight}px` : undefined,
 						"font-weight": fragment().format?.block.kind === "heading" ? 600 : undefined,
-						"text-align-last": editor.alignment() === "justify" ? "justify" : "auto",
+						"text-align": fragment().alignment ?? editor.alignment(),
+						"text-align-last": (fragment().alignment ?? editor.alignment()) === "justify" && !fragment().paragraphEnd ? "justify" : "auto",
 					}}
 				>
 					{props.renderText(fragment().text, fragment().format)}
@@ -72,7 +73,7 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 						style={{ "text-align-last": editor.alignment() === "justify" ? "justify" : "auto" }}
 						onKeyDown={editor.handleKeyDown}
 					>
-						<Show when={editor.hasPositionedElements()} fallback={renderNaturalFragment()}>
+						<Show when={editor.hasTextFragments()} fallback={renderNaturalFragment()}>
 							{renderFragments()}
 						</Show>
 					</div>

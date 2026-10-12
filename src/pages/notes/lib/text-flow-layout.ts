@@ -1,7 +1,9 @@
 import type { FormattedFragment } from "@/features/format-text";
-import type { NotePositionedElement } from "@/entities/note";
+import type { NotePositionedElement, NoteTextAlignment } from "@/entities/note";
 
 export type TextFlowFragment = {
+	alignment?: NoteTextAlignment;
+	paragraphEnd?: boolean;
 	format?: FormattedFragment;
 	fontScale?: number;
 	lineHeight?: number;

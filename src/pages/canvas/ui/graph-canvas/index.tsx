@@ -16,6 +16,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 				class={styles.board}
 				ref={board}
 				style={{
+					cursor: props.mode === "edit" ? "default" : "grab",
 					"background-position": `${graph.view().x}px ${graph.view().y}px`,
 					"background-size": `${21 * graph.view().scale}px ${21 * graph.view().scale}px`,
 				}}
@@ -23,6 +24,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 				onPointerMove={graph.moveGesture}
 				onPointerUp={graph.endGesture}
 				onPointerCancel={graph.cancelGesture}
+				onLostPointerCapture={graph.cancelGesture}
 				onWheel={graph.zoomWithWheel}
 				onContextMenu={(event) => event.preventDefault()}
 				aria-label={props.t("canvasLabel")}
@@ -50,19 +52,20 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 							const point = () => graph.nodePosition(note, index());
 							return (
 								<button
-									class={cx(styles.bubble, graph.createdNoteId() === note.id && styles.createdBubble)}
+									class={cx(styles.bubble, graph.createdNoteId() === note.id && styles.createdBubble, graph.selectedIds().has(note.id) && styles.selectedBubble)}
 									ref={(element) => registerExitSnapshot(element, { kind: "card", key: `canvas-card:${note.id}`,
 										enabled: () => !props.notes.some((current) => current.id === note.id) })}
+									data-note-id={note.id}
+									aria-pressed={graph.selectedIds().has(note.id)}
 									type="button"
 									style={{
-										left: `${point().x}px`,
-										top: `${point().y}px`,
+										translate: `${point().x}px ${point().y}px`,
 										cursor: props.mode === "view" ? "pointer" : "grab",
 									}}
 									onPointerDown={(event) => graph.beginNodeDrag(event, note)}
 									onContextMenu={(event) => graph.openContextMenu(event, note)}
-									onClick={() => {
-										if (graph.shouldIgnoreClick()) return;
+									onClick={(event) => {
+										if (graph.shouldIgnoreClick(event)) return;
 										graph.clearContextMenu();
 										props.onOpenNote(note);
 									}}
@@ -75,6 +78,12 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 						}}
 					</For>
 				</div>
+
+				<Show when={graph.selectionBox()}>
+					{(box) => <div class={styles.selectionBox} aria-hidden="true" style={{
+						left: `${box().x}px`, top: `${box().y}px`, width: `${box().width}px`, height: `${box().height}px`,
+					}} />}
+				</Show>
 
 				<Show when={!props.hideZoomControls}>
 					<div

@@ -17,6 +17,7 @@ import { openExternalUrl as openTauriExternalUrl } from "../../api/external-link
 import { onMediaFilesDropped } from "../../api/media.repository";
 import { attachMediaFiles, importMediaPaths } from "../../model/media-import";
 import type { TextFormat, TextFormatHandler } from "@/features/format-text";
+import type { ParagraphAlignmentHandler } from "@/features/align-text";
 
 export type NoteCanvasEditorProps = {
 	document: NoteDocument;
@@ -39,6 +40,8 @@ const POSITIONING_ACTIONS_SPACE = 48;
 export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 	let paper!: HTMLDivElement;
 	let textFormatHandler: TextFormatHandler | undefined;
+	let textAlignmentHandler: ParagraphAlignmentHandler | undefined;
+	const [textAlignment, setTextAlignment] = createSignal<NoteTextAlignment | undefined>("left");
 	const [catalogOpen, setCatalogOpen] = createSignal(false);
 	const [textContentBottom, setTextContentBottom] = createSignal(PAGE_BORDER + PAGE_MARGIN + EMPTY_TEXT_HEIGHT);
 	const [previewElement, setPreviewElement] = createSignal<NotePositionedElement>();
@@ -137,19 +140,12 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		const positionedElements = base.elements.filter(
 			(element): element is NotePositionedElement => element.type !== "text",
 		);
-		props.onChange({ ...base, elements: [{ ...text, text: next.text }, ...positionedElements] });
+		props.onChange({ ...base, elements: [{ ...text, text: next.text, paragraphAlignments: next.paragraphAlignments }, ...positionedElements] });
 	};
 
 	const updateTextAlignment = (alignment: NoteTextAlignment): void => {
-		const base = flowDocument();
-		const text = base.elements[0] as NoteTextElement;
-		props.onChange({ ...base, elements: [{ ...text, alignment }, ...base.elements.slice(1)] });
+		textAlignmentHandler?.(alignment);
 	};
-
-	const textAlignment = createMemo(() => {
-		const text = flowDocument().elements.find((element): element is NoteTextElement => element.type === "text");
-		return text!.alignment;
-	});
 
 	const insertMedia = (sources: ImportedMedia[], position: AttachmentPosition = { x: PAGE_MARGIN, y: PAGE_MARGIN }): void => {
 		if (!sources.length) return;
@@ -275,6 +271,8 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 	});
 
 	return {
+		setTextAlignmentHandler: (handler: ParagraphAlignmentHandler | undefined) => (textAlignmentHandler = handler),
+		setTextAlignment,
 		setTextFormatHandler: (handler: TextFormatHandler | undefined) => (textFormatHandler = handler),
 		formatText: (format: TextFormat) => textFormatHandler?.(format),
 		catalogOpen,
