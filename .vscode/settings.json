@@ -1,0 +1,17 @@
+{
+    "js/ts.tsdk.path": "./node_modules/typescript/lib",
+    "files.exclude": {
+        "**/node_modules": true,
+        "**/dist": true,
+        "tauri/target": true,
+        "tauri/gen": true
+    },
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/dist": true
+    },
+    "files.watcherExclude": {
+        "**/node_modules/**": true,
+        "**/dist/**": true
+    }
+}

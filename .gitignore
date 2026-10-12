@@ -1,0 +1,13 @@
+node_modules/
+dist/
+tauri/target/
+tauri/gen/
+*.log
+.DS_Store
+Thumbs.db
+
+.keys/
+.env
+.env.*
+!.env.example
+tauri/tauri.release.conf.json

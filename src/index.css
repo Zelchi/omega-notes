@@ -1,0 +1,166 @@
+:root {
+    color-scheme: dark;
+    font-family: Inter, "Segoe UI", "Helvetica Neue", sans-serif;
+    color: var(--ink);
+    background: var(--canvas);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-weight: 400;
+    --canvas: #111112;
+    --ink: #e7e7e8;
+    --line: #2b2b2e;
+    --muted: #a0a0a5;
+    --subtle: #85858b;
+    --outline: #38383b;
+    --focus: #a8a8ad;
+    --surface-titlebar: #171719;
+    --surface-search: #1a1a1c;
+    --surface-panel: #1c1c1e;
+    --surface-bubble-hover: #242426;
+    --surface-hover: #303033;
+    --surface-editor: #18181a;
+    --surface-input: #141416;
+    --surface-controls: rgb(27 27 29 / 95%);
+    --border-soft: #303033;
+    --border-strong: #38383b;
+    --border-hover: #68686d;
+    --text-title: #c4c4c7;
+    --text-control: #b4b4b8;
+    --text-dim: #929298;
+    --text-option: #d0d0d3;
+    --text-strong: #f0f0f1;
+    --text-link: #c6c6ca;
+    --text-string: #d2d2d5;
+    --text-quote: #aaaaae;
+    --danger: #c98279;
+    --danger-hover: #a83232;
+    --button-cancel-bg: #242426;
+    --button-cancel-fg: #c4c4c7;
+    --button-confirm-bg: #dedee0;
+    --button-confirm-fg: #171719;
+    --board: #141416;
+    --board-dots: #303033;
+    --edge: #737378;
+    --toggle-off: #343437;
+    --toggle-off-border: #48484c;
+    --toggle-off-dot: #a6a6ab;
+    --toggle-on: #dedee0;
+    --toggle-on-dot: #1b1b1d;
+    --editor-selection: #404044;
+    --editor-ink: #dedee0;
+    --editor-caret: #f0f0f1;
+    --overlay: rgb(0 0 0 / 62%);
+    --display: Inter, "Segoe UI", "Helvetica Neue", sans-serif;
+}
+
+:root[data-theme="light"] {
+    color-scheme: light;
+    --canvas: #f4f4f5;
+    --ink: #252528;
+    --line: #dedee1;
+    --muted: #68686e;
+    --subtle: #818188;
+    --outline: #d1d1d5;
+    --focus: #707078;
+    --surface-titlebar: #fafafa;
+    --surface-search: #ffffff;
+    --surface-panel: #ffffff;
+    --surface-bubble-hover: #f6f6f7;
+    --surface-hover: #e9e9ec;
+    --surface-editor: #ffffff;
+    --surface-input: #f8f8f9;
+    --surface-controls: rgb(255 255 255 / 95%);
+    --border-soft: #e1e1e4;
+    --border-strong: #d0d0d4;
+    --border-hover: #9c9ca3;
+    --text-title: #4d4d53;
+    --text-control: #65656c;
+    --text-dim: #77777e;
+    --text-option: #333338;
+    --text-strong: #202024;
+    --text-link: #53535b;
+    --text-string: #3d3d44;
+    --text-quote: #62626a;
+    --danger: #a64a43;
+    --danger-hover: #b63b3b;
+    --button-cancel-bg: #f0f0f2;
+    --button-cancel-fg: #57575e;
+    --button-confirm-bg: #29292d;
+    --button-confirm-fg: #f5f5f6;
+    --board: #f8f8f9;
+    --board-dots: #d4d4d8;
+    --edge: #77777e;
+    --toggle-off: #e2e2e5;
+    --toggle-off-border: #c5c5ca;
+    --toggle-off-dot: #77777e;
+    --toggle-on: #4b4b52;
+    --toggle-on-dot: #ffffff;
+    --editor-selection: #d9d9df;
+    --editor-ink: #333338;
+    --editor-caret: #202024;
+    --overlay: rgb(20 20 24 / 28%);
+}
+
+* {
+    box-sizing: border-box;
+    -webkit-user-select: none;
+    user-select: none;
+    margin: 0;
+    padding: 0;
+    gap: 0;
+}
+
+body {
+    min-width: 680px;
+    min-height: 100vh;
+}
+
+button,
+input,
+select {
+    font: inherit;
+}
+
+button {
+    color: inherit;
+}
+
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+[data-omega-scroll-viewport] {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+[data-omega-scroll-viewport]::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+button {
+    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, opacity 140ms ease;
+}
+
+input:not([type="range"]), select {
+    transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+        animation: none !important;
+    }
+}
