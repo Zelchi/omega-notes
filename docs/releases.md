@@ -44,7 +44,7 @@ O workflow `.github/workflows/release.yml`:
 4. Agrega `linux-x86_64-deb`, `linux-x86_64-rpm` e `windows-x86_64-nsis` no `latest.json`.
 5. Publica somente quando os dois builds, os três instaladores e o manifesto estão completos.
 
-Em caso de falha, a versão permanece em rascunho. Corrija o problema e execute novamente o workflow para a mesma tag. Para uma versão já publicada, crie uma nova tag com versão maior.
+Em caso de falha, a versão permanece em rascunho. Se a correção modificar o código ou o workflow, faça commit e atualize a tag ainda não publicada para esse commit antes de iniciar outra execução. Reexecutar o job antigo usa o workflow antigo. Para uma versão já publicada, crie uma nova tag com versão maior.
 
 Também é possível executar **Actions → Publicar versão → Run workflow**, informando uma tag existente.
 
@@ -62,10 +62,12 @@ Depois de configurar a versão e o repositório, no Linux:
 
 ```sh
 GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=v0.1.0 node scripts/prepare-release.mjs
-TAURI_SIGNING_PRIVATE_KEY="$PWD/.keys/updater.key" yarn tauri build --bundles deb,rpm --config tauri/tauri.release.conf.json -- --locked
+TAURI_SIGNING_PRIVATE_KEY="$PWD/.keys/updater.key" node node_modules/@tauri-apps/cli/tauri.js build --bundles deb,rpm --config tauri/tauri.release.conf.json -- --locked
 ```
 
 O arquivo `tauri/tauri.release.conf.json` é gerado e está ignorado pelo Git. Para Windows, use `--bundles nsis` em uma máquina Windows e forneça `TAURI_SIGNING_PRIVATE_KEY` no ambiente.
+
+O CLI é chamado diretamente por Node para preservar o separador `--`, que encaminha `--locked` ao Cargo. O Yarn 1 pode consumir esse separador e alterar os argumentos do build.
 
 Referências: [atualizador do Tauri](https://v2.tauri.app/plugin/updater/), [tauri-action](https://github.com/tauri-apps/tauri-action) e [pacotes Debian](https://v2.tauri.app/distribute/debian/), [pacotes RPM](https://v2.tauri.app/distribute/rpm/) e [implementação dos instaladores Linux do atualizador](https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/updater/src/updater.rs).
 
