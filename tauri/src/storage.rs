@@ -1,0 +1,131 @@
+use std::fs::{self, File, OpenOptions};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use uuid::Uuid;
+
+#[cfg(windows)]
+fn replace_file(temporary: &Path, destination: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
+    }
+
+    let existing = temporary
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let new = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<_>>();
+    let moved = unsafe { MoveFileExW(existing.as_ptr(), new.as_ptr(), 0x1 | 0x8) };
+    if moved == 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(not(windows))]
+fn replace_file(temporary: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::rename(temporary, destination)
+}
+
+pub(crate) fn atomic_write(path: &Path, bytes: &[u8], backup: Option<&Path>) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Pasta de destino inválida.".to_string())?;
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Nome de arquivo inválido.".to_string())?;
+    let temporary = parent.join(format!(".{file_name}.{}.tmp", Uuid::now_v7()));
+
+    let result = (|| -> std::io::Result<()> {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        drop(file);
+
+        if path.is_file() {
+            if let Some(backup) = backup {
+                fs::copy(path, backup)?;
+                File::open(backup)?.sync_all()?;
+            }
+        }
+
+        replace_file(&temporary, path)?;
+
+        #[cfg(unix)]
+        if let Ok(directory) = File::open(parent) {
+            directory.sync_all()?;
+        }
+
+        Ok(())
+    })();
+
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+
+    result.map_err(|error| format!("Não foi possível gravar o arquivo com segurança: {error}"))
+}
+
+pub(crate) fn atomic_copy(source: &Path, destination: &Path) -> Result<(), String> {
+    let parent = destination
+        .parent()
+        .ok_or_else(|| "Pasta de destino inválida.".to_string())?;
+    let file_name = destination
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Nome de arquivo inválido.".to_string())?;
+    let temporary = parent.join(format!(".{file_name}.{}.tmp", Uuid::now_v7()));
+
+    let result = (|| -> std::io::Result<()> {
+        fs::copy(source, &temporary)?;
+        File::open(&temporary)?.sync_all()?;
+        replace_file(&temporary, destination)?;
+        #[cfg(unix)]
+        if let Ok(directory) = File::open(parent) {
+            directory.sync_all()?;
+        }
+        Ok(())
+    })();
+
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result.map_err(|error| format!("Não foi possível salvar o arquivo com segurança: {error}"))
+}
+
+pub(crate) fn preserve_recovery_copy(path: &Path, directory: &Path) -> Result<PathBuf, String> {
+    let recovery_directory = directory.join("Recuperação");
+    fs::create_dir_all(&recovery_directory)
+        .map_err(|error| format!("Não foi possível criar a pasta de recuperação: {error}"))?;
+
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Nome de arquivo inválido.".to_string())?;
+    let bytes = fs::read(path)
+        .map_err(|error| format!("Não foi possível copiar o arquivo original: {error}"))?;
+    let base = recovery_directory.join(format!("{file_name}.recovery"));
+    let target = if base.exists() {
+        if fs::read(&base).ok().as_deref() == Some(bytes.as_slice()) {
+            return Ok(base);
+        }
+        recovery_directory.join(format!("{file_name}.{}.recovery", Uuid::now_v7()))
+    } else {
+        base
+    };
+
+    atomic_write(&target, &bytes, None)?;
+    Ok(target)
+}

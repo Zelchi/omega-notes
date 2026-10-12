@@ -1,0 +1,69 @@
+import { createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import type { StudyNote } from "@/entities/note";
+import type { TranslationKey } from "@/shared/lib/i18n";
+import { createSearchIndex, searchNotes, type SearchIndex } from "../../lib/search";
+
+export type FloatingSearchProps = {
+	notes: StudyNote[];
+	mode: "edit" | "view";
+	showBackButton: boolean;
+	backButtonDisabled: boolean;
+	isOnCanvas: boolean;
+	t: (key: TranslationKey) => string;
+	onBack: () => void;
+	onModeChange: (mode: "edit" | "view") => void;
+	onSelectNote: (note: StudyNote) => void;
+};
+
+export const useFloatingSearchController = (props: FloatingSearchProps) => {
+	const [query, setQuery] = createSignal("");
+	let root!: HTMLDivElement;
+	let indexedNotes: StudyNote[] | undefined;
+	let searchIndex: SearchIndex | undefined;
+	const results = createMemo(() => {
+		const value = query();
+		if (!value.trim()) return [];
+		const notes = props.notes;
+		const locale = props.t("locale");
+		if (!searchIndex || notes !== indexedNotes || searchIndex.locale !== locale) {
+			searchIndex = createSearchIndex(notes, locale, searchIndex);
+			indexedNotes = notes;
+		}
+		return searchNotes(searchIndex, value).slice(0, 6);
+	});
+
+	const onOutsidePointer = (event: PointerEvent) => {
+		if (event.target instanceof Node && root.contains(event.target)) return;
+
+		const input = root.querySelector("input");
+		if (document.activeElement === input) input?.blur();
+		setQuery("");
+	};
+	onMount(() => addEventListener("pointerdown", onOutsidePointer));
+	onCleanup(() => removeEventListener("pointerdown", onOutsidePointer));
+
+	const select = (note: StudyNote): void => {
+		setQuery("");
+		props.onSelectNote(note);
+	};
+
+	const handleKeyDown = (event: KeyboardEvent): void => {
+		if (event.key === "Escape" && query()) {
+			event.stopPropagation();
+			setQuery("");
+		}
+		if (event.key === "Enter" && results()[0]) {
+			event.preventDefault();
+			select(results()[0]!);
+		}
+	};
+
+	return {
+		query,
+		results,
+		select,
+		setQuery,
+		handleKeyDown,
+		setRoot: (element: HTMLDivElement) => (root = element),
+	};
+};

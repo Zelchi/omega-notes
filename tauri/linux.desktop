@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Ômega Notes
+Comment={{comment}}
+Exec={{exec}}
+Icon={{icon}}
+Terminal=false
+Categories=Education;
+{{#if mime_type}}
+MimeType={{mime_type}}
+{{/if}}
