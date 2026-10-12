@@ -377,7 +377,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		const selection = getSelection();
 		const offsets =
 			document.activeElement === root && selection?.anchorNode && selection.focusNode &&
-			root.contains(selection.anchorNode) && root.contains(selection.focusNode)
+				root.contains(selection.anchorNode) && root.contains(selection.focusNode)
 				? {
 					anchor: getOffsetBeforeNode(root, selection.anchorNode, selection.anchorOffset),
 					focus: getOffsetBeforeNode(root, selection.focusNode, selection.focusOffset),
@@ -576,7 +576,6 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		if (caretFrame !== undefined) cancelAnimationFrame(caretFrame);
 		caretFrame = undefined;
 		setDraft(text);
-		// Also repair browser mutations when the draft did not change (e.g. an empty editor).
 		syncEditableContent();
 		setPendingCaret(undefined);
 		if (caret !== undefined) {
@@ -658,7 +657,6 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			else if (forward && text[end] === "\n") end += 1;
 			else return;
 		} else if (text.slice(start, end) !== "\n") return;
-		// Delete the logical newline, rather than a placeholder or DOM boundary.
 		event.preventDefault();
 		replaceSelection("", { start, end });
 	};

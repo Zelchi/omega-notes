@@ -13,7 +13,6 @@ type EditableTextLayout = {
 	fragmentClass: string;
 };
 
-// The browser edits these nodes. Keep them outside Solid's child reconciliation.
 export const syncEditableTextDom = (root: HTMLElement, layout: EditableTextLayout): HTMLSpanElement | undefined => {
 	const fragments = layout.fragments ?? [
 		{ start: 0, end: layout.text.length, text: layout.text, left: 0, top: 0, width: layout.width },
@@ -31,7 +30,6 @@ export const syncEditableTextDom = (root: HTMLElement, layout: EditableTextLayou
 		node.style.top = `${layout.y + fragment.top}px`;
 		node.style.width = `${fragment.width}px`;
 		node.style.textAlignLast = layout.alignment === "justify" ? "justify" : "auto";
-		// A final newline needs an inline node on the empty last line for the caret.
 		const text = !layout.fragments && fragment.text.endsWith("\n")
 			? `${fragment.text}${EMPTY_CHARACTER}`
 			: fragment.text || EMPTY_CHARACTER;

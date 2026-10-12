@@ -7,7 +7,6 @@ import { styles } from "./style.css.ts";
 
 const MediaCatalogDialog: Component<MediaCatalogDialogProps> = (props) => {
 	const presence = createPresence(() => props.open, 210);
-	// Retain image URLs until the visible catalog finishes closing.
 	const catalog = useMediaCatalogDialogController(mergeProps(props, { get open() { return presence.present(); } }));
 
 	return (
