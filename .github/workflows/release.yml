@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag existente, por exemplo v0.1.1'
+        description: 'Tag existente, por exemplo v0.1.2'
         required: true
         type: string
 
@@ -46,7 +46,7 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const tag = process.env.RELEASE_TAG;
-            const changelog = require('node:fs').readFileSync('CHANGELOG.md', 'utf8');
+            const changelog = require('node:fs').readFileSync('changelog.md', 'utf8');
             const heading = `## ${tag}`;
             const lines = changelog.split(/\r?\n/);
             const start = lines.indexOf(heading);
