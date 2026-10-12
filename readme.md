@@ -113,9 +113,10 @@ Depois de instalar, crie um vault e sua primeira nota.
 
 ### Atualizações
 
-O aplicativo verifica novas versões ao iniciar. Quando uma atualização está
-disponível, ele baixa o pacote, conclui os salvamentos pendentes e reinicia após
-a instalação. No Linux, a instalação pode solicitar a senha do sistema.
+O aplicativo verifica novas versões ao iniciar e informa no botão das configurações
+quando uma atualização está disponível. O download e a instalação só começam
+quando você clica nesse botão. Antes de instalar, o aplicativo conclui os salvamentos
+pendentes e reinicia após a instalação. No Linux, a instalação pode solicitar a senha do sistema.
 
 Você também pode usar **Verificar atualizações**, no final das configurações.
 A conexão com a internet é necessária para verificar e baixar novas versões.

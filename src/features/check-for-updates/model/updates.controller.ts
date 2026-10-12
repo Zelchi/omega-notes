@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, onMount, type Accessor } from "solid-js";
+import { createSignal, onCleanup, onMount, type Accessor } from "solid-js";
 import { checkForUpdates, downloadUpdate, installUpdate, updatesConfigured, type Update } from "../api/updates.repository";
 
 type Status = "idle" | "checking" | "current" | "available" | "downloading" | "installing" | "failed" | "unavailable";
@@ -10,12 +10,11 @@ export const useUpdatesController = (beforeInstall: () => Promise<boolean>, canI
 	let update: Update | undefined;
 	let active = true;
 	let busy = false;
-	let automaticPending = false;
 	let downloadedUpdate: Update | undefined;
 	let noticeTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	const install = async () => {
-		if (busy || !update || !active) return;
+		if (busy || !update || !active || !canInstall()) return;
 		busy = true;
 		const candidate = update;
 		try {
@@ -37,7 +36,6 @@ export const useUpdatesController = (beforeInstall: () => Promise<boolean>, canI
 			if (!active) return;
 			await installUpdate(candidate);
 		} catch (error) {
-			automaticPending = false;
 			console.error(error);
 			if (active) setStatus("failed");
 		} finally {
@@ -45,7 +43,7 @@ export const useUpdatesController = (beforeInstall: () => Promise<boolean>, canI
 		}
 	};
 
-	const check = async (automaticallyInstall = false) => {
+	const check = async () => {
 		if (busy || !active) return;
 		busy = true;
 		clearTimeout(noticeTimeout);
@@ -63,27 +61,18 @@ export const useUpdatesController = (beforeInstall: () => Promise<boolean>, canI
 			await update?.close();
 			update = candidate ?? undefined;
 			downloadedUpdate = undefined;
-			automaticPending = automaticallyInstall && Boolean(candidate);
 			setVersion(candidate?.version ?? "");
 			setStatus(candidate ? "available" : "current");
 		} catch (error) {
-			automaticPending = false;
 			console.error(error);
 			if (active) setStatus("failed");
 		} finally {
 			busy = false;
 		}
-		if (automaticallyInstall && update && active) await install();
 	};
 
-	createEffect(() => {
-		const currentStatus = status();
-		const allowed = canInstall();
-		if (automaticPending && currentStatus === "available" && allowed) void install();
-	});
-
 	onMount(() => {
-		if (import.meta.env.PROD) void check(true);
+		if (import.meta.env.PROD) void check();
 	});
 	onCleanup(() => {
 		active = false;
