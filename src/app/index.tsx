@@ -12,6 +12,7 @@ import NoteNameDialog from "./ui/note-name-dialog";
 import { useAppController } from "./controller";
 import { styles } from "./style.css.ts";
 import { CheckForUpdatesButton } from "@/features/check-for-updates";
+import { AiChatPanel } from "@/features/chat-with-ai";
 
 const App: Component = () => {
 	const app = useAppController();
@@ -26,6 +27,9 @@ const App: Component = () => {
 					t={app.t}
 					onVaultClick={app.vaults.openDialog}
 					onSettings={() => app.setSettingsOpen(true)}
+					onAiChat={() => app.aiChat.setOpen((open) => !open)}
+					aiChatOpen={app.aiChat.open()}
+					aiFeaturesEnabled={app.preferences.aiFeaturesEnabled()}
 					onMinimize={app.windowControls.minimize}
 					onToggleMaximize={() => void app.windowControls.toggleMaximize()}
 					onClose={app.windowControls.close}
@@ -84,8 +88,12 @@ const App: Component = () => {
 				</Show>
 			</main>
 			<SettingsDialog
+				aiResetting={app.aiChat.resetting()}
+				aiCleanupError={app.aiChat.cleanupError()}
 				canvasLayout={app.preferences.canvasLayout()}
 				onCanvasLayoutChange={app.preferences.setCanvasLayout}
+				aiFeaturesEnabled={app.preferences.aiFeaturesEnabled()}
+				onAiFeaturesEnabledChange={app.preferences.setAiFeaturesEnabled}
 				footer={<CheckForUpdatesButton t={app.t} updates={app.updates} />}
 				open={app.settingsOpen()}
 				centerCanvasOnLaunch={app.preferences.centerCanvasOnLaunch()}
@@ -130,6 +138,8 @@ const App: Component = () => {
 				onSelect={(vault) => void app.selectVault(vault)}
 			/>
 			<NoteLoadIssuesDialog issues={app.notes.loadIssues()} t={app.t} onClose={app.notes.dismissLoadIssues} />
+			<AiChatPanel aiChat={app.aiChat} notes={app.notes.notes()}
+				onOpenNote={(note) => void app.openAiNote(note)} t={app.t} />
 		</div>
 		<Show when={app.updates.installing()}>
 			<div class={styles.updateOverlay} role="alert" aria-live="assertive">{app.t("installingUpdate")}</div>

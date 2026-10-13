@@ -37,7 +37,7 @@ export const styles = {
 		position: "absolute",
 		zIndex: 5,
 		top: 8,
-		right: 4,
+		right: "var(--omega-scrollbar-right, 4px)",
 		bottom: 20,
 		width: 14,
 		touchAction: "none",
@@ -51,6 +51,6 @@ export const styles = {
 		height: 14,
 		touchAction: "none",
 	}),
-	verticalThumb: style({ ...thumb, top: 0, right: 2, width: 10, minHeight: 28 }),
-	horizontalThumb: style({ ...thumb, bottom: 2, left: 0, height: 10, minWidth: 28 }),
+	verticalThumb: style({ ...thumb, top: 0, right: 2, width: 5, minHeight: 28 }),
+	horizontalThumb: style({ ...thumb, bottom: 2, left: 0, height: 5, minWidth: 28 }),
 };

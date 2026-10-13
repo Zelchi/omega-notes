@@ -1,6 +1,11 @@
 import type { Component } from "solid-js";
 
 export type IconName =
+	| "chevronDown"
+	| "chat"
+	| "send"
+	| "stop"
+	| "disconnect"
 	| "back"
 	| "search"
 	| "settings"
@@ -27,6 +32,11 @@ export type IconName =
 	| "alignMixed";
 
 const paths: Record<IconName, Component> = {
+	chevronDown: () => <path d="m6 9 6 6 6-6" />,
+	chat: () => <path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2ZM7 9h10M7 13h7" />,
+	send: () => <path d="m3 3 19 9-19 9 4-9-4-9Zm4 9h15" />,
+	stop: () => <rect x="6" y="6" width="12" height="12" rx="1" />,
+	disconnect: () => <path d="m3 3 18 18M9 8l-3 3a4 4 0 0 0 5 6l2-2M11 7l2-2a4 4 0 0 1 6 5l-3 3" />,
 	heading: () => <path d="M6 5v14M18 5v14M6 12h12" />,
 	back: () => <path d="m14.5 5-7 7 7 7M8 12h12" />,
 	minimize: () => <path d="M5 12h14" />,

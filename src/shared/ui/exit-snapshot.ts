@@ -19,7 +19,27 @@ export const animateExitSnapshot = (
 	snapshot.inert = true;
 	snapshot.setAttribute("aria-hidden", "true");
 	snapshot.dataset.omegaExitSnapshot = kind;
-	for (const node of [snapshot, ...snapshot.querySelectorAll<HTMLElement>("*")]) {
+	const originalNodes = [element, ...element.querySelectorAll<HTMLElement>("*")];
+	const snapshotNodes = [snapshot, ...snapshot.querySelectorAll<HTMLElement>("*")];
+	for (const [index, node] of snapshotNodes.entries()) {
+		const original = originalNodes[index];
+		// Preserve live form properties, which can differ from the initial HTML attributes.
+		if (original instanceof HTMLInputElement && node instanceof HTMLInputElement) {
+			if (original.type !== "file") {
+				node.value = original.value;
+				node.defaultValue = original.value;
+			}
+			node.checked = original.checked;
+			node.defaultChecked = original.checked;
+		} else if (original instanceof HTMLTextAreaElement && node instanceof HTMLTextAreaElement) {
+			node.value = original.value;
+			node.defaultValue = original.value;
+		} else if (original instanceof HTMLSelectElement && node instanceof HTMLSelectElement) {
+			for (const [optionIndex, option] of Array.from(node.options).entries()) {
+				option.selected = original.options[optionIndex].selected;
+				option.defaultSelected = original.options[optionIndex].selected;
+			}
+		}
 		node.removeAttribute("id");
 		node.style.animation = "none";
 		node.style.transition = "none";
@@ -34,6 +54,13 @@ export const animateExitSnapshot = (
 		transformOrigin: "top left", pointerEvents: "none", zIndex: kind === "card" ? "4" : getComputedStyle(element).zIndex,
 	});
 	document.body.append(snapshot);
+	for (const [index, node] of snapshotNodes.entries()) {
+		const original = originalNodes[index];
+		if (node instanceof HTMLElement && original instanceof HTMLElement) {
+			node.scrollTop = original.scrollTop;
+			node.scrollLeft = original.scrollLeft;
+		}
+	}
 	const endTransform = kind === "card" ? `scale(${scale * 0.85})`
 		: kind === "dialog" ? `scale(${scale})` : `translateY(6px) scale(${scale})`;
 	const animations = [snapshot.animate([

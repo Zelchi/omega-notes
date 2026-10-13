@@ -161,8 +161,8 @@ export const useVaults = () => {
 		clearError,
 		closeDialog: () => {
 			if (activeVaultId() && !saving()) {
-				clearError();
 				setDialogOpen(false);
+				clearError();
 			}
 		},
 		create,

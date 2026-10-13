@@ -1,5 +1,25 @@
 # Histórico de atualizações
 
+## v0.2.0
+
+### IA
+
+- Novo Chat lateral para conversar com suas notas usando o Codex CLI instalado no computador e o login da conta ChatGPT.
+- Recursos de IA desativados por padrão. Ao ativar, o ícone do Chat aparece na barra superior.
+- Conversas e contexto separados por vault, com busca e leitura de notas restritas ao vault atual. Referências sublinhadas abrem a nota correspondente.
+- Seleção de modelo, nível de pensamento e velocidade Default/Fast, quando suportada. Respostas em tempo real com opção de interromper.
+- Reconexão automática ao provedor previamente conectado, reutilizando o login existente e sem enviar mensagens.
+- Histórico, rascunho e preferências salvos em `ia` na raiz de cada vault. O histórico mantém as 50 mensagens mais recentes; mensagens antigas são apagadas automaticamente.
+- Desativar Recursos de IA apaga históricos, rascunhos e preferências de Chat de todos os vaults, desconecta a IA e esquece a reconexão automática. Ao reativar, é necessário conectar pelo botão.
+- Pasta `.key` na raiz dos dados reservada a credenciais do aplicativo. O login atual continua gerenciado pelo Codex.
+- Estrutura comum de IA preparada para novos provedores. Nesta versão, apenas o Codex está disponível.
+
+### Interface
+
+- Dropdowns personalizados no Chat e nas configurações, com navegação por teclado, animações e altura ajustada às opções, sem rolagem.
+- Chat usa o cursor de texto e a barra de rolagem personalizados do aplicativo. Scrollbars com 5px de espessura.
+- Animações de fechamento dos modais preservam os títulos, valores dos campos e posição das listas.
+
 ## v0.1.9
 
 ### Interface

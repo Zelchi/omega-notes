@@ -21,7 +21,10 @@ const NoteNameDialog: Component<Props> = (props) => {
 	let titleInput: HTMLInputElement | undefined;
 	const errorId = createUniqueId();
 	const presence = createPresence(() => Boolean(props.mode), 210);
-	const displayedMode = createMemo<Props["mode"]>((previous) => props.mode ?? previous);
+	const displayed = createMemo<Pick<Props, "mode" | "title" | "error" | "saving">>((previous) =>
+		props.mode ? { mode: props.mode, title: props.title, error: props.error, saving: props.saving }
+			: previous ?? { mode: undefined, title: "", error: undefined, saving: false },
+	);
 
 	createEffect(() => {
 		if (!props.mode) return;
@@ -49,36 +52,36 @@ const NoteNameDialog: Component<Props> = (props) => {
 					aria-labelledby="note-name-heading"
 					onSubmit={(event) => void props.onSubmit(event)}
 				>
-					<ModalError id={errorId} message={props.error} />
+					<ModalError id={errorId} message={displayed().error} />
 					<h2 class={styles.title} id="note-name-heading">
-						{props.t(displayedMode() === "create" ? "newNote" : "renameNote")}
+						{props.t(displayed().mode === "create" ? "newNote" : "renameNote")}
 					</h2>
 					<input
 						ref={(element) => (titleInput = element)}
 						class={styles.input}
-						value={props.title}
+						value={displayed().title}
 						onInput={(event) => props.onTitleChange(event.currentTarget.value)}
 						placeholder={props.t("noteName")}
 						aria-label={props.t("noteName")}
-						aria-invalid={Boolean(props.error) || undefined}
-						aria-describedby={props.error ? errorId : undefined}
-						disabled={props.saving}
+						aria-invalid={Boolean(displayed().error) || undefined}
+						aria-describedby={displayed().error ? errorId : undefined}
+						disabled={displayed().saving}
 					/>
 					<div class={styles.actions}>
 						<button
 							class={cx(styles.action, styles.cancel)}
 							type="button"
 							onClick={props.onClose}
-							disabled={props.saving}
+							disabled={displayed().saving}
 						>
 							{props.t("cancel")}
 						</button>
 						<button
 							class={cx(styles.action, styles.confirm)}
 							type="submit"
-							disabled={!props.title.trim() || props.saving}
+							disabled={!displayed().title.trim() || displayed().saving}
 						>
-							{props.t(displayedMode() === "create" ? "create" : "save")}
+							{props.t(displayed().mode === "create" ? "create" : "save")}
 						</button>
 					</div>
 				</form>

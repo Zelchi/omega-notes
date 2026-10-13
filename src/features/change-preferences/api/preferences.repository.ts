@@ -6,6 +6,7 @@ const HIDE_CANVAS_CONTROLS_KEY = "omega-notes.settings.hide-zoom-controls";
 const THEME_KEY = "omega-notes.settings.theme";
 const LANGUAGE_KEY = "omega-notes.settings.language";
 const TEXT_CURSOR_KEY = "omega-notes.settings.text-cursor";
+const AI_FEATURES_KEY = "omega-notes.settings.ai-features-enabled";
 
 export const readTextCursor = (): TextCursor => {
 	try {
@@ -39,6 +40,8 @@ const writeBoolean = (key: string, value: boolean): void => {
 
 export const readCenterCanvasOnLaunch = (): boolean => readBoolean(CENTER_CANVAS_KEY, true);
 export const readHideCanvasControls = (): boolean => readBoolean(HIDE_CANVAS_CONTROLS_KEY, false);
+export const readAiFeaturesEnabled = (): boolean => readBoolean(AI_FEATURES_KEY, false);
+export const saveAiFeaturesEnabled = (value: boolean): void => writeBoolean(AI_FEATURES_KEY, value);
 
 export const readLanguage = (): Language => {
 	try {

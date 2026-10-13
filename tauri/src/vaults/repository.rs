@@ -14,6 +14,7 @@ pub(super) struct VaultDeletionStage {
 pub(crate) fn ensure_app_directory(app_directory: &Path) -> Result<PathBuf, String> {
     fs::create_dir_all(app_directory)
         .map_err(|error| format!("Não foi possível criar a pasta de dados: {error}"))?;
+    crate::storage::ensure_key_directory(app_directory)?;
     let temporary_directory = app_directory.join(".temp");
     fs::create_dir_all(&temporary_directory)
         .map_err(|error| format!("Não foi possível criar a pasta .temp: {error}"))?;
@@ -78,7 +79,7 @@ pub(crate) fn existing_vault_notes_dir(
 }
 
 pub(super) fn ensure_vault_directories(path: &Path) -> Result<(), std::io::Error> {
-    for folder in ["notes", "images", "audios", "videos"] {
+    for folder in ["notes", "images", "audios", "videos", "ia"] {
         fs::create_dir_all(path.join(folder))?;
     }
     Ok(())
