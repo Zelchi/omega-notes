@@ -1,14 +1,23 @@
-import { Show, type Component, type JSX } from "solid-js";
+import { type Component, type JSX } from "solid-js";
 import { useCustomScrollArea } from "./controller";
 import { styles } from "./style.css.ts";
+import CustomScrollbars from "./scrollbars";
 
-type Props = { children: JSX.Element };
+type Props = {
+	children: JSX.Element;
+	class?: string;
+	contentClass?: string;
+	viewportStyle?: JSX.CSSProperties;
+	ariaLabel?: string;
+	viewportRef?: (element: HTMLDivElement) => void;
+	onScroll?: (element: HTMLDivElement) => void;
+};
 
 const CustomScrollArea: Component<Props> = (props) => {
 	const scroll = useCustomScrollArea();
 
 	return (
-		<div class={styles.root} ref={scroll.setRoot} data-omega-scroll-root
+		<div class={`${styles.root} ${props.class ?? ""}`} ref={scroll.setRoot} data-omega-scroll-root
 			onPointerMove={scroll.moveThumb}
 			onPointerUp={scroll.finishDrag}
 			onPointerCancel={scroll.finishDrag}
@@ -16,61 +25,23 @@ const CustomScrollArea: Component<Props> = (props) => {
 		>
 			<div
 				class={styles.viewport}
-				ref={scroll.setViewport}
+				ref={(element) => { scroll.setViewport(element); props.viewportRef?.(element); }}
+				style={props.viewportStyle}
 				data-omega-scroll-viewport=""
+				aria-label={props.ariaLabel}
 				tabIndex={0}
-				onScroll={scroll.updateMetrics}
+				onScroll={(event) => { scroll.updateMetrics(); props.onScroll?.(event.currentTarget); }}
 			>
-				<div class={styles.content} ref={scroll.setContent} data-omega-scroll-content>
+				<div class={`${styles.content} ${props.contentClass ?? ""}`} ref={scroll.setContent} data-omega-scroll-content>
 					{props.children}
 				</div>
 			</div>
-			<Show when={scroll.metrics().scrollHeight > scroll.metrics().clientHeight + 1}>
-				<div
-					class={styles.verticalTrack}
-					onPointerDown={(event) => scroll.onTrackPointerDown(event, "vertical")}
-				>
-					<div
-						class={styles.verticalThumb}
-						role="scrollbar"
-						aria-orientation="vertical"
-						aria-valuemin={0}
-						aria-valuemax={Math.round(scroll.thumb("vertical").maxScroll)}
-						aria-valuenow={Math.round(scroll.metrics().top)}
-						tabIndex={0}
-						style={{
-							height: `${scroll.thumb("vertical").length}px`,
-							transform: `translateY(${scroll.thumb("vertical").offset}px)`,
-						}}
-						onPointerDown={(event) => scroll.beginDrag(event, "vertical")}
-						onKeyDown={(event) => scroll.onScrollbarKeyDown(event, "vertical")}
-					/>
-				</div>
-			</Show>
-			<Show when={scroll.metrics().scrollWidth > scroll.metrics().clientWidth + 1}>
-				<div
-					class={styles.horizontalTrack}
-					onPointerDown={(event) => scroll.onTrackPointerDown(event, "horizontal")}
-				>
-					<div
-						class={styles.horizontalThumb}
-						role="scrollbar"
-						aria-orientation="horizontal"
-						aria-valuemin={0}
-						aria-valuemax={Math.round(scroll.thumb("horizontal").maxScroll)}
-						aria-valuenow={Math.round(scroll.metrics().left)}
-						tabIndex={0}
-						style={{
-							width: `${scroll.thumb("horizontal").length}px`,
-							transform: `translateX(${scroll.thumb("horizontal").offset}px)`,
-						}}
-						onPointerDown={(event) => scroll.beginDrag(event, "horizontal")}
-						onKeyDown={(event) => scroll.onScrollbarKeyDown(event, "horizontal")}
-					/>
-				</div>
-			</Show>
+			<CustomScrollbars scroll={scroll} />
 		</div>
 	);
 };
 
 export default CustomScrollArea;
+
+export { useCustomScrollArea } from "./controller";
+export { default as CustomScrollbars } from "./scrollbars";

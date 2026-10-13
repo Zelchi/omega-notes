@@ -3,10 +3,15 @@ import { Show, type Component, type JSX } from "solid-js";
 import type { Language, TranslationKey } from "@/shared/lib/i18n";
 import type { CanvasLayout, TextCursor, Theme } from "../../model/preferences";
 import Icon from "@/shared/ui/icon";
+import Dropdown from "@/shared/ui/dropdown";
 import { styles } from "./style.css.ts";
 
 type Props = {
 	open: boolean;
+	aiFeaturesEnabled: boolean;
+	aiResetting?: boolean;
+	aiCleanupError?: string;
+	onAiFeaturesEnabledChange: (value: boolean) => void;
 	canvasLayout: CanvasLayout;
 	onCanvasLayoutChange: (value: CanvasLayout) => void;
 	centerCanvasOnLaunch: boolean;
@@ -61,45 +66,39 @@ const SettingsDialog: Component<Props> = (props) => (
 					/>
 				</label>
 				<label class={styles.option}>
-					<span>{props.t("canvasLayout")}</span>
-					<select class={styles.select} value={props.canvasLayout}
-						onChange={(event) => props.onCanvasLayoutChange(event.currentTarget.value as CanvasLayout)}>
-						<option value="static">{props.t("staticCanvas")}</option>
-						<option value="dynamic">{props.t("dynamicCanvas")}</option>
-					</select>
+					<span>{props.t("aiFeatures")}</span>
+					<input class={styles.toggle} type="checkbox" checked={props.aiFeaturesEnabled} disabled={props.aiResetting}
+						onChange={(event) => props.onAiFeaturesEnabledChange(event.currentTarget.checked)} />
 				</label>
-				<label class={styles.option}>
-					<span>{props.t("language")}</span>
-					<select
-						class={styles.select}
-						value={props.language}
-						onChange={(event) => props.onLanguageChange(event.currentTarget.value as Language)}
-					>
-						<option value="pt-br">{props.t("languagePtBr")}</option>
-						<option value="en">{props.t("languageEn")}</option>
-					</select>
-				</label>
-				<label class={styles.option}>
-					<span>{props.t("theme")}</span>
-					<select
-						class={styles.select}
-						value={props.theme}
-						onChange={(event) => props.onThemeChange(event.currentTarget.value as Theme)}
-					>
-						<option value="dark">{props.t("themeDark")}</option>
-						<option value="light">{props.t("themeLight")}</option>
-					</select>
-				</label>
-				<label class={styles.option}>
-					<span>{props.t("textCursor")}</span>
-					<select class={styles.select} value={props.textCursor}
-						onChange={(event) => props.onTextCursorChange(event.currentTarget.value as TextCursor)}>
-						<option value="line">{props.t("textCursorLine")}</option>
-						<option value="line-static">{props.t("textCursorLineStatic")}</option>
-						<option value="terminal">{props.t("textCursorTerminal")}</option>
-						<option value="terminal-static">{props.t("textCursorTerminalStatic")}</option>
-					</select>
-				</label>
+				<Show when={props.aiCleanupError}>{(error) => <p role="alert" class={styles.error}>{error()}</p>}</Show>
+				<div class={styles.option}>
+					<label for="settings-canvasLayout">{props.t("canvasLayout")}</label>
+					<Dropdown id="settings-canvasLayout" ariaLabel={props.t("canvasLayout")}
+						style={{ width: "160px", "max-width": "55%", "flex-shrink": 0 }} value={props.canvasLayout}
+						options={[{ value: "static", label: props.t("staticCanvas") }, { value: "dynamic", label: props.t("dynamicCanvas") }]}
+						onChange={(value) => props.onCanvasLayoutChange(value as CanvasLayout)} />
+				</div>
+				<div class={styles.option}>
+					<label for="settings-language">{props.t("language")}</label>
+					<Dropdown id="settings-language" ariaLabel={props.t("language")}
+						style={{ width: "160px", "max-width": "55%", "flex-shrink": 0 }} value={props.language}
+						options={[{ value: "pt-br", label: props.t("languagePtBr") }, { value: "en", label: props.t("languageEn") }]}
+						onChange={(value) => props.onLanguageChange(value as Language)} />
+				</div>
+				<div class={styles.option}>
+					<label for="settings-theme">{props.t("theme")}</label>
+					<Dropdown id="settings-theme" ariaLabel={props.t("theme")}
+						style={{ width: "160px", "max-width": "55%", "flex-shrink": 0 }} value={props.theme}
+						options={[{ value: "dark", label: props.t("themeDark") }, { value: "light", label: props.t("themeLight") }]}
+						onChange={(value) => props.onThemeChange(value as Theme)} />
+				</div>
+				<div class={styles.option}>
+					<label for="settings-textCursor">{props.t("textCursor")}</label>
+					<Dropdown id="settings-textCursor" ariaLabel={props.t("textCursor")}
+						style={{ width: "160px", "max-width": "55%", "flex-shrink": 0 }} value={props.textCursor}
+						options={[{ value: "line", label: props.t("textCursorLine") }, { value: "line-static", label: props.t("textCursorLineStatic") }, { value: "terminal", label: props.t("textCursorTerminal") }, { value: "terminal-static", label: props.t("textCursorTerminalStatic") }]}
+						onChange={(value) => props.onTextCursorChange(value as TextCursor)} />
+				</div>
 				<footer class={styles.footer}>{props.footer}</footer>
 			</section>
 		</div>

@@ -43,6 +43,19 @@ para desfazê-la. Arraste com o botão direito numa área vazia para mover o can
 
 Clique em uma bolha para abrir a nota e volte ao canvas quando quiser ver o conjunto.
 
+## Converse com suas notas
+
+Conecte um provedor de **IA** para
+perguntar sobre suas notas, pedir resumos e explorar conexões entre assuntos.
+Cada vault possui sua própria conversa e contexto. Você escolhe o modelo e pode
+interromper a resposta quando quiser.
+
+Ative **IA Features** nas configurações para exibir o ícone de chat na barra superior.
+A opção vem desativada por padrão. O recurso consulta
+os textos das notas e usa o serviço do provedor conectado, sujeito aos limites da sua
+conta. Atualmente, o provedor disponível é o Codex, instalado no computador
+e autenticado com sua conta ChatGPT. [Como conectar](docs/ai.md).
+
 ## Escreva do seu jeito
 
 Use o modo de edição para construir suas notas e o modo de leitura para consultar

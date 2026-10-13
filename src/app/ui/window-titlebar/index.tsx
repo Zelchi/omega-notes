@@ -13,6 +13,9 @@ type Props = {
 	t: (key: TranslationKey) => string;
 	onVaultClick: () => void;
 	onSettings: () => void;
+	onAiChat: () => void;
+	aiChatOpen: boolean;
+	aiFeaturesEnabled: boolean;
 	onMinimize: () => void;
 	onToggleMaximize: () => void;
 	onClose: () => void;
@@ -32,6 +35,12 @@ const WindowTitlebar: Component<Props> = (props) => (
 		<div class={styles.drag} data-tauri-drag-region />
 		<Show when={isTauriRuntime()}>
 			<div class={styles.controls} onPointerDown={(event) => event.stopPropagation()}>
+				<Show when={props.aiFeaturesEnabled}>
+					<button class={styles.button} type="button" disabled={!props.vaultName} aria-label={props.t("aiChat")}
+						aria-expanded={props.aiChatOpen} aria-controls="ai-chat-panel" onClick={props.onAiChat}>
+						<Icon name="chat" size={15} />
+					</button>
+				</Show>
 				<button class={styles.button} type="button" aria-label={props.t("settings")} onClick={props.onSettings}>
 					<Icon name="settings" size={15} />
 				</button>

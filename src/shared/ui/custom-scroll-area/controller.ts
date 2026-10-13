@@ -32,10 +32,10 @@ const emptyMetrics: Metrics = {
 	rootWidth: 0,
 };
 
-export const useCustomScrollArea = () => {
+export const useCustomScrollArea = (options: { compact?: boolean } = {}) => {
 	let root!: HTMLDivElement;
-	let viewport!: HTMLDivElement;
-	let content!: HTMLDivElement;
+	let viewport!: HTMLElement;
+	let content!: HTMLElement;
 	const [metrics, setMetrics] = createSignal<Metrics>(emptyMetrics);
 	const [drag, setDrag] = createSignal<Drag>();
 
@@ -57,9 +57,9 @@ export const useCustomScrollArea = () => {
 		const value = metrics();
 		const client = axis === "vertical" ? value.clientHeight : value.clientWidth;
 		const scrollLength = axis === "vertical" ? value.scrollHeight : value.scrollWidth;
-		const trackLength = Math.max(0, (axis === "vertical" ? value.rootHeight : value.rootWidth) - 28);
+		const trackLength = Math.max(0, (axis === "vertical" ? value.rootHeight : value.rootWidth) - (options.compact ? 4 : 28));
 		const maxScroll = Math.max(0, scrollLength - client);
-		const length = Math.min(trackLength, Math.max(28, (trackLength * client) / Math.max(client, scrollLength)));
+		const length = Math.min(trackLength, Math.max(options.compact ? 8 : 28, (trackLength * client) / Math.max(client, scrollLength)));
 		const scroll = axis === "vertical" ? value.top : value.left;
 		const offset = maxScroll > 0 ? (scroll / maxScroll) * Math.max(0, trackLength - length) : 0;
 		return { length, offset, trackLength, maxScroll };
@@ -160,7 +160,7 @@ export const useCustomScrollArea = () => {
 		finishDrag,
 		onScrollbarKeyDown,
 		setRoot: (element: HTMLDivElement) => (root = element),
-		setViewport: (element: HTMLDivElement) => (viewport = element),
-		setContent: (element: HTMLDivElement) => (content = element),
+		setViewport: (element: HTMLElement) => (viewport = element),
+		setContent: (element: HTMLElement) => (content = element),
 	};
 };

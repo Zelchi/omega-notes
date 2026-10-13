@@ -2,6 +2,8 @@ import { createSignal } from "solid-js";
 import type { Language } from "@/shared/lib/i18n";
 import type { CanvasLayout, TextCursor, Theme } from "./preferences";
 import {
+	readAiFeaturesEnabled,
+	saveAiFeaturesEnabled,
 	readCanvasLayout,
 	readCenterCanvasOnLaunch,
 	readHideCanvasControls,
@@ -17,6 +19,7 @@ import {
 } from "../api/preferences.repository";
 
 export const usePreferences = () => {
+	const [aiFeaturesEnabled, setAiFeaturesEnabled] = createSignal(readAiFeaturesEnabled());
 	const [canvasLayout, setCanvasLayout] = createSignal<CanvasLayout>(readCanvasLayout());
 	const [centerCanvasOnLaunch, setCenterCanvasOnLaunch] = createSignal(readCenterCanvasOnLaunch());
 	const [hideCanvasControls, setHideCanvasControls] = createSignal(readHideCanvasControls());
@@ -41,6 +44,8 @@ export const usePreferences = () => {
 	};
 
 	return {
+		aiFeaturesEnabled,
+		setAiFeaturesEnabled: (value: boolean) => { setAiFeaturesEnabled(value); saveAiFeaturesEnabled(value); },
 		canvasLayout,
 		setCanvasLayout: (value: CanvasLayout) => { setCanvasLayout(value); saveCanvasLayout(value); },
 		centerCanvasOnLaunch,

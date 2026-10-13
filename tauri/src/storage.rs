@@ -3,6 +3,38 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
+pub(crate) fn ensure_key_directory(app_directory: &Path) -> Result<(), String> {
+    let path = app_directory.join(".key");
+    #[cfg(unix)]
+    let mut builder = fs::DirBuilder::new();
+    #[cfg(not(unix))]
+    let builder = fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    match builder.create(&path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => return Err(format!("Não foi possível criar a pasta .key: {error}")),
+    }
+    let metadata = fs::symlink_metadata(&path)
+        .map_err(|error| format!("Não foi possível acessar a pasta .key: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err("A pasta .key precisa ser um diretório local.".into());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o777 != 0o700 {
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o700))
+                .map_err(|error| format!("Não foi possível proteger a pasta .key: {error}"))?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(windows)]
 fn replace_file(temporary: &Path, destination: &Path) -> std::io::Result<()> {
     use std::os::windows::ffi::OsStrExt;

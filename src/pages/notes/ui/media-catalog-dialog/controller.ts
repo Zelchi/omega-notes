@@ -134,8 +134,11 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 
 	onCleanup(clearSources);
 
+	createEffect(() => {
+		if (!props.open) setQuery("");
+	});
+
 	const close = (): void => {
-		setQuery("");
 		props.onClose();
 	};
 

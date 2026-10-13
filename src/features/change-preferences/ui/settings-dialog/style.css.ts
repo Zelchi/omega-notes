@@ -2,6 +2,7 @@ import { motion } from "@/shared/ui/motion.css";
 import { style } from "@vanilla-extract/css";
 
 export const styles = {
+	error: style({ margin: "4px 0 8px", fontSize: 12, lineHeight: 1.5, color: "var(--danger)" }),
 	footer: style({
 		marginTop: 16,
 		paddingTop: 16,
@@ -91,17 +92,5 @@ export const styles = {
 			},
 			"&:focus-visible": { outline: "2px solid var(--focus)" },
 		},
-	}),
-	select: style({
-		minWidth: 130,
-		height: 30,
-		paddingInline: 8,
-		color: "var(--ink)",
-		backgroundColor: "var(--surface-input)",
-		borderWidth: 1,
-		borderStyle: "solid",
-		borderColor: "var(--border-strong)",
-		borderRadius: 5,
-		fontSize: 12,
 	}),
 };

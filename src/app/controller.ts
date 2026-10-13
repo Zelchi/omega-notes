@@ -1,4 +1,4 @@
-import { useNotes } from "@/entities/note";
+import { useNotes, type StudyNote } from "@/entities/note";
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { translate, type TranslationKey } from "@/shared/lib/i18n";
 import { useVaults } from "@/features/manage-vault";
@@ -7,6 +7,7 @@ import { usePreferences } from "@/features/change-preferences";
 import { useWindowControls } from "./model/window-controls.controller";
 import { useNoteNavigationController } from "./model/note-navigation.controller";
 import { useUpdatesController } from "@/features/check-for-updates";
+import { useAiChat, defaultAiProvider } from "@/features/chat-with-ai";
 
 export const useAppController = () => {
 	const vaults = useVaults();
@@ -14,11 +15,15 @@ export const useAppController = () => {
 	const preferences = usePreferences();
 	const t = (key: TranslationKey) => translate(preferences.language(), key);
 	let saveNoteTitle: (() => Promise<boolean>) | undefined;
+	let saveAiChats: (() => Promise<boolean>) | undefined;
 	const beforeShutdown = async () => {
 		if (saveNoteTitle && !(await saveNoteTitle())) return false;
-		return notes.flushSave();
+		if (!(await notes.flushSave())) return false;
+		return saveAiChats ? saveAiChats() : true;
 	};
 	const windowControls = useWindowControls(beforeShutdown, t);
+	const aiChat = useAiChat({ provider: defaultAiProvider, enabled: preferences.aiFeaturesEnabled, vaultId: vaults.activeVaultId, beforeSend: beforeShutdown, t });
+	saveAiChats = aiChat.flushSave;
 	const [settingsOpen, setSettingsOpen] = createSignal(false);
 	const [vaultActionPending, setVaultActionPending] = createSignal(false);
 	const navigation = useNoteNavigationController({
@@ -38,6 +43,8 @@ export const useAppController = () => {
 				if (!vaultActionPending() && !vaults.saving()) vaults.closeDialog();
 			} else if (settingsOpen()) {
 				setSettingsOpen(false);
+			} else if (aiChat.open()) {
+				aiChat.setOpen(false);
 			} else {
 				navigation.handleEscape();
 			}
@@ -64,6 +71,13 @@ export const useAppController = () => {
 		} finally {
 			setVaultActionPending(false);
 		}
+	};
+	const openAiNote = async (note: StudyNote): Promise<void> => {
+		const vaultId = vaults.activeVaultId();
+		if (!vaultId || !(await beforeShutdown()) || vaultId !== vaults.activeVaultId()) return;
+		const current = notes.notes().find((item) => item.id === note.id);
+		if (!current) return;
+		await navigation.openNote(current);
 	};
 	const createVault = async (name: string): Promise<boolean> => {
 		if (vaultActionPending()) return false;
@@ -95,6 +109,8 @@ export const useAppController = () => {
 		}
 	};
 	return {
+		aiChat,
+		openAiNote,
 		updates,
 		registerBeforeShutdown: (save?: () => Promise<boolean>) => { saveNoteTitle = save; },
 		vaults,
