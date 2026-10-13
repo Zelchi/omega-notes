@@ -11,6 +11,7 @@ export type AiProvider = {
     models: () => Promise<AiModel[]>;
     signIn: () => Promise<void>;
     send: (vaultId: string, requestId: string, text: string, model?: string, effort?: string, fast?: boolean) => Promise<{ threadId: string }>;
+    steer?: (vaultId: string, requestId: string, text: string) => Promise<{ turnId: string }>;
     cancel: (vaultId: string, clear?: boolean, requestId?: string) => Promise<void>;
     subscribe: (handler: (event: AiEvent) => void) => Promise<() => void>;
     errorKey: (failure: string) => TranslationKey;

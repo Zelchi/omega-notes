@@ -157,6 +157,25 @@ pub(crate) async fn ai_send(
 }
 
 #[tauri::command]
+pub(crate) async fn ai_steer(
+    app: AppHandle,
+    vault_id: String,
+    request_id: String,
+    text: String,
+) -> Result<Value, String> {
+    if text.trim().is_empty() || text.len() > 32_000 || uuid::Uuid::parse_str(&request_id).is_err()
+    {
+        return Err("AI_INVALID_MESSAGE".into());
+    }
+    blocking(move || {
+        let client = client(&app)?;
+        let _operation = client.operation.lock().map_err(|_| "AI_DISCONNECTED")?;
+        client.steer(&vault_id, &request_id, text.trim())
+    })
+    .await
+}
+
+#[tauri::command]
 pub(crate) async fn ai_cancel(
     app: AppHandle,
     vault_id: String,

@@ -20,6 +20,7 @@ export const useAiChat = (options: {
     const [open, setOpen] = createSignal(false);
     const [status, setStatus] = createSignal<AiStatus>({ connected: false, authenticated: false });
     const [models, setModels] = createSignal<AiModel[]>([]);
+    const [sending, setSending] = createSignal(false);
     const [operationPending, setPending] = createSignal(false);
     const [resetting, setResetting] = createSignal(false);
     const [cleanupError, setCleanupError] = createSignal<string>();
@@ -276,22 +277,54 @@ export const useAiChat = (options: {
     const send = async () => {
         const id = options.vaultId();
         const current = chat();
-        const text = current.draft.trim();
-        if (!options.enabled() || !id || !text || current.busy || pending() || !status().authenticated || !ready()) return;
+        const submittedDraft = current.draft;
+        const text = submittedDraft.trim();
+        if (!options.enabled() || !id || !text || pending() || sending() || !status().authenticated || !ready()) return;
+        if (current.busy && (!provider.steer || !current.requestId)) return;
         const requestId = crypto.randomUUID();
+        const activeRequestId = current.busy ? current.requestId : undefined;
         const revision = connectionRevision;
-        preparingRequests.add(requestId);
-        patchChat(id, (value) => ({ ...value, busy: true, error: undefined, requestId }));
+        const model = selectedModel()?.id;
+        const effort = selectedEffort();
+        const fast = current.fast && fastAvailable();
+        let posted = false;
+        setSending(true);
+        preparingRequests.add(activeRequestId ?? requestId);
+        // Clear only the submitted draft. Further typing belongs to the next message.
+        patchChat(id, (value) => ({ ...value, draft: "", error: undefined,
+            ...(activeRequestId ? {} : { busy: true, requestId }) }));
         try {
             if (!(await options.beforeSend())) throw "AI_SAVE_FAILED";
             if (disposed || revision !== connectionRevision) return;
-            if (cancelledRequests.has(requestId)) {
-                patchChat(id, (value) => value.requestId === requestId ? { ...value, busy: false } : value);
-                return;
-            }
+            if (cancelledRequests.has(activeRequestId ?? requestId)) return;
             if (options.vaultId() !== id) throw "AI_VAULT_CHANGED";
-            patchChat(id, (value) => ({ ...value, draft: "", messages: [...value.messages,
+            if (activeRequestId && provider.steer) {
+                try {
+                    await provider.steer(id, activeRequestId, text);
+                    if (disposed || revision !== connectionRevision) return;
+                    patchChat(id, (value) => {
+                        const messages = [...value.messages];
+                        const active = messages.findIndex((message) => message.id === activeRequestId && message.role === "assistant");
+                        // Keep the ongoing answer below the extra user instruction.
+                        messages.splice(active < 0 ? messages.length : active, 0, { id: crypto.randomUUID(), role: "user", text });
+                        return { ...value, messages };
+                    });
+                    posted = true;
+                    await saveChat(id);
+                    return;
+                } catch (failure) {
+                    // If the previous answer already ended, send as a normal new turn.
+                    // Other errors keep the draft available, without duplicating input.
+                    if (String(failure) !== "AI_TURN_FINISHED") throw failure;
+                }
+                if (disposed || revision !== connectionRevision) return;
+                if (cancelledRequests.has(activeRequestId)) return;
+                if (options.vaultId() !== id) throw "AI_VAULT_CHANGED";
+                preparingRequests.add(requestId);
+            }
+            patchChat(id, (value) => ({ ...value, busy: true, requestId, messages: [...value.messages,
                 { id: crypto.randomUUID(), role: "user", text }, { id: requestId, role: "assistant", text: "", items: {} }] }));
+            posted = true;
             await saveChat(id);
             if (disposed || revision !== connectionRevision) return;
             if (options.vaultId() !== id) throw "AI_VAULT_CHANGED";
@@ -299,14 +332,24 @@ export const useAiChat = (options: {
                 patchChat(id, (value) => value.requestId === requestId ? { ...value, busy: false } : value);
                 return;
             }
-            const model = selectedModel();
-            await provider.send(id, requestId, text, model?.id, selectedEffort(), current.fast && fastAvailable());
+            await provider.send(id, requestId, text, model, effort, fast);
         } catch (failure) {
             if (disposed || revision !== connectionRevision) return;
-            patchChat(id, (value) => value.requestId === requestId ? { ...value, busy: false, error: String(failure) === "AI_SAVE_FAILED" ? options.t("saveFailed") : describe(failure) } : value);
+            patchChat(id, (value) => ({ ...value,
+                ...(value.requestId === requestId ? { busy: false } : {}),
+                error: String(failure) === "AI_SAVE_FAILED" ? options.t("saveFailed") : describe(failure),
+            }));
         } finally {
-            cancelledRequests.delete(requestId);
-            preparingRequests.delete(requestId);
+            if (!posted && !disposed && revision === connectionRevision && options.enabled()) {
+                patchChat(id, (value) => ({ ...value,
+                    draft: value.draft ? `${submittedDraft}\n${value.draft}` : submittedDraft,
+                    ...(value.requestId === requestId ? { busy: false } : {}),
+                }));
+            }
+            for (const key of [activeRequestId, requestId]) {
+                if (key) { cancelledRequests.delete(key); preparingRequests.delete(key); }
+            }
+            if (!disposed) setSending(false);
         }
     };
     const cancel = () => run(async () => {
@@ -325,7 +368,7 @@ export const useAiChat = (options: {
         }
     };
     return {
-        provider, open, setOpen, status, resetting, cleanupError, models, selectedModel, selectedEffort, fastAvailable, pending, ready, error, chat, connect, send, cancel, flushSave,
+        provider, open, setOpen, status, sending, resetting, cleanupError, models, selectedModel, selectedEffort, fastAvailable, pending, ready, error, chat, connect, send, cancel, flushSave,
         refresh: () => run(refresh), signIn: () => run(provider.signIn),
         setDraft: (draft: string) => { const id = options.vaultId(); if (id && loaded.has(id)) patchChat(id, (value) => ({ ...value, draft })); },
         setModel: (model: string) => { const id = options.vaultId(); if (id && loaded.has(id)) patchChat(id, (value) => ({ ...value, model, effort: "", fast: false })); },

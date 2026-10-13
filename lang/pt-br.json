@@ -171,5 +171,6 @@
   "aiHistoryReadFailed": "Não foi possível carregar o histórico do chat. Reconecte para tentar novamente.",
   "aiHistorySaveFailed": "Não foi possível salvar o histórico do chat.",
   "aiRequestFailed": "Não foi possível concluir a solicitação de IA.",
-  "aiHistoryClearFailed": "Não foi possível apagar todos os históricos de IA. Confira os arquivos e as permissões dos vaults."
+  "aiHistoryClearFailed": "Não foi possível apagar todos os históricos de IA. Confira os arquivos e as permissões dos vaults.",
+  "aiSteer": "Acrescentar orientação à resposta atual"
 }

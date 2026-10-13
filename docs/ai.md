@@ -25,8 +25,11 @@ O Codex é localizado automaticamente pelo PATH e pelas pastas comuns de
 instalação. Caso não seja encontrado, confira a instalação do Codex CLI e
 reinicie o Ômega Notes.
 
-Enter envia a mensagem; Shift+Enter insere uma linha. O botão de interrupção
-cancela a resposta. No cabeçalho, o X oculta o painel.
+Enter envia a mensagem; Shift+Enter insere uma linha. Você pode continuar
+escrevendo enquanto a IA responde. Enviar durante uma resposta acrescenta uma
+orientação ao trabalho em andamento, usando `turn/steer`; o botão de parar
+permanece separado e cancela a resposta. Se a resposta já tiver terminado,
+a mensagem inicia uma nova resposta. No cabeçalho, o X oculta o painel.
 
 Referências como `[[Nome da nota]]` aparecem como links sublinhados no chat.
 Clique para abrir a nota do vault atual mantendo o chat ao lado. Também são aceitas

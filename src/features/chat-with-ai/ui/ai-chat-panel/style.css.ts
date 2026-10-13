@@ -1,3 +1,4 @@
+import { motion } from "@/shared/ui/motion.css";
 import { style } from "@vanilla-extract/css";
 
 const button = style({
@@ -27,8 +28,8 @@ export const styles = {
     option: style({ display: "flex", flexDirection: "column", gap: 5, minWidth: 0, fontSize: 11, color: "var(--muted)" }),
     messageArea: style({ borderBottom: "1px solid var(--border-soft)", vars: { "--omega-scrollbar-right": "1px" } }),
     messages: style({ display: "flex", flexDirection: "column", gap: 14, minHeight: "100%" }),
-    message: style({ margin: 0, padding: "10px 12px", fontSize: 13, lineHeight: 1.65, whiteSpace: "pre-wrap", overflowWrap: "anywhere", borderRadius: 5, border: "1px solid var(--border-soft)" }),
-    user: style({ background: "var(--surface-input)", alignSelf: "flex-end", maxWidth: "90%" }),
+    message: style({ ...motion.dialog, transformOrigin: "bottom left", "@media": { "(prefers-reduced-motion: reduce)": { animation: "none" } }, margin: 0, padding: "10px 12px", fontSize: 13, lineHeight: 1.65, whiteSpace: "pre-wrap", overflowWrap: "anywhere", borderRadius: 5, border: "1px solid var(--border-soft)" }),
+    user: style({ transformOrigin: "bottom right", background: "var(--surface-input)", alignSelf: "flex-end", maxWidth: "90%" }),
     assistant: style({ alignSelf: "stretch" }),
     noteLink: style({
         color: "inherit", textDecoration: "underline", textUnderlineOffset: 3,

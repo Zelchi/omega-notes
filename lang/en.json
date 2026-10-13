@@ -171,5 +171,6 @@
   "aiHistoryReadFailed": "Could not load the chat history. Reconnect to try again.",
   "aiHistorySaveFailed": "Could not save the chat history.",
   "aiRequestFailed": "Could not complete the AI request.",
-  "aiHistoryClearFailed": "Could not delete all AI chat histories. Check the vault files and permissions."
+  "aiHistoryClearFailed": "Could not delete all AI chat histories. Check the vault files and permissions.",
+  "aiSteer": "Add instruction to the current response"
 }

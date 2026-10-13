@@ -380,6 +380,54 @@ impl Client {
         result.map(|_| json!({"threadId":thread_id}))
     }
 
+    pub(crate) fn steer(&self, vault_id: &str, request_id: &str, input: &str) -> Reply {
+        let directory = tools::resolve_vault(&self.app, vault_id)?;
+        let (thread_id, turn_id, bound_directory) = {
+            let sessions = self.conversations.lock().map_err(|_| "AI_DISCONNECTED")?;
+            let (id, session) = sessions
+                .iter()
+                .find(|(_, session)| {
+                    session.vault_id == vault_id
+                        && session.request_id == request_id
+                        && session.busy
+                        && !session.cancelled
+                })
+                .ok_or("AI_TURN_FINISHED")?;
+            (
+                id.clone(),
+                session.turn_id.clone().ok_or("AI_TURN_FINISHED")?,
+                session.directory.clone(),
+            )
+        };
+        if directory != bound_directory {
+            return Err("AI_VAULT_CHANGED".into());
+        }
+        let result = self.request(
+            "turn/steer",
+            json!({
+                "threadId":thread_id, "expectedTurnId":turn_id,
+                "input":[{"type":"text","text":input}]
+            }),
+        );
+        match result {
+            Ok(response) if response["turnId"].as_str() == Some(turn_id.as_str()) => Ok(response),
+            Ok(_) => Err("AI_PROTOCOL_ERROR".into()),
+            Err(error) if error == "AI_REQUEST_FAILED" => {
+                let sessions = self.conversations.lock().map_err(|_| "AI_DISCONNECTED")?;
+                if !sessions.get(&thread_id).is_some_and(|session| {
+                    session.busy
+                        && session.request_id == request_id
+                        && session.turn_id.as_deref() == Some(turn_id.as_str())
+                }) {
+                    Err("AI_TURN_FINISHED".into())
+                } else {
+                    Err(error)
+                }
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     pub(crate) fn cancel(&self, vault_id: &str, clear: bool, request_id: Option<&str>) -> Reply {
         let threads: Vec<_> = self
             .conversations

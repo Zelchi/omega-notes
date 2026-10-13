@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, onCleanup, type Component } from "solid-js";
+import { For, Show, createEffect, createMemo, untrack, onCleanup, type Component } from "solid-js";
 import { createNoteTitleIndex, normalizeNoteTitle, resolveNoteReference, type StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import Icon from "@/shared/ui/icon";
@@ -44,7 +44,7 @@ const ChatComposer: Component<Pick<Props, "aiChat" | "t"> & { onSend: () => void
                 onPointerCancel={composerScroll.finishDrag} onLostPointerCapture={composerScroll.finishDrag}>
             <textarea ref={(element) => { messageCaret.bind(element); composerScroll.setViewport(element); composerScroll.setContent(element); }}
                 data-omega-scroll-viewport class={styles.textarea} aria-label={props.t("aiMessage")} placeholder={props.t("aiMessagePlaceholder")} value={props.aiChat.chat().draft} maxlength={8000}
-                disabled={!props.aiChat.status().authenticated || props.aiChat.chat().busy || props.aiChat.pending()}
+                disabled={!props.aiChat.status().authenticated || props.aiChat.pending()}
                 onInput={(event) => props.aiChat.setDraft(event.currentTarget.value)}
                 onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey && !event.isComposing) { event.preventDefault(); props.onSend(); }
@@ -52,15 +52,20 @@ const ChatComposer: Component<Pick<Props, "aiChat" | "t"> & { onSend: () => void
             <div class={styles.caretClip} aria-hidden="true"><TextCaret geometry={messageCaret.caret()} /></div>
             <CustomScrollbars scroll={composerScroll} compact />
             </div>
-            <Show when={props.aiChat.chat().busy} fallback={
-                <button class={styles.button} type="submit" disabled={!props.aiChat.status().authenticated || !props.aiChat.chat().draft.trim() || props.aiChat.pending()} aria-label={props.t("aiSend")}><Icon name="send" size={18} /></button>
-            }>
+            <button class={styles.button} type="submit"
+                disabled={!props.aiChat.status().authenticated || !props.aiChat.chat().draft.trim() || props.aiChat.pending() || props.aiChat.sending()
+                    || (props.aiChat.chat().busy && !props.aiChat.provider.steer)}
+                aria-label={props.t(props.aiChat.chat().busy ? "aiSteer" : "aiSend")}><Icon name="send" size={18} /></button>
+            <Show when={props.aiChat.chat().busy}>
                 <button class={styles.button} type="button" disabled={props.aiChat.pending()} aria-label={props.t("aiStop")} onClick={() => void props.aiChat.cancel()}><Icon name="stop" size={18} /></button>
             </Show>
         </form>;
 };
 
 const ChatBody: Component<Props> = (props) => {
+    // Key bubbles by message ID so streamed updates keep the same DOM element.
+    const messagesById = createMemo(() => new Map(props.aiChat.chat().messages.map((message) => [message.id, message])));
+    const messageIds = createMemo(() => props.aiChat.chat().messages.map((message) => message.id));
     const notesById = createMemo(() => new Map(props.notes.map((note) => [normalizeNoteTitle(note.id), note])));
     const notesByTitle = createMemo(() => createNoteTitleIndex(props.notes));
     const resolveNote = (target: string) => resolveNoteReference(target, notesById(), notesByTitle());
@@ -96,7 +101,7 @@ const ChatBody: Component<Props> = (props) => {
                         <Dropdown id="aiChat-model" ariaLabel={props.t("aiModel")}
                             value={props.aiChat.selectedModel()?.id ?? ""}
                             options={props.aiChat.models().length ? props.aiChat.models().map((model) => ({ value: model.id, label: model.name })) : [{ value: "", label: props.t("aiDefaultModel") }]}
-                            disabled={props.aiChat.chat().busy || props.aiChat.pending()}
+                            disabled={props.aiChat.chat().busy || props.aiChat.sending() || props.aiChat.pending()}
                             onChange={(value) => props.aiChat.setModel(value)} />
                     </div>
                     <div class={styles.option}>
@@ -105,14 +110,14 @@ const ChatBody: Component<Props> = (props) => {
                             options={props.aiChat.selectedModel()?.efforts.length
                                 ? props.aiChat.selectedModel()!.efforts.map((effort) => ({ value: effort, label: effortLabels[effort] ? props.t(effortLabels[effort]) : effort }))
                                 : [{ value: "", label: props.t("aiDefaultModel") }]}
-                            disabled={props.aiChat.chat().busy || props.aiChat.pending() || !props.aiChat.selectedModel()?.efforts.length}
+                            disabled={props.aiChat.chat().busy || props.aiChat.sending() || props.aiChat.pending() || !props.aiChat.selectedModel()?.efforts.length}
                             onChange={(value) => props.aiChat.setEffort(value)} />
                     </div>
                     <div class={styles.option}>
                         <Dropdown id="aiChat-speed" ariaLabel={props.t("aiSpeed")}
                             value={props.aiChat.chat().fast && props.aiChat.fastAvailable() ? "fast" : "default"}
                             options={[{ value: "default", label: "Default" }, { value: "fast", label: "Fast", disabled: !props.aiChat.fastAvailable() }]}
-                            disabled={props.aiChat.chat().busy || props.aiChat.pending()}
+                            disabled={props.aiChat.chat().busy || props.aiChat.sending() || props.aiChat.pending()}
                             onChange={(value) => props.aiChat.setFast(value === "fast")} />
                     </div>
                 </div>
@@ -141,14 +146,18 @@ const ChatBody: Component<Props> = (props) => {
             ariaLabel={props.t("aiMessages")}
             viewportRef={(element) => { messages = element; }}
             onScroll={(element) => { follow = element.scrollHeight - element.scrollTop - element.clientHeight < 60; }}>
-            <For each={props.aiChat.chat().messages}>{(message) => <div class={`${styles.message} ${message.role === "user" ? styles.user : styles.assistant}`}>
-                <span class={styles.role}>{message.role === "user" ? props.t("aiYou") : props.aiChat.provider.name}</span>
-                <NoteReferences
-                    text={message.text || (message.id === props.aiChat.chat().requestId && props.aiChat.chat().busy ? props.t("aiThinking") : props.t("aiNoResponse"))}
-                    resolveNote={resolveNote}
-                    onOpenNote={props.onOpenNote}
-                />
-            </div>}</For>
+            <For each={messageIds()}>{(id) => {
+                const initial = untrack(() => messagesById().get(id))!;
+                const message = () => messagesById().get(id) ?? initial;
+                return <div class={`${styles.message} ${message().role === "user" ? styles.user : styles.assistant}`}>
+                    <span class={styles.role}>{message().role === "user" ? props.t("aiYou") : props.aiChat.provider.name}</span>
+                    <NoteReferences
+                        text={message().text || (id === props.aiChat.chat().requestId && props.aiChat.chat().busy ? props.t("aiThinking") : props.t("aiNoResponse"))}
+                        resolveNote={resolveNote}
+                        onOpenNote={props.onOpenNote}
+                    />
+                </div>;
+            }}</For>
         </CustomScrollArea>
         </Show>
         <Show when={props.aiChat.error() || props.aiChat.chat().error}>{(error) => <p role="alert" class={styles.error}>{error()}</p>}</Show>

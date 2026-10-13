@@ -30,6 +30,7 @@ pub fn run() {
             ai::commands::ai_login,
             ai::commands::ai_models,
             ai::commands::ai_send,
+            ai::commands::ai_steer,
             ai::commands::ai_cancel,
             ai::commands::ai_disconnect,
             ai::commands::read_ai_chat,

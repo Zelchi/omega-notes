@@ -16,6 +16,7 @@ const signInCodex = async (): Promise<void> => {
 const sendCodexMessage = (vaultId: string, requestId: string, text: string, model?: string, effort?: string, fast = false): Promise<{ threadId: string }> =>
     invoke("ai_send", { vaultId, requestId, text, model: model || null, effort: effort || null, fast });
 const cancelCodexTurn = (vaultId: string, clear = false, requestId?: string): Promise<void> => invoke("ai_cancel", { vaultId, clear, requestId: requestId ?? null });
+const steerCodexTurn = (vaultId: string, requestId: string, text: string): Promise<{ turnId: string }> => invoke("ai_steer", { vaultId, requestId, text });
 const subscribeCodex = (handler: (event: AiEvent) => void): Promise<() => void> =>
     listen<AiEvent>("ai-event", (event) => handler(event.payload));
 
@@ -30,7 +31,7 @@ export const codexProvider: AiProvider = {
     id: "codex", name: "Codex",
     labels: { connect: "aiConnect", signInRequired: "aiSignInRequired", signIn: "aiSignIn" },
     connect: connectCodex, status: readCodexStatus, disconnect: disconnectCodex,
-    models: listCodexModels, signIn: signInCodex, send: sendCodexMessage,
+    models: listCodexModels, signIn: signInCodex, send: sendCodexMessage, steer: steerCodexTurn,
     cancel: cancelCodexTurn, subscribe: subscribeCodex,
     errorKey: (failure) => errorKeys[failure] ?? "aiRequestFailed",
 };
