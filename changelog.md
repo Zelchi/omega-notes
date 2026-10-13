@@ -1,5 +1,15 @@
 # Histórico de atualizações
 
+## v0.2.1
+
+### Chat com IA
+
+- Campo de mensagem disponível enquanto a IA responde, permitindo preparar a próxima mensagem.
+- Enviar durante uma resposta acrescenta uma orientação ao trabalho em andamento. O botão de parar permanece separado.
+- Se a resposta terminar antes do envio da orientação, a mensagem inicia uma nova resposta.
+- O texto digitado durante o envio anterior é preservado; orientações que não puderem ser enviadas retornam ao campo.
+- Bolhas de texto com animação suave de entrada ao enviar e ao iniciar uma resposta, sem repetir a animação a cada trecho recebido. A preferência de movimento reduzido é respeitada.
+
 ## v0.2.0
 
 ### IA
