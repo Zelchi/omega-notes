@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/icon.png" alt="Ícone do Ômega Notes" width="112" />
+<img src="apps/desktop/public/icon.png" alt="Ícone do Ômega Notes" width="112" />
 
 # Ômega Notes
 

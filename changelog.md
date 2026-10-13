@@ -1,5 +1,11 @@
 # Histórico de atualizações
 
+## Não lançado
+
+### Repositório
+
+- Aplicativo separado em `apps/desktop`, com `apps/web` reservado ao site de divulgação. Comandos da raiz e publicação no GitHub ajustados à nova estrutura.
+
 ## v0.2.1
 
 ### Chat com IA

@@ -14,7 +14,7 @@ Os pacotes Linux são nativos e declaram as dependências de GTK, WebKitGTK, GSt
 2. Abra **Settings → Secrets and variables → Actions → New repository secret**.
 3. Cadastre `TAURI_SIGNING_PRIVATE_KEY` com o conteúdo completo do arquivo local `.keys/updater.key`.
 4. A chave criada nesta configuração não tem senha. Nesse caso, deixe `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` ausente. Se gerar outra chave com senha, cadastre também esse segredo.
-5. Guarde uma cópia da chave privada fora do projeto. Ela assina as próximas versões aceitas pelos aplicativos já instalados. A chave pública está em `tauri/tauri.conf.json` e deve ser enviada ao GitHub.
+5. Guarde uma cópia da chave privada fora do projeto. Ela assina as próximas versões aceitas pelos aplicativos já instalados. A chave pública está em `apps/desktop/tauri/tauri.conf.json` e deve ser enviada ao GitHub.
 
 A pasta `.keys/` está ignorada pelo Git. Não envie a chave privada para o repositório. A assinatura do atualizador é distinta de um certificado de assinatura de código do Windows.
 
@@ -22,19 +22,19 @@ O workflow identifica o próprio repositório e configura `https://github.com/<d
 
 ## Publicar uma versão
 
-1. Use a mesma versão em `package.json`, `tauri/Cargo.toml` e `tauri/tauri.conf.json`.
+1. Use a mesma versão em `apps/desktop/package.json`, `apps/desktop/tauri/Cargo.toml` e `apps/desktop/tauri/tauri.conf.json`.
 2. Atualize os arquivos de lock junto com as dependências e a versão do pacote Rust. Registre as novidades em `changelog.md`, em uma seção `## vX.Y.Z`; o workflow usa essa seção na descrição da release.
-3. Faça commit, crie uma tag com essa versão e envie ao GitHub. Atualmente o projeto está em `0.1.9`:
+3. Faça commit, crie uma tag com essa versão e envie ao GitHub. Atualmente o projeto está em `0.2.1`:
 
 ```sh
 git add .
-git commit -m "Prepare release 0.1.9"
-git tag v0.1.9
+git commit -m "Prepare release 0.2.1"
+git tag v0.2.1
 git push origin HEAD
-git push origin v0.1.9
+git push origin v0.2.1
 ```
 
-Uma tag publicada deve apontar para o commit completo da versão. Para outra versão, substitua `0.1.9` nos três arquivos e nos comandos. A preparação recusa uma tag que não corresponda aos arquivos do projeto.
+Uma tag publicada deve apontar para o commit completo da versão. Para outra versão, substitua `0.2.1` nos três arquivos e nos comandos. A preparação recusa uma tag que não corresponda aos arquivos do projeto.
 
 O workflow `.github/workflows/release.yml`:
 
@@ -62,7 +62,7 @@ No navegador, em `make dev` e em builds sem endpoint de release, a atualização
 
 O diretório de dados é definido pelo perfil de compilação:
 
-- Desenvolvimento (`make dev`, `make dev-native`, `tauri dev` ou builds com `--debug`): `Documentos/Ômega Notes Dev`.
+- Desenvolvimento (`make dev`, `tauri dev` ou builds com `--debug`): `Documentos/Ômega Notes Dev`.
 - Produção (builds release, incluindo os instaladores): `Documentos/Ômega Notes`.
 
 Cada diretório contém seu próprio `vaults.json`, vaults, notas, mídias e pasta `.temp`. O desenvolvimento começa com uma biblioteca independente. Os dados existentes não são movidos nem copiados. A seleção é feita no Rust em tempo de compilação, antes de qualquer leitura ou escrita dos vaults.
@@ -72,11 +72,11 @@ Cada diretório contém seu próprio `vaults.json`, vaults, notas, mídias e pas
 Depois de configurar a versão e o repositório, no Linux:
 
 ```sh
-GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=v0.1.9 node scripts/prepare-release.mjs
-TAURI_SIGNING_PRIVATE_KEY="$PWD/.keys/updater.key" node node_modules/@tauri-apps/cli/tauri.js build --bundles deb,rpm --config tauri/tauri.release.conf.json -- --locked
+GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=v0.2.1 node scripts/prepare-release.mjs
+TAURI_SIGNING_PRIVATE_KEY="$PWD/.keys/updater.key" npm run tauri -- build --bundles deb,rpm --config tauri/tauri.release.conf.json -- --locked
 ```
 
-O arquivo `tauri/tauri.release.conf.json` é gerado e está ignorado pelo Git. Para Windows, use `--bundles nsis` em uma máquina Windows e forneça `TAURI_SIGNING_PRIVATE_KEY` no ambiente.
+O arquivo `apps/desktop/tauri/tauri.release.conf.json` é gerado e está ignorado pelo Git. Para Windows, use `--bundles nsis` em uma máquina Windows e forneça `TAURI_SIGNING_PRIVATE_KEY` no ambiente.
 
 O CLI é chamado diretamente por Node para preservar o separador `--`, que encaminha `--locked` ao Cargo. O Yarn 1 pode consumir esse separador e alterar os argumentos do build.
 

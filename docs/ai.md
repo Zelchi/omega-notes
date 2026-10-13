@@ -87,17 +87,17 @@ exigirá um fluxo próprio de revisão e confirmação das alterações.
 
 ## Código
 
-- `src/entities/ai`: tipos comuns de modelos, provedores e conversas.
-- `src/features/chat-with-ai`: estado das conversas e painel lateral genérico.
-- `src/features/chat-with-ai/api/ai-provider.ts`: contrato para integrações de IA.
-- `src/features/chat-with-ai/api/providers/codex.ts`: adaptador específico do Codex.
-- `src/features/chat-with-ai/api/chat.repository.ts`: armazenamento comum dos dados do Chat.
-- `src/app`: compõe a feature com o vault ativo e o salvamento pendente.
-- `tauri/src/ai/commands.rs`: comandos IPC; trabalho bloqueante fora da interface.
-- `tauri/src/ai/state.rs`: estado e encerramento da conexão de IA.
-- `tauri/src/ai/providers/codex.rs`: processo `codex app-server`, JSON-RPC, threads e eventos.
-- `tauri/src/ai/repository.rs`: leitura e gravação atômica dos dados de IA por vault.
-- `tauri/src/ai/tools.rs`: resolução do vault e consultas de notas.
+- `apps/desktop/src/entities/ai`: tipos comuns de modelos, provedores e conversas.
+- `apps/desktop/src/features/chat-with-ai`: estado das conversas e painel lateral genérico.
+- `apps/desktop/src/features/chat-with-ai/api/ai-provider.ts`: contrato para integrações de IA.
+- `apps/desktop/src/features/chat-with-ai/api/providers/codex.ts`: adaptador específico do Codex.
+- `apps/desktop/src/features/chat-with-ai/api/chat.repository.ts`: armazenamento comum dos dados do Chat.
+- `apps/desktop/src/app`: compõe a feature com o vault ativo e o salvamento pendente.
+- `apps/desktop/tauri/src/ai/commands.rs`: comandos IPC; trabalho bloqueante fora da interface.
+- `apps/desktop/tauri/src/ai/state.rs`: estado e encerramento da conexão de IA.
+- `apps/desktop/tauri/src/ai/providers/codex.rs`: processo `codex app-server`, JSON-RPC, threads e eventos.
+- `apps/desktop/tauri/src/ai/repository.rs`: leitura e gravação atômica dos dados de IA por vault.
+- `apps/desktop/tauri/src/ai/tools.rs`: resolução do vault e consultas de notas.
 
 Não é aberto um servidor HTTP. As ferramentas são registradas diretamente no
 App Server por `dynamicTools`, uma API experimental. A implementação segue o
