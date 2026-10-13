@@ -8,7 +8,7 @@ import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import type { AiChatController } from "../../model/ai-chat.controller";
 import { styles } from "./style.css.ts";
-import NoteReferences from "./note-references";
+import ChatMessageText from "./chat-message-text";
 import TextCaret from "@/shared/ui/text-caret";
 import { useTextareaCaret } from "@/shared/ui/text-caret/use-textarea-caret";
 import CustomScrollArea, { CustomScrollbars, useCustomScrollArea } from "@/shared/ui/custom-scroll-area";
@@ -150,7 +150,7 @@ const ChatBody: Component<Props> = (props) => {
                     const message = () => messagesById().get(id) ?? initial;
                     return <div class={`${styles.message} ${message().role === "user" ? styles.user : styles.assistant}`}>
                         <span class={styles.role}>{message().role === "user" ? props.t("aiYou") : props.aiChat.provider.name}</span>
-                        <NoteReferences
+                        <ChatMessageText
                             text={message().text || (id === props.aiChat.chat().requestId && props.aiChat.chat().busy ? props.t("aiThinking") : props.t("aiNoResponse"))}
                             resolveNote={resolveNote}
                             onOpenNote={props.onOpenNote}

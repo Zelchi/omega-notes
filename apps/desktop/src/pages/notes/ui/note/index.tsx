@@ -9,7 +9,7 @@ type NoteProps = Omit<NoteEditorProps, "note"> & {
 };
 
 const Note: Component<NoteProps> = (props) => (
-	<CustomScrollArea>
+	<CustomScrollArea accelerateScrollWithAlt>
 		<Show when={props.note} fallback={<div aria-busy="true" />}>
 			{(note) => (
 				<NoteEditor
