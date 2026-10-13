@@ -15,11 +15,12 @@ import { isTauriRuntime } from "@/shared/lib/tauri";
 import type { ImportedMedia } from "../../model/media";
 import { openExternalUrl as openTauriExternalUrl } from "../../api/external-link.repository";
 import { onMediaFilesDropped } from "../../api/media.repository";
-import { attachMediaFiles, importMediaPaths } from "../../model/media-import";
+import { attachMediaFiles, importClipboardImages, importMediaPaths } from "../../model/media-import";
 import type { TextFormat, TextFormatHandler } from "@/features/format-text";
 import type { ParagraphAlignmentHandler } from "@/features/align-text";
 
 export type NoteCanvasEditorProps = {
+	noteId: string;
 	document: NoteDocument;
 	notes: StudyNote[];
 	mode: "edit" | "view";
@@ -38,6 +39,11 @@ const EMPTY_TEXT_HEIGHT = 26.4;
 const POSITIONING_ACTIONS_SPACE = 48;
 
 export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
+	let active = true;
+	onCleanup(() => { active = false; });
+	const [pasteError, setPasteError] = createSignal(false);
+	let pasteErrorTimer: ReturnType<typeof setTimeout> | undefined;
+	onCleanup(() => clearTimeout(pasteErrorTimer));
 	let paper!: HTMLDivElement;
 	let textFormatHandler: TextFormatHandler | undefined;
 	let textAlignmentHandler: ParagraphAlignmentHandler | undefined;
@@ -214,6 +220,21 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 	const importFiles = async (files: File[]): Promise<void> => {
 		insertMedia(await attachMediaFiles(files));
 	};
+	const pasteImages = (files: File[]): void => {
+		if (!editable() || positioningElementId()) return;
+		const noteId = props.noteId;
+		setPasteError(false);
+		const canImport = () => active && editable() && props.noteId === noteId;
+		void importClipboardImages(files, canImport).then((media) => {
+			if (canImport()) insertMedia(media);
+		}).catch((error) => {
+			console.error(error);
+			if (!active || props.noteId !== noteId) return;
+			setPasteError(true);
+			clearTimeout(pasteErrorTimer);
+			pasteErrorTimer = setTimeout(() => setPasteError(false), 3000);
+		});
+	};
 	const importPaths = async (paths: string[]): Promise<void> => {
 		insertMedia(await importMediaPaths(paths));
 	};
@@ -296,6 +317,8 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		placeElement,
 		showMediaCatalog,
 		importFiles,
+		pasteImages,
+		pasteError,
 		importPaths,
 	};
 };

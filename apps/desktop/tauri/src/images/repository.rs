@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use uuid::Uuid;
 
-use crate::storage::atomic_copy;
+use crate::storage::{atomic_copy, atomic_write};
 
 const IMAGE_EXTENSIONS: [&str; 7] = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "avif"];
 
@@ -62,6 +62,14 @@ pub(super) fn store_copy(
     fs::create_dir_all(&images)
         .map_err(|error| format!("Não foi possível criar a pasta de imagens: {error}"))?;
     atomic_copy(source, &images.join(format!("{image_id}.{extension}")))
+}
+
+pub(super) fn store_bytes(directory: &Path, image_id: &str, bytes: &[u8]) -> Result<(), String> {
+    let extension = extension_from_bytes(bytes)?;
+    let images = image_store_dir(directory)?;
+    fs::create_dir_all(&images)
+        .map_err(|error| format!("Não foi possível criar a pasta de imagens: {error}"))?;
+    atomic_write(&images.join(format!("{image_id}.{extension}")), bytes, None)
 }
 
 pub(super) fn read_image(directory: &Path, image_id: &str) -> Result<Vec<u8>, String> {

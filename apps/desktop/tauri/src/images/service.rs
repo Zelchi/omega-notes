@@ -17,6 +17,12 @@ pub(super) fn import_note_image(
     Ok(image_id)
 }
 
+pub(super) fn import_clipboard_image(directory: &Path, bytes: &[u8]) -> Result<String, String> {
+    let image_id = Uuid::now_v7().to_string();
+    repository::store_bytes(directory, &image_id, bytes)?;
+    Ok(image_id)
+}
+
 pub(super) fn read_note_image(
     resolve_notes_directory: &impl Fn() -> Result<PathBuf, String>,
     image_id: &str,

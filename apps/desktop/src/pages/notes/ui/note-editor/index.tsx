@@ -43,6 +43,7 @@ const NoteEditor: Component<NoteEditorProps> = (props) => {
 				</Show>
 			</div>
 			<NoteCanvasEditor
+				noteId={props.note.id}
 				exportPdfDisabled={editor.positioningElement() || editor.savingTitle()}
 				onExportPdf={EXPORT_PDF_ENABLED ? async () => {
 					await editor.onTitleBlur();

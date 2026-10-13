@@ -1,0 +1,179 @@
+---
+interface Props { src: string; label?: string; }
+const { src, label = "Demonstração do Ômega Notes" } = Astro.props;
+---
+
+<div class="video-player" data-video-player>
+    <div class="video-frame">
+        <video src={src} controls playsinline preload="metadata" aria-label={label}></video>
+    </div>
+    <div class="controls" data-controls hidden>
+        <button type="button" data-play aria-label="Reproduzir vídeo">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path data-play-icon d="m8 5 12 7-12 7V5Z" fill="currentColor" />
+            </svg>
+        </button>
+        <span class="time" data-time>0:00 / 0:00</span>
+        <div class="sliders">
+            <input data-seek type="range" min="0" max="1" step="0.1" value="0" disabled aria-label="Progresso do vídeo" />
+            <input data-volume class="volume-slider" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume do vídeo" hidden />
+        </div>
+        <button type="button" data-volume-toggle aria-label="Mostrar volume" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                <path d="M4 9v6h4l5 4V5L8 9H4Z" />
+                <path data-volume-icon d="M16 9a5 5 0 0 1 0 6M18.5 6.5a8.5 8.5 0 0 1 0 11" />
+            </svg>
+        </button>
+        <button type="button" data-fullscreen aria-label="Tela cheia">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                <path data-fullscreen-icon d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6" />
+            </svg>
+        </button>
+    </div>
+    <span class="error" data-error role="alert" hidden>Não foi possível reproduzir o vídeo. Tente novamente.</span>
+</div>
+
+<script>
+    for (const root of document.querySelectorAll<HTMLElement>("[data-video-player]")) {
+        const video = root.querySelector("video")!;
+        const controls = root.querySelector<HTMLElement>("[data-controls]")!;
+        const play = root.querySelector<HTMLButtonElement>("[data-play]")!;
+        const playIcon = root.querySelector<SVGPathElement>("[data-play-icon]")!;
+        const time = root.querySelector<HTMLElement>("[data-time]")!;
+        const seek = root.querySelector<HTMLInputElement>("[data-seek]")!;
+        const volume = root.querySelector<HTMLInputElement>("[data-volume]")!;
+        const volumeToggle = root.querySelector<HTMLButtonElement>("[data-volume-toggle]")!;
+        const volumeIcon = root.querySelector<SVGPathElement>("[data-volume-icon]")!;
+        const fullscreen = root.querySelector<HTMLButtonElement>("[data-fullscreen]")!;
+        const fullscreenIcon = root.querySelector<SVGPathElement>("[data-fullscreen-icon]")!;
+        const error = root.querySelector<HTMLElement>("[data-error]")!;
+        const events = new AbortController();
+        const options = { signal: events.signal };
+
+        const formatTime = (value: number) => {
+            const total = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+            const hours = Math.floor(total / 3600);
+            const minutes = Math.floor(total % 3600 / 60);
+            const seconds = String(total % 60).padStart(2, "0");
+            return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}` : `${minutes}:${seconds}`;
+        };
+        const sync = () => {
+            const duration = Number.isFinite(video.duration) ? video.duration : 0;
+            const playing = !video.paused && !video.ended;
+            play.setAttribute("aria-label", playing ? "Pausar vídeo" : "Reproduzir vídeo");
+            playIcon.setAttribute("d", playing ? "M7 5h3v14H7zM14 5h3v14h-3z" : "m8 5 12 7-12 7V5Z");
+            time.textContent = `${formatTime(video.currentTime)} / ${formatTime(duration)}`;
+            seek.max = String(duration || 1);
+            seek.disabled = !duration;
+            seek.value = String(video.currentTime);
+            seek.style.setProperty("--slider-progress", `${duration ? video.currentTime / duration * 100 : 0}%`);
+            volume.value = String(video.muted ? 0 : video.volume);
+            volume.style.setProperty("--slider-progress", `${Number(volume.value) * 100}%`);
+            volumeIcon.setAttribute("d", video.muted || video.volume === 0 ? "m16 9 5 6m0-6-5 6" : "M16 9a5 5 0 0 1 0 6M18.5 6.5a8.5 8.5 0 0 1 0 11");
+        };
+        play.addEventListener("click", () => {
+            if (!video.paused) { video.pause(); return; }
+            error.hidden = true;
+            void video.play().catch((reason) => {
+                if (reason instanceof DOMException && reason.name === "AbortError") return;
+                error.hidden = false;
+                sync();
+            });
+        }, options);
+        seek.addEventListener("input", () => {
+            if (!Number.isFinite(video.duration)) return;
+            video.currentTime = Number(seek.value);
+            sync();
+        }, options);
+        volume.addEventListener("input", () => {
+            video.volume = Number(volume.value);
+            video.muted = video.volume === 0;
+            sync();
+        }, options);
+        volumeToggle.addEventListener("click", () => {
+            const open = volume.hidden;
+            volume.hidden = !open;
+            seek.hidden = open;
+            volumeToggle.classList.toggle("active", open);
+            volumeToggle.setAttribute("aria-expanded", String(open));
+            volumeToggle.setAttribute("aria-label", open ? "Ocultar volume" : "Mostrar volume");
+        }, options);
+        fullscreen.hidden = !document.fullscreenEnabled;
+        fullscreen.addEventListener("click", () => {
+            const action = document.fullscreenElement === root ? document.exitFullscreen() : root.requestFullscreen();
+            void action.catch(() => { error.textContent = "Não foi possível abrir a tela cheia."; error.hidden = false; });
+        }, options);
+        document.addEventListener("fullscreenchange", () => {
+            const expanded = document.fullscreenElement === root;
+            fullscreen.setAttribute("aria-label", expanded ? "Sair da tela cheia" : "Tela cheia");
+            fullscreenIcon.setAttribute("d", expanded ? "M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" : "M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6");
+        }, options);
+        for (const name of ["loadedmetadata", "durationchange", "timeupdate", "play", "pause", "ended", "volumechange", "emptied"]) {
+            video.addEventListener(name, sync, options);
+        }
+        video.addEventListener("error", () => { error.hidden = false; }, options);
+        video.addEventListener("playing", () => { error.hidden = true; }, options);
+        video.controls = false;
+        controls.hidden = false;
+        sync();
+        document.addEventListener("astro:before-swap", () => { video.pause(); events.abort(); }, { once: true });
+    }
+</script>
+
+<style>
+    .video-player {
+        --ink: #e7e7e8;
+        --muted: #a0a0a5;
+        --border-strong: #38383b;
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 100%;
+        overflow: hidden;
+        border: 1px solid #303033;
+        border-radius: 12px;
+        background: #000;
+        container-type: inline-size;
+    }
+    .video-frame { width: 100%; aspect-ratio: 3 / 2; }
+    video { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .video-player:fullscreen { width: 100vw; height: 100vh; border: 0; border-radius: 0; }
+    .video-player:fullscreen .video-frame { width: min(100vw, 150vh); }
+    .controls {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: grid;
+        grid-template-columns: 30px 96px minmax(0, 1fr) 30px 30px;
+        align-items: center;
+        gap: 4px;
+        min-height: 38px;
+        padding: 4px 6px;
+        border-top: 1px solid #303033;
+        background: #18181a;
+        color: var(--ink);
+    }
+    [hidden] { display: none !important; }
+    button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--ink); cursor: pointer; }
+    button:hover, button.active { background: #303033; }
+    button:focus-visible, input:focus-visible { outline: 1px solid var(--ink); outline-offset: -1px; }
+    svg { width: 17px; height: 17px; }
+    .time { min-width: 96px; color: #b4b4b8; font-size: 11px; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+    .sliders { min-width: 0; }
+    input { --slider-progress: 0%; display: block; width: 100%; min-width: 0; height: 14px; margin: 0; padding: 0; appearance: none; border: 0; border-radius: 0; background: transparent; cursor: pointer; }
+    input::-webkit-slider-runnable-track { height: 3px; border-radius: 999px; background: linear-gradient(to right, var(--slider-color, var(--ink)) var(--slider-progress), var(--border-strong) var(--slider-progress)); }
+    input::-webkit-slider-thumb { width: 10px; height: 10px; margin-top: -3.5px; appearance: none; border: 0; border-radius: 50%; background: var(--ink); }
+    input::-moz-range-track { height: 3px; border: 0; border-radius: 999px; background: linear-gradient(to right, var(--slider-color, var(--ink)) var(--slider-progress), var(--border-strong) var(--slider-progress)); }
+    input::-moz-range-thumb { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--ink); }
+    .volume-slider { --slider-color: var(--muted); }
+    .volume-slider::-webkit-slider-runnable-track { height: 6px; }
+    .volume-slider::-moz-range-track { height: 6px; }
+    .volume-slider::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -3px; box-sizing: border-box; border: 2px solid var(--muted); background: #18181a; }
+    .volume-slider::-moz-range-thumb { width: 12px; height: 12px; box-sizing: border-box; border: 2px solid var(--muted); background: #18181a; }
+    .error { position: absolute; top: 8px; left: 8px; right: 8px; padding: 8px; background: #18181a; color: var(--ink); font-size: 12px; }
+    @container (max-width: 320px) {
+        .controls { grid-template-columns: 30px minmax(0, 1fr) 30px 30px; }
+        .time { display: none; }
+    }
+</style>

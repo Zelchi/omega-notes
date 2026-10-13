@@ -19,7 +19,7 @@ export const exportNote = async (source: StudyNote, notes: StudyNote[], t: (key:
 	try {
 		dispose = render(() => <>
 		<h1 style={{ margin: "0", padding: "24px 32px", "font-size": "30px", "line-height": "1.2", "overflow-wrap": "anywhere" }}>{note.title}</h1>
-		<NoteCanvasEditor document={note.document} notes={notes} mode="view" t={t} onChange={() => {}} onOpenNote={() => {}} />
+		<NoteCanvasEditor noteId={note.id} document={note.document} notes={notes} mode="view" t={t} onChange={() => {}} onOpenNote={() => {}} />
 		</>, root);
 		await exportNotePdf(root, note.title, { audio: t("pdfAudio"), video: t("pdfVideo") });
 	} finally { dispose?.(); root.remove(); }

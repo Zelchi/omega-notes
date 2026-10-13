@@ -50,6 +50,7 @@
   "rename": "Rename",
   "delete": "Delete",
   "attachMedia": "Attach media",
+  "pasteImageFailed": "Could not paste the image. Try a PNG or JPEG image.",
   "alignTextLeft": "Align left",
   "alignTextCenter": "Center text",
   "alignTextJustify": "Justify text",

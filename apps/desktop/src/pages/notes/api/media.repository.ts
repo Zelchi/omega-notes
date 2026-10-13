@@ -28,6 +28,9 @@ export const selectMediaPaths = async (title: string, extensions: string[]): Pro
 export const importNoteImage = (sourcePath: string): Promise<string> =>
 	invoke<string>("import_note_image", { sourcePath });
 
+export const importClipboardImage = (bytes: ArrayBuffer): Promise<string> =>
+	invoke<string>("import_clipboard_image", bytes);
+
 export const importNoteMedia = (sourcePath: string, mediaType: "audio" | "video"): Promise<string> =>
 	invoke<string>("import_note_media", { sourcePath, mediaType });
 

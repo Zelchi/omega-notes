@@ -42,6 +42,7 @@ export type NoteTextNodeProps = {
 	onAlignmentReady?: (handler: ParagraphAlignmentHandler | undefined) => void;
 	onSelectionAlignmentChange?: (alignment: NoteTextAlignment | undefined) => void;
 	onChange: (element: NoteTextElement) => void;
+	onPasteImages?: (files: File[]) => void;
 };
 
 const displayText = (text: string): string => {
@@ -979,9 +980,16 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	};
 
 	const handlePaste = (event: ClipboardEvent): void => {
+		if (!props.editable || props.locked) return;
 		lastOpeningBracket = undefined;
 		pendingBracketDeletion = undefined;
 		event.preventDefault();
+		const images = [...(event.clipboardData?.files ?? [])].filter((file) => file.type.startsWith("image/"));
+		if (images.length && props.onPasteImages) {
+			flushInput(false);
+			props.onPasteImages(images);
+			return;
+		}
 		const text = event.clipboardData?.getData("text/plain");
 		if (text !== undefined) replaceSelection(text);
 	};

@@ -1,0 +1,31 @@
+---
+import "@/styles/global.css";
+import CustomScrollbar from "@/components/custom-scrollbar.astro";
+
+interface Props {
+    title?: string;
+    description?: string;
+}
+
+const {
+    title = "Ômega Notes — Um espaço para suas ideias",
+    description = "Organize suas notas em um canvas, conecte ideias e mantenha seus estudos no seu computador.",
+} = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
+---
+
+<!doctype html>
+<html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="description" content={description} />
+        <meta name="theme-color" content="#141416" />
+        <link rel="icon" type="image/png" href={`${base}icon.png`} />
+        <title>{title}</title>
+    </head>
+    <body>
+        <div id="page-content"><slot /></div>
+        <CustomScrollbar />
+    </body>
+</html>

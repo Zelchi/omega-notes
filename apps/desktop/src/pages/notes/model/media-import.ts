@@ -1,8 +1,10 @@
 import { createImageObjectUrl } from "@/shared/lib/images";
+import { isTauriRuntime } from "@/shared/lib/tauri";
 import type { ImportedMedia } from "./media";
 import {
 	getNoteMediaStreamUrl,
 	importNoteImage,
+	importClipboardImage,
 	importNoteMedia,
 	readNoteImage,
 	selectMediaPaths,
@@ -44,6 +46,22 @@ export const attachMediaFiles = async (files: File[]): Promise<ImportedMedia[]> 
 			else media.push({ type, dataUrl, extension });
 		} catch (error) {
 			console.error(error);
+		}
+	}
+	return media;
+};
+
+export const importClipboardImages = async (files: File[], canImport: () => boolean): Promise<ImportedMedia[]> => {
+	const media: ImportedMedia[] = [];
+	for (const file of files) {
+		if (!file.type.startsWith("image/")) continue;
+		if (isTauriRuntime()) {
+			const bytes = await file.arrayBuffer();
+			if (!canImport()) return [];
+			const imageId = await importClipboardImage(bytes);
+			media.push({ type: "image", imageId });
+		} else {
+			media.push({ type: "image", dataUrl: await readAsDataUrl(file) });
 		}
 	}
 	return media;

@@ -50,6 +50,7 @@
   "rename": "Renomear",
   "delete": "Apagar",
   "attachMedia": "Anexar mídia",
+  "pasteImageFailed": "Não foi possível colar a imagem. Tente uma imagem PNG ou JPEG.",
   "alignTextLeft": "Alinhar à esquerda",
   "alignTextCenter": "Centralizar texto",
   "alignTextJustify": "Justificar texto",

@@ -50,6 +50,7 @@ pub fn run() {
             notes::commands::rename_note,
             notes::commands::delete_note,
             images::commands::import_note_image,
+            images::commands::import_clipboard_image,
             images::commands::read_note_image,
             media::commands::import_note_media,
             stream::commands::note_media_stream_url

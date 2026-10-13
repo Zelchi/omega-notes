@@ -12,3 +12,5 @@ Thumbs.db
 .env.*
 !.env.example
 **/tauri/tauri.release.conf.json
+
+.astro/

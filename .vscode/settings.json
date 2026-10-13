@@ -4,18 +4,21 @@
         "**/node_modules": true,
         "**/dist": true,
         "**/tauri/target": true,
-        "**/tauri/gen": true
+        "**/tauri/gen": true,
+        "**/.astro": true
     },
     "search.exclude": {
         "**/node_modules": true,
         "**/dist": true,
         "**/tauri/target": true,
-        "**/tauri/gen": true
+        "**/tauri/gen": true,
+        "**/.astro": true
     },
     "files.watcherExclude": {
         "**/node_modules/**": true,
         "**/dist/**": true,
         "**/tauri/target/**": true,
-        "**/tauri/gen/**": true
+        "**/tauri/gen/**": true,
+        "**/.astro/**": true
     }
 }

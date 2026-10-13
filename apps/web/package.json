@@ -2,5 +2,23 @@
     "name": "omega-notes-web",
     "private": true,
     "type": "module",
-    "version": "0.0.0"
+    "version": "0.0.0",
+    "scripts": {
+        "dev": "astro dev --host 127.0.0.1 --port 4321",
+        "check": "astro check",
+        "build": "astro check && astro build",
+        "preview": "astro preview --host 127.0.0.1 --port 4321",
+        "astro": "astro"
+    },
+    "dependencies": {
+        "astro": "7.3.8"
+    },
+    "devDependencies": {
+        "@astrojs/check": "0.9.10",
+        "@emnapi/runtime": "1.11.3",
+        "typescript": "~5.9.3"
+    },
+    "engines": {
+        "node": ">=22.12.0"
+    }
 }
