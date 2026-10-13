@@ -1,4 +1,4 @@
-import { createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { createSearchIndex, searchNotes, type SearchIndex } from "../../lib/search";
@@ -17,6 +17,7 @@ export type FloatingSearchProps = {
 
 export const useFloatingSearchController = (props: FloatingSearchProps) => {
 	const [query, setQuery] = createSignal("");
+	const [activeIndex, setActiveIndex] = createSignal(0);
 	let root!: HTMLDivElement;
 	let indexedNotes: StudyNote[] | undefined;
 	let searchIndex: SearchIndex | undefined;
@@ -30,6 +31,11 @@ export const useFloatingSearchController = (props: FloatingSearchProps) => {
 			indexedNotes = notes;
 		}
 		return searchNotes(searchIndex, value).slice(0, 6);
+	});
+
+	createEffect(() => {
+		results();
+		setActiveIndex(0);
 	});
 
 	const onOutsidePointer = (event: PointerEvent) => {
@@ -48,18 +54,32 @@ export const useFloatingSearchController = (props: FloatingSearchProps) => {
 	};
 
 	const handleKeyDown = (event: KeyboardEvent): void => {
+		if (event.isComposing) return;
 		if (event.key === "Escape" && query()) {
+			event.preventDefault();
 			event.stopPropagation();
 			setQuery("");
+			return;
 		}
-		if (event.key === "Enter" && results()[0]) {
+		const notes = results();
+		if (!notes.length) return;
+		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
 			event.preventDefault();
-			select(results()[0]!);
+			event.stopPropagation();
+			const direction = event.key === "ArrowDown" ? 1 : -1;
+			setActiveIndex((index) => (index + direction + notes.length) % notes.length);
+		}
+		if (event.key === "Enter" && notes[activeIndex()]) {
+			event.preventDefault();
+			event.stopPropagation();
+			select(notes[activeIndex()]!);
 		}
 	};
 
 	return {
 		query,
+		activeIndex,
+		setActiveIndex,
 		results,
 		select,
 		setQuery,

@@ -1,5 +1,5 @@
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
-import { For, Show, type Component } from "solid-js";
+import { createUniqueId, For, Show, type Component } from "solid-js";
 import { cx } from "@/shared/lib/classes";
 import Icon from "@/shared/ui/icon";
 import { useFloatingSearchController, type FloatingSearchProps } from "./controller";
@@ -7,6 +7,7 @@ import { styles } from "./style.css.ts";
 
 const FloatingSearch: Component<FloatingSearchProps> = (props) => {
 	const search = useFloatingSearchController(props);
+	const resultsId = createUniqueId();
 
 	return (
 		<div
@@ -32,6 +33,11 @@ const FloatingSearch: Component<FloatingSearchProps> = (props) => {
 					<Icon name="search" size={17} />
 					<input
 						class={styles.input}
+						role="combobox"
+						aria-autocomplete="list"
+						aria-expanded={search.results().length > 0}
+						aria-controls={resultsId}
+						aria-activedescendant={search.results().length ? `${resultsId}-${search.activeIndex()}` : undefined}
 						value={search.query()}
 						onInput={(event) => search.setQuery(event.currentTarget.value)}
 						onKeyDown={search.handleKeyDown}
@@ -49,10 +55,19 @@ const FloatingSearch: Component<FloatingSearchProps> = (props) => {
 				</button>
 			</div>
 			<Show when={search.results().length > 0}>
-				<div class={styles.results} ref={(element) => registerExitSnapshot(element, { kind: "menu", key: "search-results" })}>
+				<div id={resultsId} role="listbox" aria-label={props.t("searchNotes")} class={styles.results} ref={(element) => registerExitSnapshot(element, { kind: "menu", key: "search-results" })}>
 					<For each={search.results()}>
-						{(note) => (
-							<button class={styles.result} type="button" onClick={() => search.select(note)}>
+						{(note, index) => (
+							<button
+								id={`${resultsId}-${index()}`}
+								role="option"
+								aria-selected={search.activeIndex() === index()}
+								class={cx(styles.result, search.activeIndex() === index() && styles.activeResult)}
+								type="button"
+								tabIndex={-1}
+								onPointerEnter={() => search.setActiveIndex(index())}
+								onClick={() => search.select(note)}
+							>
 								<strong class={styles.resultTitle}>{note.title}</strong>
 							</button>
 						)}

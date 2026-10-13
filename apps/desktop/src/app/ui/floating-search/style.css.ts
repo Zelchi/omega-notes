@@ -103,6 +103,7 @@ export const styles = {
 		cursor: "pointer",
 		selectors: { "&:hover": { backgroundColor: "var(--surface-hover)" } },
 	}),
+	activeResult: style({ backgroundColor: "var(--surface-hover)" }),
 	resultTitle: style({
 		display: "block",
 		overflow: "hidden",

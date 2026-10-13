@@ -90,7 +90,8 @@ Inclua materiais que ajudem a explicar, lembrar ou revisar um assunto.
 | **Vídeos** | Assistir dentro da nota, avançar na reprodução, ajustar o volume e usar tela cheia. |
 | **Catálogo de mídias** | Encontrar mídias da biblioteca e inseri-las nas notas. |
 
-Importe arquivos pelo seletor ou arraste-os para o aplicativo.
+Importe arquivos pelo seletor ou arraste-os para o aplicativo. Você também pode
+colar imagens copiadas e capturas de tela com **Ctrl+V** dentro da nota em edição.
 
 ## Separe seus assuntos em vaults
 
@@ -105,7 +106,8 @@ notas e arquivos, com informações sobre quantidade de conteúdo e espaço util
 A busca procura nos **títulos e no conteúdo das notas**. Ela também considera
 aproximações de palavras para ajudar quando você não lembra exatamente o que escreveu.
 
-Selecione um resultado para abrir a nota correspondente.
+Selecione um resultado para abrir a nota correspondente. Use **↑ / ↓** para
+navegar pelos resultados e **Enter** para abrir a nota selecionada.
 
 ## Deixe o aplicativo com a sua cara
 

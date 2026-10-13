@@ -1,6 +1,6 @@
 [package]
 name = "omega-notes"
-version = "0.2.1"
+version = "0.2.2"
 description = "Um espaço local para guardar e organizar seus estudos"
 authors = ["you"]
 edition = "2021"

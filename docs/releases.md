@@ -24,17 +24,17 @@ O workflow identifica o próprio repositório e configura `https://github.com/<d
 
 1. Use a mesma versão em `apps/desktop/package.json`, `apps/desktop/tauri/Cargo.toml` e `apps/desktop/tauri/tauri.conf.json`.
 2. Atualize os arquivos de lock junto com as dependências e a versão do pacote Rust. Registre as novidades em `changelog.md`, em uma seção `## vX.Y.Z`; o workflow usa essa seção na descrição da release.
-3. Faça commit, crie uma tag com essa versão e envie ao GitHub. Atualmente o projeto está em `0.2.1`:
+3. Faça commit, crie uma tag com essa versão e envie ao GitHub. Atualmente o projeto está em `0.2.2`:
 
 ```sh
 git add .
-git commit -m "Prepare release 0.2.1"
-git tag v0.2.1
+git commit -m "chore(release): prepara v0.2.2"
+git tag v0.2.2
 git push origin HEAD
-git push origin v0.2.1
+git push origin v0.2.2
 ```
 
-Uma tag publicada deve apontar para o commit completo da versão. Para outra versão, substitua `0.2.1` nos três arquivos e nos comandos. A preparação recusa uma tag que não corresponda aos arquivos do projeto.
+Uma tag publicada deve apontar para o commit completo da versão. Para outra versão, substitua `0.2.2` nos três arquivos e nos comandos. A preparação recusa uma tag que não corresponda aos arquivos do projeto.
 
 O workflow `.github/workflows/release.yml`:
 
@@ -54,7 +54,7 @@ No aplicativo empacotado, a verificação ocorre ao iniciar. Quando há uma vers
 
 O botão no final das configurações continua permitindo conferir uma versão e instalar uma atualização disponível. O texto indica verificação, versão disponível, download, instalação ou falha. O aviso “Verificação indisponível” dura dois segundos.
 
-No navegador, em `make dev` e em builds sem endpoint de release, a atualização permanece indisponível. No Linux, o atualizador seleciona o mesmo formato em que o aplicativo foi instalado: `.deb` usa `dpkg`, e `.rpm` usa `rpm`. A instalação pode solicitar autenticação do sistema por `pkexec`. A versão instalada do plugin já implementa esses dois formatos. A detecção usa o tipo do pacote gravado pelo Tauri no executável.
+No navegador, em `npm run dev:desktop` e em builds sem endpoint de release, a atualização permanece indisponível. No Linux, o atualizador seleciona o mesmo formato em que o aplicativo foi instalado: `.deb` usa `dpkg`, e `.rpm` usa `rpm`. A instalação pode solicitar autenticação do sistema por `pkexec`. A versão instalada do plugin já implementa esses dois formatos. A detecção usa o tipo do pacote gravado pelo Tauri no executável.
 
 ## Builds locais com atualização habilitada
 
@@ -62,17 +62,17 @@ No navegador, em `make dev` e em builds sem endpoint de release, a atualização
 
 O diretório de dados é definido pelo perfil de compilação:
 
-- Desenvolvimento (`make dev`, `tauri dev` ou builds com `--debug`): `Documentos/Ômega Notes Dev`.
+- Desenvolvimento (`npm run dev:desktop`, `npm run tauri -- dev` ou builds com `--debug`): `Documentos/Ômega Notes Dev`.
 - Produção (builds release, incluindo os instaladores): `Documentos/Ômega Notes`.
 
 Cada diretório contém seu próprio `vaults.json`, vaults, notas, mídias e pasta `.temp`. O desenvolvimento começa com uma biblioteca independente. Os dados existentes não são movidos nem copiados. A seleção é feita no Rust em tempo de compilação, antes de qualquer leitura ou escrita dos vaults.
 
 ### Compilar para publicação
 
-Depois de configurar a versão e o repositório, no Linux:
+Execute os comandos na raiz do repositório. Depois de configurar a versão e o repositório, no Linux:
 
 ```sh
-GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=v0.2.1 node scripts/prepare-release.mjs
+GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=v0.2.2 node scripts/prepare-release.mjs
 TAURI_SIGNING_PRIVATE_KEY="$PWD/.keys/updater.key" npm run tauri -- build --bundles deb,rpm --config tauri/tauri.release.conf.json -- --locked
 ```
 

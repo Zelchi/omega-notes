@@ -12,6 +12,10 @@
         "build": "yarn workspace omega-notes-desktop build",
         "dev:desktop": "node scripts/desktop.mjs dev",
         "build:desktop": "node scripts/desktop.mjs build",
-        "release:prepare": "node scripts/prepare-release.mjs"
+        "release:prepare": "node scripts/prepare-release.mjs",
+        "dev:web": "yarn workspace omega-notes-web dev",
+        "check:web": "yarn workspace omega-notes-web run check",
+        "build:web": "yarn workspace omega-notes-web build",
+        "preview:web": "yarn workspace omega-notes-web preview"
     }
 }

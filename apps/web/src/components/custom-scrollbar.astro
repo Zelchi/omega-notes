@@ -1,0 +1,150 @@
+<div class="scrollbar-track" data-scrollbar-track hidden>
+    <div
+        class="scrollbar-thumb"
+        data-scrollbar-thumb
+        role="scrollbar"
+        aria-label="Rolagem da página"
+        aria-controls="page-content"
+        aria-orientation="vertical"
+        aria-valuemin="0"
+        aria-valuemax="0"
+        aria-valuenow="0"
+        tabindex="0"
+    ></div>
+</div>
+
+<script>
+    const track = document.querySelector<HTMLElement>("[data-scrollbar-track]");
+    const thumb = document.querySelector<HTMLElement>("[data-scrollbar-thumb]");
+    const content = document.getElementById("page-content");
+    const viewport = document.scrollingElement;
+
+    if (track && thumb && content && viewport) {
+        const events = new AbortController();
+        let frame = 0;
+        let drag: {
+            pointerId: number;
+            target: HTMLElement;
+            pointerStart: number;
+            scrollStart: number;
+            travel: number;
+            maximum: number;
+        } | undefined;
+
+        const geometry = () => {
+            const maximum = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+            const trackLength = track.clientHeight;
+            const length = Math.min(trackLength, Math.max(28, trackLength * viewport.clientHeight / Math.max(1, viewport.scrollHeight)));
+            return { maximum, length, travel: Math.max(0, trackLength - length) };
+        };
+
+        const update = () => {
+            frame = 0;
+            track.hidden = viewport.scrollHeight <= viewport.clientHeight;
+            const { maximum, length, travel } = geometry();
+            thumb.style.height = `${length}px`;
+            thumb.style.transform = `translateY(${maximum ? viewport.scrollTop / maximum * travel : 0}px)`;
+            thumb.setAttribute("aria-valuemax", String(maximum));
+            thumb.setAttribute("aria-valuenow", String(Math.round(viewport.scrollTop)));
+        };
+        const scheduleUpdate = () => {
+            if (!frame) frame = requestAnimationFrame(update);
+        };
+        const finishDrag = (event?: PointerEvent) => {
+            if (!drag || (event && event.pointerId !== drag.pointerId)) return;
+            const previous = drag;
+            drag = undefined;
+            thumb.classList.remove("scrollbar-dragging");
+            if (previous.target.hasPointerCapture(previous.pointerId)) {
+                previous.target.releasePointerCapture(previous.pointerId);
+            }
+        };
+
+        track.addEventListener("pointerdown", (event) => {
+            if (event.button !== 0 || drag) return;
+            event.preventDefault();
+            update();
+            const { maximum, length, travel } = geometry();
+            if (!maximum || !travel) return;
+            if (event.target === track) {
+                const offset = event.clientY - track.getBoundingClientRect().top - length / 2;
+                viewport.scrollTop = Math.max(0, Math.min(travel, offset)) / travel * maximum;
+            }
+            const target = event.target === thumb ? thumb : track;
+            target.setPointerCapture(event.pointerId);
+            drag = { pointerId: event.pointerId, target, pointerStart: event.clientY,
+                scrollStart: viewport.scrollTop, travel, maximum };
+            thumb.classList.add("scrollbar-dragging");
+            thumb.focus({ preventScroll: true });
+            scheduleUpdate();
+        }, { signal: events.signal });
+        track.addEventListener("pointermove", (event) => {
+            if (!drag || event.pointerId !== drag.pointerId) return;
+            viewport.scrollTop = Math.max(0, Math.min(drag.maximum,
+                drag.scrollStart + (event.clientY - drag.pointerStart) / drag.travel * drag.maximum));
+        }, { signal: events.signal });
+        for (const name of ["pointerup", "pointercancel", "lostpointercapture"] as const) {
+            track.addEventListener(name, finishDrag, { signal: events.signal });
+        }
+        thumb.addEventListener("keydown", (event) => {
+            const { maximum } = geometry();
+            const positions: Record<string, number> = {
+                ArrowDown: viewport.scrollTop + 40,
+                ArrowUp: viewport.scrollTop - 40,
+                PageDown: viewport.scrollTop + viewport.clientHeight,
+                PageUp: viewport.scrollTop - viewport.clientHeight,
+                Home: 0,
+                End: maximum,
+            };
+            const position = positions[event.key];
+            if (position === undefined) return;
+            event.preventDefault();
+            viewport.scrollTop = Math.max(0, Math.min(maximum, position));
+        }, { signal: events.signal });
+
+        document.documentElement.classList.add("custom-scrollbar-enabled");
+        const observer = new ResizeObserver(scheduleUpdate);
+        observer.observe(content);
+        window.addEventListener("scroll", scheduleUpdate, { passive: true, signal: events.signal });
+        window.addEventListener("resize", () => { finishDrag(); scheduleUpdate(); }, { signal: events.signal });
+        window.addEventListener("blur", () => finishDrag(), { signal: events.signal });
+        update();
+        document.addEventListener("astro:before-swap", () => {
+            finishDrag();
+            events.abort();
+            observer.disconnect();
+            cancelAnimationFrame(frame);
+            document.documentElement.classList.remove("custom-scrollbar-enabled");
+        }, { once: true });
+    }
+</script>
+
+<style>
+    :global(html.custom-scrollbar-enabled) { scrollbar-width: none; }
+    :global(html.custom-scrollbar-enabled::-webkit-scrollbar),
+    :global(html.custom-scrollbar-enabled body::-webkit-scrollbar) { display: none; }
+    .scrollbar-track {
+        position: fixed;
+        z-index: 5;
+        top: 8px;
+        right: 4px;
+        bottom: 20px;
+        width: 14px;
+        touch-action: none;
+    }
+    .scrollbar-thumb {
+        position: absolute;
+        top: 0;
+        right: 2px;
+        width: 5px;
+        min-height: 28px;
+        border-radius: 2px;
+        background: #818181;
+        cursor: grab;
+        touch-action: none;
+        outline: none;
+    }
+    .scrollbar-thumb:hover { background: #adadad; }
+    .scrollbar-thumb:active,
+    .scrollbar-thumb.scrollbar-dragging { background: #e8e8e8; cursor: grabbing; }
+</style>

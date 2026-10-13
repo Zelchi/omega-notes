@@ -54,6 +54,9 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 				}}
 				onContextMenu={(event) => event.preventDefault()}
 			>
+				<Show when={editor.pasteError()}>
+					<p role="alert" class={styles.pasteError}>{props.t("pasteImageFailed")}</p>
+				</Show>
 				<Index each={editor.flowDocument().elements}>
 					{(element) => {
 						const getElement = () => element();
@@ -109,6 +112,7 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 									locked={editor.editable() && Boolean(editor.positioningElementId())}
 									renderText={renderText}
 									onChange={editor.updateText}
+									onPasteImages={editor.pasteImages}
 									onFormattingReady={editor.setTextFormatHandler}
 									onAlignmentReady={editor.setTextAlignmentHandler}
 									onSelectionAlignmentChange={editor.setTextAlignment}

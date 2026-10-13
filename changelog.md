@@ -1,9 +1,16 @@
 # Histórico de atualizações
 
-## Não lançado
+## v0.2.2
+
+### Notas
+
+- Imagens copiadas e capturas de tela podem ser coladas com Ctrl+V na nota e são armazenadas na pasta de imagens do vault.
+- Busca de notas com navegação pelas setas e abertura do resultado selecionado com Enter.
 
 ### Repositório
 
+- Site inicializado em Astro em `apps/web`, com página inicial, layout, estilos e comandos próprios de desenvolvimento e build.
+- Publicação do site no GitHub Pages em `notes.zelchi.com`, com vídeo de demonstração, player e scrollbar customizados e fundo pontilhado do canvas.
 - Aplicativo separado em `apps/desktop`, com `apps/web` reservado ao site de divulgação. Comandos da raiz e publicação no GitHub ajustados à nova estrutura.
 
 ## v0.2.1

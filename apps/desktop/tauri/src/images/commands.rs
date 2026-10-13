@@ -24,3 +24,18 @@ pub(crate) fn read_note_image(
     let bytes = service::read_note_image(&|| runtime::notes_dir(&app), &image_id)?;
     Ok(tauri::ipc::Response::new(bytes))
 }
+
+#[tauri::command]
+pub(crate) async fn import_clipboard_image(
+    app: AppHandle,
+    request: tauri::ipc::Request<'_>,
+) -> Result<String, String> {
+    let directory = runtime::notes_dir(&app)?;
+    let bytes = match request.body() {
+        tauri::ipc::InvokeBody::Raw(bytes) => bytes.clone(),
+        _ => return Err("Conteúdo de imagem inválido.".into()),
+    };
+    tauri::async_runtime::spawn_blocking(move || service::import_clipboard_image(&directory, &bytes))
+        .await
+        .map_err(|error| format!("Não foi possível colar a imagem: {error}"))?
+}
