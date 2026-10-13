@@ -1,4 +1,5 @@
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
+import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { For, Show, createEffect, createSignal, type Component } from "solid-js";
 import Icon from "@/shared/ui/icon";
 import ModalError from "@/shared/ui/modal-error";
@@ -55,6 +56,8 @@ const VaultDialog: Component<Props> = (props) => {
 	const [editingVaultId, setEditingVaultId] = createSignal<string>();
 	const [editingName, setEditingName] = createSignal("");
 	const [deletingVault, setDeletingVault] = createSignal<Vault>();
+	const backdropDismiss = createBackdropDismiss(() => { if (!props.saving) props.onClose(); });
+	const deleteBackdropDismiss = createBackdropDismiss(() => { if (!props.saving) setDeletingVault(undefined); });
 	const [selectedVaultId, setSelectedVaultId] = createSignal<string>();
 	const [vaultDetails, setVaultDetails] = createSignal<Record<string, VaultDetails>>({});
 	const selectedVault = () => props.vaults.find((vault) => vault.id === selectedVaultId());
@@ -115,9 +118,7 @@ const VaultDialog: Component<Props> = (props) => {
 			<div
 				class={styles.backdrop}
 				ref={(element) => registerExitSnapshot(element, { kind: "dialog", key: "vault-dialog" })}
-				onMouseDown={(event) => {
-					if (event.target === event.currentTarget && !props.saving) props.onClose();
-				}}
+				{...backdropDismiss}
 			>
 				<section
 					class={props.vaults.length > 0 ? styles.dialogWithVaults : styles.dialog}
@@ -415,9 +416,7 @@ const VaultDialog: Component<Props> = (props) => {
 					<div
 						class={styles.confirmBackdrop}
 						ref={(element) => registerExitSnapshot(element, { kind: "dialog", key: "vault-delete-dialog" })}
-						onMouseDown={(event) => {
-							if (event.target === event.currentTarget && !props.saving) setDeletingVault(undefined);
-						}}
+						{...deleteBackdropDismiss}
 					>
 						<section class={styles.confirmDialog} role="alertdialog" aria-modal="true">
 							<h3 class={styles.title}>{props.t("delete")}</h3>

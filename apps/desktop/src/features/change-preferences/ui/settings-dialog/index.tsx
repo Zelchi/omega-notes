@@ -1,4 +1,5 @@
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
+import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { Show, type Component, type JSX } from "solid-js";
 import type { Language, TranslationKey } from "@/shared/lib/i18n";
 import type { CanvasLayout, TextCursor, Theme } from "../../model/preferences";
@@ -29,14 +30,14 @@ type Props = {
 	onTextCursorChange: (value: TextCursor) => void;
 };
 
-const SettingsDialog: Component<Props> = (props) => (
+const SettingsDialog: Component<Props> = (props) => {
+	const backdropDismiss = createBackdropDismiss(() => props.onClose());
+	return (
 	<Show when={props.open}>
 		<div
 			class={styles.backdrop}
 			ref={(element) => registerExitSnapshot(element, { kind: "dialog", key: "settings-dialog" })}
-			onMouseDown={(event) => {
-				if (event.target === event.currentTarget) props.onClose();
-			}}
+			{...backdropDismiss}
 		>
 			<section class={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="settings-heading">
 				<header class={styles.header}>
@@ -104,5 +105,6 @@ const SettingsDialog: Component<Props> = (props) => (
 		</div>
 	</Show>
 );
+};
 
 export default SettingsDialog;

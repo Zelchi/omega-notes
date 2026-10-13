@@ -1,5 +1,13 @@
 # Histórico de atualizações
 
+## v0.2.5
+
+### Notas
+
+- Modais só fecham pelo fundo quando o clique começa e termina fora do conteúdo. Arrastar uma seleção de texto para fora não fecha mais o modal.
+- Linhas iniciadas com hífen de lista (`- `) aparecem com uma bolinha em leitura e na prévia, mantendo o texto original na edição. A formatação também se aplica às mensagens do chat.
+- A prévia temporária de leitura agora usa Alt em vez de Ctrl, preservando cursor e rolagem ao soltar a tecla. Alt também mantém a rolagem acelerada dentro das notas.
+
 ## v0.2.4
 
 ### Chat com IA

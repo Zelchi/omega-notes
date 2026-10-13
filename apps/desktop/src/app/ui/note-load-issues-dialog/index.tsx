@@ -1,4 +1,5 @@
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
+import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { For, Show, type Component } from "solid-js";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { NoteLoadIssue } from "@/entities/note";
@@ -13,6 +14,7 @@ type Props = {
 };
 
 const NoteLoadIssuesDialog: Component<Props> = (props) => {
+	const backdropDismiss = createBackdropDismiss(() => props.onClose());
 	const dialog = useNoteLoadIssuesDialogController();
 
 	return (
@@ -20,9 +22,7 @@ const NoteLoadIssuesDialog: Component<Props> = (props) => {
 			<div
 				class={styles.backdrop}
 				ref={(element) => registerExitSnapshot(element, { kind: "dialog", key: "note-load-issues-dialog" })}
-				onMouseDown={(event) => {
-					if (event.target === event.currentTarget) props.onClose();
-				}}
+				{...backdropDismiss}
 			>
 				<section class={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="load-issues-heading">
 					<header class={styles.header}>
