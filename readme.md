@@ -61,6 +61,9 @@ e autenticado com sua conta ChatGPT. [Como conectar](docs/ai.md).
 Use o modo de edição para construir suas notas e o modo de leitura para consultar
 o conteúdo.
 
+Segure **Ctrl** durante a edição para ativar temporariamente a leitura e clicar
+nos links. Solte a tecla para voltar à edição, mantendo o cursor e a rolagem.
+
 - **Títulos de H1 a H6** para organizar assuntos e seções.
 - **Negrito e itálico** para destacar trechos.
 - **Separadores** para dividir o conteúdo.
