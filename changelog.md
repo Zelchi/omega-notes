@@ -1,5 +1,15 @@
 # Histórico de atualizações
 
+## v0.2.4
+
+### Chat com IA
+
+- Mensagens do chat exibem negrito, itálico, títulos de H1 a H6 e separadores com a mesma formatação das notas, preservando as referências clicáveis.
+
+### Notas
+
+- Segurar Alt ao rolar dentro de uma nota aumenta o deslocamento em três vezes.
+
 ## v0.2.3
 
 ### Notas

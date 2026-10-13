@@ -31,6 +31,8 @@ export const styles = {
     message: style({ ...motion.dialog, transformOrigin: "bottom left", "@media": { "(prefers-reduced-motion: reduce)": { animation: "none" } }, margin: 0, padding: "10px 12px", fontSize: 13, lineHeight: 1.65, whiteSpace: "pre-wrap", overflowWrap: "anywhere", borderRadius: 5, border: "1px solid var(--border-soft)" }),
     user: style({ transformOrigin: "bottom right", background: "var(--surface-input)", alignSelf: "flex-end", maxWidth: "90%" }),
     assistant: style({ alignSelf: "stretch" }),
+    messageText: style({ whiteSpace: "pre-wrap" }),
+    textSeparator: style({ margin: "0.75em 0", border: 0, borderTop: "1px solid var(--border-strong)" }),
     noteLink: style({
         color: "inherit", textDecoration: "underline", textUnderlineOffset: 3,
         textDecorationThickness: 1, cursor: "pointer",

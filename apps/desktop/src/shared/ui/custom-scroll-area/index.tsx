@@ -9,12 +9,13 @@ type Props = {
 	contentClass?: string;
 	viewportStyle?: JSX.CSSProperties;
 	ariaLabel?: string;
+	accelerateScrollWithAlt?: boolean;
 	viewportRef?: (element: HTMLDivElement) => void;
 	onScroll?: (element: HTMLDivElement) => void;
 };
 
 const CustomScrollArea: Component<Props> = (props) => {
-	const scroll = useCustomScrollArea();
+	const scroll = useCustomScrollArea({ accelerateScrollWithAlt: () => Boolean(props.accelerateScrollWithAlt) });
 
 	return (
 		<div class={`${styles.root} ${props.class ?? ""}`} ref={scroll.setRoot} data-omega-scroll-root

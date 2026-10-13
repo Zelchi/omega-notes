@@ -1,4 +1,4 @@
-import { createSignal, onCleanup, onMount } from "solid-js";
+import { createSignal, onCleanup, onMount, type Accessor } from "solid-js";
 
 type Axis = "vertical" | "horizontal";
 type Metrics = {
@@ -32,7 +32,7 @@ const emptyMetrics: Metrics = {
 	rootWidth: 0,
 };
 
-export const useCustomScrollArea = (options: { compact?: boolean } = {}) => {
+export const useCustomScrollArea = (options: { compact?: boolean; accelerateScrollWithAlt?: Accessor<boolean> } = {}) => {
 	let root!: HTMLDivElement;
 	let viewport!: HTMLElement;
 	let content!: HTMLElement;
@@ -131,12 +131,26 @@ export const useCustomScrollArea = (options: { compact?: boolean } = {}) => {
 		else viewport.scrollLeft = Math.max(0, Math.min(maximum, next));
 	};
 
+	const onWheel = (event: WheelEvent): void => {
+		if (!options.accelerateScrollWithAlt?.() || !event.altKey || event.ctrlKey || event.defaultPrevented || !event.cancelable) return;
+		const lineHeight = Number.parseFloat(getComputedStyle(viewport).lineHeight) || 16;
+		const horizontalUnit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? lineHeight
+			: event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? viewport.clientWidth : 1;
+		const verticalUnit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? lineHeight
+			: event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? viewport.clientHeight : 1;
+		const horizontal = event.shiftKey && !event.deltaX;
+		event.preventDefault();
+		viewport.scrollLeft += (horizontal ? event.deltaY : event.deltaX) * horizontalUnit * 3;
+		if (!horizontal) viewport.scrollTop += event.deltaY * verticalUnit * 3;
+	};
+
 	onMount(() => {
 		const observer = new ResizeObserver(updateMetrics);
 		observer.observe(root);
 		observer.observe(viewport);
 		observer.observe(content);
 		viewport.addEventListener("scroll", updateMetrics, { passive: true });
+		viewport.addEventListener("wheel", onWheel, { passive: false });
 		addEventListener("resize", updateMetrics);
 		const cancelDrag = () => finishDrag();
 		addEventListener("blur", cancelDrag);
@@ -146,6 +160,7 @@ export const useCustomScrollArea = (options: { compact?: boolean } = {}) => {
 			removeEventListener("blur", cancelDrag);
 			observer.disconnect();
 			viewport.removeEventListener("scroll", updateMetrics);
+			viewport.removeEventListener("wheel", onWheel);
 			removeEventListener("resize", updateMetrics);
 		});
 	});
