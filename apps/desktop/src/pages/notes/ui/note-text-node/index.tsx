@@ -1,6 +1,5 @@
 import { createMemo, createUniqueId, Index, Show, type Component } from "solid-js";
 import { NoteLinkSuggestions } from "@/features/suggest-note-link";
-import { ClickableNoteLinks } from "@/features/follow-note-link";
 import { cx } from "@/shared/lib/classes";
 import { useNoteTextNodeController, type NoteTextNodeProps } from "./controller";
 import { styles } from "./style.css.ts";
@@ -118,8 +117,6 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 					/>
 				)}
 			</Show>
-			<ClickableNoteLinks areas={editor.clickableLinks.areas()} onOpenNote={props.onOpenNote}
-				onOpenExternalUrl={props.onOpenExternalUrl} />
 			<Show when={suggestionsAnchor()}>
 				{(anchor) => <NoteLinkSuggestions id={suggestionsId} anchor={anchor()}
 					notes={editor.linkSuggestions.suggestions()} selectedIndex={editor.linkSuggestions.selectedIndex()}

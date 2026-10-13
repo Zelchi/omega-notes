@@ -6,7 +6,6 @@ import {
 import { alignParagraphSelection, selectionAlignment, type ParagraphAlignmentHandler } from "@/features/align-text";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { noteLinkAtCaret, useNoteLinkSuggestions } from "@/features/suggest-note-link";
-import { useClickableNoteLinks } from "@/features/follow-note-link";
 import { layoutTextFlow, type TextFlowLayout } from "../../lib/text-flow-layout";
 import { layoutFormattedText } from "../../lib/formatted-text-layout";
 import { EMPTY_CHARACTER, syncEditableTextDom } from "../../lib/editable-text-dom";
@@ -180,7 +179,6 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	let contentHeightFrame: number | undefined;
 	let contentHeightObserver: ResizeObserver | undefined;
 	let enteredNoteId: string | undefined;
-	let enteredEditable: boolean | undefined;
 	const hasTextFragments = createMemo(() => props.wraps().length > 0 || Boolean(props.element().paragraphAlignments?.length));
 	const measureCaret = (): void => {
 		const root = contentRoot();
@@ -472,18 +470,17 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 
 	createEffect(() => {
 		const noteId = props.element().id;
-		const editable = props.editable || Boolean(props.locked);
 		const root = contentRoot();
-		if (!root || (noteId === enteredNoteId && editable === enteredEditable)) return;
+		if (!root || noteId === enteredNoteId) return;
 
 		enteredNoteId = noteId;
-		enteredEditable = editable;
+		const editable = untrack(() => props.editable || Boolean(props.locked));
 		if (noteEntryFrame !== undefined) cancelAnimationFrame(noteEntryFrame);
 		noteEntryFrame = requestAnimationFrame(() => {
 			noteEntryFrame = undefined;
 			const currentRoot = contentRoot();
 			const viewport = currentRoot?.closest<HTMLElement>("[data-omega-scroll-viewport]");
-			if (!currentRoot?.isConnected) return;
+			if (!currentRoot?.isConnected || currentRoot !== root || props.element().id !== noteId) return;
 
 			if (!editable) {
 				if (viewport) viewport.scrollTop = 0;
@@ -506,7 +503,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			if (!viewport) return;
 			noteEntryFrame = requestAnimationFrame(() => {
 				noteEntryFrame = undefined;
-				if (!currentRoot.isConnected || document.activeElement !== currentRoot) return;
+				if (!currentRoot.isConnected || contentRoot() !== currentRoot || props.element().id !== noteId || document.activeElement !== currentRoot) return;
 				const endOffset = getVisibleLength(draft());
 				const endPosition =
 					findTextPosition(currentRoot, endOffset) ||
@@ -676,14 +673,6 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 				setCaretOffset(context.start + link.length);
 			});
 		},
-	});
-	const clickableLinks = useClickableNoteLinks({
-		editable: () => props.editable,
-		text: draft,
-		notes: () => props.notes,
-		root: contentRoot,
-		surface: () => textSurface,
-		layout,
 	});
 
 	const processInput = (preserveCaret = true): void => {
@@ -1056,7 +1045,6 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		caret,
 		caretAnchor,
 		linkSuggestions,
-		clickableLinks,
 		hasTextFragments,
 		x,
 		y,

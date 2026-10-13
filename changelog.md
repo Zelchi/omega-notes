@@ -1,5 +1,12 @@
 # Histórico de atualizações
 
+## v0.2.3
+
+### Notas
+
+- Segurar Ctrl durante a edição ativa temporariamente o modo leitura, com links clicáveis. Soltar Ctrl retorna à edição preservando cursor e rolagem; atalhos com Ctrl continuam disponíveis.
+- Alternar entre edição e leitura com a nota aberta preserva a rolagem. O posicionamento inicial acontece apenas ao entrar na nota: final do texto em edição e início em leitura.
+
 ## v0.2.2
 
 ### Notas

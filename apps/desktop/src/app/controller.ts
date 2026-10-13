@@ -8,6 +8,7 @@ import { useWindowControls } from "./model/window-controls.controller";
 import { useNoteNavigationController } from "./model/note-navigation.controller";
 import { useUpdatesController } from "@/features/check-for-updates";
 import { useAiChat, defaultAiProvider } from "@/features/chat-with-ai";
+import { useTemporaryNoteReading } from "@/features/follow-note-link";
 
 export const useAppController = () => {
 	const vaults = useVaults();
@@ -35,6 +36,12 @@ export const useAppController = () => {
 	const updates = useUpdatesController(beforeShutdown, () =>
 		!navigation.nameDialog() && !vaults.dialogOpen() && !vaults.saving() && !vaultActionPending(),
 	);
+	const temporaryReading = useTemporaryNoteReading({
+		mode: navigation.mode,
+		noteId: () => navigation.selectedNote()?.id,
+		enabled: () => navigation.route() === "note" && Boolean(navigation.selectedNote()) &&
+			!navigation.nameDialog() && !vaults.dialogOpen() && !settingsOpen() && !updates.installing(),
+	});
 
 	onMount(() => {
 		const onShortcut = (event: KeyboardEvent) => {
@@ -118,6 +125,7 @@ export const useAppController = () => {
 		preferences,
 		windowControls,
 		navigation,
+		temporaryReading,
 		settingsOpen,
 		setSettingsOpen,
 		vaultActionPending,

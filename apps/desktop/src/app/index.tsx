@@ -36,7 +36,7 @@ const App: Component = () => {
 				/>
 				<FloatingSearch
 					notes={app.notes.sortedNotes()}
-					mode={app.navigation.mode()}
+					mode={app.temporaryReading.mode()}
 					showBackButton={true}
 					backButtonDisabled={app.navigation.route() === "canvas" && !app.navigation.selectedNote()}
 					isOnCanvas={app.navigation.route() === "canvas"}
@@ -54,7 +54,7 @@ const App: Component = () => {
 						<Note
 							note={app.navigation.selectedNote()}
 							notes={app.notes.notes()}
-							mode={app.navigation.mode()}
+							mode={app.temporaryReading.mode()}
 							t={app.t}
 							onTitleChange={app.navigation.updateTitle}
 							onDocumentChange={app.navigation.updateDocument}
