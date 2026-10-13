@@ -1,7 +1,7 @@
 node_modules/
 dist/
-tauri/target/
-tauri/gen/
+**/tauri/target/
+**/tauri/gen/
 *.log
 .DS_Store
 Thumbs.db
@@ -11,4 +11,4 @@ Thumbs.db
 .env
 .env.*
 !.env.example
-tauri/tauri.release.conf.json
+**/tauri/tauri.release.conf.json

@@ -97,7 +97,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: 'tauri -> target'
+          workspaces: 'apps/desktop/tauri -> target'
       - name: Dependências do Linux
         if: runner.os == 'Linux'
         run: |
@@ -114,8 +114,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          projectPath: '.'
-          tauriScript: node node_modules/@tauri-apps/cli/tauri.js
+          projectPath: 'apps/desktop'
+          tauriScript: node ${{ github.workspace }}/scripts/desktop.mjs
           releaseId: ${{ needs.prepare.outputs.release_id }}
           tagName: ${{ env.RELEASE_TAG }}
           releaseDraft: true
