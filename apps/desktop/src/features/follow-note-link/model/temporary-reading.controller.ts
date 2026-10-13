@@ -83,22 +83,28 @@ export const useTemporaryNoteReading = (options: {
 	});
 
 	onMount(() => {
-		const isControl = (event: KeyboardEvent) => event.key === "Control" || event.code === "ControlLeft" || event.code === "ControlRight";
+		const isAlt = (event: KeyboardEvent) => event.key === "Alt" || event.code === "AltLeft" || event.code === "AltRight";
 		const release = (restoreFocus = true) => { shortcutUsed = false; changeReading(false, restoreFocus); };
 		const keyDown = (event: KeyboardEvent) => {
-			if (isControl(event)) {
-				if (event.repeat || shortcutUsed || !options.enabled() || options.mode() !== "edit") return;
+			if (isAlt(event)) {
+				if (event.repeat || event.ctrlKey || event.metaKey || event.getModifierState("AltGraph") || shortcutUsed || !options.enabled() || options.mode() !== "edit") return;
 				const target = event.target;
 				if (target instanceof HTMLElement && (target.closest("input, textarea, [role='dialog']") ||
 					(target.isContentEditable && !target.closest("[data-omega-element='text']")))) return;
+				event.preventDefault();
 				changeReading(true);
-			} else if (event.ctrlKey && !["Shift", "Alt", "Meta"].includes(event.key)) {
-				// Return to the editor before the browser or the editor handles Ctrl shortcuts.
+			} else if (event.altKey && !["Shift", "Meta"].includes(event.key)) {
+				// Return to the editor before handling a shortcut that combines Alt with another key.
 				shortcutUsed = true;
 				changeReading(false);
 			}
 		};
-		const keyUp = (event: KeyboardEvent) => { if (isControl(event) || !event.ctrlKey) release(); };
+		const keyUp = (event: KeyboardEvent) => {
+			if (isAlt(event) || !event.altKey) {
+				if (isAlt(event) && (reading() || shortcutUsed)) event.preventDefault();
+				release();
+			}
+		};
 		const blur = () => release(false);
 		const visibility = () => { if (document.hidden) release(false); };
 		window.addEventListener("keydown", keyDown, true);

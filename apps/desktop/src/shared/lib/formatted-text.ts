@@ -20,7 +20,9 @@ const inlineRuns = (text: string, bold = false, italic = false): TextRun[] => {
 export const parseFormattedText = (text: string): FormattedBlock[] => text.split("\n").map((line) => {
 	if (/^[ \t]*---[ \t]*$/.test(line)) return { kind: "separator", level: 0, runs: [], text: "" };
 	const heading = line.match(/^(#{1,6})[ \t]+(.*)$/);
-	const runs = inlineRuns(heading ? heading[2]! : line);
+	const bullet = line.match(/^([ \t]*)-(?:[ \t]+(.*)|$)/);
+	const content = heading ? heading[2]! : bullet ? `${bullet[1]}• ${bullet[2] ?? ""}` : line;
+	const runs = inlineRuns(content);
 	return { kind: heading ? "heading" : "paragraph", level: heading?.[1]?.length ?? 0, runs, text: runs.map((run) => run.text).join("") };
 });
 

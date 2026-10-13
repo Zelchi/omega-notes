@@ -1,5 +1,6 @@
 import { createEffect, createMemo, createUniqueId, onCleanup, Show, type Component } from "solid-js";
 import ModalError from "@/shared/ui/modal-error";
+import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import type { TranslationKey } from "@/shared/lib/i18n";
@@ -18,6 +19,7 @@ type Props = {
 };
 
 const NoteNameDialog: Component<Props> = (props) => {
+	const backdropDismiss = createBackdropDismiss(() => props.onClose());
 	let titleInput: HTMLInputElement | undefined;
 	const errorId = createUniqueId();
 	const presence = createPresence(() => Boolean(props.mode), 210);
@@ -40,9 +42,7 @@ const NoteNameDialog: Component<Props> = (props) => {
 				class={styles.backdrop}
 				inert={presence.exiting()}
 				aria-hidden={presence.exiting() || undefined}
-				onClick={(event) => {
-					if (event.target === event.currentTarget) props.onClose();
-				}}
+				{...backdropDismiss}
 			>
 				<form
 					ref={(element) => registerVisibilityAnimation(element, presence.exiting, "dialog")}

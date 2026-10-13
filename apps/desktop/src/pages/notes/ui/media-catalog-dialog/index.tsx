@@ -1,4 +1,5 @@
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
+import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { For, mergeProps, Show, type Component } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
@@ -8,6 +9,7 @@ import { styles } from "./style.css.ts";
 const MediaCatalogDialog: Component<MediaCatalogDialogProps> = (props) => {
 	const presence = createPresence(() => props.open, 210);
 	const catalog = useMediaCatalogDialogController(mergeProps(props, { get open() { return presence.present(); } }));
+	const backdropDismiss = createBackdropDismiss(() => catalog.close());
 
 	return (
 		<Show when={presence.present()}>
@@ -18,9 +20,7 @@ const MediaCatalogDialog: Component<MediaCatalogDialogProps> = (props) => {
 					registerExitSnapshot(element, { kind: "dialog", key: "media-catalog-dialog", enabled: () => props.open });
 					registerVisibilityAnimation(element, presence.exiting, "fade");
 				}}
-				onMouseDown={(event) => {
-					if (event.target === event.currentTarget) catalog.close();
-				}}
+				{...backdropDismiss}
 			>
 				<section
 					ref={(element) => registerVisibilityAnimation(element, presence.exiting, "dialog")}
