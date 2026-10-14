@@ -2,7 +2,7 @@ import { Show, type Component } from "solid-js";
 
 import { Canvas } from "@/pages/canvas";
 import { Note } from "@/pages/notes";
-import { SettingsDialog } from "@/features/change-preferences";
+import { formatAiChatShortcut, SettingsDialog } from "@/features/change-preferences";
 import WindowTitlebar from "./ui/window-titlebar";
 import { VaultDialog } from "@/features/manage-vault";
 import FloatingSearch from "./ui/floating-search";
@@ -29,6 +29,7 @@ const App: Component = () => {
 					onSettings={() => app.setSettingsOpen(true)}
 					onAiChat={() => app.aiChat.setOpen((open) => !open)}
 					aiChatOpen={app.aiChat.open()}
+					aiChatShortcut={formatAiChatShortcut(app.preferences.aiChatShortcut(), true)}
 					aiFeaturesEnabled={app.preferences.aiFeaturesEnabled()}
 					onMinimize={app.windowControls.minimize}
 					onToggleMaximize={() => void app.windowControls.toggleMaximize()}
@@ -106,6 +107,8 @@ const App: Component = () => {
 				canvasLayout={app.preferences.canvasLayout()}
 				onCanvasLayoutChange={app.preferences.setCanvasLayout}
 				aiFeaturesEnabled={app.preferences.aiFeaturesEnabled()}
+				aiChatShortcut={app.preferences.aiChatShortcut()}
+				onAiChatShortcutChange={app.preferences.setAiChatShortcut}
 				onAiFeaturesEnabledChange={app.preferences.setAiFeaturesEnabled}
 				footer={<CheckForUpdatesButton t={app.t} updates={app.updates} />}
 				open={app.settingsOpen()}

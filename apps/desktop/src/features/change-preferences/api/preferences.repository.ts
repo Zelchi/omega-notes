@@ -1,5 +1,6 @@
 import type { CanvasLayout, TextCursor, Theme } from "../model/preferences";
 import type { Language } from "@/shared/lib/i18n";
+import { DEFAULT_AI_CHAT_SHORTCUT, isAiChatShortcut, type AiChatShortcut } from "../model/ai-chat-shortcut";
 
 const CENTER_CANVAS_KEY = "omega-notes.settings.center-canvas-on-launch";
 const HIDE_CANVAS_CONTROLS_KEY = "omega-notes.settings.hide-zoom-controls";
@@ -7,6 +8,19 @@ const THEME_KEY = "omega-notes.settings.theme";
 const LANGUAGE_KEY = "omega-notes.settings.language";
 const TEXT_CURSOR_KEY = "omega-notes.settings.text-cursor";
 const AI_FEATURES_KEY = "omega-notes.settings.ai-features-enabled";
+const AI_CHAT_SHORTCUT_KEY = "omega-notes.settings.ai-chat-shortcut";
+
+export const readAiChatShortcut = (): AiChatShortcut => {
+    try {
+        const value: unknown = JSON.parse(localStorage.getItem(AI_CHAT_SHORTCUT_KEY) ?? "null");
+        return isAiChatShortcut(value) ? value : { ...DEFAULT_AI_CHAT_SHORTCUT };
+    } catch { return { ...DEFAULT_AI_CHAT_SHORTCUT }; }
+};
+
+export const saveAiChatShortcut = (value: AiChatShortcut): void => {
+    try { localStorage.setItem(AI_CHAT_SHORTCUT_KEY, JSON.stringify(value)); }
+    catch (error) { console.error(error); }
+};
 
 export const readTextCursor = (): TextCursor => {
 	try {

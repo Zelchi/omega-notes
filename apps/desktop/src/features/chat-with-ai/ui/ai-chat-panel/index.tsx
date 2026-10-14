@@ -28,7 +28,23 @@ const effortLabels: Record<string, TranslationKey> = {
 const ChatComposer: Component<Pick<Props, "aiChat" | "t"> & { onSend: () => void }> = (props) => {
     const messageCaret = useTextareaCaret();
     const composerScroll = useCustomScrollArea({ compact: true });
+    let input: HTMLTextAreaElement | undefined;
+    let focusFrame = 0;
+    let needsFocus = true;
     let composerFrame = 0;
+    createEffect(() => {
+        const open = props.aiChat.open();
+        const pending = props.aiChat.pending();
+        cancelAnimationFrame(focusFrame);
+        if (!open) { needsFocus = true; return; }
+        if (!needsFocus || pending) return;
+        focusFrame = requestAnimationFrame(() => {
+            if (!input?.isConnected || input.disabled || !props.aiChat.open()) return;
+            input.focus({ preventScroll: true });
+            needsFocus = false;
+            messageCaret.scheduleMeasure();
+        });
+    });
     createEffect(() => {
         props.aiChat.chat().draft;
         props.aiChat.chat().busy;
@@ -37,12 +53,12 @@ const ChatComposer: Component<Pick<Props, "aiChat" | "t"> & { onSend: () => void
         cancelAnimationFrame(composerFrame);
         composerFrame = requestAnimationFrame(composerScroll.updateMetrics);
     });
-    onCleanup(() => cancelAnimationFrame(composerFrame));
+    onCleanup(() => { cancelAnimationFrame(composerFrame); cancelAnimationFrame(focusFrame); });
     return <form class={styles.composer} onSubmit={(event) => { event.preventDefault(); props.onSend(); }}>
         <div class={styles.messageInput} ref={composerScroll.setRoot} data-omega-scroll-root
             onPointerMove={composerScroll.moveThumb} onPointerUp={composerScroll.finishDrag}
             onPointerCancel={composerScroll.finishDrag} onLostPointerCapture={composerScroll.finishDrag}>
-            <textarea ref={(element) => { messageCaret.bind(element); composerScroll.setViewport(element); composerScroll.setContent(element); }}
+            <textarea ref={(element) => { input = element; messageCaret.bind(element); composerScroll.setViewport(element); composerScroll.setContent(element); }}
                 data-omega-scroll-viewport class={styles.textarea} aria-label={props.t("aiMessage")} placeholder={props.t("aiMessagePlaceholder")} value={props.aiChat.chat().draft} maxlength={8000}
                 disabled={!props.aiChat.status().authenticated || props.aiChat.pending()}
                 onInput={(event) => props.aiChat.setDraft(event.currentTarget.value)}

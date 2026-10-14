@@ -219,5 +219,19 @@
   "aiOpenCodeServiceFailed": "The service used by OpenCode failed to process the request. Try again later.",
   "aiOpenCodeConnectionFailed": "OpenCode could not reach the AI service. Check the network connection and try again.",
   "aiOpenCodeRequestRejected": "OpenCode returned an error while processing this request.",
-  "aiSessionCleanupFailed": "The temporary AI session could not be deleted either. Cleanup will be retried before the next message."
+  "aiSessionCleanupFailed": "The temporary AI session could not be deleted either. Cleanup will be retried before the next message.",
+  "aiChatShortcut": "Chat shortcut",
+  "aiChatShortcutRecord": "Press a key or shortcut…",
+  "aiChatShortcutReserved": "Ctrl+A selects all",
+  "aiClaudeVersionRequired": "Claude Code 2.1.248 or newer is required. Update its CLI before connecting.",
+  "aiClaudeAuthCheckFailed": "Could not read Claude Code's authentication status. Run claude auth status in your terminal.",
+  "aiClaudeAuthFailed": "Claude rejected the account credentials. Check the account connected in the Claude CLI.",
+  "aiClaudeBillingFailed": "Claude reported a billing or balance problem. Check the connected account.",
+  "aiClaudeLimitReached": "Claude reported a usage or request limit. Check the account limits and try again later.",
+  "aiClaudeServiceFailed": "Claude's service failed to process the request. Try again later.",
+  "aiClaudeRequestFailed": "Claude returned an error while processing this request.",
+  "aiClaudeCliFailed": "The Claude CLI could not complete the request. Check that it opens normally in your terminal.",
+  "aiClaudeSendFailed": "Could not pass the message to the Claude CLI. Reconnect and try again.",
+  "aiClaudeEmptyResponse": "Claude finished without returning an answer. Try again or choose another model.",
+  "aiClaudeMcpFailed": "Claude could not connect to this vault's note tools. The request was stopped. Reconnect and check CLI permissions."
 }

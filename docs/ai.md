@@ -6,7 +6,8 @@ O Chat oferece integração com Codex, Claude Code e OpenCode, usando os CLIs
 instalados na máquina. Cada provedor mantém seu próprio histórico em cada vault.
 
 1. Instale uma versão recente do CLI escolhido e configure a conta ou o modelo nele.
-   Para Claude, use `claude auth login`; para provedores online do OpenCode, use
+   Para Claude, é necessário Claude Code 2.1.248 ou mais recente; use
+   `claude auth login`. Para provedores online do OpenCode, use
    `opencode auth login` e conecte sua conta OpenCode Go ou Zen (Console).
 2. Abra um vault no Ômega Notes.
 3. Ative **IA Features** nas configurações (vem desativado por padrão) e use o ícone de conversa na barra superior.
@@ -61,6 +62,20 @@ orientação ao trabalho em andamento, usando `turn/steer`. Claude e OpenCode pe
 preparar o rascunho; o envio fica disponível quando a resposta termina. O botão de parar
 permanece separado e cancela a resposta. Se a resposta já tiver terminado,
 a mensagem inicia uma nova resposta. No cabeçalho, o X oculta o painel.
+
+O atalho do Chat vem como Ctrl+J e pode ser alterado nas configurações, abaixo
+de Recursos de IA, quando a opção estiver ativada. Clique no campo e
+pressione uma tecla isolada ou uma combinação com Ctrl, Alt ou Shift.
+Teclas sem Ctrl/Alt que afetam a digitação não acionam o Chat dentro de inputs
+ou da edição da nota; teclas F1–F24 podem ser usadas nesses campos.
+Escape cancela a escolha e Tab mantém seu comportamento próprio nas notas.
+Ctrl+A permanece reservado para
+selecionar todo o texto. A escolha é mantida ao desativar e reativar Recursos
+de IA e ao reiniciar o aplicativo.
+O atalho abre ou fecha o Chat quando Recursos de IA está ativado e há um vault
+aberto. Ao abrir, o campo de mensagem recebe foco quando a conexão estiver
+pronta. Ao fechar, o foco não é restaurado na nota. O atalho fica suspenso
+enquanto um modal ou a instalação de atualização estiver aberto.
 
 As referências são armazenadas como `[[ID]]` e aparecem como links sublinhados
 com o título atual da nota. Clique para abrir a nota do vault atual mantendo o
@@ -153,6 +168,7 @@ exigirá um fluxo próprio de revisão e confirmação das alterações.
 - `apps/desktop/tauri/src/ai/state.rs`: estado e encerramento da conexão de IA.
 - `apps/desktop/tauri/src/ai/providers/codex.rs`: processo `codex app-server`, JSON-RPC, threads e eventos.
 - `apps/desktop/tauri/src/ai/providers/cli.rs`: conexões Claude/OpenCode, sessões, respostas e cancelamento.
+- `apps/desktop/tauri/src/ai/providers/claude.rs`: validação de versão, autenticação, comando restrito e identificação dos erros do Claude.
 - `apps/desktop/tauri/src/ai/providers/process.rs`: descoberta dos CLIs e controle dos processos.
 - `apps/desktop/tauri/src/ai/providers/protocol.rs`: normalização dos eventos dos provedores.
 - `apps/desktop/tauri/src/ai/mcp.rs`: consultas de notas por MCP, restritas ao vault autorizado.
@@ -180,7 +196,10 @@ suporte (`fast` ou `priority` no catálogo do Codex). Esse modo aumenta o consum
 
 Claude oferece os aliases Default, Sonnet, Opus e Haiku. Sonnet e Opus oferecem
 os níveis low, medium e high; a disponibilidade efetiva depende da conta e do
-modelo resolvido pelo CLI. Default preserva a escolha configurada no Claude Code.
+modelo resolvido pelo CLI. Default não força um modelo; o CLI resolve o padrão
+disponível para a conta e o ambiente.
+Falhas de conexão ao servidor de ferramentas de notas recebem um aviso
+específico e interrompem a solicitação antes de uma resposta sem acesso ao vault.
 A listagem de modelos exige OpenCode CLI v2. O catálogo vem de `opencode models --standalone`,
 filtrado para incluir IDs `opencode-go/` e os modelos pagos de `opencode/` (Zen).
 Modelos `opencode/` com sufixo `-free` e Big Pickle são ocultados. A lista não é limitada aos
@@ -192,7 +211,7 @@ com Code Mode desativado para disponibilizar diretamente as três consultas de n
 Fast fica indisponível nesses dois adaptadores. No OpenCode, os seletores de
 pensamento e velocidade são ocultados, deixando somente o modelo.
 
-Claude usa modo restrito (`--restricted`), preservando o login da assinatura,
+Claude exige CLI 2.1.248 ou mais recente para usar modo restrito (`--restricted`), preservando o login da assinatura,
 sem ferramentas nativas e com MCP restrito ao servidor do Ômega Notes. Fontes
 de configurações do usuário/projeto, hooks, comandos personalizados e memória
 automática são desativados nessa sessão. OpenCode usa um agente próprio, com permissões apenas

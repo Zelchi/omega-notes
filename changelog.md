@@ -1,5 +1,16 @@
 # Histórico de atualizações
 
+## v0.3.0
+
+### Chat com IA
+
+- Claude valida a versão mínima do CLI (2.1.248), distingue erros de autenticação, cobrança e limites, preserva os detalhes das falhas e evita exibi-los como respostas da IA. Falhas explícitas ao conectar às ferramentas de notas interrompem a solicitação com um aviso próprio. A descoberta do executável reconhece também o pacote nativo das instalações npm no Windows.
+- Atalho configurável do Chat abaixo de Recursos de IA, visível quando Recursos de IA está ativado. O padrão é Ctrl+J e a escolha permanece ao desativar e reativar o recurso. Ctrl+A continua selecionando todo o texto. Ao abrir, o campo de mensagem recebe foco quando disponível; ao fechar, o foco não é restaurado na nota.
+
+### Limitações conhecidas
+
+- A integração com Claude ainda precisa de validação de uma conversa autenticada e da conexão MCP em um ambiente real. A revisão e os testes isolados não cobrem essa etapa.
+
 ## v0.2.9
 
 ### Chat com IA
