@@ -29,7 +29,7 @@
             <span class="step-number" aria-hidden="true">03</span>
             <div>
                 <h3>Escreva e personalize</h3>
-                <p>Digite no corpo da nota. Use a barra inferior para inserir títulos, negrito, itálico, separadores ou ajustar o alinhamento de um parágrafo. As alterações são salvas automaticamente.</p>
+                <p>Digite no corpo da nota. A barra inferior reúne títulos, formatação, listas, tabelas e mídias. Os controles de títulos, formatação e alinhamento abrem suas próprias subbarras. As alterações são salvas automaticamente.</p>
             </div>
         </li>
         <li>
@@ -43,7 +43,7 @@
             <span class="step-number" aria-hidden="true">05</span>
             <div>
                 <h3>Conecte duas notas</h3>
-                <p>Escreva <code>[[Nome da nota]]</code> para referenciá-la. Ao digitar entre os colchetes, as sugestões ajudam a escolher o destino. Na leitura, clique no link para abrir essa nota; se ela ainda não existir, será criada no vault atual.</p>
+                <p>Escreva <code>[[Nome da nota]]</code> para referenciá-la. As sugestões ajudam a escolher o destino. Você também pode selecionar um trecho e digitar <code>[[</code> ou usar o ícone de link da barra para envolver esse texto. Na leitura, clique na referência para abrir a nota; se ela ainda não existir, será criada no vault atual.</p>
             </div>
         </li>
         <li>
@@ -81,12 +81,17 @@
                     <div><dt>Citação</dt><dd><code>&gt; Uma ideia importante</code></dd></div>
                     <div><dt>Texto riscado</dt><dd><code>~~trecho riscado~~</code></dd></div>
                     <div><dt>Marca-texto</dt><dd><code>==trecho destacado==</code></dd></div>
-                    <div><dt>Código</dt><dd><code>{"`código em linha`"}</code><span>Use três crases em linhas próprias para cercar um bloco de código.</span></dd></div>
+                    <div><dt>Código em linha</dt><dd><code>{"`código em linha`"}</code></dd></div>
+                    <div><dt>Bloco de código</dt><dd><code>{"```rust"}</code><span>Escreva a linguagem depois das três crases e feche o bloco com outras três crases numa linha própria. O código recebe destaque de sintaxe na leitura, na prévia e no Chat.</span></dd></div>
                     <div><dt>Separador</dt><dd><code>---</code><span>Escreva numa linha própria.</span></dd></div>
                     <div><dt>Nome de exibição</dt><dd><code>[[teste|batata]]</code><span>Mostra “batata” e abre a nota “teste”, sem renomeá-la.</span></dd></div>
+                    <div><dt>Link da web</dt><dd><code>[GitHub](https://github.com)</code><span>Exibe “GitHub” como um link clicável.</span></dd></div>
                 </dl>
+                <p>Ao colar uma URL no texto ou numa célula de tabela, o aplicativo busca o título da página para dar nome ao link. Se não conseguir obter o título, o endereço continua na nota.</p>
+                <p>Use o ícone de formatação para abrir as opções de negrito, itálico, texto riscado e marca-texto. Títulos H1 a H6 e alinhamento ficam nas respectivas subbarras.</p>
                 <p>Para alinhar, coloque o cursor num parágrafo ou selecione vários e escolha uma opção na barra inferior.</p>
                 <p>Para inserir uma tabela, use o ícone de tabela na barra inferior. Edite as células diretamente e use os controles abaixo para adicionar ou remover linhas e colunas. A lixeira apaga a tabela; <kbd>Ctrl</kbd> + <kbd>Z</kbd> desfaz a exclusão.</p>
+                <p>Referências resolvidas usam o ID da nota como destino. Renomear a nota mantém seus links funcionando, e um nome de exibição personalizado continua o mesmo.</p>
             </div>
         </details>
         <details>
@@ -106,10 +111,13 @@
                     <div><dt><kbd>Ctrl</kbd> + <kbd>B</kbd></dt><dd>Aplica ou remove negrito na seleção.</dd></div>
                     <div><dt><kbd>Ctrl</kbd> + <kbd>I</kbd></dt><dd>Aplica ou remove itálico na seleção.</dd></div>
                     <div><dt><kbd>Ctrl</kbd> + <kbd>V</kbd></dt><dd>Cola texto ou uma imagem copiada na nota.</dd></div>
+                    <div><dt><kbd>Tab</kbd></dt><dd>Insere quatro espaços ou indenta as linhas selecionadas na nota.</dd></div>
+                    <div><dt><kbd>Shift</kbd> + <kbd>Tab</kbd></dt><dd>Remove um nível de indentação das linhas selecionadas.</dd></div>
                     <div><dt><kbd>Ctrl</kbd> + <kbd>Z</kbd></dt><dd>Desfaz alterações de texto na nota; no canvas, desfaz movimentos, criações e exclusões.</dd></div>
                     <div><dt><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> ou <kbd>Ctrl</kbd> + <kbd>Y</kbd></dt><dd>Refaz a última ação desfeita.</dd></div>
                     <div><dt><kbd>↑</kbd> / <kbd>↓</kbd> e <kbd>Enter</kbd></dt><dd>Escolhe e abre um resultado da busca.</dd></div>
                 </dl>
+                <p>Dentro de uma tabela, <kbd>Tab</kbd> passa para a próxima célula e <kbd>Shift</kbd> + <kbd>Tab</kbd> volta à anterior.</p>
             </div>
         </details>
         <details>
@@ -123,9 +131,13 @@
         <details>
             <summary>Como usar o chat com IA?</summary>
             <div class="topic-body">
-                <p>O chat é opcional. Ative <strong>Recursos de IA</strong> (<strong>AI Features</strong>) nas configurações e abra o ícone de chat da barra superior. Atualmente, a integração disponível é o Codex CLI, que precisa estar instalado e autenticado no computador.</p>
-                <p>No painel, clique em <strong>Codex</strong> para conectar. Escolha as opções do modelo e envie uma pergunta sobre suas notas. Cada vault tem sua própria conversa e contexto. Os textos consultados e suas mensagens são enviados ao serviço de IA.</p>
-                <p>Você pode preparar outra mensagem enquanto a IA responde e enviá-la para acrescentar uma orientação. Desativar Recursos de IA desconecta o provedor e apaga os históricos de chat dos vaults.</p>
+                <p>O Chat é opcional e aceita <strong>Codex</strong>, <strong>Claude Code</strong> e <strong>OpenCode</strong>. Instale o CLI da IA que quiser usar, abra-o e faça login ou configure o modelo antes de conectar pelo Ômega Notes.</p>
+                <p>Ative <strong>Recursos de IA</strong> (<strong>AI Features</strong>) nas configurações e abra o ícone de conversa da barra superior. No painel, clique no provedor escolhido, selecione as opções disponíveis e pergunte sobre suas notas.</p>
+                <p>O Chat abre na lateral e acompanha seu trabalho. Cada vault e provedor tem seu próprio histórico e contexto. As referências nas respostas aparecem como links para as notas; o título acompanha renomeações e permanece no histórico mesmo se a nota for apagada.</p>
+                <p>Você pode escrever o próximo rascunho enquanto a IA responde. No Codex, também pode enviá-lo para acrescentar uma orientação à resposta em andamento. No Claude e no OpenCode, envie depois que a resposta terminar ou use o botão de parar. <kbd>Enter</kbd> envia e <kbd>Shift</kbd> + <kbd>Enter</kbd> insere uma linha.</p>
+                <p>O histórico guarda até 50 mensagens, contando suas perguntas e as respostas da IA. Ao exceder esse limite, as mais antigas são removidas.</p>
+                <p>Para escolher outra IA, desative e ative novamente Recursos de IA. Desativar essa opção desconecta os provedores, apaga os históricos e rascunhos de chat de todos os vaults e esquece a escolha usada para reconexão.</p>
+                <p>Com um modelo online, suas mensagens e os textos consultados são enviados ao serviço escolhido. O OpenCode também permite usar modelos locais configurados no CLI.</p>
             </div>
         </details>
     </div>

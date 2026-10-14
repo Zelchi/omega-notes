@@ -8,8 +8,10 @@ export const styles = {
 	}),
 	shell: style({
 		position: "relative",
-		minHeight: "100vh",
-		height: "100vh",
+		width: "100%",
+		height: "100%",
+		minHeight: 0,
+		overflow: "hidden",
 		backgroundColor: "var(--canvas)",
 		borderWidth: 1,
 		borderStyle: "solid",
@@ -22,6 +24,7 @@ export const styles = {
 		width: "100%",
 		height: "100%",
 		minWidth: 0,
+		minHeight: 0,
 	}),
 	saveNotice: style({
 		position: "absolute",

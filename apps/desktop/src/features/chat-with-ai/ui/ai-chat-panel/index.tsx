@@ -121,45 +121,43 @@ const ChatBody: Component<Props> = (props) => {
                 </div>
             </Show>
         </Show>
-        <Show when={props.aiChat.status().connected} fallback={
-            <section class={styles.connectSection} aria-labelledby="connect-ai-heading">
-                <h3 id="connect-ai-heading" class={styles.connectTitle}>{props.t("connectAi")}</h3>
-                <div class={styles.providers}>
-                    <button class={styles.providerButton} type="button" disabled={props.aiChat.pending() || !props.aiChat.ready()}
-                        aria-label={props.t(props.aiChat.provider.labels.connect)} onClick={() => void props.aiChat.connect()}>
-                        <AiProviderIcon provider={props.aiChat.provider.id} />
-                        <span>{props.aiChat.pending() ? props.t("aiConnecting") : props.aiChat.provider.name}</span>
-                    </button>
-                    <button class={styles.providerButton} type="button" disabled>
-                        <AiProviderIcon provider="claude" /><span>Claude</span>
-                    </button>
-                    <button class={styles.providerButton} type="button" disabled>
-                        <AiProviderIcon provider="opencode" /><span>OpenCode</span>
-                    </button>
-                </div>
-            </section>
-        }>
-            <CustomScrollArea class={styles.messageArea} contentClass={styles.messages}
-                viewportStyle={{ padding: "8px 16px 8px 4px" }}
-                ariaLabel={props.t("aiMessages")}
-                viewportRef={(element) => { messages = element; }}
-                onScroll={(element) => { follow = element.scrollHeight - element.scrollTop - element.clientHeight < 60; }}>
-                <For each={messageIds()}>{(id) => {
-                    const initial = untrack(() => messagesById().get(id))!;
-                    const message = () => messagesById().get(id) ?? initial;
-                    return <div class={`${styles.message} ${message().role === "user" ? styles.user : styles.assistant}`}>
-                        <span class={styles.role}>{message().role === "user" ? props.t("aiYou") : props.aiChat.provider.name}</span>
-                        <ChatMessageText t={props.t}
-                            text={message().text || (id === props.aiChat.chat().requestId && props.aiChat.chat().busy ? props.t("aiThinking") : props.t("aiNoResponse"))}
-                            referenceTitles={props.aiChat.chat().referenceTitles}
-                            resolveNote={resolveNote}
-                            onOpenNote={props.onOpenNote}
-                        />
-                    </div>;
-                }}</For>
-            </CustomScrollArea>
-        </Show>
-        <Show when={props.aiChat.error() || props.aiChat.chat().error}>{(error) => <p role="alert" class={styles.error}>{error()}</p>}</Show>
+        <div class={styles.contentArea}>
+            <Show when={props.aiChat.status().connected} fallback={
+                <section class={styles.connectSection} aria-labelledby="connect-ai-heading">
+                    <h3 id="connect-ai-heading" class={styles.connectTitle}>{props.t("connectAi")}</h3>
+                    <div class={styles.providers}>
+                        <For each={props.aiChat.providers}>{(provider) =>
+                            <button class={styles.providerButton} type="button" disabled={props.aiChat.pending() || !props.aiChat.ready()}
+                                onClick={() => void props.aiChat.connect(provider.id)}>
+                                <AiProviderIcon provider={provider.id} />
+                                <span>{props.aiChat.pending() && props.aiChat.provider.id === provider.id ? props.t("aiConnecting") : provider.name}</span>
+                            </button>
+                        }</For>
+                    </div>
+                </section>
+            }>
+                <CustomScrollArea class={styles.messageArea} contentClass={styles.messages}
+                    viewportStyle={{ padding: "8px 16px 8px 4px" }}
+                    ariaLabel={props.t("aiMessages")}
+                    viewportRef={(element) => { messages = element; }}
+                    onScroll={(element) => { follow = element.scrollHeight - element.scrollTop - element.clientHeight < 60; }}>
+                    <For each={messageIds()}>{(id) => {
+                        const initial = untrack(() => messagesById().get(id))!;
+                        const message = () => messagesById().get(id) ?? initial;
+                        return <div class={`${styles.message} ${message().role === "user" ? styles.user : styles.assistant}`}>
+                            <span class={styles.role}>{message().role === "user" ? props.t("aiYou") : props.aiChat.provider.name}</span>
+                            <ChatMessageText t={props.t}
+                                text={message().text || (id === props.aiChat.chat().requestId && props.aiChat.chat().busy ? props.t("aiThinking") : props.t("aiNoResponse"))}
+                                referenceTitles={props.aiChat.chat().referenceTitles}
+                                resolveNote={resolveNote}
+                                onOpenNote={props.onOpenNote}
+                            />
+                        </div>;
+                    }}</For>
+                </CustomScrollArea>
+            </Show>
+            <Show when={props.aiChat.error() || props.aiChat.chat().error}>{(error) => <p role="alert" class={styles.error}>{error()}</p>}</Show>
+        </div>
         <Show when={props.aiChat.status().connected && props.aiChat.status().authenticated}>
             <ChatComposer aiChat={props.aiChat} t={props.t} onSend={() => { follow = true; void props.aiChat.send(); }} />
         </Show>

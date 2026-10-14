@@ -197,5 +197,7 @@
   "aiHistorySaveFailed": "Não foi possível salvar o histórico do chat.",
   "aiRequestFailed": "Não foi possível concluir a solicitação de IA.",
   "aiHistoryClearFailed": "Não foi possível apagar todos os históricos de IA. Confira os arquivos e as permissões dos vaults.",
-  "aiSteer": "Acrescentar orientação à resposta atual"
+  "aiSteer": "Acrescentar orientação à resposta atual",
+  "aiCliUpdateRequired": "Atualize o CLI do provedor para uma versão recente e tente novamente.",
+  "aiCliLoginRequired": "Entre pelo CLI do provedor (claude auth login ou opencode auth login) e depois atualize a conexão."
 }

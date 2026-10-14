@@ -7,7 +7,12 @@ use crate::{app::runtime, notes, vaults};
 pub(super) fn resolve_vault(app: &tauri::AppHandle, id: &str) -> Result<PathBuf, String> {
     uuid::Uuid::parse_str(id).map_err(|_| "AI_INVALID_VAULT".to_string())?;
     let directory = runtime::app_directory(app)?;
-    let registry = vaults::read_vault_registry(&directory)?;
+    resolve_vault_in(&directory, id)
+}
+
+pub(super) fn resolve_vault_in(directory: &Path, id: &str) -> Result<PathBuf, String> {
+    uuid::Uuid::parse_str(id).map_err(|_| "AI_INVALID_VAULT".to_string())?;
+    let registry = vaults::read_vault_registry(directory)?;
     if registry.active_vault_id.as_deref() != Some(id) {
         return Err("AI_VAULT_CHANGED".into());
     }
@@ -16,7 +21,7 @@ pub(super) fn resolve_vault(app: &tauri::AppHandle, id: &str) -> Result<PathBuf,
         .iter()
         .find(|vault| vault.id == id)
         .ok_or("AI_INVALID_VAULT")?;
-    let root = vaults::vault_directory(&directory, vault)?;
+    let root = vaults::vault_directory(directory, vault)?;
     let path = root.join("notes");
     for folder in [&root, &path] {
         if std::fs::symlink_metadata(folder)

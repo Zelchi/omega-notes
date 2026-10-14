@@ -11,7 +11,7 @@ static CHAT_STORAGE: Mutex<()> = Mutex::new(());
 const MAX_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_MESSAGES: usize = 50;
 
-#[derive(Clone, Copy, Deserialize)]
+#[derive(Clone, Copy, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum Provider {
     Codex,
@@ -125,6 +125,33 @@ pub(crate) fn read(app: &tauri::AppHandle, id: &str, provider: Provider) -> Resu
     Ok(chat)
 }
 
+pub(super) fn workspace(
+    app: &tauri::AppHandle,
+    id: &str,
+    provider: Provider,
+) -> Result<PathBuf, String> {
+    let file = path(app, id, provider)?;
+    let folder = file
+        .parent()
+        .ok_or("AI_STORAGE_FAILED")?
+        .join(match provider {
+            Provider::Claude => "claude-workspace",
+            Provider::Opencode => "opencode-workspace",
+            _ => return Err("AI_INVALID_PROVIDER".into()),
+        });
+    match fs::symlink_metadata(&folder) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            return Err("AI_STORAGE_FAILED".into())
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            fs::create_dir(&folder).map_err(|_| "AI_STORAGE_FAILED")?
+        }
+        Err(_) => return Err("AI_STORAGE_FAILED".into()),
+    }
+    Ok(folder)
+}
+
 pub(crate) fn save(
     app: &tauri::AppHandle,
     id: &str,
@@ -168,6 +195,24 @@ pub(crate) fn clear_all(app: &tauri::AppHandle) -> Result<(), String> {
         }
         if !safe {
             continue;
+        }
+        for name in ["claude-workspace", "opencode-workspace"] {
+            let workspace = folder.join(name);
+            match fs::symlink_metadata(&workspace) {
+                Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
+                    if name == "opencode-workspace"
+                        && super::providers::cli::clean_sessions(&workspace).is_err()
+                    {
+                        failed = true;
+                        continue;
+                    }
+                    if fs::remove_dir_all(workspace).is_err() {
+                        failed = true;
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                _ => failed = true,
+            }
         }
         for provider in [Provider::Codex, Provider::Claude, Provider::Opencode] {
             match fs::remove_file(folder.join(provider.filename())) {
