@@ -42,72 +42,71 @@ pub(crate) fn list_notes(
     }
 
     for path in &paths {
-        match path.extension().and_then(|extension| extension.to_str()) {
-            Some("omega") => match note_from_path(path) {
-                Ok(note) => notes.push(note),
-                Err(error) => {
-                    let file_name = path
-                        .file_name()
-                        .map(|name| name.to_string_lossy().into_owned())
-                        .unwrap_or_else(|| "Nota Ômega Notes".to_string());
-                    let (recovery_path, recovery_error) =
-                        match preserve_recovery_copy(path, &backups_directory) {
-                            Ok(path) => (Some(path), None),
-                            Err(error) => (None, Some(error)),
-                        };
-                    let mut message = error;
-                    let mut recovered = false;
+        if path.extension().and_then(|extension| extension.to_str()) != Some("omega") {
+            continue;
+        }
+        match note_from_path(path) {
+            Ok(note) => notes.push(note),
+            Err(error) => {
+                let file_name = path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "Nota Ômega Notes".to_string());
+                let (recovery_path, recovery_error) =
+                    match preserve_recovery_copy(path, &backups_directory) {
+                        Ok(path) => (Some(path), None),
+                        Err(error) => (None, Some(error)),
+                    };
+                let mut message = error;
+                let mut recovered = false;
 
-                    if let Some(note_id) = path.file_stem().and_then(|stem| stem.to_str()) {
-                        let backup = note_backup_path(&backups_directory, note_id);
-                        if backup.is_file() {
-                            match note_from_path_with_id(&backup, note_id) {
-                                Ok(note) => match read_file_bytes(&backup) {
-                                    Ok(bytes) => match restore_file(path, &bytes) {
-                                        Ok(()) => {
-                                            notes.push(note);
-                                            recovered = true;
-                                            message = format!(
+                if let Some(note_id) = path.file_stem().and_then(|stem| stem.to_str()) {
+                    let backup = note_backup_path(&backups_directory, note_id);
+                    if backup.is_file() {
+                        match note_from_path_with_id(&backup, note_id) {
+                            Ok(note) => match read_file_bytes(&backup) {
+                                Ok(bytes) => match restore_file(path, &bytes) {
+                                    Ok(()) => {
+                                        notes.push(note);
+                                        recovered = true;
+                                        message = format!(
                                                 "A nota atual estava inválida; uma versão anterior foi restaurada. {message}"
                                             );
-                                        }
-                                        Err(restore_error) => {
-                                            message = format!(
+                                    }
+                                    Err(restore_error) => {
+                                        message = format!(
                                                 "{message} Não foi possível restaurar a cópia anterior: {restore_error}"
                                             );
-                                        }
-                                    },
-                                    Err(backup_error) => {
-                                        message = format!(
-                                            "{message} Não foi possível ler a cópia anterior: {backup_error}"
-                                        );
                                     }
                                 },
                                 Err(backup_error) => {
                                     message = format!(
+                                            "{message} Não foi possível ler a cópia anterior: {backup_error}"
+                                        );
+                                }
+                            },
+                            Err(backup_error) => {
+                                message = format!(
                                         "{message} A cópia anterior também está inválida: {backup_error}"
                                     );
-                                }
                             }
                         }
                     }
+                }
 
-                    if let Some(recovery_error) = recovery_error {
-                        message = format!(
+                if let Some(recovery_error) = recovery_error {
+                    message = format!(
                             "{message} Não foi possível criar uma cópia de recuperação: {recovery_error}"
                         );
-                    }
-
-                    issues.push(NoteLoadIssue {
-                        file_name,
-                        message,
-                        recovery_path: recovery_path
-                            .map(|path| path.to_string_lossy().into_owned()),
-                        recovered,
-                    });
                 }
-            },
-            _ => {}
+
+                issues.push(NoteLoadIssue {
+                    file_name,
+                    message,
+                    recovery_path: recovery_path.map(|path| path.to_string_lossy().into_owned()),
+                    recovered,
+                });
+            }
         }
     }
 
@@ -125,7 +124,7 @@ pub(crate) fn list_notes(
     }
     for backup in central_backup_paths
         .iter()
-        .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("bak"))
+        .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("temp"))
     {
         let Some(note_id) = note_id_from_backup(backup) else {
             continue;

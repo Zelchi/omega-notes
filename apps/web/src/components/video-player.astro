@@ -5,7 +5,7 @@ const { src, label = "Demonstração do Ômega Notes" } = Astro.props;
 
 <div class="video-player" data-video-player>
     <div class="video-frame">
-        <video src={src} controls playsinline preload="metadata" aria-label={label}></video>
+        <video src={src} controls autoplay muted loop playsinline preload="auto" aria-label={label}></video>
     </div>
     <div class="controls" data-controls hidden>
         <button type="button" data-play aria-label="Reproduzir vídeo">
@@ -49,6 +49,53 @@ const { src, label = "Demonstração do Ômega Notes" } = Astro.props;
         const error = root.querySelector<HTMLElement>("[data-error]")!;
         const events = new AbortController();
         const options = { signal: events.signal };
+        let hideTimer: number | undefined;
+        let pointerInside = root.matches(":hover");
+        let keyboardInteraction = false;
+        const activePointers = new Set<number>();
+
+        const clearHideTimer = () => { window.clearTimeout(hideTimer); hideTimer = undefined; };
+        const keepControlsVisible = () => {
+            const focused = document.activeElement;
+            return video.paused || video.ended || !error.hidden || activePointers.size > 0 ||
+                (keyboardInteraction && focused instanceof HTMLElement && controls.contains(focused));
+        };
+        const hideControls = () => {
+            clearHideTimer();
+            if (!keepControlsVisible()) root.classList.add("controls-hidden");
+        };
+        const showControls = () => {
+            clearHideTimer();
+            root.classList.remove("controls-hidden");
+            if (!keepControlsVisible()) hideTimer = window.setTimeout(hideControls, 2000);
+        };
+        const syncVisibility = () => {
+            if (keepControlsVisible() || pointerInside) showControls();
+            else hideControls();
+        };
+
+        root.addEventListener("pointerenter", () => { pointerInside = true; showControls(); }, options);
+        root.addEventListener("pointermove", showControls, options);
+        root.addEventListener("pointerleave", (event) => {
+            if (event.pointerType === "touch") return;
+            pointerInside = false;
+            hideControls();
+        }, options);
+        controls.addEventListener("pointerdown", (event) => { activePointers.add(event.pointerId); showControls(); }, { ...options, capture: true });
+        root.addEventListener("pointerdown", () => { keyboardInteraction = false; showControls(); }, options);
+        const finishPointer = (event: PointerEvent) => {
+            if (!activePointers.delete(event.pointerId)) return;
+            if (event.pointerType === "touch") showControls();
+            else syncVisibility();
+        };
+        window.addEventListener("pointerup", finishPointer, options);
+        window.addEventListener("pointercancel", finishPointer, options);
+        window.addEventListener("blur", () => { activePointers.clear(); pointerInside = false; keyboardInteraction = false; syncVisibility(); }, options);
+        window.addEventListener("keydown", (event) => { if (event.key === "Tab") keyboardInteraction = true; }, { ...options, capture: true });
+        controls.addEventListener("focusin", showControls, options);
+        controls.addEventListener("focusout", () => queueMicrotask(syncVisibility), options);
+        root.addEventListener("keydown", () => { keyboardInteraction = true; showControls(); }, options);
+        for (const name of ["play", "pause", "ended"]) video.addEventListener(name, syncVisibility, options);
 
         const formatTime = (value: number) => {
             const total = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
@@ -78,6 +125,7 @@ const { src, label = "Demonstração do Ômega Notes" } = Astro.props;
                 if (reason instanceof DOMException && reason.name === "AbortError") return;
                 error.hidden = false;
                 sync();
+                showControls();
             });
         }, options);
         seek.addEventListener("input", () => {
@@ -107,16 +155,18 @@ const { src, label = "Demonstração do Ômega Notes" } = Astro.props;
             const expanded = document.fullscreenElement === root;
             fullscreen.setAttribute("aria-label", expanded ? "Sair da tela cheia" : "Tela cheia");
             fullscreenIcon.setAttribute("d", expanded ? "M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" : "M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6");
+            showControls();
         }, options);
         for (const name of ["loadedmetadata", "durationchange", "timeupdate", "play", "pause", "ended", "volumechange", "emptied"]) {
             video.addEventListener(name, sync, options);
         }
-        video.addEventListener("error", () => { error.hidden = false; }, options);
-        video.addEventListener("playing", () => { error.hidden = true; }, options);
+        video.addEventListener("error", () => { error.hidden = false; showControls(); }, options);
+        video.addEventListener("playing", () => { error.hidden = true; syncVisibility(); }, options);
         video.controls = false;
         controls.hidden = false;
         sync();
-        document.addEventListener("astro:before-swap", () => { video.pause(); events.abort(); }, { once: true });
+        syncVisibility();
+        document.addEventListener("astro:before-swap", () => { video.pause(); clearHideTimer(); events.abort(); }, { once: true });
     }
 </script>
 
@@ -153,7 +203,12 @@ const { src, label = "Demonstração do Ômega Notes" } = Astro.props;
         border-top: 1px solid #303033;
         background: #18181a;
         color: var(--ink);
+        opacity: 1;
+        transition: opacity 180ms ease;
     }
+    .video-player.controls-hidden { cursor: none; }
+    .video-player.controls-hidden .controls { opacity: 0; pointer-events: none; }
+    @media (prefers-reduced-motion: reduce) { .controls { transition: none; } }
     [hidden] { display: none !important; }
     button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--ink); cursor: pointer; }
     button:hover, button.active { background: #303033; }

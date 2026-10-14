@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import { readGraphState, saveGraphState } from "../../api/graph.repository";
 import { ForceLayout } from "../../lib/force-layout";
 import { graphEdges } from "../../lib/graph";
@@ -6,9 +6,10 @@ import type { Point, View } from "../../model/graph";
 import type { ContextMenu, GraphCanvasProps } from "../graph-canvas/types";
 
 type Gesture = { pointerId: number; target: HTMLElement; kind: "pan" | "node"; nodeId?: string;
-	start: Point; origin: Point; moved: boolean };
+	start: Point; origin: Point; moved: boolean; beforePositions?: Record<string, Point> };
 
 export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLElement) => {
+	const snapshot = () => ({ layout: "dynamic" as const, positions: simulation.positions() });
 	const stored = readGraphState("dynamic");
 	const simulation = new ForceLayout(stored.positions);
 	const [positions, setPositions] = createSignal<Record<string, Point>>({});
@@ -66,6 +67,20 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 		run();
 	});
 
+	createEffect(() => {
+		const restore = props.restoration;
+		if (!restore || restore.layout !== "dynamic") return;
+		untrack(() => {
+			finish();
+			setContextMenu(undefined);
+			simulation.restorePositions(restore.positions);
+			setPositions(simulation.positions());
+			save();
+			run();
+			props.onHistoryRestored();
+		});
+	});
+
 	const fit = (): void => {
 		if (gesture) return;
 		const rect = getBoard().getBoundingClientRect();
@@ -86,13 +101,15 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 		gesture = undefined;
 		if (current.nodeId) simulation.release(current.nodeId);
 		setDraggedId(undefined);
+		if (current.kind === "node" && current.moved && current.beforePositions)
+			props.onNotesMoved({ layout: "dynamic", positions: current.beforePositions }, snapshot());
 		if (current.moved) suppressClickUntil = Date.now() + 200;
 		if (current.target.hasPointerCapture(current.pointerId)) current.target.releasePointerCapture(current.pointerId);
 		run();
 		scheduleSave();
 	};
 	const begin = (event: PointerEvent & { currentTarget: HTMLElement }, nodeId?: string): void => {
-		if (gesture || ![0, 1, 2].includes(event.button)) return;
+		if (props.busy || gesture || ![0, 1, 2].includes(event.button)) return;
 		if (nodeId && event.button === 2 && props.mode === "edit") {
 			openMenu(event, nodeId);
 			return;
@@ -104,7 +121,7 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 		if (!origin) return;
 		event.currentTarget.setPointerCapture(event.pointerId);
 		gesture = { pointerId: event.pointerId, target: event.currentTarget, kind: draggingNode ? "node" : "pan",
-			nodeId: draggingNode ? nodeId : undefined, start: { x: event.clientX, y: event.clientY }, origin: { ...origin }, moved: false };
+			nodeId: draggingNode ? nodeId : undefined, start: { x: event.clientX, y: event.clientY }, origin: { ...origin }, moved: false, beforePositions: draggingNode ? simulation.positions() : undefined };
 		if (draggingNode) { setDraggedId(nodeId); simulation.pin(nodeId, origin); run(); }
 	};
 	const move = (event: PointerEvent): void => {
@@ -126,7 +143,12 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 		move(event);
 		const createNote = current.kind === "pan" && !current.moved && event.button === 0 && props.mode === "edit";
 		finish(event);
-		if (createNote) void props.onCreateNote();
+		if (createNote) {
+			const beforeCreation = snapshot();
+			void props.onCreateNote().then((note) => {
+				if (note && mounted) props.onNoteCreated(note, beforeCreation, snapshot());
+			});
+		}
 	};
 	const zoom = (scale: number, x: number, y: number): void => {
 		if (gesture) return;
@@ -147,12 +169,13 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 	};
 	const openMenu = (event: MouseEvent, noteId: string): void => {
 		event.preventDefault(); event.stopPropagation();
-		if (props.mode !== "edit") return;
+		if (props.busy || props.mode !== "edit") return;
 		const rect = getBoard().getBoundingClientRect();
 		setContextMenu({ noteId, x: Math.max(8, Math.min(rect.width - 160, event.clientX - rect.left)), y: Math.max(8, Math.min(rect.height - 90, event.clientY - rect.top)) });
 	};
 	onMount(() => {
 		mounted = true;
+		props.onRegisterHistory(snapshot);
 		if (!stored.view || props.centerOnMount) fit();
 		props.onCanvasMount();
 		run();
@@ -172,8 +195,9 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 		window.addEventListener("pointerdown", outside);
 		window.addEventListener("keydown", escape);
 		onCleanup(() => {
-			mounted = false;
 			finish();
+			mounted = false;
+			props.onRegisterHistory(undefined);
 			if (frame !== undefined) cancelAnimationFrame(frame);
 			clearTimeout(saveTimer); save(); resize.disconnect();
 			document.removeEventListener("visibilitychange", visibility);

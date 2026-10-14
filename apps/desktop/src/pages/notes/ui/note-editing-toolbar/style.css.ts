@@ -15,7 +15,7 @@ export const styles = {
 	row: style({
 		display: "flex",
 		alignItems: "center",
-		justifyContent: "center",
+		justifyContent: "flex-start",
 		gap: 3,
 		minWidth: 0,
 		overflowX: "auto",

@@ -58,6 +58,7 @@ const App: Component = () => {
 							t={app.t}
 							onTitleChange={app.navigation.updateTitle}
 							onDocumentChange={app.navigation.updateDocument}
+							onOpenMissingNote={(target) => void app.noteReferences.open(target)}
 							onOpenNote={app.navigation.openNote}
 							onRegisterBeforeShutdown={app.registerBeforeShutdown}
 						/>
@@ -70,13 +71,25 @@ const App: Component = () => {
 						onCreateNote={app.navigation.createNoteAtCanvas}
 						onOpenNote={app.navigation.openNote}
 						onRequestRename={(note) => void app.navigation.requestRenameNote(note)}
-						onDeleteNote={app.notes.remove}
+						onDeleteNote={app.canvasHistory.remove}
+						busy={app.canvasHistory.pending() || app.vaultActionPending()}
+						restoration={app.canvasHistory.restoration()?.vaultId === app.vaults.activeVaultId() ? app.canvasHistory.restoration() : undefined}
+						onRegisterHistory={app.canvasHistory.register}
+						onHistoryRestored={app.canvasHistory.restored}
+						onNoteCreated={app.canvasHistory.created}
+						onNotesMoved={app.canvasHistory.moved}
 						mode={app.navigation.mode()}
 						t={app.t}
 						centerOnMount={app.navigation.canvasCenterOnMount()}
 						onCanvasMount={() => app.navigation.setCenteredAtLaunch(true)}
 						hideCanvasControls={app.preferences.hideCanvasControls()}
 					/>
+				</Show>
+				<Show when={app.noteReferences.error()}>
+					<div class={styles.saveNotice} role="alert">{app.t("createLinkedNoteFailed")}</div>
+				</Show>
+				<Show when={app.canvasHistory.error()}>
+					<div class={styles.saveNotice} role="alert">{app.t("canvasHistoryFailed")}</div>
 				</Show>
 				<Show when={app.notes.saveError()}>
 					<div class={styles.saveNotice} role="alert">
@@ -127,7 +140,7 @@ const App: Component = () => {
 				getDetails={app.vaults.getDetails}
 				error={app.vaults.error()}
 				errorAction={app.vaults.errorAction()}
-				saving={app.vaults.saving() || app.vaultActionPending()}
+				saving={app.vaults.saving() || app.vaultActionPending() || app.canvasHistory.pending() || app.noteReferences.pending()}
 				t={app.t}
 				onClose={app.vaults.closeDialog}
 				onClearError={app.vaults.clearError}

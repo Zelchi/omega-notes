@@ -12,7 +12,7 @@ type CanvasProps = GraphCanvasProps & {
 
 const Canvas: Component<CanvasProps> = (props) => {
 	return (
-		<div class={styles.canvasScroll}>
+		<div class={styles.canvasScroll} inert={props.busy}>
 			<Show when={props.ready} fallback={<div aria-busy="true" />}>
 				<Show when={props.layout === "static"} fallback={<DynamicGraph {...props} />}>
 					<GraphCanvas {...props} />

@@ -22,12 +22,14 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 	const toolbar = createPresence(() => editor.editable() && !editor.positioningElementId(), 220);
 	const notesByTitle = createMemo(() => createNoteTitleIndex(props.notes));
 	const notesById = createMemo(() => new Map(props.notes.map((note) => [normalizeNoteTitle(note.id), note])));
-	const renderText = (text: string, format?: FormattedFragment) =>
+	const renderText = (text: string, format?: FormattedFragment, onToggleTask?: (sourceLine: number, checked: boolean) => void) =>
 		renderNoteText(text, {
 			notesById: notesById(),
 			notesByTitle: notesByTitle(),
 			onOpenNote: props.onOpenNote,
+			onOpenMissingNote: onToggleTask ? props.onOpenMissingNote : undefined,
 			onOpenExternalUrl: editor.openExternalLink,
+			t: props.t, onToggleTask,
 		}, format);
 
 	return (

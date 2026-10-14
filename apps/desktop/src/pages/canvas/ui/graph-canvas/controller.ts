@@ -7,6 +7,11 @@ import { readGraphState, saveGraphState as persistGraphState } from "../../api/g
 import type { GraphCanvasProps } from "./types";
 
 export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivElement) => {
+	const snapshot = () => ({ layout: "static" as const, positions: positions() });
+	const recordMove = (finished?: Gesture) => {
+		if (finished?.kind === "node" && finished.moved && finished.beforePositions)
+			props.onNotesMoved({ layout: "static", positions: finished.beforePositions }, snapshot());
+	};
 	const storedState = readGraphState();
 	const [positions, setPositions] = createSignal<Record<string, Point>>(storedState.positions);
 	const [view, setView] = createSignal<View>(storedState.view ?? { x: 0, y: 0, scale: 1 });
@@ -87,14 +92,36 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	});
 
 	createEffect(() => {
+		const restore = props.restoration;
+		if (!restore || restore.layout !== "static") return;
+		untrack(() => {
+			gesture = undefined;
+			pendingMove = undefined;
+			setSelectionBox(undefined);
+			setContextMenu(undefined);
+			const ids = new Set(props.notes.map((note) => note.id));
+			setPositions(separateStaticNodes(Object.fromEntries(Object.entries({ ...positions(), ...restore.positions }).filter(([id]) => ids.has(id))), layoutNodes()));
+			saveGraphState();
+			props.onHistoryRestored();
+		});
+	});
+
+	createEffect(() => {
 		if (props.mode === "edit") return;
-		setSelectedIds(new Set<string>());
-		setSelectionBox(undefined);
-		gesture = undefined;
+		untrack(() => {
+			if (gesture) flushPendingMove(gesture.pointerId);
+			recordMove(gesture);
+			setSelectedIds(new Set<string>());
+			setSelectionBox(undefined);
+			gesture = undefined;
+		});
 	});
 
 	onCleanup(() => {
 		disposed = true;
+		if (gesture) flushPendingMove(gesture.pointerId);
+		recordMove(gesture);
+		props.onRegisterHistory(undefined);
 		if (graphSaveTimer !== undefined) saveGraphState();
 		clearTimeout(creationTimer);
 		if (moveFrame !== undefined) cancelAnimationFrame(moveFrame);
@@ -102,6 +129,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	});
 
 	onMount(() => {
+		props.onRegisterHistory(snapshot);
 		const board = getBoard();
 		sizeObserver = new ResizeObserver((entries) => {
 			setMeasuredSizes((current) => {
@@ -155,7 +183,9 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			if (Array.from(document.querySelectorAll('[aria-modal="true"]')).some((dialog) => !dialog.closest("[inert]"))) return;
 			event.preventDefault();
 			event.stopImmediatePropagation();
+			if (gesture) flushPendingMove(gesture.pointerId);
 			if (gesture?.moved && gesture.kind !== "selection") saveGraphState();
+			recordMove(gesture);
 			gesture = undefined;
 			setSelectionBox(undefined);
 			setSelectedIds(new Set<string>());
@@ -170,7 +200,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	});
 
 	const beginPan = (event: PointerEvent & { currentTarget: HTMLElement }): void => {
-		if (gesture || (event.button !== 0 && event.button !== 1 && event.button !== 2)) return;
+		if (props.busy || gesture || (event.button !== 0 && event.button !== 1 && event.button !== 2)) return;
 		event.preventDefault();
 		setContextMenu(undefined);
 		event.currentTarget.setPointerCapture(event.pointerId);
@@ -206,7 +236,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	};
 
 	const beginNodeDrag = (event: PointerEvent & { currentTarget: HTMLButtonElement }, note: StudyNote): void => {
-		if (gesture) return;
+		if (props.busy || gesture) return;
 		if (event.button === 2 || event.button === 1) {
 			event.preventDefault();
 			event.stopPropagation();
@@ -236,6 +266,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			pointerId: event.pointerId,
 			kind: "node",
 			nodeOrigins,
+			beforePositions: positions(),
 			startX: event.clientX,
 			startY: event.clientY,
 			originX: 0,
@@ -320,6 +351,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		if (finished.moved) {
 			suppressClickUntil = Date.now() + 200;
 			if (finished.kind !== "selection") saveGraphState();
+			recordMove(finished);
 			return;
 		}
 		if (finished.kind === "selection") {
@@ -334,6 +366,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			x: (event.clientX - rect.left - currentView.x) / currentView.scale,
 			y: (event.clientY - rect.top - currentView.y) / currentView.scale,
 		};
+		const beforeCreation = snapshot();
 		pendingCreationPoint = clickPoint;
 		void props.onCreateNote().then((note) => {
 			pendingCreationPoint = undefined;
@@ -348,6 +381,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			clearTimeout(creationTimer);
 			creationTimer = setTimeout(() => setCreatedNoteId(undefined), 480);
 			saveGraphState(nextPositions);
+			props.onNoteCreated(note, beforeCreation, snapshot());
 		});
 	};
 
@@ -356,6 +390,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		flushPendingMove(event.pointerId);
 		if (gesture.kind === "selection") setSelectedIds(gesture.selection?.baseline ?? new Set<string>());
 		else if (gesture.moved) saveGraphState();
+		recordMove(gesture);
 		gesture = undefined;
 		setSelectionBox(undefined);
 	};
@@ -390,7 +425,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	const openContextMenu = (event: MouseEvent, note: StudyNote): void => {
 		event.preventDefault();
 		event.stopPropagation();
-		if (props.mode !== "edit") return;
+		if (props.busy || props.mode !== "edit") return;
 		const rect = getBoard().getBoundingClientRect();
 		setContextMenu({
 			noteId: note.id,

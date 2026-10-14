@@ -1,6 +1,7 @@
 ---
 import BaseLayout from "@/layouts/base-layout.astro";
 import VideoPlayer from "@/components/video-player.astro";
+import GettingStartedGuide from "@/components/getting-started-guide.astro";
 
 const repository = "https://github.com/Zelchi/omega-notes";
 const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
@@ -8,21 +9,32 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
 
 <BaseLayout>
     <main class="home">
-        <img class="logo" src={`${base}icon.png`} alt="" width="80" height="80" />
+        <img
+            class="logo"
+            src={`${base}icon.png`}
+            alt=""
+            width="80"
+            height="80"
+        />
         <p class="eyebrow">Ômega Notes</p>
         <h1>Um espaço para suas ideias.</h1>
         <p class="description">
-            Escreva suas notas, conecte assuntos e organize seus estudos em um canvas.
-            Seus arquivos ficam no seu computador.
+            Escreva suas notas, conecte assuntos e organize seus estudos em um
+            canvas. Seus arquivos ficam no seu computador.
         </p>
         <nav class="actions" aria-label="Conheça o Ômega Notes">
-            <a class="button" href={`${repository}/releases/latest`}>Baixar o aplicativo</a>
-            <a class="repository" href={repository}>Ver no GitHub <span aria-hidden="true">↗</span></a>
+            <a class="button" href={`${repository}/releases/latest`}
+                >Baixar o aplicativo</a
+            >
+            <a class="repository" href={repository}
+                >Ver no GitHub <span aria-hidden="true">↗</span></a
+            >
         </nav>
         <p class="platforms">Windows 10/11 · Ubuntu · Fedora</p>
         <figure class="demo">
             <VideoPlayer src={`${base}omega-1.mp4`} />
             <figcaption>Veja o Ômega Notes em ação.</figcaption>
         </figure>
+        <GettingStartedGuide />
     </main>
 </BaseLayout>

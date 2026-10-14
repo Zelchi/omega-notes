@@ -1,4 +1,5 @@
 import { createMemo, createUniqueId, Index, Show, type Component } from "solid-js";
+import { TableEditor, type TableBlock } from "@/features/edit-table";
 import { NoteLinkSuggestions } from "@/features/suggest-note-link";
 import { cx } from "@/shared/lib/classes";
 import { useNoteTextNodeController, type NoteTextNodeProps } from "./controller";
@@ -9,7 +10,7 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 	const suggestionsId = createUniqueId();
 	const suggestionsAnchor = () => editor.linkSuggestions.open() ? editor.caretAnchor() : undefined;
 	const naturalViewText = createMemo(() =>
-		props.editable ? undefined : props.renderText(editor.draft()),
+		props.editable ? undefined : props.renderText(editor.draft(), undefined, editor.toggleTask),
 	);
 	const renderFragments = () => (
 		<Index each={editor.layout().fragments}>
@@ -32,7 +33,7 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 						"text-align-last": (fragment().alignment ?? editor.alignment()) === "justify" && !fragment().paragraphEnd ? "justify" : "auto",
 					}}
 				>
-					{props.renderText(fragment().text, fragment().format)}
+					{props.renderText(fragment().text, fragment().format, editor.toggleTask)}
 				</span>
 			)}
 		</Index>
@@ -100,9 +101,23 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 					onBeforeInput={editor.handleBeforeInput}
 					onBlur={editor.handleBlur}
 					onPaste={editor.handlePaste}
+					onCopy={editor.handleCopy}
+					onCut={editor.handleCut}
 					onCompositionStart={editor.startComposition}
 					onCompositionEnd={editor.handleCompositionEnd}
 				/>
+			</Show>
+			<Show when={props.editable}>
+				<Index each={editor.tableFragments()}>{(fragment) => <TableEditor
+					block={fragment().format!.block as TableBlock}
+					left={editor.x() + fragment().left} top={editor.y() + fragment().top} width={fragment().width}
+					t={props.t} renderText={props.renderText} formatCell={editor.formatTableCell}
+					onChange={(text, kind) => editor.updateTable(fragment().format!.block as TableBlock, text, kind)}
+					onDelete={() => editor.deleteTable(fragment().format!.block as TableBlock)}
+					onHistory={editor.handleKeyDown}
+					onExit={(after) => editor.exitTable(fragment().format!.block as TableBlock, after)}
+					onFormattingReady={editor.registerTableFormatting}
+					onRegisterFocus={editor.registerTableFocus} />}</Index>
 			</Show>
 			<Show when={props.editable && editor.caret()}>
 				{(caret) => (

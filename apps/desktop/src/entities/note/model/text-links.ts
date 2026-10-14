@@ -2,7 +2,7 @@ export type NoteTextLink = {
 	start: number;
 	end: number;
 	label: string;
-} & ({ kind: "note"; target: string } | { kind: "external"; url: string });
+} & ({ kind: "note"; target: string; alias?: string } | { kind: "external"; url: string });
 
 const splitTrailingPunctuation = (value: string): [string, string] => {
 	let end = value.length;
@@ -29,7 +29,7 @@ export const parseNoteTextLinks = (text: string): NoteTextLink[] => {
 			const separator = body.indexOf("|");
 			const target = (separator < 0 ? body : body.slice(0, separator)).trim();
 			const label = (separator < 0 ? target : body.slice(separator + 1)).trim();
-			links.push({ start, end: start + value.length, kind: "note", target, label });
+			links.push({ start, end: start + value.length, kind: "note", target, label, alias: separator < 0 ? undefined : label });
 			continue;
 		}
 		const [label] = splitTrailingPunctuation(value);

@@ -36,6 +36,11 @@ exibe a demonstração `public/omega-1.mp4`. O player possui controles de reprod
 progresso, volume e tela cheia. O enquadramento em 3:2 oculta as barras laterais
 embutidas nessa gravação; ajuste `.video-frame` se substituir o vídeo por outro formato.
 
+O vídeo inicia sem som e se repete em loop. No final da página,
+`src/components/getting-started-guide.astro` apresenta um tutorial com primeiros
+passos e seções expansíveis sobre canvas, formatação, mídias, atalhos, vaults e IA.
+O link “Como usar” leva diretamente ao guia.
+
 O fundo usa o mesmo padrão pontilhado do canvas. A rolagem da página usa uma
 barra customizada de 5px, com suporte a arraste e teclado.
 

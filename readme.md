@@ -41,6 +41,14 @@ No modo de edição, arraste com o botão esquerdo numa área vazia para selecio
 várias notas e movê-las juntas. Use Ctrl ou Shift para ajustar a seleção e Escape
 para desfazê-la. Arraste com o botão direito numa área vazia para mover o canvas.
 
+No canvas em edição, **Ctrl+Z** desfaz exclusões, criações e movimentos manuais.
+Use **Ctrl+Shift+Z** ou **Ctrl+Y** para refazer. Cada vault mantém até 100 ações
+na sessão; abrir uma nota ou trocar entre Estático e Dinâmico mantém esse histórico.
+As últimas 100 notas apagadas são guardadas em `notes/.undo`, com suas mídias
+preservadas, e podem ser recuperadas com Ctrl+Z mesmo após reabrir o aplicativo.
+As posições anteriores são recuperadas durante a sessão; após reiniciar, a nota
+volta à organização atual do canvas. Excluir o vault também apaga essas cópias.
+
 Clique em uma bolha para abrir a nota e volte ao canvas quando quiser ver o conjunto.
 
 ## Converse com suas notas
@@ -67,8 +75,14 @@ nos links. Solte a tecla para voltar à edição, mantendo o cursor e a rolagem.
 - **Títulos de H1 a H6** para organizar assuntos e seções.
 - **Negrito e itálico** para destacar trechos.
 - **Separadores** para dividir o conteúdo.
+- **Tabelas:** insira um modelo pelo ícone da barra, edite as células em Markdown e visualize a tabela no modo leitura ou na prévia com Alt. As células também aceitam formatação e referências a outras notas.
 - **Alinhamento por parágrafo:** à esquerda, ao centro, à direita ou justificado. Sem seleção, a mudança vale para o parágrafo do cursor; com seleção, vale para os parágrafos selecionados.
 - **Salvamento automático** durante a edição.
+- **Mais formatos de texto:** listas numeradas (`1.`), citações (`>`), código entre crases ou blocos com três crases, riscado (`~~texto~~`) e marca-texto (`==texto==`).
+- **Criar notas por referência:** escreva `[[Nova nota]]` e clique no link na leitura ou na prévia com Alt. Se ela não existir, será criada e aberta no vault atual; `[[Nova nota|Apelido]]` também funciona.
+- **Listas de tarefas** com `- []` ou `- [ ]` e `- [x]`. Clique no checkbox no modo leitura para marcar ou desmarcar a tarefa.
+- **Editar tabelas** diretamente nas células, com controles abaixo para adicionar ou remover linhas e colunas. Tab e Enter navegam entre células, e Ctrl+Z também desfaz essas alterações.
+- **Desfazer e refazer** texto, formatação e alinhamento com Ctrl+Z e Ctrl+Shift+Z ou Ctrl+Y. O histórico mantém até 100 grupos de alterações enquanto a nota está aberta e é reiniciado ao abrir outra nota.
 
 Você também pode conectar uma nota a outra usando referências no texto:
 

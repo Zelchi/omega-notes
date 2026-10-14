@@ -5,10 +5,12 @@ use uuid::Uuid;
 
 use crate::names::normalize_name;
 use crate::notes::{
-    audio_ids_in_document, delete_note_files, empty_document, ensure_unique_note_title,
-    existing_note, existing_note_document, image_ids_in_document, note_backup_exists,
-    note_backup_path, note_from_path_with_id, validate_note_id, validate_note_title,
-    video_ids_in_document, write_note, NoteDocument, NoteLoadIssue, NoteSaveResult, StudyNote,
+    archive_deleted_note, audio_ids_in_document, delete_note_files, deleted_notes,
+    deleted_notes_directory, empty_document, ensure_unique_note_title, existing_note,
+    existing_note_document, image_ids_in_document, note_backup_exists, note_backup_path,
+    note_from_path_with_id, note_path, prune_deleted_notes, remove_deleted_note, validate_note_id,
+    validate_note_title, video_ids_in_document, write_note, NoteDocument, NoteLoadIssue,
+    NoteSaveResult, StudyNote,
 };
 
 use super::cleanup::{cleanup_issue, collect_unreferenced_images, collect_unreferenced_media};
@@ -125,9 +127,22 @@ pub(crate) fn delete_note(
     let Some(previous_document) = previous_document else {
         return Err("Nota não encontrada.".to_string());
     };
+    archive_deleted_note(&directory, &note_id)?;
     delete_note_files(&directory, &backups_directory, &note_id)?;
-    let removed_images = image_ids_in_document(&previous_document);
+    let mut removed_images = image_ids_in_document(&previous_document);
+    let mut removed_audio = audio_ids_in_document(&previous_document);
+    let mut removed_video = video_ids_in_document(&previous_document);
     let mut cleanup_issues = Vec::new();
+    match prune_deleted_notes(&directory) {
+        Ok(documents) => {
+            for document in documents {
+                removed_images.extend(image_ids_in_document(&document));
+                removed_audio.extend(audio_ids_in_document(&document));
+                removed_video.extend(video_ids_in_document(&document));
+            }
+        }
+        Err(error) => cleanup_issues.push(cleanup_issue(".undo", error)),
+    }
     if let Err(error) = collect_unreferenced_images(&directory, &backups_directory, &removed_images)
     {
         cleanup_issues.push(cleanup_issue(
@@ -140,8 +155,8 @@ pub(crate) fn delete_note(
     if let Err(error) = collect_unreferenced_media(
         &directory,
         &backups_directory,
-        &audio_ids_in_document(&previous_document),
-        &video_ids_in_document(&previous_document),
+        &removed_audio,
+        &removed_video,
     ) {
         cleanup_issues.push(cleanup_issue(
             "Mídias",
@@ -151,4 +166,36 @@ pub(crate) fn delete_note(
         ));
     }
     Ok(cleanup_issues)
+}
+
+pub(crate) fn list_deleted_notes(
+    resolve_directories: &impl Fn() -> Result<(PathBuf, PathBuf), String>,
+) -> Result<Vec<StudyNote>, String> {
+    let (directory, _) = resolve_directories()?;
+    deleted_notes(&directory)
+}
+
+pub(crate) fn restore_deleted_note(
+    resolve_directories: &impl Fn() -> Result<(PathBuf, PathBuf), String>,
+    note_id: String,
+) -> Result<NoteSaveResult, String> {
+    validate_note_id(&note_id)?;
+    let (directory, backups_directory) = resolve_directories()?;
+    if existing_note(&directory, &note_id)?.is_some() {
+        return Err("NOTE_ALREADY_EXISTS".into());
+    }
+    let note = note_from_path_with_id(
+        &note_path(&deleted_notes_directory(&directory), &note_id),
+        &note_id,
+    )?;
+    let mut result = save_note(
+        &|| Ok((directory.clone(), backups_directory.clone())),
+        note_id.clone(),
+        note.title,
+        note.document,
+    )?;
+    if let Err(error) = remove_deleted_note(&directory, &note_id) {
+        result.cleanup_issues.push(cleanup_issue(".undo", error));
+    }
+    Ok(result)
 }

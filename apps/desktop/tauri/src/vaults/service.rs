@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use crate::names::normalize_name;
@@ -12,7 +12,7 @@ use super::repository::{
 };
 
 fn active_vault_directories(
-    directory: &PathBuf,
+    directory: &Path,
     vault: &super::models::Vault,
 ) -> Result<(PathBuf, PathBuf), String> {
     let notes_directory = vault_notes_dir(directory, vault)?;

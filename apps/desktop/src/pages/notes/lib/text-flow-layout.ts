@@ -2,6 +2,7 @@ import type { FormattedFragment } from "@/features/format-text";
 import type { NotePositionedElement, NoteTextAlignment } from "@/entities/note";
 
 export type TextFlowFragment = {
+	beforeTable?: boolean;
 	alignment?: NoteTextAlignment;
 	paragraphEnd?: boolean;
 	format?: FormattedFragment;

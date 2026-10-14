@@ -58,11 +58,21 @@ fn visit_note_versions(
     }
     paths.extend(backup_paths);
 
+    let archive = super::super::deleted_notes_directory(notes_directory);
+    if archive.exists() {
+        let (deleted_paths, errors) = note_paths(&archive)
+            .map_err(|error| format!("Não foi possível ler o histórico de exclusões: {error}"))?;
+        if !errors.is_empty() {
+            return Err(errors.join(" "));
+        }
+        paths.extend(deleted_paths);
+    }
+
     for path in paths {
         let extension = path.extension().and_then(|value| value.to_str());
         let note = match extension {
             Some("omega") => note_from_path(&path)?,
-            Some("bak") => {
+            Some("temp") => {
                 let Some(note_id) = note_id_from_backup(&path) else {
                     continue;
                 };

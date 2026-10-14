@@ -24,7 +24,20 @@ export type IconName =
 	| "view"
 	| "attachment"
 	| "exportPdf"
+	| "bulletList"
+	| "orderedList"
+	| "quote"
+	| "code"
+	| "codeBlock"
+	| "strike"
+	| "highlight"
+	| "task"
 	| "heading"
+	| "table-row-add"
+	| "table-row-remove"
+	| "table-column-add"
+	| "table-column-remove"
+	| "table"
 	| "alignLeft"
 	| "alignCenter"
 	| "alignJustify"
@@ -32,12 +45,25 @@ export type IconName =
 	| "alignMixed";
 
 const paths: Record<IconName, Component> = {
+	bulletList: () => <><circle cx="4" cy="5" r="1" fill="currentColor" /><circle cx="4" cy="12" r="1" fill="currentColor" /><circle cx="4" cy="19" r="1" fill="currentColor" /><path d="M9 5h12M9 12h12M9 19h12" /></>,
+	orderedList: () => <><path d="M9 5h12M9 12h12M9 19h12M3 3v4M2 4l1-1M2 10h2v2l-2 2h2M2 17h2v4H2M2 19h2" /></>,
+	quote: () => <><path d="M4 6h6v7H4V6Zm0 7v2a3 3 0 0 0 3 3M14 6h6v7h-6V6Zm0 7v2a3 3 0 0 0 3 3" /></>,
+	code: () => <path d="m7 7-5 5 5 5M17 7l5 5-5 5M14 4l-4 16" />,
+	codeBlock: () => <><rect x="2" y="3" width="20" height="18" rx="2" /><path d="M2 7h20m6 4-3 3 3 3m8-6 3 3-3 3" /></>,
+	strike: () => <path d="M17 6c-1-2-3-3-5-3-3 0-5 2-5 4 0 3 3 4 5 5M4 12h16M7 18c1 2 3 3 5 3 3 0 5-2 5-4 0-1-.4-2-1-2.5" />,
+	highlight: () => <><path d="m10 13 7-9 4 4-9 7-2-2Zm0 0-3 1-2 4 4-2 3-1M3 21h18" /></>,
+	task: () => <><rect x="3" y="3" width="18" height="18" rx="2" /><path d="m7 12 3 3 7-7" /></>,
+	"table-row-add": () => <><rect x="3" y="3" width="18" height="11" rx="1" /><path d="M3 8h18M9 3v11M15 3v11M8 20h8M12 16v8" /></>,
+	"table-row-remove": () => <><rect x="3" y="3" width="18" height="11" rx="1" /><path d="M3 8h18M9 3v11M15 3v11M8 20h8" /></>,
+	"table-column-add": () => <><rect x="3" y="3" width="11" height="18" rx="1" /><path d="M8 3v18M3 9h11M3 15h11M20 8v8M16 12h8" /></>,
+	"table-column-remove": () => <><rect x="3" y="3" width="11" height="18" rx="1" /><path d="M8 3v18M3 9h11M3 15h11M16 12h8" /></>,
 	chevronDown: () => <path d="m6 9 6 6 6-6" />,
 	chat: () => <path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2ZM7 9h10M7 13h7" />,
 	send: () => <path d="m3 3 19 9-19 9 4-9-4-9Zm4 9h15" />,
 	stop: () => <rect x="6" y="6" width="12" height="12" rx="1" />,
 	disconnect: () => <path d="m3 3 18 18M9 8l-3 3a4 4 0 0 0 5 6l2-2M11 7l2-2a4 4 0 0 1 6 5l-3 3" />,
 	heading: () => <path d="M6 5v14M18 5v14M6 12h12" />,
+	table: () => <><rect x="3" y="4" width="18" height="16" rx="1" /><path d="M3 9h18M3 14h18M9 4v16M15 4v16" /></>,
 	back: () => <path d="m14.5 5-7 7 7 7M8 12h12" />,
 	minimize: () => <path d="M5 12h14" />,
 	maximize: () => <rect x="5" y="5" width="14" height="14" rx="1" />,

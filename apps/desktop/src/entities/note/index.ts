@@ -1,6 +1,7 @@
 export { useNotes } from "./model/notes-library";
 export type { NotesLibrary } from "./model/notes-library";
 export { parseNoteTextLinks, type NoteTextLink } from "./model/text-links";
+export { createNoteReferenceNormalizer } from "./model/reference-normalizer";
 export { paragraphStarts, paragraphIndexAt, remapParagraphAlignments } from "./model/text-alignment";
 
 export type { NoteLoadIssue, StudyNote } from "./model/note";
@@ -28,3 +29,5 @@ export {
 	normalizeNoteTitle,
 	resolveNoteReference,
 } from "./model/note-titles";
+
+export { canCreateNoteReference, bindNoteReferences } from "./model/note-links";
