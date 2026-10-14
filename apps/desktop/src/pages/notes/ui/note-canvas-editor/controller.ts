@@ -27,6 +27,7 @@ export type NoteCanvasEditorProps = {
 	t: (key: TranslationKey) => string;
 	onChange: (document: NoteDocument) => void;
 	onOpenNote: (note: StudyNote) => void;
+	onOpenMissingNote?: (target: string) => void;
 	onPositioningChange?: (active: boolean) => void;
 	onExportPdf?: () => Promise<void>;
 	exportPdfDisabled?: boolean;

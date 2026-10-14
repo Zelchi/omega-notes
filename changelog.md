@@ -1,5 +1,43 @@
 # Histórico de atualizações
 
+## v0.2.6
+
+### Canvas
+
+- Ctrl+Z desfaz exclusões, criações e movimentos manuais nos canvases Estático e Dinâmico. Ctrl+Shift+Z e Ctrl+Y refazem as ações, com histórico separado por vault.
+- Até 100 notas excluídas mais recentemente são preservadas para recuperação, mantendo IDs, conteúdo e mídias. As exclusões também podem ser desfeitas após reabrir o aplicativo; o histórico de posições pertence à sessão atual.
+
+### Chat com IA
+
+- Notas apagadas mantêm o último título conhecido nas referências do histórico, sem exibir o ID nem permitir abrir uma nota inexistente. Restaurar a nota reativa o link; nomes personalizados são preservados.
+- Referências do chat passam a ser armazenadas pelo ID da nota, mantendo o destino após renomear. Links sem nome personalizado exibem o título atual; nomes de exibição continuam disponíveis.
+
+### Notas
+
+- Recuperação de gravações interrompidas usa os arquivos `.temp` quando o arquivo principal está ausente.
+- Renomear uma nota preserva referências escritas como exemplo dentro de código em linha e em blocos.
+- Código em linha preserva crases incompletas e delimitadores de formatação dentro do conteúdo literal.
+- Corrigida a preservação de barras invertidas, pipes e referências incompletas ao editar células de tabelas.
+- Adicionar uma linha com o cabeçalho selecionado insere a linha logo abaixo dele.
+- A renderização acompanha alterações no tipo do bloco e nos marcadores de listas.
+- Lista com marcadores disponível por ícone na barra, com estrutura de lista, indentação das linhas e conversão entre listas com marcadores, numeradas e de tarefas.
+- A barra de edição inclui ícones para listas numeradas, citações, código em linha e em bloco, texto riscado, marca-texto e listas de tarefas. Os controles aplicam a formatação à seleção e usam o histórico de desfazer/refazer.
+- Clicar em uma referência por nome que ainda não existe cria e abre a nota no vault atual. A referência de origem passa a usar o ID da nota, preservando nomes de exibição como `[[nota|apelido]]`.
+- Corrigida a navegação com as setas entre linhas vazias: o cursor mantém a posição visual correta, sem saltar para o topo da nota.
+- Listas numeradas, citações com `>`, código entre crases e blocos cercados por três crases, texto riscado com `~~texto~~` e marca-texto com `==texto==`. A formatação aparece na leitura, na prévia com Alt e no chat; código é exibido literalmente.
+- Listas de tarefas com `- []` ou `- [ ]` para pendentes e `- [x]` para concluídas. Em leitura, clicar no checkbox atualiza a nota, com salvamento automático e histórico de desfazer/refazer. O chat também exibe a marcação.
+- Apagar linhas vazias acima de uma tabela permite que ela suba, preservando seu conteúdo e a quebra de linha necessária para separar o texto anterior.
+- É possível posicionar o cursor e inserir texto ou linhas antes de uma tabela no início da nota, inclusive quando ela é criada em uma nota vazia.
+- Tabelas são protegidas contra exclusão pelo Backspace/Delete no texto e possuem um botão de lixeira nos controles; a exclusão pode ser desfeita com Ctrl+Z.
+- Tabelas renderizadas também na edição, com células editáveis e controles abaixo para adicionar/remover linhas e colunas. As alterações usam o salvamento automático e o histórico de desfazer/refazer da nota.
+- Tabelas em Markdown, com botão de inserção na barra de edição e visualização em leitura, na prévia com Alt e no chat. As células aceitam negrito, itálico e referências a notas, incluindo nomes de exibição.
+- Histórico de desfazer e refazer para texto, formatação e alinhamento dos parágrafos, com Ctrl+Z, Ctrl+Shift+Z e Ctrl+Y. Digitação contínua é agrupada; cursor e rolagem são restaurados junto com a alteração.
+
+### Site
+
+- Guia de primeiros passos, formatação, tabelas, referências, atalhos e uso do chat com IA.
+- Vídeo de demonstração com reprodução automática sem som, repetição e controles ocultados quando o mouse sai ou fica parado.
+
 ## v0.2.5
 
 ### Notas

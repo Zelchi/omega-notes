@@ -127,8 +127,36 @@ export const saveNote = async (note: StudyNote): Promise<NoteSaveResult> => {
 	return { note: saved, cleanupIssues: [] };
 };
 
+const deletedStorageKey = (): string => `${vaultStorageKey()}:deleted`;
+
+export const listDeletedNotes = async (): Promise<StudyNote[]> => {
+	const serialized = localStorage.getItem(deletedStorageKey());
+	return serialized ? parseNotes(serialized) : [];
+};
+
+export const restoreDeletedNote = async (noteId: string): Promise<NoteSaveResult> => {
+	const deleted = await listDeletedNotes();
+	const note = deleted.find((item) => item.id === noteId);
+	if (!note) throw new Error("NOTE_NOT_FOUND");
+	const existing = readNotes();
+	if (existing.some((item) => item.id === noteId)) throw new Error("NOTE_ALREADY_EXISTS");
+	if (!isNoteTitleAvailable(existing, note.title)) throw new Error("DUPLICATE_TITLE");
+	const result = await saveNote(note);
+	// A failed archive cleanup must not hide a successfully restored note.
+	try { localStorage.setItem(deletedStorageKey(), JSON.stringify(deleted.filter((item) => item.id !== noteId))); }
+	catch (error) { console.error(error); }
+	return result;
+};
+
 export const deleteNote = async (noteId: string): Promise<NoteLoadIssue[]> => {
-	writeNotes(readNotes().filter((note) => note.id !== noteId));
+	const existing = readNotes();
+	const note = existing.find((item) => item.id === noteId);
+	if (!note) throw new Error("NOTE_NOT_FOUND");
+	const deleted = await listDeletedNotes();
+	localStorage.setItem(deletedStorageKey(), JSON.stringify([
+		{ ...note, updatedAt: Date.now() }, ...deleted.filter((item) => item.id !== noteId),
+	].slice(0, 100)));
+	writeNotes(existing.filter((note) => note.id !== noteId));
 	return [];
 };
 
@@ -190,4 +218,5 @@ export const getBrowserNotesStats = (vaultId: string): NoteStorageStats => {
 
 export const deleteBrowserNotesForVault = (vaultId: string): void => {
 	localStorage.removeItem(notesStorageKey(vaultId));
+	localStorage.removeItem(`${notesStorageKey(vaultId)}:deleted`);
 };

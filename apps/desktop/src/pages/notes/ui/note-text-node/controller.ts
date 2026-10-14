@@ -1,3 +1,5 @@
+import { parseFormattedText, codeFont, type InlineTextFormat } from "@/shared/lib/formatted-text";
+import type { TableBlock } from "@/features/edit-table";
 import { batch, createEffect, createMemo, createSignal, onCleanup, onMount, untrack, type Accessor, type JSX } from "solid-js";
 import {
 	paragraphStarts, paragraphIndexAt, remapParagraphAlignments,
@@ -10,6 +12,7 @@ import { layoutTextFlow, type TextFlowLayout } from "../../lib/text-flow-layout"
 import { layoutFormattedText } from "../../lib/formatted-text-layout";
 import { EMPTY_CHARACTER, syncEditableTextDom } from "../../lib/editable-text-dom";
 import { styles } from "./style.css.ts";
+import { createTextHistory, type TextHistoryState } from "@/features/undo-note-edit";
 import { formatSelection, type TextRun, type TextFormatHandler, type TextSelection, type FormattedFragment } from "@/features/format-text";
 
 const IMAGE_TEXT_MARGIN = 15;
@@ -36,7 +39,7 @@ export type NoteTextNodeProps = {
 	onHeightChange?: (height: number) => void;
 	editable: boolean;
 	locked?: boolean;
-	renderText: (text: string, format?: FormattedFragment) => JSX.Element;
+	renderText: (text: string, format?: FormattedFragment, onToggleTask?: (sourceLine: number, checked: boolean) => void) => JSX.Element;
 	onFormattingReady?: (handler: TextFormatHandler | undefined) => void;
 	onAlignmentReady?: (handler: ParagraphAlignmentHandler | undefined) => void;
 	onSelectionAlignmentChange?: (alignment: NoteTextAlignment | undefined) => void;
@@ -51,12 +54,7 @@ const displayText = (text: string): string => {
 	});
 };
 
-const stripEmptyCharacter = (text: string): string => {
-	if (text === EMPTY_CHARACTER) return "";
-	const start = text.startsWith(EMPTY_CHARACTER) ? 1 : 0;
-	const end = text.endsWith(EMPTY_CHARACTER) ? text.length - 1 : text.length;
-	return start || end !== text.length ? text.slice(start, Math.max(start, end)) : text;
-};
+const stripEmptyCharacter = (text: string): string => text.replaceAll(EMPTY_CHARACTER, "");
 
 const getVisibleLength = (text: string): number => stripEmptyCharacter(text).length;
 
@@ -81,12 +79,7 @@ const getOffsetBeforeNode = (root: HTMLElement, node: Node, offset: number): num
 		if (Number.isFinite(start)) {
 			if (node === fragment.firstChild && node instanceof Text) {
 				const value = node.textContent ?? "";
-				let hiddenCharacters = 0;
-				if (offset > 0 && value.startsWith(EMPTY_CHARACTER)) hiddenCharacters += 1;
-				if (offset === value.length && value.length > 1 && value.endsWith(EMPTY_CHARACTER)) {
-					hiddenCharacters += 1;
-				}
-				return start + Math.max(0, offset - hiddenCharacters);
+				return start + getVisibleLength(value.slice(0, offset));
 			}
 			const range = document.createRange();
 			range.selectNodeContents(fragment);
@@ -104,6 +97,7 @@ const getOffsetBeforeNode = (root: HTMLElement, node: Node, offset: number): num
 const findTextPosition = (root: HTMLElement, requestedOffset: number): { node: Text; offset: number } | undefined => {
 	let lastPosition: { node: Text; offset: number } | undefined;
 	for (const fragment of root.querySelectorAll<HTMLElement>("[data-text-fragment]")) {
+		if (fragment.hasAttribute("data-editable-table-source")) continue;
 		const start = Number(fragment.dataset.start);
 		const node = fragment.firstChild;
 		if (!Number.isFinite(start) || !(node instanceof Text)) continue;
@@ -112,7 +106,7 @@ const findTextPosition = (root: HTMLElement, requestedOffset: number): { node: T
 		const visibleLength = getVisibleLength(value);
 		if (visibleLength === 0 && requestedOffset === start) return { node, offset: 0 };
 		if (requestedOffset >= start && requestedOffset < start + visibleLength) {
-			if (!value.startsWith(EMPTY_CHARACTER) && !value.endsWith(EMPTY_CHARACTER)) {
+			if (!value.includes(EMPTY_CHARACTER)) {
 				return { node, offset: requestedOffset - start };
 			}
 			let offset = 0;
@@ -147,6 +141,11 @@ const ensureEmptyTextPosition = (root: HTMLElement): CaretPosition | undefined =
 };
 
 export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
+	const history = createTextHistory();
+	const [tableHeights, setTableHeights] = createSignal<Record<number, number>>({});
+	let historyNoteId: string | undefined;
+	let pendingHistory: TextHistoryState | undefined;
+	let pendingHistoryKind = "replace";
 	const [contentRoot, setContentRoot] = createSignal<HTMLDivElement>();
 	const [draft, setDraft] = createSignal(props.element().text);
 	const [pendingCaret, setPendingCaret] = createSignal<number>();
@@ -179,7 +178,10 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	let contentHeightFrame: number | undefined;
 	let contentHeightObserver: ResizeObserver | undefined;
 	let enteredNoteId: string | undefined;
-	const hasTextFragments = createMemo(() => props.wraps().length > 0 || Boolean(props.element().paragraphAlignments?.length));
+	const hasTables = createMemo(() => parseFormattedText(draft()).some((block) => block.kind === "table"));
+	const tableFocus = new Map<number, () => void>();
+	let formatActiveTableCell: ((format: InlineTextFormat) => void) | undefined;
+	const hasTextFragments = createMemo(() => hasTables() || props.wraps().length > 0 || Boolean(props.element().paragraphAlignments?.length));
 	const measureCaret = (): void => {
 		const root = contentRoot();
 		const selection = getSelection();
@@ -336,6 +338,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		let font = current.font.replace(/([\d.]+)px/, (_match, size: string) => `${Number(size) * scale}px`);
 		if (run.bold || heading) font = font.replace(/\b\d{3}(?=\s+[\d.]+px)/, run.bold ? "700" : "600");
 		if (run.italic) font = font.replace(/^\S+/, "italic");
+		if (run.code) font = font.replace(/(px)\s+.+$/, `$1 ${codeFont}`);
 		if (context) context.font = font;
 		return (context?.measureText(run.text).width ?? run.text.length * 8 * scale) + Math.max(0, [...run.text].length - 1) * current.letterSpacing;
 	};
@@ -349,12 +352,14 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 				height: Math.max(currentMetrics.lineHeight, height()),
 			};
 		}
-		if (!props.editable) {
+		if (!props.editable || hasTables()) {
 			const formatted = layoutFormattedText({
 				text: draft(), x: x(), y: y(), width: width(), lineHeight: currentMetrics.lineHeight,
 				elements: props.wraps(), imageMargin: IMAGE_TEXT_MARGIN,
 				measureRun: measureFormattedRun, displayText,
 				alignment: alignment(), paragraphAlignments: props.element().paragraphAlignments,
+				tableHeights: tableHeights(),
+				rawText: props.editable, measureRawText: measureText,
 			});
 			return { ...formatted, height: Math.max(formatted.height, height()) };
 		}
@@ -467,6 +472,39 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	});
 
 	createEffect(syncEditableContent);
+	createEffect(() => {
+		const editable = props.editable;
+		const root = editable ? textSurface : contentRoot();
+		draft();
+		if (!root) return;
+		const observer = new ResizeObserver((entries) => {
+			setTableHeights((previous) => {
+				const next = { ...previous };
+				let changed = false;
+				for (const entry of entries) {
+					const table = entry.target as HTMLTableElement;
+					if (!table.isConnected) continue;
+					const sourceLine = Number(table.dataset.editableTable ?? table.dataset.formattedTable ?? table.dataset.formattedCode);
+					const height = Math.ceil(table.getBoundingClientRect().height);
+					if (next[sourceLine] !== height) { next[sourceLine] = height; changed = true; }
+				}
+				return changed ? next : previous;
+			});
+		});
+		const frame = requestAnimationFrame(() => {
+			for (const table of root.querySelectorAll<HTMLElement>(editable ? "[data-editable-table]" : "[data-formatted-table], [data-formatted-code]")) observer.observe(table);
+		});
+		onCleanup(() => { cancelAnimationFrame(frame); observer.disconnect(); });
+	});
+	createEffect(() => {
+		const noteId = props.element().id;
+		if (historyNoteId === noteId) return;
+		historyNoteId = noteId;
+		history.clear();
+		setTableHeights({});
+		pendingHistory = undefined;
+		pendingHistoryKind = "replace";
+	});
 
 	createEffect(() => {
 		const noteId = props.element().id;
@@ -611,7 +649,48 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		scheduleCaretMeasure();
 	});
 
-	const emitText = (text: string, caret?: number, change?: { start: number; end: number; length: number }): void => {
+	const captureHistory = (selection = selectionOffsets()): TextHistoryState => ({
+		text: draft(),
+		paragraphAlignments: props.element().paragraphAlignments?.slice(),
+		selection: { ...selection },
+		scrollTop: contentRoot()?.closest<HTMLElement>("[data-omega-scroll-viewport]")?.scrollTop ?? 0,
+	});
+
+	const restoreHistory = (state: TextHistoryState | undefined): void => {
+		pendingHistory = undefined;
+		pendingHistoryKind = "replace";
+		if (!state) return;
+		if (caretFrame !== undefined) cancelAnimationFrame(caretFrame);
+		caretFrame = undefined;
+		setPendingCaret(undefined);
+		setDraft(state.text);
+		props.onChange({ ...props.element(), text: state.text, paragraphAlignments: state.paragraphAlignments?.slice() });
+		syncEditableContent();
+		const root = contentRoot();
+		if (!root?.isContentEditable) return;
+		const anchor = findTextPosition(root, Math.min(state.selection.start, state.text.length)) || (!state.text ? ensureEmptyTextPosition(root) : undefined);
+		const focus = findTextPosition(root, Math.min(state.selection.end, state.text.length)) || anchor;
+		root.focus({ preventScroll: true });
+		if (anchor && focus) getSelection()?.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
+		const restoredTable = layout().fragments.find((fragment) => fragment.format?.block.kind === "table" && state.selection.start >= fragment.start && state.selection.start < fragment.end);
+		if (restoredTable) tableFocus.get(restoredTable.format!.block.sourceLine)?.();
+		rememberedSelection = { ...state.selection };
+		const viewport = root.closest<HTMLElement>("[data-omega-scroll-viewport]");
+		if (viewport) viewport.scrollTop = state.scrollTop;
+		caretFrame = requestAnimationFrame(() => {
+			caretFrame = undefined;
+			if (!root.isConnected || contentRoot() !== root || draft() !== state.text) return;
+			if (viewport) viewport.scrollTop = state.scrollTop;
+			scheduleCaretMeasure();
+		});
+		scheduleCaretMeasure();
+	};
+
+	const emitText = (text: string, caret?: number, change?: { start: number; end: number; length: number }, historySelection?: TextSelection): void => {
+		const before = pendingHistory ?? captureHistory();
+		const kind = pendingHistoryKind;
+		pendingHistory = undefined;
+		pendingHistoryKind = "replace";
 		const paragraphAlignments = remapParagraphAlignments(draft(), text, props.element().paragraphAlignments, alignment(), change);
 		if (caretFrame !== undefined) cancelAnimationFrame(caretFrame);
 		caretFrame = undefined;
@@ -630,6 +709,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			}
 		}
 		if (text !== props.element().text) props.onChange({ ...props.element(), text, paragraphAlignments });
+		history.record(before, { ...captureHistory(historySelection ?? (caret !== undefined ? { start: caret, end: caret } : selectionOffsets())), text, paragraphAlignments: paragraphAlignments?.slice() }, kind);
 	};
 
 	const selectionOffsets = (): { start: number; end: number } => {
@@ -649,17 +729,51 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		return { start: Math.min(anchor, focus), end: Math.max(anchor, focus) };
 	};
 
+	const touchesProtectedTable = (range: TextSelection, replacement = ""): boolean => range.start < range.end &&
+		layout().fragments.some((fragment) => {
+			if (fragment.format?.block.kind !== "table") return false;
+			if (range.start < fragment.end && range.end > fragment.start) return true;
+			if (range.end !== fragment.start || range.start >= fragment.start) return false;
+			// Blank lines can be removed; keep a separator from a preceding text paragraph.
+			const before = draft().slice(0, range.start) + replacement;
+			return Boolean(before) && !before.endsWith("\n");
+		});
+
+	const editableSourceText = (): string => {
+		const root = contentRoot();
+		if (!root) return draft();
+		return [...root.childNodes].map((node) => {
+			const text = node.textContent ?? "";
+			if (node instanceof HTMLElement && node.hasAttribute("data-before-table") &&
+				text.replaceAll(EMPTY_CHARACTER, "") && !text.endsWith("\n")) return text + "\n";
+			return text;
+		}).join("");
+	};
+
 	const replaceSelection = (
 		replacement: string,
 		range = selectionOffsets(),
 		caretInReplacement?: number,
 	): void => {
+		if (touchesProtectedTable(range, replacement)) {
+			pendingHistory = undefined;
+			pendingHistoryKind = "replace";
+			return;
+		}
+		pendingHistory ??= captureHistory();
 		const { start, end } = range;
-		const rawValue = contentRoot()?.textContent ?? draft();
+		const rawValue = editableSourceText();
 		const value = hasTextFragments() ? rawValue.replaceAll(EMPTY_CHARACTER, "") : stripEmptyCharacter(rawValue);
 		const normalizedReplacement = replacement.replaceAll(EMPTY_CHARACTER, "");
-		const next = value.slice(0, start) + normalizedReplacement + value.slice(end);
-		emitText(next, start + (caretInReplacement ?? normalizedReplacement.length), { start, end, length: normalizedReplacement.length });
+		const beforeTable = start === end && layout().fragments.some((fragment) => fragment.beforeTable && fragment.start === start);
+		const insertion = normalizedReplacement + (beforeTable && normalizedReplacement && !normalizedReplacement.endsWith("\n") ? "\n" : "");
+		const next = value.slice(0, start) + insertion + value.slice(end);
+		let caret = start + (caretInReplacement ?? normalizedReplacement.length);
+		if (!insertion && start < end && value[end - 1] === "\n") {
+			const tableAtCaret = parseFormattedText(next).some((block) => block.kind === "table" && paragraphStarts(next)[block.sourceLine] === caret);
+			if (tableAtCaret && caret > 0 && next[caret - 2] !== "\n") caret--;
+		}
+		emitText(next, caret, { start, end, length: insertion.length });
 	};
 	const linkSuggestions = useNoteLinkSuggestions({
 		notes: () => props.notes,
@@ -679,7 +793,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		if (composing) return;
 		const root = contentRoot();
 		if (!root) return;
-		const rawText = root.textContent ?? "";
+		const rawText = editableSourceText();
 		const text = hasTextFragments() ? rawText.replaceAll(EMPTY_CHARACTER, "") : stripEmptyCharacter(rawText);
 		const selection = getSelection();
 		const caret =
@@ -700,6 +814,56 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 
 	const handleBeforeInput = (event: InputEvent): void => {
 		if (!props.editable || composing || event.isComposing || !event.cancelable) return;
+		if (event.inputType === "historyUndo" || event.inputType === "historyRedo") {
+			event.preventDefault();
+			restoreHistory(event.inputType === "historyUndo" ? history.undo() : history.redo());
+			return;
+		}
+		pendingHistory = captureHistory();
+		pendingHistoryKind = event.inputType;
+		if (hasTables()) {
+			const range = selectionOffsets();
+			const tables = layout().fragments.filter((fragment) => fragment.format?.block.kind === "table");
+			if (event.inputType.startsWith("delete") && !["deleteContentBackward", "deleteContentForward"].includes(event.inputType)) {
+				const root = contentRoot();
+				const target = event.getTargetRanges?.()[0];
+				let deletion = { ...range };
+				if (root && target && root.contains(target.startContainer) && root.contains(target.endContainer)) {
+					deletion = { start: getOffsetBeforeNode(root, target.startContainer, target.startOffset), end: getOffsetBeforeNode(root, target.endContainer, target.endOffset) };
+				} else if (deletion.start === deletion.end && /Word|Line/.test(event.inputType)) {
+					const backward = event.inputType.endsWith("Backward");
+					if (/Word/.test(event.inputType)) {
+						if (backward) deletion.start -= draft().slice(0, deletion.start).match(/\s*\S+\s*$/)?.[0].length ?? 0;
+						else deletion.end += draft().slice(deletion.end).match(/^\s*\S+\s*/)?.[0].length ?? 0;
+					} else if (backward) deletion.start = draft().lastIndexOf("\n", deletion.start - 1) + 1;
+					else { const newline = draft().indexOf("\n", deletion.end); deletion.end = newline < 0 ? draft().length : newline + 1; }
+				}
+				if (touchesProtectedTable(deletion)) {
+					event.preventDefault();
+					pendingHistory = undefined;
+					return;
+				}
+			}
+			if (event.inputType === "insertText" && event.data !== null) {
+				event.preventDefault();
+				const atTableEnd = range.start === range.end && range.end === draft().length && tables.some((table) => table.end === range.end);
+				replaceSelection((atTableEnd ? "\n" : "") + event.data, range);
+				return;
+			}
+			if (event.inputType === "deleteContentBackward" || event.inputType === "deleteContentForward") {
+				event.preventDefault();
+				const backward = event.inputType === "deleteContentBackward";
+				let { start, end } = range;
+				if (start === end) {
+					const adjacent = tables.find((table) => backward ? table.end === start : table.start === end);
+					if (adjacent) { pendingHistory = undefined; return; }
+					else if (backward && start > 0) start -= draft().codePointAt(start - 2)! > 0xffff ? 2 : 1;
+					else if (!backward && end < draft().length) end += draft().codePointAt(end)! > 0xffff ? 2 : 1;
+				}
+				replaceSelection("", { start, end });
+				return;
+			}
+		}
 		const backward = event.inputType === "deleteContentBackward";
 		const forward = event.inputType === "deleteContentForward";
 		if (!backward && !forward) return;
@@ -732,7 +896,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			: directPosition?.node.parentElement;
 		if (directPosition && directParent?.closest("[data-text-fragment]")) return directPosition;
 
-		const fragments = [...root.querySelectorAll<HTMLElement>("[data-text-fragment]")];
+		const fragments = [...root.querySelectorAll<HTMLElement>("[data-text-fragment]:not([data-editable-table-source])")];
 		let nearest: HTMLElement | undefined;
 		let nearestDistance = Number.POSITIVE_INFINITY;
 
@@ -799,7 +963,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			offset += character.length;
 			checkOffset();
 		}
-		return { node, offset: nearestOffset };
+		return findTextPosition(root, Number(nearest.dataset.start) + nearestOffset) ?? { node, offset: nearestOffset };
 	};
 
 	const placeCaretAtPoint: CaretPlacement = (clientX, clientY): boolean => {
@@ -884,10 +1048,47 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		if (placeCaretAtPoint(event.clientX, event.clientY)) event.preventDefault();
 	};
 
+	const moveFromEmptyLine = (event: KeyboardEvent): boolean => {
+		if (!props.editable || props.locked || event.ctrlKey || event.metaKey || event.altKey ||
+			(event.key !== "ArrowUp" && event.key !== "ArrowDown")) return false;
+		const root = contentRoot();
+		const selection = getSelection();
+		if (!root || !selection?.focusNode || !selection.anchorNode || !root.contains(selection.focusNode) ||
+			(!selection.isCollapsed && !event.shiftKey)) return false;
+		const offset = getOffsetBeforeNode(root, selection.focusNode, selection.focusOffset);
+		const starts = paragraphStarts(draft());
+		const paragraph = paragraphIndexAt(starts, offset);
+		const end = starts[paragraph + 1] === undefined ? draft().length : starts[paragraph + 1]! - 1;
+		if (draft().slice(starts[paragraph], end).length) return false;
+		const previous = event.key === "ArrowUp";
+		const target = previous ? paragraph - 1 : paragraph + 1;
+		if (target < 0 || target >= starts.length) return false;
+		// From an empty line, Up lands at the end of the preceding line; Down at the next start.
+		const nextOffset = previous ? starts[paragraph]! - 1 : starts[target]!;
+		const table = layout().fragments.find((fragment) => fragment.format?.block.kind === "table" &&
+			nextOffset >= fragment.start && nextOffset < fragment.end);
+		if (table && !layout().fragments.some((fragment) => fragment.beforeTable && fragment.start === nextOffset)) return false;
+		const position = findTextPosition(root, nextOffset);
+		if (!position) return false;
+		event.preventDefault();
+		if (event.shiftKey) selection.setBaseAndExtent(selection.anchorNode, selection.anchorOffset, position.node, position.offset);
+		else selection.collapse(position.node, position.offset);
+		scheduleCaretMeasure();
+		return true;
+	};
+
 	const handleKeyDown = (event: KeyboardEvent): void => {
 		if (event.key !== "[" && !["Shift", "Alt", "AltGraph", "Control"].includes(event.key)) lastOpeningBracket = undefined;
 		if (!["Backspace", "Delete"].includes(event.key)) pendingBracketDeletion = undefined;
 		if (composing || event.isComposing) { lastOpeningBracket = undefined; pendingBracketDeletion = undefined; return; }
+		if (props.editable && !props.locked && (event.ctrlKey || event.metaKey) && !event.altKey && ["z", "y"].includes(event.key.toLowerCase())) {
+			event.preventDefault();
+			event.stopPropagation();
+			flushInput(false);
+			const redo = event.key.toLowerCase() === "y" || event.shiftKey;
+			restoreHistory(redo ? history.redo() : history.undo());
+			return;
+		}
 		if (props.editable && !props.locked && !event.ctrlKey && !event.metaKey && !event.altKey && ["Backspace", "Delete"].includes(event.key)) {
 			const previous = pendingBracketDeletion;
 			pendingBracketDeletion = undefined;
@@ -933,6 +1134,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			return;
 		}
 		if (props.editable && linkSuggestions.handleKeyDown(event)) return;
+		if (moveFromEmptyLine(event)) return;
 		if (props.editable && (event.ctrlKey || event.metaKey) && !event.altKey && ["b", "i"].includes(event.key.toLowerCase())) {
 			event.preventDefault();
 			applyFormatting(event.key.toLowerCase() === "b" ? "bold" : "italic");
@@ -993,20 +1195,34 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	};
 
 	const applyFormatting: TextFormatHandler = (format) => {
+		if (document.activeElement?.closest("[data-editable-table]")) {
+			if (props.editable && !props.locked && ["bold", "italic", "strike", "highlight", "code"].includes(format)) formatActiveTableCell?.(format as InlineTextFormat);
+			return;
+		}
 		const root = contentRoot();
 		if (!props.editable || !root || composing) return;
 		const selection = getSelection();
 		const range = selection?.anchorNode && root.contains(selection.anchorNode)
 			? selectionOffsets()
 			: rememberedSelection ?? { start: draft().length, end: draft().length };
-		const result = formatSelection(draft(), range, format);
-		emitText(result.text, result.selection.start);
+		if (touchesProtectedTable(range)) return;
+		const boundary = range.start === range.end && layout().fragments.some((fragment) => fragment.beforeTable && fragment.start === range.start);
+		const value = boundary ? draft().slice(0, range.start) + "\n" + draft().slice(range.start) : draft();
+		const result = formatSelection(value, range, format, { tableColumnLabel: props.t("tableColumn") });
+		pendingHistory = captureHistory(range);
+		pendingHistoryKind = "format";
+		emitText(result.text, result.selection.start, undefined, result.selection);
+		if (format === "table") queueMicrotask(() => {
+			const table = layout().fragments.find((fragment) => fragment.format?.block.kind === "table" && result.selection.start >= fragment.start && result.selection.start < fragment.end);
+			if (table) tableFocus.get(table.format!.block.sourceLine)?.();
+		});
 		const anchor = findTextPosition(root, result.selection.start);
 		const focus = findTextPosition(root, result.selection.end);
 		if (anchor && focus && selection) selection.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
 		rememberedSelection = result.selection;
 	};
 	const applyAlignment: ParagraphAlignmentHandler = (value) => {
+		if (document.activeElement?.closest("[data-editable-table]")) return;
 		const root = contentRoot();
 		if (!props.editable || !root || composing) return;
 		const selection = getSelection();
@@ -1014,8 +1230,10 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			root.contains(selection.anchorNode) && root.contains(selection.focusNode)
 			? selectionOffsets() : rememberedSelection ?? { start: draft().length, end: draft().length };
 		flushInput(false);
+		const before = captureHistory(range);
 		const next = alignParagraphSelection({ ...props.element(), text: draft() }, range, value);
 		props.onChange(next);
+		history.record(before, { ...captureHistory(range), paragraphAlignments: next.paragraphAlignments?.slice() }, "alignment");
 		syncEditableContent();
 		const anchor = findTextPosition(root, range.start);
 		const focus = findTextPosition(root, range.end);
@@ -1024,6 +1242,63 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		rememberedSelection = range;
 		props.onSelectionAlignmentChange?.(value);
 		scheduleCaretMeasure();
+	};
+
+	const toggleTask = (sourceLine: number, checked: boolean): void => {
+		if (props.locked) return;
+		const lines = draft().split("\n");
+		const line = lines[sourceLine];
+		const marker = line?.match(/^([ \t]*-[ \t]+)\[([ xX]?)\](?=[ \t]|$)/);
+		if (!line || !marker) return;
+		const start = (paragraphStarts(draft())[sourceLine] ?? 0) + marker[1]!.length;
+		const end = start + marker[2]!.length + 2;
+		const replacement = checked ? "[x]" : "[ ]";
+		pendingHistory = captureHistory({ start, end: start });
+		pendingHistoryKind = "task-toggle";
+		emitText(draft().slice(0, start) + replacement + draft().slice(end), undefined, { start, end, length: replacement.length });
+	};
+
+	const updateTable = (block: TableBlock, replacement: string, kind = "table-structure"): void => {
+		if (!props.editable || props.locked) return;
+		const starts = paragraphStarts(draft());
+		const start = starts[block.sourceLine];
+		if (start === undefined || draft().slice(start, start + block.text.length) !== block.text) return;
+		const end = start + block.text.length;
+		pendingHistory = captureHistory({ start, end: start });
+		pendingHistoryKind = kind;
+		emitText(draft().slice(0, start) + replacement + draft().slice(end), undefined, { start, end, length: replacement.length }, { start, end: start });
+	};
+	const deleteTable = (block: TableBlock): void => {
+		if (!props.editable || props.locked) return;
+		const start = paragraphStarts(draft())[block.sourceLine];
+		if (start === undefined || draft().slice(start, start + block.text.length) !== block.text) return;
+		const end = start + block.text.length + Number(draft()[start + block.text.length] === "\n");
+		if (document.activeElement instanceof HTMLTextAreaElement) document.activeElement.blur();
+		pendingHistory = captureHistory({ start, end: start });
+		pendingHistoryKind = "table-delete";
+		emitText(draft().slice(0, start) + draft().slice(end), start, { start, end, length: 0 });
+	};
+
+	const exitTable = (block: TableBlock, after: boolean): void => {
+		const start = paragraphStarts(draft())[block.sourceLine] ?? 0;
+		let offset = after ? start + block.text.length : Math.max(0, start - 1);
+		if (!after && start === 0) {
+			pendingHistory = captureHistory();
+			emitText("\n" + draft(), undefined);
+		}
+		if (after && draft()[offset] === "\n") offset++;
+		else if (after) {
+			pendingHistory = captureHistory();
+			emitText(draft() + "\n", undefined);
+			offset++;
+		}
+		const root = contentRoot();
+		const position = root && findTextPosition(root, offset);
+		if (root && position) {
+			root.focus({ preventScroll: true });
+			getSelection()?.collapse(position.node, position.offset);
+			scheduleCaretMeasure();
+		}
 	};
 
 	onMount(() => props.onFormattingReady?.(applyFormatting));
@@ -1042,6 +1317,12 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 
 	return {
 		layout,
+		tableFragments: createMemo(() => layout().fragments.filter((fragment) => fragment.format?.block.kind === "table")),
+		toggleTask,
+		updateTable, deleteTable, exitTable,
+		formatTableCell: formatSelection,
+		registerTableFormatting: (handler?: (format: InlineTextFormat) => void) => { formatActiveTableCell = handler; },
+		registerTableFocus: (line: number, focus?: () => void) => { if (focus) tableFocus.set(line, focus); else tableFocus.delete(line); },
 		caret,
 		caretAnchor,
 		linkSuggestions,
@@ -1066,7 +1347,23 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		handleKeyUp,
 		handleBlur,
 		handlePaste,
-		startComposition: () => { lastOpeningBracket = undefined; pendingBracketDeletion = undefined; composing = true; setCaretOffset(undefined); },
+		handleCut: (event: ClipboardEvent) => {
+			if (!props.editable || !event.clipboardData) return;
+			const range = selectionOffsets();
+			if (range.start === range.end) return;
+			event.preventDefault();
+			if (touchesProtectedTable(range)) return;
+			event.clipboardData.setData("text/plain", draft().slice(range.start, range.end));
+			replaceSelection("", range);
+		},
+		handleCopy: (event: ClipboardEvent) => {
+			if (!props.editable || !event.clipboardData) return;
+			const range = selectionOffsets();
+			if (range.start === range.end) return;
+			event.preventDefault();
+			event.clipboardData.setData("text/plain", draft().slice(range.start, range.end));
+		},
+		startComposition: () => { pendingHistory = captureHistory(); pendingHistoryKind = "composition"; lastOpeningBracket = undefined; pendingBracketDeletion = undefined; composing = true; setCaretOffset(undefined); },
 		handleCompositionEnd,
 	};
 };

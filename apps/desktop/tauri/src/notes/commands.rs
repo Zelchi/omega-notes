@@ -48,6 +48,19 @@ pub(crate) fn delete_note(app: AppHandle, note_id: String) -> Result<Vec<NoteLoa
     library::delete_note(&|| runtime::notes_and_backups_dirs(&app), note_id)
 }
 
+#[tauri::command]
+pub(crate) fn list_deleted_notes(app: AppHandle) -> Result<Vec<StudyNote>, String> {
+    library::list_deleted_notes(&|| runtime::notes_and_backups_dirs(&app))
+}
+
+#[tauri::command]
+pub(crate) fn restore_deleted_note(
+    app: AppHandle,
+    note_id: String,
+) -> Result<NoteSaveResult, String> {
+    library::restore_deleted_note(&|| runtime::notes_and_backups_dirs(&app), note_id)
+}
+
 fn rename_error_message(error: library::RenameNoteError) -> String {
     use library::RenameNoteError;
 

@@ -3,6 +3,8 @@ import {
 	createNote as createNoteRecord,
 	deleteNote as deleteNoteRecord,
 	listNotes,
+	listDeletedNotes,
+	restoreDeletedNote,
 	renameNote as renameNoteRecord,
 	saveNote,
 	setNotesVaultId,
@@ -189,16 +191,29 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		return true;
 	};
 
-	const remove = async (note: StudyNote): Promise<void> => {
-		if (!(await flushSave())) return;
+	const remove = async (note: StudyNote): Promise<boolean> => {
+		const vaultId = activeVaultId();
+		if (!(await flushSave()) || vaultId !== activeVaultId()) return false;
 		await saveQueue;
 		try {
 			const cleanupIssues = await deleteNoteRecord(note.id);
 			setNotes((current) => current.filter((item) => item.id !== note.id));
 			reportCleanupIssues(cleanupIssues);
+			return true;
 		} catch (error) {
 			console.error(error);
+			throw error;
 		}
+	};
+
+	const restore = async (noteId: string): Promise<StudyNote> => {
+		const vaultId = activeVaultId();
+		if (!(await flushSave()) || vaultId !== activeVaultId()) throw new Error("SAVE_FAILED");
+		await saveQueue;
+		const result = await restoreDeletedNote(noteId);
+		setNotes((current) => [result.note, ...current.filter((note) => note.id !== noteId)]);
+		reportCleanupIssues(result.cleanupIssues);
+		return result.note;
 	};
 
 	const reportCleanupIssues = (issues: NoteLoadIssue[]): void => {
@@ -227,6 +242,8 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		create,
 		rename,
 		remove,
+		restore,
+		listDeleted: listDeletedNotes,
 		updateDocument,
 	};
 };

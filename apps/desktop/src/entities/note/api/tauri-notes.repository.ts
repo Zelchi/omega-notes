@@ -17,3 +17,8 @@ export const saveNote = (note: StudyNote): Promise<NoteSaveResult> =>
 
 export const deleteNote = (noteId: string): Promise<NoteLoadIssue[]> =>
 	invoke<NoteLoadIssue[]>("delete_note", { noteId });
+
+export const listDeletedNotes = (): Promise<StudyNote[]> => invoke("list_deleted_notes");
+
+export const restoreDeletedNote = (noteId: string): Promise<NoteSaveResult> =>
+	invoke("restore_deleted_note", { noteId });

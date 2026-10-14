@@ -18,6 +18,6 @@ export type AiEvent = {
     success?: boolean;
 };
 export type ChatMessage = { id: string; role: "user" | "assistant"; text: string; items?: Record<string, string> };
-export type VaultChat = { messages: ChatMessage[]; draft: string; model: string; effort: string; fast: boolean; busy: boolean; requestId?: string; error?: string };
+export type VaultChat = { messages: ChatMessage[]; referenceTitles: Record<string, string>; draft: string; model: string; effort: string; fast: boolean; busy: boolean; requestId?: string; error?: string };
 
-export type StoredChat = Pick<VaultChat, "messages" | "draft" | "model" | "effort" | "fast">;
+export type StoredChat = Pick<VaultChat, "messages" | "referenceTitles" | "draft" | "model" | "effort" | "fast">;

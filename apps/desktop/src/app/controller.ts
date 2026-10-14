@@ -1,3 +1,5 @@
+import { useCreateNoteFromLink } from "@/features/create-note-from-link";
+import { useCanvasHistory } from "@/features/undo-canvas-edit";
 import { useNotes, type StudyNote } from "@/entities/note";
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { translate, type TranslationKey } from "@/shared/lib/i18n";
@@ -23,7 +25,8 @@ export const useAppController = () => {
 		return saveAiChats ? saveAiChats() : true;
 	};
 	const windowControls = useWindowControls(beforeShutdown, t);
-	const aiChat = useAiChat({ provider: defaultAiProvider, enabled: preferences.aiFeaturesEnabled, vaultId: vaults.activeVaultId, beforeSend: beforeShutdown, t });
+	const aiChat = useAiChat({ provider: defaultAiProvider, enabled: preferences.aiFeaturesEnabled, vaultId: vaults.activeVaultId,
+		notes: notes.notes, notesReady: () => !notes.loading() && notes.hasLoadedVault(), beforeSend: beforeShutdown, t });
 	saveAiChats = aiChat.flushSave;
 	const [settingsOpen, setSettingsOpen] = createSignal(false);
 	const [vaultActionPending, setVaultActionPending] = createSignal(false);
@@ -33,8 +36,22 @@ export const useAppController = () => {
 		centerCanvasOnLaunch: preferences.centerCanvasOnLaunch,
 		t,
 	});
+	const canvasHistory = useCanvasHistory({
+		vaultId: vaults.activeVaultId,
+		notes,
+		setLayout: preferences.setCanvasLayout,
+		enabled: () => navigation.route() === "canvas" && navigation.mode() === "edit" &&
+			!notes.loading() && !navigation.nameDialog() && !vaults.dialogOpen() && !settingsOpen() &&
+			!aiChat.open() && !vaultActionPending() && !updates.installing() && !notes.loadIssues().length,
+	});
+	const noteReferences = useCreateNoteFromLink({
+		notes, vaultId: vaults.activeVaultId, sourceNoteId: () => navigation.selectedNote()?.id,
+		enabled: () => !notes.loading() && !vaultActionPending() && !canvasHistory.pending() &&
+			!navigation.nameDialog() && !vaults.dialogOpen() && !updates.installing(),
+		beforeOpen: beforeShutdown, onOpenNote: navigation.openNote,
+	});
 	const updates = useUpdatesController(beforeShutdown, () =>
-		!navigation.nameDialog() && !vaults.dialogOpen() && !vaults.saving() && !vaultActionPending(),
+		!navigation.nameDialog() && !vaults.dialogOpen() && !vaults.saving() && !vaultActionPending() && !canvasHistory.pending() && !noteReferences.pending(),
 	);
 	const temporaryReading = useTemporaryNoteReading({
 		mode: navigation.mode,
@@ -68,7 +85,7 @@ export const useAppController = () => {
 	});
 
 	const selectVault = async (vault: Vault): Promise<void> => {
-		if (vaultActionPending()) return;
+		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.nameDialog()) return;
 		setVaultActionPending(true);
 		try {
 			if (!(await notes.flushSave())) return;
@@ -87,7 +104,7 @@ export const useAppController = () => {
 		await navigation.openNote(current);
 	};
 	const createVault = async (name: string): Promise<boolean> => {
-		if (vaultActionPending()) return false;
+		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.nameDialog()) return false;
 		setVaultActionPending(true);
 		try {
 			return await vaults.create(name);
@@ -96,7 +113,7 @@ export const useAppController = () => {
 		}
 	};
 	const renameVault = async (vault: Vault, name: string): Promise<boolean> => {
-		if (vaultActionPending()) return false;
+		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.nameDialog()) return false;
 		setVaultActionPending(true);
 		try {
 			if (!(await notes.flushSave())) return false;
@@ -106,7 +123,7 @@ export const useAppController = () => {
 		}
 	};
 	const deleteVault = async (vault: Vault): Promise<boolean> => {
-		if (vaultActionPending()) return false;
+		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.nameDialog()) return false;
 		setVaultActionPending(true);
 		try {
 			if (!(await notes.flushSave())) return false;
@@ -116,6 +133,8 @@ export const useAppController = () => {
 		}
 	};
 	return {
+		noteReferences,
+		canvasHistory,
 		aiChat,
 		openAiNote,
 		updates,

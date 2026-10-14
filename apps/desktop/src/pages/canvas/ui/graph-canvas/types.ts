@@ -1,3 +1,4 @@
+import type { CanvasSnapshot, CanvasRestore } from "@/features/undo-canvas-edit";
 import type { Point } from "../../model/graph";
 import type { StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
@@ -6,6 +7,12 @@ export type { Edge, GraphState, NodeSize, Point, View } from "../../model/graph"
 
 export type GraphCanvasProps = {
 	mode: "edit" | "view";
+	busy: boolean;
+	restoration?: CanvasRestore;
+	onRegisterHistory: (reader?: () => CanvasSnapshot) => void;
+	onHistoryRestored: () => void;
+	onNoteCreated: (note: StudyNote, before: CanvasSnapshot, after: CanvasSnapshot) => void;
+	onNotesMoved: (before: CanvasSnapshot, after: CanvasSnapshot) => void;
 	notes: StudyNote[];
 	onCreateNote: () => Promise<StudyNote | undefined>;
 	onOpenNote: (note: StudyNote) => void;
@@ -26,6 +33,7 @@ export type Gesture = {
 	originY: number;
 	button: number;
 	nodeOrigins?: Record<string, Point>;
+	beforePositions?: Record<string, Point>;
 	selection?: {
 		baseline: Set<string>;
 		additive: boolean;

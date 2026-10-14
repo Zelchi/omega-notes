@@ -6,13 +6,16 @@ import { readConnectedProvider, saveConnectedProvider, forgetConnectedProvider }
 import type { AiProvider } from "../api/ai-provider";
 import type { AiEvent, AiModel, AiStatus, StoredChat, VaultChat } from "@/entities/ai";
 import { MAX_CHAT_MESSAGES } from "@/entities/ai";
+import { createNoteReferenceNormalizer, parseNoteTextLinks, type StudyNote } from "@/entities/note";
 
-const emptyChat = (): VaultChat => ({ messages: [], draft: "", model: "", effort: "", fast: false, busy: false });
+const emptyChat = (): VaultChat => ({ messages: [], referenceTitles: {}, draft: "", model: "", effort: "", fast: false, busy: false });
 
 export const useAiChat = (options: {
     provider: AiProvider;
     enabled: Accessor<boolean>;
     vaultId: Accessor<string | undefined>;
+    notes: Accessor<StudyNote[]>;
+    notesReady: Accessor<boolean>;
     beforeSend: () => Promise<boolean>;
     t: (key: TranslationKey) => string;
 }) => {
@@ -53,6 +56,30 @@ export const useAiChat = (options: {
     const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
     const writes = new Map<string, Promise<void>>();
     const dirty = new Set<string>();
+    const referenceNormalizers = new Map<string, ReturnType<typeof createNoteReferenceNormalizer>>();
+    const [referencesRevision, setReferencesRevision] = createSignal(0);
+    const normalizeReferences = (id: string, text: string) => referenceNormalizers.get(id)?.normalize(text) ?? text;
+
+    const referenceTitlesFor = (id: string, texts: string[], previous: Record<string, string>): Record<string, string> => {
+        const result: Record<string, string> = {};
+        for (const text of texts) for (const link of parseNoteTextLinks(text)) {
+            if (link.kind !== "note") continue;
+            const title = referenceNormalizers.get(id)?.title(link.target) ?? previous[link.target];
+            if (typeof title === "string") result[link.target] = title;
+        }
+        return result;
+    };
+
+    createEffect(() => {
+        if (!options.enabled() || !options.notesReady()) return;
+        const id = options.vaultId();
+        if (!id) return;
+        const existing = referenceNormalizers.get(id);
+        const normalizer = existing ?? createNoteReferenceNormalizer();
+        const changed = normalizer.bind(options.notes());
+        referenceNormalizers.set(id, normalizer);
+        if (changed || !existing) setReferencesRevision((revision) => revision + 1);
+    });
     const storageError = (id: string, key: TranslationKey) => {
         if (!disposed && !resetting() && options.vaultId() === id) setError(options.t(key));
     };
@@ -62,7 +89,8 @@ export const useAiChat = (options: {
         const current = untrack(() => chats()[id]);
         if (!options.enabled() || !isTauriRuntime() || !loaded.has(id) || !current) return Promise.resolve();
         const snapshot: StoredChat = {
-            messages: current.messages.map(({ id, role, text }) => ({ id, role, text })),
+            messages: current.messages.map(({ id: messageId, role, text }) => ({ id: messageId, role, text: normalizeReferences(id, text) })),
+            referenceTitles: referenceTitlesFor(id, current.messages.map((message) => normalizeReferences(id, message.text)), current.referenceTitles),
             draft: current.draft, model: current.model, effort: current.effort, fast: current.fast,
         };
         const write = (writes.get(id) ?? Promise.resolve()).catch(() => undefined)
@@ -92,8 +120,8 @@ export const useAiChat = (options: {
         setLoading((current) => [...current, id]);
         const load = repository.readAiChat(id, provider.id).then((stored) => {
             if (disposed || revision !== storageRevision || !options.enabled()) return;
-            setChats((current) => ({ ...current, [id]: { ...emptyChat(), ...stored } }));
             loaded.add(id);
+            setChats((current) => ({ ...current, [id]: { ...emptyChat(), ...stored } }));
         }).catch((failure) => {
             if (revision === storageRevision) storageError(id, "aiHistoryReadFailed");
             throw failure;
@@ -113,6 +141,26 @@ export const useAiChat = (options: {
         });
         scheduleSave(id);
     };
+
+    createEffect(() => {
+        referencesRevision();
+        const id = options.vaultId();
+        const current = chat();
+        if (!id || !options.enabled() || !referenceNormalizers.has(id)) return;
+        let changed = false;
+        const messages = current.messages.map((message) => {
+            const text = normalizeReferences(id, message.text);
+            const items = message.items && Object.fromEntries(Object.entries(message.items).map(([key, value]) => [key, normalizeReferences(id, value)]));
+            if (text === message.text && (!items || Object.entries(items).every(([key, value]) => value === message.items?.[key]))) return message;
+            changed = true;
+            return { ...message, text, items };
+        });
+        const referenceTitles = referenceTitlesFor(id, messages.map((message) => message.text), current.referenceTitles);
+        const previous = current.referenceTitles;
+        const titlesChanged = Object.keys(referenceTitles).length !== Object.keys(previous).length ||
+            Object.entries(referenceTitles).some(([target, title]) => previous[target] !== title);
+        if (changed || titlesChanged) untrack(() => patchChat(id, (value) => ({ ...value, messages, referenceTitles })));
+    });
 
     const refresh = async () => {
         const revision = connectionRevision;
@@ -152,7 +200,8 @@ export const useAiChat = (options: {
                 ...current, messages: current.messages.map((message) => {
                     if (message.id !== event.requestId || message.role !== "assistant") return message;
                     const itemId = event.itemId ?? "answer";
-                    const items = { ...message.items, [itemId]: event.kind === "message" ? event.text ?? "" : (message.items?.[itemId] ?? "") + (event.text ?? "") };
+                    const itemText = event.kind === "message" ? event.text ?? "" : (message.items?.[itemId] ?? "") + (event.text ?? "");
+                    const items = { ...message.items, [itemId]: normalizeReferences(id, itemText) };
                     return { ...message, items, text: Object.values(items).join("\n\n") };
                 })
             };
@@ -186,6 +235,7 @@ export const useAiChat = (options: {
         setStatus({ connected: false, authenticated: false });
         setModels([]);
         setChats({});
+        referenceNormalizers.clear();
         setError(undefined);
         setCleanupError(undefined);
         setResetting(true);
@@ -275,7 +325,7 @@ export const useAiChat = (options: {
         const id = options.vaultId();
         const current = chat();
         const submittedDraft = current.draft;
-        const text = submittedDraft.trim();
+        const text = id ? normalizeReferences(id, submittedDraft.trim()) : submittedDraft.trim();
         if (!options.enabled() || !id || !text || pending() || sending() || !status().authenticated || !ready()) return;
         if (current.busy && (!provider.steer || !current.requestId)) return;
         const requestId = crypto.randomUUID();

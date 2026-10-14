@@ -31,6 +31,79 @@ fn rewrite_resolved_text_links(
     notes_by_id: &HashMap<String, String>,
     notes_by_title: &HashMap<String, String>,
 ) -> String {
+    let mut fence_length = 0;
+    let mut result = String::with_capacity(content.len());
+    for line in content.split_inclusive('\n') {
+        let trimmed = line.trim_start_matches([' ', '\t']);
+        let ticks = trimmed.bytes().take_while(|byte| *byte == b'`').count();
+        let fence = ticks >= 3 && !trimmed[ticks..].contains('`');
+        if fence_length > 0 {
+            if fence && ticks >= fence_length && trimmed[ticks..].trim().is_empty() {
+                fence_length = 0;
+            }
+            result.push_str(line);
+            continue;
+        }
+        if fence {
+            fence_length = ticks;
+            result.push_str(line);
+            continue;
+        }
+        let rewrite = |prose: &str| {
+            rewrite_prose_links(
+                prose,
+                previous_title,
+                next_title,
+                renamed_id,
+                notes_by_id,
+                notes_by_title,
+            )
+        };
+        let mut cursor = 0;
+        while let Some(relative_start) = line[cursor..].find('`') {
+            let start = cursor + relative_start;
+            result.push_str(&rewrite(&line[cursor..start]));
+            let length = line[start..]
+                .bytes()
+                .take_while(|byte| *byte == b'`')
+                .count();
+            let mut search = start + length;
+            let mut end = None;
+            while let Some(relative_close) = line[search..].find('`') {
+                let close = search + relative_close;
+                let closing_length = line[close..]
+                    .bytes()
+                    .take_while(|byte| *byte == b'`')
+                    .count();
+                search = close + closing_length;
+                if closing_length == length {
+                    end = Some(search);
+                    break;
+                }
+            }
+            if let Some(end) = end {
+                result.push_str(&line[start..end]);
+                cursor = end;
+            } else {
+                // An unfinished span stays literal while the user is typing.
+                result.push_str(&line[start..]);
+                cursor = line.len();
+                break;
+            }
+        }
+        result.push_str(&rewrite(&line[cursor..]));
+    }
+    result
+}
+
+fn rewrite_prose_links(
+    content: &str,
+    previous_title: &str,
+    next_title: &str,
+    renamed_id: &str,
+    notes_by_id: &HashMap<String, String>,
+    notes_by_title: &HashMap<String, String>,
+) -> String {
     let previous_key = normalize_name(previous_title);
     let mut rewritten = String::with_capacity(content.len());
     let mut cursor = 0;

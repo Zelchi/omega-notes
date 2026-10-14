@@ -49,6 +49,8 @@ pub fn run() {
             notes::commands::save_note,
             notes::commands::rename_note,
             notes::commands::delete_note,
+            notes::commands::list_deleted_notes,
+            notes::commands::restore_deleted_note,
             images::commands::import_note_image,
             images::commands::import_clipboard_image,
             images::commands::read_note_image,

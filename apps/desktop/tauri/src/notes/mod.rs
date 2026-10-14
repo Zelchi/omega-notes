@@ -1,4 +1,5 @@
 pub(crate) mod commands;
+mod deleted;
 mod document;
 mod links;
 mod models;
@@ -6,6 +7,10 @@ mod repository;
 mod services;
 mod validation;
 
+pub(crate) use deleted::{
+    archive_deleted_note, deleted_notes, deleted_notes_directory, prune_deleted_notes,
+    remove_deleted_note,
+};
 pub(crate) use document::{
     audio_ids_in_document, empty_document, image_ids_in_document, video_ids_in_document,
 };

@@ -31,9 +31,21 @@ orientação ao trabalho em andamento, usando `turn/steer`; o botão de parar
 permanece separado e cancela a resposta. Se a resposta já tiver terminado,
 a mensagem inicia uma nova resposta. No cabeçalho, o X oculta o painel.
 
-Referências como `[[Nome da nota]]` aparecem como links sublinhados no chat.
-Clique para abrir a nota do vault atual mantendo o chat ao lado. Também são aceitas
-referências por ID e com um nome de exibição, como `[[ID|Nome da nota]]`.
+As referências são armazenadas como `[[ID]]` e aparecem como links sublinhados
+com o título atual da nota. Clique para abrir a nota do vault atual mantendo o
+chat ao lado. Renomear a nota não altera o destino do link. Para um nome de
+exibição personalizado, use `[[ID|Nome de exibição]]`.
+O histórico guarda também o último título conhecido das notas referenciadas.
+Apagar uma nota mantém esse nome na conversa, sem link clicável; restaurar a
+mesma nota reativa o link. Nomes personalizados são preservados. Esses títulos
+ficam no arquivo de chat do respectivo provedor e vault, junto com as mensagens,
+e são descartados quando não há mais mensagens que referenciem a nota.
+Referências por título que possam ser resolvidas no vault são convertidas para
+ID ao carregar ou receber mensagens e antes de salvar o histórico.
+
+Mensagens também exibem listas numeradas, citações, texto riscado, marca-texto e
+código. Trechos entre crases e blocos cercados por três crases são literais:
+formatação e referências dentro deles não viram links.
 
 O chat entra e sai pela direita. Clique novamente no ícone da barra, no botão de
 fechar ou use Escape para ocultá-lo. As notas e o canvas continuam acessíveis

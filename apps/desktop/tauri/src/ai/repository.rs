@@ -1,6 +1,7 @@
 use crate::{app::runtime, storage::atomic_write, vaults};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
     sync::Mutex,
@@ -45,6 +46,8 @@ pub(crate) struct Message {
 #[derive(Default, Deserialize, Serialize)]
 pub(crate) struct Chat {
     pub messages: Vec<Message>,
+    #[serde(default, rename = "referenceTitles")]
+    pub reference_titles: HashMap<String, String>,
     pub draft: String,
     pub model: String,
     pub effort: String,

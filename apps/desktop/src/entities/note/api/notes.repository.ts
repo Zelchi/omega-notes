@@ -21,3 +21,9 @@ export const saveNote = (note: StudyNote): Promise<NoteSaveResult> =>
 
 export const deleteNote = (noteId: string): Promise<NoteLoadIssue[]> =>
 	isTauriRuntime() ? tauriNotesRepository.deleteNote(noteId) : browserNotesRepository.deleteNote(noteId);
+
+export const listDeletedNotes = (): Promise<StudyNote[]> =>
+	isTauriRuntime() ? tauriNotesRepository.listDeletedNotes() : browserNotesRepository.listDeletedNotes();
+
+export const restoreDeletedNote = (noteId: string): Promise<NoteSaveResult> =>
+	isTauriRuntime() ? tauriNotesRepository.restoreDeletedNote(noteId) : browserNotesRepository.restoreDeletedNote(noteId);

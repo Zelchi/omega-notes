@@ -11,6 +11,7 @@ export type NoteEditorProps = {
 	onTitleChange: (title: string) => Promise<boolean>;
 	onDocumentChange: (document: NoteDocument) => void;
 	onOpenNote: (note: StudyNote) => void;
+	onOpenMissingNote: (target: string) => void;
 };
 
 export const useNoteEditorController = (props: NoteEditorProps) => {

@@ -56,6 +56,7 @@ const NoteEditor: Component<NoteEditorProps> = (props) => {
 				t={props.t}
 				onChange={props.onDocumentChange}
 				onOpenNote={props.onOpenNote}
+					onOpenMissingNote={props.onOpenMissingNote}
 				onPositioningChange={editor.setPositioningElement}
 			/>
 		</section>

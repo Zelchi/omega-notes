@@ -33,6 +33,14 @@ export class ForceLayout {
 		return true;
 	}
 
+	restorePositions(positions: Record<string, Point>): void {
+		for (const [id, point] of Object.entries(positions)) {
+			const body = this.bodies.get(id);
+			if (body) Object.assign(body, point, { vx: 0, vy: 0, fixed: undefined });
+		}
+		this.wake();
+	}
+
 	wake(): void { this.alpha = 1; }
 	get active(): boolean { return this.alpha > 0.015; }
 

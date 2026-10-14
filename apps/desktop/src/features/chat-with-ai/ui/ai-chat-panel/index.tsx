@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createMemo, untrack, onCleanup, type Component } from "solid-js";
-import { createNoteTitleIndex, normalizeNoteTitle, resolveNoteReference, type StudyNote } from "@/entities/note";
+import { normalizeNoteTitle, type StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import Icon from "@/shared/ui/icon";
 import Dropdown from "@/shared/ui/dropdown";
@@ -66,8 +66,7 @@ const ChatBody: Component<Props> = (props) => {
     const messagesById = createMemo(() => new Map(props.aiChat.chat().messages.map((message) => [message.id, message])));
     const messageIds = createMemo(() => props.aiChat.chat().messages.map((message) => message.id));
     const notesById = createMemo(() => new Map(props.notes.map((note) => [normalizeNoteTitle(note.id), note])));
-    const notesByTitle = createMemo(() => createNoteTitleIndex(props.notes));
-    const resolveNote = (target: string) => resolveNoteReference(target, notesById(), notesByTitle());
+    const resolveNote = (target: string) => notesById().get(normalizeNoteTitle(target));
     let messages: HTMLDivElement | undefined;
     let scrollFrame = 0;
     let follow = true;
@@ -150,8 +149,9 @@ const ChatBody: Component<Props> = (props) => {
                     const message = () => messagesById().get(id) ?? initial;
                     return <div class={`${styles.message} ${message().role === "user" ? styles.user : styles.assistant}`}>
                         <span class={styles.role}>{message().role === "user" ? props.t("aiYou") : props.aiChat.provider.name}</span>
-                        <ChatMessageText
+                        <ChatMessageText t={props.t}
                             text={message().text || (id === props.aiChat.chat().requestId && props.aiChat.chat().busy ? props.t("aiThinking") : props.t("aiNoResponse"))}
+                            referenceTitles={props.aiChat.chat().referenceTitles}
                             resolveNote={resolveNote}
                             onOpenNote={props.onOpenNote}
                         />

@@ -6,7 +6,7 @@ import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import type { NoteTextAlignment } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { cx } from "@/shared/lib/classes";
-import Icon from "@/shared/ui/icon";
+import Icon, { type IconName } from "@/shared/ui/icon";
 import { styles } from "./style.css.ts";
 import type { TextFormat } from "@/features/format-text";
 
@@ -30,6 +30,17 @@ const alignmentButtons: {
 	{ value: "center", icon: "alignCenter", label: "alignTextCenter" },
 	{ value: "justify", icon: "alignJustify", label: "alignTextJustify" },
 	{ value: "right", icon: "alignRight", label: "alignTextRight" },
+];
+
+const extraFormats: { format: TextFormat; icon: IconName; label: TranslationKey }[] = [
+	{ format: "strike", icon: "strike", label: "strikethrough" },
+	{ format: "highlight", icon: "highlight", label: "highlightText" },
+	{ format: "bullet-list", icon: "bulletList", label: "bulletList" },
+	{ format: "ordered-list", icon: "orderedList", label: "orderedList" },
+	{ format: "quote", icon: "quote", label: "blockquote" },
+	{ format: "code", icon: "code", label: "inlineCode" },
+	{ format: "code-block", icon: "codeBlock", label: "codeBlock" },
+	{ format: "task", icon: "task", label: "insertTask" },
 ];
 
 const NoteEditingToolbar: Component<Props> = (props) => {
@@ -144,8 +155,12 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("bold")}><strong>B</strong></button>
 		<button class={styles.button} type="button" aria-label={props.t("italic")}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("italic")}><em>I</em></button>
+		<For each={extraFormats}>{(button) => <button class={styles.button} type="button" aria-label={props.t(button.label)}
+			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat(button.format)}><Icon name={button.icon} size={17} /></button>}</For>
 		<button class={styles.button} type="button" aria-label={props.t("separator")}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("separator")}>―</button>
+		<button class={styles.button} type="button" aria-label={props.t("insertTable")}
+			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("table")}><Icon name="table" size={17} /></button>
 		<Show when={props.onExportPdf}>
 			{(onExport) => <>
 				<span class={styles.divider} aria-hidden="true" />
