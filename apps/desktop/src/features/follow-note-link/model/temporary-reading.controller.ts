@@ -51,7 +51,6 @@ export const useTemporaryNoteReading = (options: {
 				root.contains(selection.anchorNode) && root.contains(selection.focusNode)
 				? { noteId, anchor: offsetInRoot(root, selection.anchorNode, selection.anchorOffset), focus: offsetInRoot(root, selection.focusNode, selection.focusOffset) }
 				: undefined;
-			// Commit the editor's pending input before replacing its DOM with the reading view.
 			if (root && document.activeElement === root) root.blur();
 		}
 		setReading(value);
@@ -94,7 +93,6 @@ export const useTemporaryNoteReading = (options: {
 				event.preventDefault();
 				changeReading(true);
 			} else if (event.altKey && !["Shift", "Meta"].includes(event.key)) {
-				// Return to the editor before handling a shortcut that combines Alt with another key.
 				shortcutUsed = true;
 				changeReading(false);
 			}

@@ -22,9 +22,10 @@ export const createTextHistory = () => {
             if (sameContent(before, after)) return;
             const time = performance.now();
             const last = past.at(-1);
+            const urlPaste = kind.startsWith("url-paste:");
             const canGroup = allowGrouping && last && last.kind === kind &&
-                (["insertText", "deleteContentBackward", "deleteContentForward"].includes(kind) || kind.startsWith("table-input:")) &&
-                time - last.time < 750 && sameContent(last.after, before) &&
+                (["insertText", "deleteContentBackward", "deleteContentForward"].includes(kind) || kind.startsWith("table-input:") || urlPaste) &&
+                time - last.time < (urlPaste ? 15_000 : 750) && sameContent(last.after, before) &&
                 before.selection.start === before.selection.end &&
                 before.selection.start === last.after.selection.end;
             if (canGroup) { last.after = after; last.time = time; }

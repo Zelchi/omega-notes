@@ -85,7 +85,6 @@ fn rewrite_resolved_text_links(
                 result.push_str(&line[start..end]);
                 cursor = end;
             } else {
-                // An unfinished span stays literal while the user is typing.
                 result.push_str(&line[start..]);
                 cursor = line.len();
                 break;

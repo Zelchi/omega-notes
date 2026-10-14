@@ -3,6 +3,7 @@ import { parseNoteTextLinks, type StudyNote } from "@/entities/note";
 import { parseFormattedText, type TextRun } from "@/shared/lib/formatted-text";
 import FormattedRun from "@/shared/ui/formatted-run";
 import FormattedBlockView from "@/shared/ui/formatted-block";
+import ExternalLink from "@/shared/ui/external-link";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { styles } from "./style.css.ts";
 
@@ -44,7 +45,7 @@ const NoteReferences: Component<ChatMessageTextProps> = (props) => {
 const ChatMessageText: Component<ChatMessageTextProps> = (props) => {
     const blocks = createMemo(() => parseFormattedText(props.text));
     const renderRuns = (runs: TextRun[]) => <For each={runs}>{(run) => (
-        <FormattedRun run={run}>{run.code ? run.text : <NoteReferences t={props.t} text={run.text}
+        <FormattedRun run={run}>{run.code ? run.text : run.url ? <ExternalLink url={run.url} class={styles.noteLink}>{run.text}</ExternalLink> : <NoteReferences t={props.t} text={run.text}
             referenceTitles={props.referenceTitles} resolveNote={props.resolveNote} onOpenNote={props.onOpenNote} />}</FormattedRun>
     )}</For>;
     return <div class={styles.messageText}><For each={blocks()}>{(block) =>

@@ -28,7 +28,6 @@ export const layoutFormattedText = (options: Options): TextFlowLayout => {
 	let offset = 0;
 	for (const line of lines) { starts.push(offset); offset += line.length + 1; }
 	const parsed = parseFormattedText(options.text);
-	// Fenced code spans multiple source lines; editing must retain fences and content.
 	const blocks = options.rawText ? parsed.flatMap<FormattedBlock>((block) => block.kind === "table" ? [block] :
 		Array.from({ length: block.sourceLines }, (_, index) => ({
 			kind: "paragraph" as const, level: 0, sourceLine: block.sourceLine + index, sourceLines: 1,
@@ -38,7 +37,6 @@ export const layoutFormattedText = (options: Options): TextFlowLayout => {
 		const start = starts[block.sourceLine]!;
 		const hasNewline = block.sourceLine + block.sourceLines < lines.length;
 		if (block.kind === "table" || block.kind === "code") {
-			// Keep a visible caret position at the boundary before a table.
 			if (block.kind === "table" && options.rawText && (block.sourceLine === 0 || lines[block.sourceLine - 1] === "")) {
 				fragments.push({ start, end: start, text: "", left: 0, top, width: options.width, beforeTable: true });
 				top += options.lineHeight;

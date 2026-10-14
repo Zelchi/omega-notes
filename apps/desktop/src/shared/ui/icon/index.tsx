@@ -33,6 +33,7 @@ export type IconName =
 	| "highlight"
 	| "task"
 	| "heading"
+	| "textFormatting"
 	| "table-row-add"
 	| "table-row-remove"
 	| "table-column-add"
@@ -63,6 +64,7 @@ const paths: Record<IconName, Component> = {
 	stop: () => <rect x="6" y="6" width="12" height="12" rx="1" />,
 	disconnect: () => <path d="m3 3 18 18M9 8l-3 3a4 4 0 0 0 5 6l2-2M11 7l2-2a4 4 0 0 1 6 5l-3 3" />,
 	heading: () => <path d="M6 5v14M18 5v14M6 12h12" />,
+	textFormatting: () => <path d="M4 5h16M12 5v14M8 19h8" />,
 	table: () => <><rect x="3" y="4" width="18" height="16" rx="1" /><path d="M3 9h18M3 14h18M9 4v16M15 4v16" /></>,
 	back: () => <path d="m14.5 5-7 7 7 7M8 12h12" />,
 	minimize: () => <path d="M5 12h14" />,

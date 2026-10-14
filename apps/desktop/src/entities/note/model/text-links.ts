@@ -1,3 +1,5 @@
+import { externalLinkUrl, readExternalMarkdownLink } from "@/shared/lib/external-links";
+
 export type NoteTextLink = {
 	start: number;
 	end: number;
@@ -21,7 +23,9 @@ const splitTrailingPunctuation = (value: string): [string, string] => {
 
 export const parseNoteTextLinks = (text: string): NoteTextLink[] => {
 	const links: NoteTextLink[] = [];
-	for (const match of text.matchAll(/\[\[[^\]]+\]\]|(?:https?:\/\/|www\.)[^\s<]+/gi)) {
+	const pattern = /\[\[[^\]]+\]\]|\[(?!\[)|(?:https?:\/\/|www\.)[^\s<]+/gi;
+	let match: RegExpExecArray | null;
+	while ((match = pattern.exec(text))) {
 		const start = match.index;
 		const value = match[0];
 		if (value.startsWith("[[")) {
@@ -32,11 +36,17 @@ export const parseNoteTextLinks = (text: string): NoteTextLink[] => {
 			links.push({ start, end: start + value.length, kind: "note", target, label, alias: separator < 0 ? undefined : label });
 			continue;
 		}
+		if (value.startsWith("[")) {
+			const link = readExternalMarkdownLink(text, start);
+			if (link) {
+				links.push({ ...link, kind: "external" });
+				pattern.lastIndex = link.end;
+			}
+			continue;
+		}
 		const [label] = splitTrailingPunctuation(value);
-		const url = label.toLowerCase().startsWith("www.") ? `https://${label}` : label;
-		try {
-			if (!["http:", "https:"].includes(new URL(url).protocol)) continue;
-		} catch { continue; }
+		const url = externalLinkUrl(label);
+		if (!url) continue;
 		links.push({ start, end: start + label.length, kind: "external", url, label });
 	}
 	return links;

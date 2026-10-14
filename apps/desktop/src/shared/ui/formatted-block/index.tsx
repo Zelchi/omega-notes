@@ -3,6 +3,7 @@ import { Dynamic } from "solid-js/web";
 import { headingScales, sliceTextRuns, type FormattedBlock, type TextRun } from "@/shared/lib/formatted-text";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import FormattedTable from "@/shared/ui/formatted-table";
+import HighlightedCode from "@/shared/ui/highlighted-code";
 import TaskCheckbox from "@/shared/ui/task-checkbox";
 import { styles } from "./style.css";
 
@@ -24,7 +25,7 @@ const FormattedBlockView: Component<{
     };
     const view = createMemo(() => {
         if (props.block.kind === "table") return <FormattedTable table={props.block.table} sourceLine={props.block.sourceLine} renderRuns={props.renderRuns} />;
-        if (props.block.kind === "code") return <pre class={styles.code} data-formatted-code={props.block.sourceLine}><code style={{ font: "inherit" }}>{props.block.text || "\u200B"}</code></pre>;
+        if (props.block.kind === "code") return <pre class={styles.code} data-formatted-code={props.block.sourceLine}><HighlightedCode text={props.block.text} language={props.block.language} /></pre>;
         if (props.block.kind === "separator") return <hr class={styles.separator} />;
         if (props.block.quote) return <blockquote class={styles.quote} style={{ "padding-left": `${props.block.quote * 12}px` }}>{content()}</blockquote>;
         if (props.block.ordered || props.block.bullet) {

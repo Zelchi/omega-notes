@@ -5,6 +5,8 @@ import TextCaret from "@/shared/ui/text-caret";
 import { useTextareaCaret } from "@/shared/ui/text-caret/use-textarea-caret";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { readTableSource, writeTableSource, type TableBlock } from "../../model/table";
+import { externalLinkUrl } from "@/shared/lib/external-links";
+import { createAsyncTextReplacement } from "@/shared/lib/async-text-replacement";
 import { styles } from "./style.css";
 
 type Props = {
@@ -19,29 +21,48 @@ type Props = {
     onExit: (after: boolean) => void;
     onFormattingReady: (handler?: (format: InlineTextFormat) => void) => void;
     onRegisterFocus: (sourceLine: number, focus?: () => void) => void;
+    resolvePastedLink?: (url: string) => Promise<string | undefined>;
+    canResolvePastedUrl?: (text: string, range: { start: number; end: number }) => boolean;
 };
 const Cell: Component<{
     value: string; label: string; renderText: Props["renderText"];
-    onChange: (text: string, formatted?: boolean) => void; onFocus: () => void;
+    onChange: (text: string, formatted?: boolean, kind?: string) => void; onFocus: () => void;
     onKeyDown: (event: KeyboardEvent) => void;
     formatCell: Props["formatCell"];
     onFormattingReady: Props["onFormattingReady"];
     register: (element: HTMLTextAreaElement) => void;
+    resolvePastedLink: Props["resolvePastedLink"];
+    canResolvePastedUrl: Props["canResolvePastedUrl"];
 }> = (props) => {
     const [focused, setFocused] = createSignal(false);
     const [value, setValue] = createSignal(props.value);
     const caret = useTextareaCaret();
     let input!: HTMLTextAreaElement;
-    createEffect(() => { const next = props.value; if (!focused()) setValue(next); });
+    const pastes = createAsyncTextReplacement({ read: value, apply: (text, range, kind) => {
+        const selection = { start: input.selectionStart, end: input.selectionEnd };
+        const delta = text.length - (range.end - range.start);
+        const map = (offset: number) => offset <= range.start ? offset : offset >= range.end ? offset + delta : range.start + Math.min(offset - range.start, text.length);
+        change(value().slice(0, range.start) + text + value().slice(range.end), true, kind);
+        input.setSelectionRange(map(selection.start), map(selection.end));
+        caret.scheduleMeasure();
+    } });
+    createEffect(() => { const next = props.value; if (!focused()) {
+        if (next !== value()) pastes.clear();
+        setValue(next);
+    } });
     createEffect(() => { value(); focused(); caret.scheduleMeasure(); });
-    const change = (text: string, formatted = false) => { setValue(text.replace(/[\r\n]+/g, " ")); props.onChange(value(), formatted); };
+    const change = (text: string, formatted = false, kind?: string) => {
+        const next = text.replace(/[\r\n]+/g, " ");
+        pastes.changed(value(), next);
+        setValue(next); props.onChange(value(), formatted, kind);
+    };
     const format = (kind: InlineTextFormat) => {
         const result = props.formatCell(value(), { start: input.selectionStart, end: input.selectionEnd }, kind);
         change(result.text, true);
         input.setSelectionRange(result.selection.start, result.selection.end);
         caret.scheduleMeasure();
     };
-    onCleanup(() => { if (focused()) props.onFormattingReady(); });
+    onCleanup(() => { pastes.clear(); if (focused()) props.onFormattingReady(); });
     return <div class={styles.field}>
         <div style={{ visibility: focused() ? "hidden" : "visible" }}>{focused() ? value() || "\u200B" : props.renderText(value() || "\u200B")}</div>
         <textarea class={styles.input} ref={(element) => { input = element; caret.bind(element); props.register(element); }}
@@ -50,12 +71,23 @@ const Cell: Component<{
             onFocus={() => { setFocused(true); props.onFocus(); props.onFormattingReady(format); }}
             onBlur={() => { setFocused(false); setValue(props.value); props.onFormattingReady(); }}
             onInput={(event) => change(event.currentTarget.value)}
+            onPaste={(event) => {
+                const url = externalLinkUrl(event.clipboardData?.getData("text/plain").trim() ?? "");
+                const range = { start: input.selectionStart, end: input.selectionEnd };
+                if (!url || !props.resolvePastedLink || props.canResolvePastedUrl?.(value(), range) === false) return;
+                event.preventDefault();
+                const kind = pastes.kind();
+                change(value().slice(0, range.start) + url + value().slice(range.end), true, kind);
+                input.setSelectionRange(range.start + url.length, range.start + url.length);
+                pastes.resolve(url, { start: range.start, end: range.start + url.length }, props.resolvePastedLink(url), kind);
+            }}
             onKeyDown={(event) => {
                 if ((event.ctrlKey || event.metaKey) && !event.altKey && ["b", "i"].includes(event.key.toLowerCase())) {
                     event.preventDefault();
                     format(event.key.toLowerCase() === "b" ? "bold" : "italic");
                     return;
                 }
+                if ((event.ctrlKey || event.metaKey) && ["z", "y"].includes(event.key.toLowerCase())) pastes.clear();
                 props.onKeyDown(event);
             }} />
         <TextCaret geometry={caret.caret()} />
@@ -74,9 +106,9 @@ const TableEditor: Component<Props> = (props) => {
         });
         onCleanup(() => props.onRegisterFocus(line));
     });
-    const updateCell = (row: number, column: number, text: string, formatted = false) => {
+    const updateCell = (row: number, column: number, text: string, formatted = false, kind?: string) => {
         const current = source();
-        props.onChange(writeTableSource({ ...current, cells: current.cells.map((cells, index) => index === row ? cells.map((value, i) => i === column ? text : value) : cells) }), formatted ? "table-format" : `table-input:${props.block.sourceLine}:${row}:${column}`);
+        props.onChange(writeTableSource({ ...current, cells: current.cells.map((cells, index) => index === row ? cells.map((value, i) => i === column ? text : value) : cells) }), kind ? `url-paste:table:${props.block.sourceLine}:${row}:${column}:${kind}` : formatted ? "table-format" : `table-input:${props.block.sourceLine}:${row}:${column}`);
     };
     const changeStructure = (kind: "addRow" | "removeRow" | "addColumn" | "removeColumn") => {
         if (document.activeElement instanceof HTMLTextAreaElement) document.activeElement.blur();
@@ -113,10 +145,10 @@ const TableEditor: Component<Props> = (props) => {
     </div>;
 
     function cellsFor(row: number, column: number) {
-        // Keep each cell component mounted while Markdown and table dimensions change.
         return <Cell onFormattingReady={props.onFormattingReady} formatCell={props.formatCell} value={source().cells[row]?.[column] ?? ""} label={`${props.t("tableCell")} ${row + 1}, ${column + 1}`} renderText={props.renderText}
+            resolvePastedLink={props.resolvePastedLink} canResolvePastedUrl={props.canResolvePastedUrl}
             register={(element) => { inputs.set(`${row}:${column}`, element); onCleanup(() => inputs.delete(`${row}:${column}`)); }}
-            onFocus={() => setSelected({ row, column })} onChange={(text, formatted) => updateCell(row, column, text, formatted)}
+            onFocus={() => setSelected({ row, column })} onChange={(text, formatted, kind) => updateCell(row, column, text, formatted, kind)}
             onKeyDown={(event) => {
                 if (event.isComposing) return;
                 if ((event.ctrlKey || event.metaKey) && !event.altKey && ["z", "y"].includes(event.key.toLowerCase())) { props.onHistory(event); return; }

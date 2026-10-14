@@ -1,10 +1,10 @@
 import { For, type JSX } from "solid-js";
 import FormattedRun from "@/shared/ui/formatted-run";
 import FormattedBlockView from "@/shared/ui/formatted-block";
+import ExternalLink from "@/shared/ui/external-link";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { parseFormattedText, type TextRun, type FormattedFragment } from "@/features/format-text";
 import { parseNoteTextLinks, resolveNoteReference, canCreateNoteReference, type NoteTextLink, type StudyNote } from "@/entities/note";
-import { isTauriRuntime } from "@/shared/lib/tauri";
 
 type RenderTextOptions = {
 	notesById: Map<string, StudyNote>;
@@ -49,18 +49,14 @@ const renderNoteLinks = (text: string, options: RenderTextOptions): JSX.Element 
             return <a href={`#${note.id}`} style={textLinkStyle}
                 onClick={(event) => { event.preventDefault(); options.onOpenNote(note); }}>{link.alias || note.title}</a>;
         }
-        return <a href={link.url} target={isTauriRuntime() ? undefined : "_blank"}
-            rel="noopener noreferrer" style={textLinkStyle}
-            onClick={(event) => {
-                if (!isTauriRuntime()) return;
-                event.preventDefault();
-                options.onOpenExternalUrl(link.url);
-            }}>{link.label}</a>;
+        return <ExternalLink url={link.url} style={textLinkStyle} onOpen={options.onOpenExternalUrl}>{link.label}</ExternalLink>;
     }}</For>
 );
 
 const renderRuns = (runs: TextRun[], options: RenderTextOptions): JSX.Element => (
-	<For each={runs}>{(run) => <FormattedRun run={run}>{run.code ? run.text : renderNoteLinks(run.text, options)}</FormattedRun>}</For>
+	<For each={runs}>{(run) => <FormattedRun run={run}>{run.code ? run.text : run.url
+        ? <ExternalLink url={run.url} style={textLinkStyle} onOpen={options.onOpenExternalUrl}>{run.text}</ExternalLink>
+        : renderNoteLinks(run.text, options)}</FormattedRun>}</For>
 );
 
 export const renderNoteText = (text: string, options: RenderTextOptions, format?: FormattedFragment): JSX.Element => {

@@ -142,7 +142,6 @@ export const restoreDeletedNote = async (noteId: string): Promise<NoteSaveResult
 	if (existing.some((item) => item.id === noteId)) throw new Error("NOTE_ALREADY_EXISTS");
 	if (!isNoteTitleAvailable(existing, note.title)) throw new Error("DUPLICATE_TITLE");
 	const result = await saveNote(note);
-	// A failed archive cleanup must not hide a successfully restored note.
 	try { localStorage.setItem(deletedStorageKey(), JSON.stringify(deleted.filter((item) => item.id !== noteId))); }
 	catch (error) { console.error(error); }
 	return result;

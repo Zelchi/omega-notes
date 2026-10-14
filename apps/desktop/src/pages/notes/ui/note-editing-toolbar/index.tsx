@@ -1,4 +1,4 @@
-import { createMemo, createRenderEffect, createSignal, createUniqueId, For, onCleanup, onMount, Show, type Component } from "solid-js";
+import { createMemo, createRenderEffect, createSignal, createUniqueId, For, Match, onCleanup, onMount, Show, Switch, type Component } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
 import { ExportPdfButton } from "@/features/export-note-pdf";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
@@ -32,9 +32,15 @@ const alignmentButtons: {
 	{ value: "right", icon: "alignRight", label: "alignTextRight" },
 ];
 
-const extraFormats: { format: TextFormat; icon: IconName; label: TranslationKey }[] = [
+const textFormats: { format: TextFormat; icon?: IconName; label: TranslationKey }[] = [
+	{ format: "bold", label: "bold" },
+	{ format: "italic", label: "italic" },
 	{ format: "strike", icon: "strike", label: "strikethrough" },
 	{ format: "highlight", icon: "highlight", label: "highlightText" },
+];
+
+const extraFormats: { format: TextFormat; icon: IconName; label: TranslationKey }[] = [
+	{ format: "note-link", icon: "link", label: "insertNoteLink" },
 	{ format: "bullet-list", icon: "bulletList", label: "bulletList" },
 	{ format: "ordered-list", icon: "orderedList", label: "orderedList" },
 	{ format: "quote", icon: "quote", label: "blockquote" },
@@ -47,9 +53,11 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 	let root!: HTMLDivElement;
 	let headingButton!: HTMLButtonElement;
 	let alignmentButton!: HTMLButtonElement;
+	let formattingButton!: HTMLButtonElement;
 	let panelRoot: HTMLDivElement | undefined;
-	const [activePanel, setActivePanel] = createSignal<"headings" | "alignment">();
-	const displayedPanel = createMemo<"headings" | "alignment" | undefined>((previous) => activePanel() ?? previous);
+	type Panel = "headings" | "alignment" | "formatting";
+	const [activePanel, setActivePanel] = createSignal<Panel>();
+	const displayedPanel = createMemo<Panel | undefined>((previous) => activePanel() ?? previous);
 	const panel = createPresence(() => Boolean(activePanel()) && !props.exiting, 220);
 	const panelId = createUniqueId();
 	const alignmentIcon = () => alignmentButtons.find((button) => button.value === props.alignment)?.icon ?? "alignMixed";
@@ -76,13 +84,13 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 			if (event.key === "Escape" && activePanel()) {
 				event.preventDefault();
 				event.stopPropagation();
-				const trigger = activePanel() === "headings" ? headingButton : alignmentButton;
+				const trigger = activePanel() === "headings" ? headingButton : activePanel() === "formatting" ? formattingButton : alignmentButton;
 				setActivePanel(undefined);
 				trigger.focus({ preventScroll: true });
 			}
 		}}>
 		<Show when={panel.present()}>
-			<div id={panelId} class={styles.subbar} role="toolbar" aria-label={props.t(displayedPanel() === "headings" ? "heading" : "textAlignment")}
+			<div id={panelId} class={styles.subbar} role="toolbar" aria-label={props.t(displayedPanel() === "headings" ? "heading" : displayedPanel() === "formatting" ? "textFormatting" : "textAlignment")}
 				inert={panel.exiting()} aria-hidden={panel.exiting() || undefined}
 				ref={(element) => {
 					panelRoot = element;
@@ -100,7 +108,8 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 					event.preventDefault();
 					buttons[next]?.focus();
 				}}>
-				<Show when={displayedPanel() === "headings"} fallback={
+				<Switch>
+				<Match when={displayedPanel() === "alignment"}>
 					<For each={alignmentButtons}>
 						{(button) => <button class={cx(styles.button, props.alignment === button.value && styles.activeButton)} type="button"
 							 aria-label={props.t(button.label)} aria-pressed={props.alignment === button.value}
@@ -109,7 +118,8 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 								setActivePanel(undefined);
 							}}><Icon name={button.icon} size={17} /></button>}
 					</For>
-				}>
+				</Match>
+				<Match when={displayedPanel() === "headings"}>
 				<For each={["h1", "h2", "h3", "h4", "h5", "h6"] as const}>
 					{(heading) => <button class={styles.button} type="button"
 						 aria-label={`${props.t("heading")} ${heading.slice(1)}`}
@@ -118,7 +128,19 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 							setActivePanel(undefined);
 						}}>{heading.toUpperCase()}</button>}
 				</For>
-				</Show>
+				</Match>
+				<Match when={displayedPanel() === "formatting"}>
+					<For each={textFormats}>{(button) => <button class={styles.button} type="button" aria-label={props.t(button.label)}
+						onPointerDown={(event) => event.preventDefault()} onClick={() => {
+							props.onFormat(button.format);
+							setActivePanel(undefined);
+						}}>
+						<Show when={button.icon} fallback={button.format === "bold" ? <strong>B</strong> : <em>I</em>}>
+							{(icon) => <Icon name={icon()} size={17} />}
+						</Show>
+					</button>}</For>
+				</Match>
+				</Switch>
 			</div>
 		</Show>
 		<div class={styles.row} role="toolbar" aria-label={props.t("textFormatting")}>
@@ -151,10 +173,15 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 				setActivePanel("headings");
 				queueMicrotask(() => panelRoot?.querySelector("button")?.focus());
 			}}><Icon name="heading" size={17} /></button>
-		<button class={styles.button} type="button" aria-label={props.t("bold")}
-			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("bold")}><strong>B</strong></button>
-		<button class={styles.button} type="button" aria-label={props.t("italic")}
-			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("italic")}><em>I</em></button>
+		<button ref={formattingButton} class={cx(styles.button, activePanel() === "formatting" && styles.activeButton)} type="button"
+			aria-label={props.t("textFormatting")} aria-expanded={activePanel() === "formatting"} aria-controls={panelId}
+			onPointerDown={(event) => event.preventDefault()} onClick={() => setActivePanel((current) => current === "formatting" ? undefined : "formatting")}
+			onKeyDown={(event) => {
+				if (event.key !== "ArrowUp") return;
+				event.preventDefault();
+				setActivePanel("formatting");
+				queueMicrotask(() => panelRoot?.querySelector("button")?.focus());
+			}}><Icon name="textFormatting" size={17} /></button>
 		<For each={extraFormats}>{(button) => <button class={styles.button} type="button" aria-label={props.t(button.label)}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat(button.format)}><Icon name={button.icon} size={17} /></button>}</For>
 		<button class={styles.button} type="button" aria-label={props.t("separator")}

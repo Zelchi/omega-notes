@@ -8,6 +8,7 @@ mod notes;
 mod storage;
 mod stream;
 mod vaults;
+mod web;
 
 use std::sync::Mutex;
 
@@ -37,6 +38,7 @@ pub fn run() {
             ai::commands::save_ai_chat,
             ai::commands::clear_ai_chats,
             app::updates::updater_ready,
+            web::fetch_url_title,
             exports::commands::export_note_pdf,
             vaults::commands::list_vaults,
             vaults::commands::get_vault_details,

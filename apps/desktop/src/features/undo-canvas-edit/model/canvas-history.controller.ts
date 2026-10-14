@@ -50,7 +50,6 @@ export const useCanvasHistory = (options: {
 		options.setLayout(snapshot.layout);
 		setRestoration({ ...snapshot, vaultId, revision: ++revision });
 	};
-	// Deleted notes survive restarts; geometry and other actions belong to this session.
 	createEffect(() => {
 		const id = options.vaultId();
 		if (!id || options.notes.loading() || histories.has(id)) return;
@@ -62,7 +61,6 @@ export const useCanvasHistory = (options: {
 			if (disposed || histories.get(id) !== current) return;
 			const recovered: Action[] = deleted.filter((note) => !activeIds.has(note.id))
 				.reverse().map((note) => ({ kind: "delete", noteId: note.id }));
-			// Preserve actions recorded while the archive was being read.
 			const known = new Set(current.past.flatMap((action) => action.kind === "move" ? [] : [action.noteId]));
 			current.past = [...recovered.filter((action) => action.kind !== "move" && !known.has(action.noteId)), ...current.past].slice(-100);
 		}).catch(reportError).finally(() => setPending(false));
