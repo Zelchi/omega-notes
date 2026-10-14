@@ -14,6 +14,9 @@ use std::sync::Mutex;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if ai::run_if_requested() {
+        return;
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -34,6 +37,13 @@ pub fn run() {
             ai::commands::ai_steer,
             ai::commands::ai_cancel,
             ai::commands::ai_disconnect,
+            ai::cli_commands::ai_cli_connect,
+            ai::cli_commands::ai_cli_status,
+            ai::cli_commands::ai_cli_models,
+            ai::cli_commands::ai_cli_login,
+            ai::cli_commands::ai_cli_send,
+            ai::cli_commands::ai_cli_cancel,
+            ai::cli_commands::ai_cli_disconnect,
             ai::commands::read_ai_chat,
             ai::commands::save_ai_chat,
             ai::commands::clear_ai_chats,

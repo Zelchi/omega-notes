@@ -4,7 +4,8 @@ import type { TranslationKey } from "@/shared/lib/i18n";
 import * as repository from "../api/chat.repository";
 import { readConnectedProvider, saveConnectedProvider, forgetConnectedProvider } from "../api/connection.repository";
 import type { AiProvider } from "../api/ai-provider";
-import type { AiEvent, AiModel, AiStatus, StoredChat, VaultChat } from "@/entities/ai";
+import type { AiEvent, AiModel, AiProviderId, AiStatus, StoredChat, VaultChat } from "@/entities/ai";
+import { aiProviders, getAiProvider } from "../api/providers";
 import { MAX_CHAT_MESSAGES } from "@/entities/ai";
 import { createNoteReferenceNormalizer, parseNoteTextLinks, type StudyNote } from "@/entities/note";
 
@@ -19,7 +20,11 @@ export const useAiChat = (options: {
     beforeSend: () => Promise<boolean>;
     t: (key: TranslationKey) => string;
 }) => {
-    const provider = options.provider;
+    const rememberedProvider = readConnectedProvider();
+    const [selectedProvider, setProvider] = createSignal(rememberedProvider ? getAiProvider(rememberedProvider) : options.provider);
+    const provider = new Proxy({} as AiProvider, {
+        get: (_target, property) => Reflect.get(selectedProvider(), property),
+    });
     const [open, setOpen] = createSignal(false);
     const [status, setStatus] = createSignal<AiStatus>({ connected: false, authenticated: false });
     const [models, setModels] = createSignal<AiModel[]>([]);
@@ -30,7 +35,18 @@ export const useAiChat = (options: {
     const [loading, setLoading] = createSignal<string[]>([]);
     const pending = createMemo(() => operationPending() || resetting() || loading().includes(options.vaultId() ?? ""));
     const [ready, setReady] = createSignal(false);
-    const [error, setError] = createSignal<string>();
+    const [error, writeError] = createSignal<string>();
+    let errorTimer: ReturnType<typeof setTimeout> | undefined;
+    const setError = (message?: string) => {
+        clearTimeout(errorTimer);
+        writeError(message);
+        errorTimer = message ? setTimeout(() => writeError(undefined), 3000) : undefined;
+    };
+    const chatErrorTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    const clearChatErrorTimers = () => {
+        for (const timer of chatErrorTimers.values()) clearTimeout(timer);
+        chatErrorTimers.clear();
+    };
     const [chats, setChats] = createSignal<Record<string, VaultChat>>({});
     const chat = createMemo(() => {
         const id = options.vaultId();
@@ -87,6 +103,7 @@ export const useAiChat = (options: {
         clearTimeout(saveTimers.get(id));
         saveTimers.delete(id);
         const current = untrack(() => chats()[id]);
+        const providerId = provider.id;
         if (!options.enabled() || !isTauriRuntime() || !loaded.has(id) || !current) return Promise.resolve();
         const snapshot: StoredChat = {
             messages: current.messages.map(({ id: messageId, role, text }) => ({ id: messageId, role, text: normalizeReferences(id, text) })),
@@ -94,7 +111,7 @@ export const useAiChat = (options: {
             draft: current.draft, model: current.model, effort: current.effort, fast: current.fast,
         };
         const write = (writes.get(id) ?? Promise.resolve()).catch(() => undefined)
-            .then(() => repository.saveAiChat(id, provider.id, snapshot))
+            .then(() => repository.saveAiChat(id, providerId, snapshot))
             .then(() => { if (untrack(() => chats()[id]) === current) dirty.delete(id); })
             .catch((failure) => {
                 if (String(failure) === "AI_INVALID_VAULT") { dirty.delete(id); return; }
@@ -132,9 +149,19 @@ export const useAiChat = (options: {
         loads.set(id, load);
         return load;
     };
-    const patchChat = (id: string, change: (current: VaultChat) => VaultChat) => {
+    const patchChat = (id: string, change: (current: VaultChat) => VaultChat, errorOccurrence = false) => {
         setChats((current) => {
-            const next = change(current[id] ?? emptyChat());
+            const previous = current[id] ?? emptyChat();
+            const next = change(previous);
+            if (next === previous) return current;
+            if (!next.error || errorOccurrence || next.error !== previous.error) {
+                clearTimeout(chatErrorTimers.get(id));
+                chatErrorTimers.delete(id);
+                if (next.error) chatErrorTimers.set(id, setTimeout(() => {
+                    chatErrorTimers.delete(id);
+                    setChats((chats) => chats[id] ? { ...chats, [id]: { ...chats[id], error: undefined } } : chats);
+                }, 3000));
+            }
             const limited = next.messages.length > MAX_CHAT_MESSAGES
                 ? { ...next, messages: next.messages.slice(-MAX_CHAT_MESSAGES) } : next;
             return { ...current, [id]: limited };
@@ -193,7 +220,7 @@ export const useAiChat = (options: {
         if (!id || !event.requestId) return;
         patchChat(id, (current) => {
             if (current.requestId !== event.requestId) return current;
-            if (event.kind === "completed") return { ...current, busy: false, error: event.failed || event.status === "failed" ? options.t("aiRequestFailed") : undefined };
+            if (event.kind === "completed") return { ...current, busy: false, error: event.errorCode ? describe(event.errorCode) : event.failed || event.status === "failed" ? options.t("aiRequestFailed") : undefined };
             if (event.kind === "error") return { ...current, error: options.t(event.retrying ? "aiRetrying" : "aiRequestFailed") };
             if (event.kind !== "delta" && event.kind !== "message") return current;
             return {
@@ -205,7 +232,7 @@ export const useAiChat = (options: {
                     return { ...message, items, text: Object.values(items).join("\n\n") };
                 })
             };
-        });
+        }, event.kind === "error" || event.kind === "completed");
         if (event.kind === "completed") void saveChat(id).catch(() => undefined);
     };
 
@@ -218,6 +245,8 @@ export const useAiChat = (options: {
     });
     let onUnsubscribe: (() => void) | undefined;
     onCleanup(() => {
+        clearTimeout(errorTimer);
+        clearChatErrorTimers();
         for (const id of dirty) void saveChat(id).catch(() => undefined);
         disposed = true;
         ++connectionRevision;
@@ -235,6 +264,7 @@ export const useAiChat = (options: {
         setStatus({ connected: false, authenticated: false });
         setModels([]);
         setChats({});
+        clearChatErrorTimers();
         referenceNormalizers.clear();
         setError(undefined);
         setCleanupError(undefined);
@@ -287,9 +317,25 @@ export const useAiChat = (options: {
         try { await operation(); } catch (failure) { if (!disposed) setError(describe(failure)); }
         finally { if (!disposed) setPending(false); }
     };
-    const connect = () => run(async () => {
+    const connect = (providerId?: AiProviderId) => run(async () => {
         if (!options.enabled()) return;
         autoConnectAttempted = true;
+        if (providerId && providerId !== provider.id) {
+            if (!(await flushSave())) throw "AI_STORAGE_FAILED";
+            await provider.disconnect();
+            await Promise.allSettled([...loads.values()]);
+            if (disposed || !options.enabled()) return;
+            ++connectionRevision;
+            ++storageRevision;
+            loaded.clear();
+            loads.clear();
+            setLoading([]);
+            setStatus({ connected: false, authenticated: false });
+            setModels([]);
+            setChats({});
+            clearChatErrorTimers();
+            setProvider(getAiProvider(providerId));
+        }
         const id = options.vaultId();
         if (id) {
             try { await loadChat(id); }
@@ -386,7 +432,7 @@ export const useAiChat = (options: {
                 ...value,
                 ...(value.requestId === requestId ? { busy: false } : {}),
                 error: String(failure) === "AI_SAVE_FAILED" ? options.t("saveFailed") : describe(failure),
-            }));
+            }), true);
         } finally {
             if (!posted && !disposed && revision === connectionRevision && options.enabled()) {
                 patchChat(id, (value) => ({
@@ -417,7 +463,7 @@ export const useAiChat = (options: {
         }
     };
     return {
-        provider, open, setOpen, status, sending, resetting, cleanupError, models, selectedModel, selectedEffort, fastAvailable, pending, ready, error, chat, connect, send, cancel, flushSave,
+        provider, providers: aiProviders, open, setOpen, status, sending, resetting, cleanupError, models, selectedModel, selectedEffort, fastAvailable, pending, ready, error, chat, connect, send, cancel, flushSave,
         refresh: () => run(refresh), signIn: () => run(provider.signIn),
         setDraft: (draft: string) => { const id = options.vaultId(); if (id && loaded.has(id)) patchChat(id, (value) => ({ ...value, draft })); },
         setModel: (model: string) => { const id = options.vaultId(); if (id && loaded.has(id)) patchChat(id, (value) => ({ ...value, model, effort: "", fast: false })); },

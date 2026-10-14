@@ -2,6 +2,7 @@
 import BaseLayout from "@/layouts/base-layout.astro";
 import VideoPlayer from "@/components/video-player.astro";
 import GettingStartedGuide from "@/components/getting-started-guide.astro";
+import AppFeatures from "@/components/app-features.astro";
 
 const repository = "https://github.com/Zelchi/omega-notes";
 const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
@@ -35,6 +36,7 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
             <VideoPlayer src={`${base}omega-1.mp4`} />
             <figcaption>Veja o Ômega Notes em ação.</figcaption>
         </figure>
+        <AppFeatures />
         <GettingStartedGuide />
     </main>
 </BaseLayout>

@@ -1,5 +1,23 @@
 # Histórico de atualizações
 
+## v0.2.8
+
+### Chat com IA
+
+- Suporte ao Claude Code e ao OpenCode pelos CLIs instalados, com conexão pelo Chat, histórico separado por provedor e vault e reconexão ao último provedor escolhido.
+- Claude e OpenCode consultam notas pelas ferramentas do Ômega Notes via MCP, com referências por ID e acesso restrito ao vault ativo.
+- Respostas podem ser interrompidas; os processos são encerrados ao desativar Recursos de IA. As opções de modelo e pensamento respeitam o adaptador escolhido.
+- Para escolher outra IA, desative e ative novamente Recursos de IA nas configurações. O cabeçalho do Chat mantém apenas o título e o botão de fechar.
+- Avisos de erro aparecem acima da linha inferior do Chat e desaparecem após três segundos; uma nova ocorrência reinicia o tempo.
+
+### Interface
+
+- A janela principal passa a conter o transbordamento do layout, evitando barras de rolagem nativas no canvas.
+
+### Site
+
+- Página de divulgação apresenta os canvases, a edição de texto, links, mídias e as integrações de IA. O guia inclui colagem de URLs, destaque de código, atalhos de Tab e configuração dos CLIs.
+
 ## v0.2.7
 
 ### Notas e chat com IA

@@ -1,6 +1,6 @@
 [package]
 name = "omega-notes"
-version = "0.2.7"
+version = "0.2.8"
 description = "Um espaço local para guardar e organizar seus estudos"
 authors = ["you"]
 edition = "2021"
@@ -24,3 +24,6 @@ tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 uuid = { version = "1.27", features = ["v4", "v7"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
