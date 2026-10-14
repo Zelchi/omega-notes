@@ -6,7 +6,9 @@ import { readConnectedProvider, saveConnectedProvider, forgetConnectedProvider }
 import type { AiProvider } from "../api/ai-provider";
 import type { AiEvent, AiModel, AiProviderId, AiStatus, StoredChat, VaultChat } from "@/entities/ai";
 import { aiProviders, getAiProvider } from "../api/providers";
+import { readInstalledAiProviders, type InstalledAiProviders } from "../api/providers.repository";
 import { MAX_CHAT_MESSAGES } from "@/entities/ai";
+import { formatAiErrorDetail } from "./error-detail";
 import { createNoteReferenceNormalizer, parseNoteTextLinks, type StudyNote } from "@/entities/note";
 
 const emptyChat = (): VaultChat => ({ messages: [], referenceTitles: {}, draft: "", model: "", effort: "", fast: false, busy: false });
@@ -26,6 +28,8 @@ export const useAiChat = (options: {
         get: (_target, property) => Reflect.get(selectedProvider(), property),
     });
     const [open, setOpen] = createSignal(false);
+    const [installedProviders, setInstalledProviders] = createSignal<InstalledAiProviders>({ codex: false, claude: false, opencode: false });
+    const [checkingProviders, setCheckingProviders] = createSignal(false);
     const [status, setStatus] = createSignal<AiStatus>({ connected: false, authenticated: false });
     const [models, setModels] = createSignal<AiModel[]>([]);
     const [sending, setSending] = createSignal(false);
@@ -194,6 +198,7 @@ export const useAiChat = (options: {
         const account = await provider.status();
         if (disposed || revision !== connectionRevision || !options.enabled()) return;
         setStatus(account);
+        setModels([]);
         if (account.authenticated) {
             const available = await provider.models();
             if (!disposed && revision === connectionRevision) setModels(available);
@@ -220,7 +225,15 @@ export const useAiChat = (options: {
         if (!id || !event.requestId) return;
         patchChat(id, (current) => {
             if (current.requestId !== event.requestId) return current;
-            if (event.kind === "completed") return { ...current, busy: false, error: event.errorCode ? describe(event.errorCode) : event.failed || event.status === "failed" ? options.t("aiRequestFailed") : undefined };
+            if (event.kind === "completed") {
+                const failed = event.failed || event.status === "failed";
+                const message = event.errorCode ? describe(event.errorCode) : failed ? options.t("aiRequestFailed") : undefined;
+                const detail = formatAiErrorDetail(event.errorDetail);
+                const cleanup = event.cleanupFailed && event.errorCode !== "AI_HISTORY_CLEAR_FAILED"
+                    ? options.t("aiSessionCleanupFailed") : undefined;
+                const error = [message, message && detail, cleanup].filter(Boolean).join(" ");
+                return { ...current, busy: false, error: error || undefined };
+            }
             if (event.kind === "error") return { ...current, error: options.t(event.retrying ? "aiRetrying" : "aiRequestFailed") };
             if (event.kind !== "delta" && event.kind !== "message") return current;
             return {
@@ -244,6 +257,23 @@ export const useAiChat = (options: {
         }).catch((failure) => setError(describe(failure)));
     });
     let onUnsubscribe: (() => void) | undefined;
+    createEffect(() => {
+        if (!open() || !options.enabled() || status().connected || !isTauriRuntime()) {
+            setCheckingProviders(false);
+            return;
+        }
+        let cancelled = false;
+        onCleanup(() => { cancelled = true; });
+        setInstalledProviders({ codex: false, claude: false, opencode: false });
+        setCheckingProviders(true);
+        void readInstalledAiProviders().then((available) => {
+            if (!cancelled && !disposed) setInstalledProviders(available);
+        }).catch(() => {
+            if (!cancelled && !disposed) setError(options.t("aiProviderCheckFailed"));
+        }).finally(() => {
+            if (!cancelled && !disposed) setCheckingProviders(false);
+        });
+    });
     onCleanup(() => {
         clearTimeout(errorTimer);
         clearChatErrorTimers();
@@ -373,6 +403,10 @@ export const useAiChat = (options: {
         const submittedDraft = current.draft;
         const text = id ? normalizeReferences(id, submittedDraft.trim()) : submittedDraft.trim();
         if (!options.enabled() || !id || !text || pending() || sending() || !status().authenticated || !ready()) return;
+        if (provider.id === "opencode" && !selectedModel()?.id) {
+            setError(options.t("aiOpenCodeModelsUnavailable"));
+            return;
+        }
         if (current.busy && (!provider.steer || !current.requestId)) return;
         const requestId = crypto.randomUUID();
         const activeRequestId = current.busy ? current.requestId : undefined;
@@ -463,7 +497,7 @@ export const useAiChat = (options: {
         }
     };
     return {
-        provider, providers: aiProviders, open, setOpen, status, sending, resetting, cleanupError, models, selectedModel, selectedEffort, fastAvailable, pending, ready, error, chat, connect, send, cancel, flushSave,
+        provider, providers: aiProviders, installedProviders, checkingProviders, open, setOpen, status, sending, resetting, cleanupError, models, selectedModel, selectedEffort, fastAvailable, pending, ready, error, chat, connect, send, cancel, flushSave,
         refresh: () => run(refresh), signIn: () => run(provider.signIn),
         setDraft: (draft: string) => { const id = options.vaultId(); if (id && loaded.has(id)) patchChat(id, (value) => ({ ...value, draft })); },
         setModel: (model: string) => { const id = options.vaultId(); if (id && loaded.has(id)) patchChat(id, (value) => ({ ...value, model, effort: "", fast: false })); },

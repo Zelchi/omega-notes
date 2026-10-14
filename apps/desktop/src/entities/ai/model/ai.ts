@@ -17,6 +17,8 @@ export type AiEvent = {
     retrying?: boolean;
     success?: boolean;
     errorCode?: string;
+    errorDetail?: string;
+    cleanupFailed?: boolean;
 };
 export type ChatMessage = { id: string; role: "user" | "assistant"; text: string; items?: Record<string, string> };
 export type VaultChat = { messages: ChatMessage[]; referenceTitles: Record<string, string>; draft: string; model: string; effort: string; fast: boolean; busy: boolean; requestId?: string; error?: string };

@@ -2,6 +2,7 @@ import { For, Show, createEffect, createMemo, createSignal, createUniqueId, onCl
 import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import Icon from "@/shared/ui/icon";
+import CustomScrollArea from "@/shared/ui/custom-scroll-area";
 import { styles } from "./style.css.ts";
 
 export type DropdownOption = { value: string; label: string; disabled?: boolean };
@@ -11,6 +12,7 @@ type Props = {
     options: DropdownOption[];
     ariaLabel: string;
     disabled?: boolean;
+    scrollable?: boolean;
     placeholder?: string;
     class?: string;
     style?: JSX.CSSProperties;
@@ -31,6 +33,7 @@ const Dropdown: Component<Props> = (props) => {
     let root!: HTMLDivElement;
     let trigger!: HTMLButtonElement;
     let menu: HTMLDivElement | undefined;
+    let scrollViewport: HTMLDivElement | undefined;
     let frame = 0;
     let search = "";
     let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -59,9 +62,15 @@ const Dropdown: Component<Props> = (props) => {
         const labelWidth = Math.max(0, ...props.options.map((option) => context?.measureText(option.label).width ?? option.label.length * 7));
         const width = Math.min(Math.max(bounds.width, Math.min(360 * scale, (labelWidth + 56) * scale)), Math.max(0, limits.right - limits.left));
         if (menu) menu.style.width = `${width / scale}px`;
-        const height = menu ? menu.offsetHeight * scale : props.options.length * 32 * scale + 8 * scale;
         const below = Math.max(0, limits.bottom - triggerBounds.bottom - 5 * scale);
         const above = Math.max(0, triggerBounds.top - limits.top - 5 * scale);
+        if (menu && props.scrollable) {
+            const contentHeight = scrollViewport?.querySelector('[role="listbox"]')?.scrollHeight ?? props.options.length * 32;
+            menu.style.height = `${Math.min(contentHeight + 8, 280, Math.max(below, above) / scale)}px`;
+        } else if (menu) {
+            menu.style.removeProperty("height");
+        }
+        const height = menu ? menu.offsetHeight * scale : props.options.length * 32 * scale + 8 * scale;
         const useBelow = below >= height || below >= above;
         const left = Math.max(limits.left, Math.min(bounds.left, limits.right - width));
         const preferredTop = useBelow ? triggerBounds.bottom + 5 * scale : triggerBounds.top - 5 * scale - height;
@@ -70,7 +79,19 @@ const Dropdown: Component<Props> = (props) => {
     };
     const schedule = () => {
         cancelAnimationFrame(frame);
-        frame = requestAnimationFrame(() => { if (open()) { position(); } });
+        frame = requestAnimationFrame(() => {
+            if (!open()) return;
+            position();
+            if (props.scrollable && scrollViewport) {
+                const option = document.getElementById(`${listId}-${active()}`);
+                if (!option) return;
+                const bounds = option.getBoundingClientRect();
+                const viewport = scrollViewport.getBoundingClientRect();
+                const scale = scrollViewport.offsetHeight ? viewport.height / scrollViewport.offsetHeight : 1;
+                if (bounds.top < viewport.top) scrollViewport.scrollTop += (bounds.top - viewport.top) / scale;
+                else if (bounds.bottom > viewport.bottom) scrollViewport.scrollTop += (bounds.bottom - viewport.bottom) / scale;
+            }
+        });
     };
     const close = () => { setOpen(false); search = ""; clearTimeout(searchTimer); };
     const show = (last = false) => {
@@ -161,6 +182,15 @@ const Dropdown: Component<Props> = (props) => {
         });
     });
     onCleanup(() => { cancelAnimationFrame(frame); clearTimeout(searchTimer); });
+    const optionList = () => <div id={listId} role="listbox" aria-label={props.ariaLabel}>
+        <For each={props.options}>{(option, index) => <div id={`${listId}-${index()}`} class={styles.option}
+            role="option" aria-selected={option.value === props.value} aria-disabled={option.disabled || undefined}
+            data-active={index() === active() && !option.disabled ? "true" : undefined}
+            onPointerDown={(event) => event.preventDefault()}
+            onPointerMove={() => { if (!option.disabled) setActive(index()); }} onClick={() => choose(index())}>
+            <span>{option.label}</span><span class={styles.check}><Show when={option.value === props.value}><Icon name="check" size={14} /></Show></span>
+        </div>}</For>
+    </div>;
     return <div ref={root} class={`${styles.root} ${props.class ?? ""}`} style={{ ...props.style, "z-index": presence.present() ? 20 : undefined }}>
         <button ref={trigger} id={props.id} class={styles.trigger} type="button" role="combobox"
             aria-label={props.ariaLabel} aria-haspopup="listbox" aria-expanded={open()} aria-controls={presence.present() ? listId : undefined}
@@ -174,15 +204,12 @@ const Dropdown: Component<Props> = (props) => {
             <div class={styles.menu} inert={presence.exiting()} aria-hidden={presence.exiting() ? "true" : undefined}
                 ref={(element) => { menu = element; registerVisibilityAnimation(element, presence.exiting, "dialog"); schedule(); }}
                 style={{ left: `${placement().left}px`, top: `${placement().top}px`, width: `${placement().width}px` }}>
-                    <div id={listId} role="listbox" aria-label={props.ariaLabel}>
-                        <For each={props.options}>{(option, index) => <div id={`${listId}-${index()}`} class={styles.option}
-                            role="option" aria-selected={option.value === props.value} aria-disabled={option.disabled || undefined}
-                            data-active={index() === active() && !option.disabled ? "true" : undefined}
-                            onPointerDown={(event) => event.preventDefault()}
-                            onPointerMove={() => { if (!option.disabled) setActive(index()); }} onClick={() => choose(index())}>
-                            <span>{option.label}</span><span class={styles.check}><Show when={option.value === props.value}><Icon name="check" size={14} /></Show></span>
-                        </div>}</For>
-                    </div>
+                <Show when={props.scrollable} fallback={optionList()}>
+                    <CustomScrollArea ariaLabel={props.ariaLabel} viewportStyle={{ padding: "0 18px 0 0" }}
+                        viewportRef={(element) => { scrollViewport = element; schedule(); }}>
+                        {optionList()}
+                    </CustomScrollArea>
+                </Show>
             </div>
         </Show>
     </div>;

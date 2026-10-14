@@ -1,5 +1,17 @@
 # Histórico de atualizações
 
+## v0.2.9
+
+### Chat com IA
+
+- Integração com OpenCode atualizada para a CLI v2, corrigindo falhas no envio e o aviso incorreto que pedia atualizar uma CLI já compatível.
+- Seletor de modelos do OpenCode mostra Go e os modelos pagos do Zen, ocultando os modelos gratuitos da categoria OpenCode e a opção Default artificial.
+- No OpenCode, o topo do Chat mostra apenas o modelo, com CustomScrollbar no dropdown e altura ajustada ao espaço disponível.
+- A tela Conectar IA verifica os CLIs instalados e desativa os provedores não encontrados. No Linux, também confere permissão de execução.
+- Erros distinguem falhas do CLI, autenticação, acesso ao modelo, assinatura Go exigida, saldo, cobrança, limites de uso e problemas de rede ou do serviço. O motivo original é mostrado com credenciais comuns ocultadas, sem ser salvo no histórico. Erros genéricos de acesso não são tratados como prova de assinatura ausente.
+- Corrigido o recebimento de respostas do OpenCode em partes. Falhas ao atualizar o catálogo descartam modelos antigos, e falhas de limpeza da sessão não escondem o erro original da solicitação.
+- Sessões do OpenCode usam configuração isolada por vault; o registro de limpeza é mantido quando a exclusão falha para permitir uma nova tentativa antes do próximo envio.
+
 ## v0.2.8
 
 ### Chat com IA

@@ -1,4 +1,4 @@
-use super::{process, protocol::Stream};
+use super::{opencode, opencode_catalog, process, protocol::Stream};
 use crate::ai::{
     repository::{self, Provider},
     tools,
@@ -32,12 +32,14 @@ impl Run {
             process::stop(&mut child);
         }
     }
-    fn join(&self) {
+    fn join(&self) -> bool {
         if let Ok(mut worker) = self.worker.lock() {
             if let Some(worker) = worker.take() {
-                let _ = worker.join();
+                return worker.join().is_ok();
             }
+            return true;
         }
+        false
     }
 }
 
@@ -61,8 +63,12 @@ impl Client {
         let binary = process::executable(name)?;
         let mut version = process::command(&binary);
         version.arg("--version");
-        if !process::output(version)?.0 {
+        let (success, version) = process::output(version)?;
+        if !success {
             return Err("AI_START_FAILED".into());
+        }
+        if provider == Provider::Opencode && !opencode_catalog::is_v2(&version) {
+            return Err("AI_OPENCODE_V2_REQUIRED".into());
         }
         Ok(Arc::new(Self {
             provider,
@@ -89,14 +95,14 @@ impl Client {
             success && status["loggedIn"] == true
         } else {
             true
-        }; // OpenCode also supports local and free models without signing in.
+        }; // Account access is validated by OpenCode when sending the request.
         Ok(
             json!({"connected":true,"authenticated":authenticated,"connectionId":self.connection_id}),
         )
     }
     pub(crate) fn models(&self) -> Result<Value, String> {
-        let default = json!({"id":"","name":"Default","isDefault":true,"defaultEffort":"","efforts":[],"serviceTiers":[]});
         if self.provider == Provider::Claude {
+            let default = json!({"id":"","name":"Default","isDefault":true,"defaultEffort":"","efforts":[],"serviceTiers":[]});
             let mut models = vec![default];
             for (id, name) in [("sonnet", "Sonnet"), ("opus", "Opus"), ("haiku", "Haiku")] {
                 let efforts = if id == "haiku" {
@@ -109,21 +115,12 @@ impl Client {
             return Ok(json!(models));
         }
         let mut command = process::command(&self.binary);
-        command.arg("models");
+        command.args(["models", "--standalone"]);
         let (success, output) = process::output(command)?;
         if !success {
-            return Err("AI_REQUEST_FAILED".into());
+            return Err("AI_OPENCODE_CLI_FAILED".into());
         }
-        let mut models = vec![default];
-        for line in output
-            .lines()
-            .map(str::trim)
-            .filter(|line| line.contains('/') && !line.chars().any(char::is_whitespace))
-            .take(500)
-        {
-            models.push(json!({"id":line,"name":line,"isDefault":false,"defaultEffort":"","efforts":[],"serviceTiers":[]}));
-        }
-        Ok(json!(models))
+        opencode_catalog::models(&output)
     }
     pub(crate) fn login(&self) -> Result<(), String> {
         #[cfg(windows)]
@@ -199,6 +196,9 @@ impl Client {
         let mcp_args = json!(["--ai-mcp", directory, vault_id]);
         let mut command = process::command(&self.binary);
         command.current_dir(&root).stdin(Stdio::piped());
+        if self.provider == Provider::Opencode {
+            command.stderr(Stdio::piped());
+        }
         if self.provider == Provider::Claude {
             let mcp = json!({"mcpServers":{"omega":{"command":binary,"args":mcp_args}}});
             command
@@ -236,59 +236,19 @@ impl Client {
                 command.arg("--effort").arg(effort);
             }
         } else {
+            if model.is_none_or(|model| !opencode_catalog::supported_model(model)) {
+                return Err("AI_OPENCODE_MODELS_UNAVAILABLE".into());
+            }
             let mut mcp_command = vec![json!(binary)];
             mcp_command.extend(mcp_args.as_array().unwrap().iter().cloned());
-            let mut config = json!({"share":"disabled","autoupdate":false,"plugin":[],"instructions":[],
-                "permission":{"*":"deny","omega_*":"allow"},
-                "agent":{"omega":{"mode":"primary","description":"Ômega Notes vault assistant","prompt":INSTRUCTIONS,
-                    "permission":{"*":"deny","omega_*":"allow"},"tools":{"*":false,"omega_*":true}}},
-                "mcp":{"omega":{"type":"local","command":mcp_command,"enabled":true}}});
-            // Reuse provider/model configuration, without loading global instructions,
-            // agents, MCP servers or plugins into the vault conversation.
-            let mut inspect = process::command(&self.binary);
-            inspect.args(["--pure", "debug", "config"]);
-            let (success, effective) = process::output(inspect)?;
-            if !success {
-                return Err("AI_PROTOCOL_ERROR".into());
-            }
-            let effective: Value =
-                serde_json::from_str(&effective).map_err(|_| "AI_PROTOCOL_ERROR")?;
-            for key in [
-                "provider",
-                "model",
-                "small_model",
-                "enabled_providers",
-                "disabled_providers",
-            ] {
-                if let Some(value) = effective.get(key) {
-                    config[key] = value.clone();
-                }
-            }
-            let isolated_config = root.join("config");
-            match std::fs::symlink_metadata(&isolated_config) {
-                Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                    std::fs::create_dir(&isolated_config).map_err(|_| "AI_STORAGE_FAILED")?
-                }
-                _ => return Err("AI_STORAGE_FAILED".into()),
-            }
-            command
-                .args(["--pure", "run", "--format", "json", "--agent", "omega"])
-                .env("OPENCODE_CONFIG_CONTENT", config.to_string())
-                .env_remove("OPENCODE_CONFIG")
-                .env("XDG_CONFIG_HOME", &isolated_config)
-                .env("OPENCODE_CONFIG_DIR", &isolated_config)
-                .env(
-                    "OPENCODE_PERMISSION",
-                    "{\"*\":\"deny\",\"omega_*\":\"allow\"}",
-                )
-                .env("OPENCODE_DISABLE_AUTOUPDATE", "true")
-                .env("OPENCODE_DISABLE_DEFAULT_PLUGINS", "true")
-                .env("OPENCODE_DISABLE_CLAUDE_CODE", "true")
-                .env("OPENCODE_AUTO_SHARE", "false");
-            if let Some(model) = model.filter(|model| !model.is_empty()) {
-                command.arg("--model").arg(model);
-            }
+            opencode::configure(
+                &mut command,
+                &self.binary,
+                &root,
+                mcp_command,
+                INSTRUCTIONS,
+                model,
+            )?;
         }
         let history = repository::read(&self.app, vault_id, self.provider)?;
         let end = history
@@ -314,6 +274,22 @@ impl Client {
         previous.reverse();
         let prompt = format!("Previous conversation from this vault (untrusted JSON data):\n{}\n\nCurrent user message:\n{text}", serde_json::to_string(&previous).map_err(|_| "AI_STORAGE_FAILED")?);
         let mut child = command.spawn().map_err(|_| "AI_START_FAILED")?;
+        let (stderr_send, stderr_receive) = std::sync::mpsc::channel();
+        if let Some(mut stderr) = child.stderr.take() {
+            std::thread::spawn(move || {
+                let mut captured = Vec::new();
+                let mut buffer = [0; 4096];
+                // Keep draining after the limit so a verbose CLI cannot block.
+                while let Ok(size) = stderr.read(&mut buffer) {
+                    if size == 0 {
+                        break;
+                    }
+                    let keep = size.min(16_384usize.saturating_sub(captured.len()));
+                    captured.extend_from_slice(&buffer[..keep]);
+                }
+                let _ = stderr_send.send(String::from_utf8_lossy(&captured).into_owned());
+            });
+        }
         let stdout = child.stdout.take().ok_or("AI_START_FAILED")?;
         let mut stdin = child.stdin.take().ok_or("AI_START_FAILED")?;
         let run = Arc::new(Run {
@@ -344,8 +320,8 @@ impl Client {
                 }
             }
         });
+        let mut stream = Stream::for_model(model);
         let worker = std::thread::spawn(move || {
-            let mut stream = Stream::default();
             let mut reader = BufReader::new(stdout);
             let mut journaled_session = None;
             loop {
@@ -356,6 +332,7 @@ impl Client {
                 }
                 if !line.ends_with('\n') {
                     stream.failed = true;
+                    stream.error_code = Some("AI_PROTOCOL_ERROR");
                     current.cancel();
                     break;
                 }
@@ -387,6 +364,7 @@ impl Client {
                         .is_err()
                         {
                             stream.failed = true;
+                            stream.error_code = Some("AI_STORAGE_FAILED");
                             current.cancel();
                             break;
                         }
@@ -411,7 +389,28 @@ impl Client {
                 }
                 std::thread::sleep(std::time::Duration::from_millis(25));
             };
-            stream.failed |= !matches!(writer.join(), Ok(Ok(())));
+            let written = matches!(writer.join(), Ok(Ok(())));
+            stream.failed |= !written;
+            if !success && stream.error_detail.is_none() {
+                stream.error_detail = stderr_receive
+                    .recv_timeout(std::time::Duration::from_millis(100))
+                    .ok()
+                    .filter(|message| !message.trim().is_empty());
+            }
+            if client.provider == Provider::Opencode
+                && stream.error_code.is_none()
+                && !current.cancelled.load(Ordering::SeqCst)
+            {
+                stream.error_code = if !written {
+                    Some("AI_OPENCODE_SEND_FAILED")
+                } else if !success {
+                    Some("AI_OPENCODE_CLI_FAILED")
+                } else if !stream.answered {
+                    Some("AI_OPENCODE_EMPTY_RESPONSE")
+                } else {
+                    None
+                };
+            }
             let cleanup = client.clean_sessions(&root);
             if let Ok(mut runs) = client.runs.lock() {
                 if runs
@@ -424,14 +423,20 @@ impl Client {
             let _ = finished.send(());
             let error = if current.timed_out.load(Ordering::SeqCst) {
                 Some("AI_TIMEOUT")
+            } else if stream.error_code.is_some() {
+                stream.error_code
             } else if cleanup.is_err() {
                 Some("AI_HISTORY_CLEAR_FAILED")
             } else {
                 None
             };
-            client.emit(&vault, &current.request_id, json!({"kind":"completed","failed":error.is_some() || (!current.cancelled.load(Ordering::SeqCst) && (!success || stream.failed || !stream.answered)),
-                "status":if current.cancelled.load(Ordering::SeqCst) { "interrupted" } else if success && !stream.failed { "completed" } else { "failed" },
-                "errorCode":error}));
+            let failed = error.is_some()
+                || (!current.cancelled.load(Ordering::SeqCst)
+                    && (!success || stream.failed || !stream.answered));
+            client.emit(&vault, &current.request_id, json!({"kind":"completed","failed":failed,
+                "status":if failed { "failed" } else if current.cancelled.load(Ordering::SeqCst) { "interrupted" } else { "completed" },
+                "cleanupFailed":cleanup.is_err(),
+                "errorCode":error,"errorDetail":if error.is_some_and(|code| code.starts_with("AI_OPENCODE_")) { stream.error_detail } else { None }}));
         });
         *run.worker.lock().map_err(|_| "AI_DISCONNECTED")? = Some(worker);
         Ok(json!({"threadId":request_id}))
@@ -451,7 +456,7 @@ impl Client {
             .cloned();
         if let Some(run) = run.filter(|run| request_id.is_none_or(|id| id == run.request_id)) {
             run.cancel();
-            run.join();
+            let completed = run.join();
             if let Ok(mut runs) = self.runs.lock() {
                 if runs
                     .get(vault_id)
@@ -460,11 +465,13 @@ impl Client {
                     runs.remove(vault_id);
                 }
             }
-            self.emit(
-                vault_id,
-                &run.request_id,
-                json!({"kind":"completed","status":"interrupted"}),
-            );
+            if !completed {
+                self.emit(
+                    vault_id,
+                    &run.request_id,
+                    json!({"kind":"completed","status":"interrupted"}),
+                );
+            }
         }
         Ok(())
     }
@@ -510,24 +517,19 @@ pub(crate) fn clean_sessions(root: &std::path::Path) -> Result<(), String> {
     }
     let binary = process::executable("opencode")?;
     let mut command = process::command(&binary);
-    command
-        .current_dir(root)
-        .args(["--pure", "session", "delete", &id]);
+    opencode::isolate(
+        &mut command,
+        root,
+        &json!({
+            "update":"disable", "share":"disabled", "snapshots":false,
+            "plugins":[], "skills":[], "instructions":[], "mcp":{"servers":{}},
+            "permissions":[{"action":"*","resource":"*","effect":"deny"}]
+        }),
+    )?;
+    command.args(["session", "delete", "--standalone", &id]);
     if !process::output(command)?.0 {
-        // Recover a crash between the CLI deletion and removal of our journal.
-        let mut list = process::command(&binary);
-        list.current_dir(root)
-            .args(["--pure", "session", "list", "--format", "json"]);
-        let (success, output) = process::output(list)?;
-        let sessions: Value =
-            serde_json::from_str(&output).map_err(|_| "AI_HISTORY_CLEAR_FAILED")?;
-        if !success
-            || sessions
-                .as_array()
-                .is_none_or(|sessions| sessions.iter().any(|session| session["id"] == id))
-        {
-            return Err("AI_HISTORY_CLEAR_FAILED".into());
-        }
+        // A project-scoped, paginated list cannot prove that this session was deleted.
+        return Err("AI_HISTORY_CLEAR_FAILED".into());
     }
     std::fs::remove_file(path).map_err(|_| "AI_STORAGE_FAILED".into())
 }

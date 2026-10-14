@@ -9,6 +9,29 @@ const errorKeys: Record<string, TranslationKey> = {
     AI_TIMEOUT: "aiTimeout", AI_SIGN_IN_REQUIRED: "aiSignInRequired", AI_VAULT_CHANGED: "aiVaultChanged",
     AI_INVALID_VAULT: "aiVaultChanged", AI_BUSY: "aiBusy", AI_PROTOCOL_ERROR: "aiCliUpdateRequired",
     AI_LOGIN_TERMINAL_UNAVAILABLE: "aiCliLoginRequired", AI_HISTORY_CLEAR_FAILED: "aiHistoryClearFailed",
+    AI_OPENCODE_V2_REQUIRED: "aiOpenCodeV2Required",
+    AI_OPENCODE_CONFIG_FAILED: "aiOpenCodeConfigFailed",
+    AI_OPENCODE_FREE_TIER_REJECTED: "aiOpenCodeFreeTierRejected",
+    AI_OPENCODE_MODELS_UNAVAILABLE: "aiOpenCodeModelsUnavailable",
+};
+
+const openCodeErrorKeys: Record<string, TranslationKey> = {
+    AI_START_FAILED: "aiOpenCodeCliFailed",
+    AI_REQUEST_FAILED: "aiOpenCodeCliFailed",
+    AI_PROTOCOL_ERROR: "aiOpenCodeResponseFailed",
+    AI_OPENCODE_CLI_FAILED: "aiOpenCodeCliFailed",
+    AI_OPENCODE_SEND_FAILED: "aiOpenCodeSendFailed",
+    AI_OPENCODE_EMPTY_RESPONSE: "aiOpenCodeEmptyResponse",
+    AI_OPENCODE_GO_SUBSCRIPTION_REQUIRED: "aiOpenCodeGoSubscriptionRequired",
+    AI_OPENCODE_AUTH_FAILED: "aiOpenCodeAuthFailed",
+    AI_OPENCODE_ACCESS_DENIED: "aiOpenCodeAccessDenied",
+    AI_OPENCODE_CREDITS_REQUIRED: "aiOpenCodeCreditsRequired",
+    AI_OPENCODE_BILLING_REQUIRED: "aiOpenCodeBillingRequired",
+    AI_OPENCODE_LIMIT_REACHED: "aiOpenCodeLimitReached",
+    AI_OPENCODE_MODEL_UNAVAILABLE: "aiOpenCodeModelUnavailable",
+    AI_OPENCODE_SERVICE_FAILED: "aiOpenCodeServiceFailed",
+    AI_OPENCODE_CONNECTION_FAILED: "aiOpenCodeConnectionFailed",
+    AI_OPENCODE_REQUEST_REJECTED: "aiOpenCodeRequestRejected",
 };
 
 const cliProvider = (id: "claude" | "opencode", name: string): AiProvider => ({
@@ -23,7 +46,7 @@ const cliProvider = (id: "claude" | "opencode", name: string): AiProvider => ({
     }),
     cancel: (vaultId, _clear, requestId) => invoke("ai_cli_cancel", { providerId: id, vaultId, requestId: requestId ?? null }),
     subscribe: (handler) => listen<AiEvent>("ai-event", (event) => handler(event.payload)),
-    errorKey: (failure) => errorKeys[failure] ?? "aiRequestFailed",
+    errorKey: (failure) => (id === "opencode" ? openCodeErrorKeys[failure] : undefined) ?? errorKeys[failure] ?? "aiRequestFailed",
 });
 
 export const claudeProvider = cliProvider("claude", "Claude");

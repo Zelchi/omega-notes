@@ -21,6 +21,10 @@ fn client(app: &AppHandle, provider: Provider) -> Result<Arc<Client>, String> {
         .ok_or_else(|| "AI_DISCONNECTED".into())
 }
 #[tauri::command]
+pub(crate) async fn ai_installed_providers() -> Result<Value, String> {
+    blocking(|| Ok(super::providers::installed())).await
+}
+#[tauri::command]
 pub(crate) async fn ai_cli_connect(app: AppHandle, provider_id: Provider) -> Result<Value, String> {
     blocking(move || {
         let state = app.state::<AiState>();
