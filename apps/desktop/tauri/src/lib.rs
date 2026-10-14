@@ -38,6 +38,7 @@ pub fn run() {
             ai::commands::ai_cancel,
             ai::commands::ai_disconnect,
             ai::cli_commands::ai_cli_connect,
+            ai::cli_commands::ai_installed_providers,
             ai::cli_commands::ai_cli_status,
             ai::cli_commands::ai_cli_models,
             ai::cli_commands::ai_cli_login,

@@ -1,7 +1,7 @@
 use std::{
     ffi::OsString,
     io::Read,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::mpsc,
     time::{Duration, Instant},
@@ -68,7 +68,24 @@ fn native_executable(name: &str) -> Option<PathBuf> {
     directories
         .into_iter()
         .map(|directory| directory.join(&filename))
-        .find(|path| path.is_file())
+        .find(|path| is_executable(path))
+}
+
+pub(super) fn is_executable(path: &Path) -> bool {
+    let Ok(metadata) = path.metadata() else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o111 == 0 {
+            return false;
+        }
+    }
+    true
 }
 
 pub(super) fn command(binary: &Executable) -> Command {

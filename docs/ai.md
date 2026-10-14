@@ -7,7 +7,7 @@ instalados na máquina. Cada provedor mantém seu próprio histórico em cada va
 
 1. Instale uma versão recente do CLI escolhido e configure a conta ou o modelo nele.
    Para Claude, use `claude auth login`; para provedores online do OpenCode, use
-   `opencode auth login`. Modelos gratuitos ou locais do OpenCode podem dispensar login.
+   `opencode auth login` e conecte sua conta OpenCode Go ou Zen (Console).
 2. Abra um vault no Ômega Notes.
 3. Ative **IA Features** nas configurações (vem desativado por padrão) e use o ícone de conversa na barra superior.
 4. Clique em **Codex**, **Claude** ou **OpenCode**. A autenticação existente no CLI é reaproveitada.
@@ -31,6 +31,29 @@ Somente o identificador do provedor é salvo nas preferências locais, sem crede
 Os CLIs são localizados pelo PATH e por pastas comuns de instalação. No Windows,
 as instalações globais por npm também são reconhecidas quando o Node está no PATH.
 Caso o provedor não seja encontrado, confira a instalação e reinicie o Ômega Notes.
+Ao abrir a tela Conectar IA, o aplicativo verifica os executáveis usando os mesmos
+caminhos da conexão e desativa os botões dos CLIs não encontrados. Essa verificação
+não inicia os provedores nem faz login. Reabrir o Chat atualiza a disponibilidade.
+
+Erros de envio aparecem por três segundos acima da linha inferior do Chat.
+Para OpenCode, o aviso inclui o motivo retornado pela CLI quando disponível,
+com credenciais comuns ocultadas. Esses detalhes não são salvos na conversa.
+O aviso distingue falha local do CLI de uma resposta de erro do serviço.
+Assinatura Go ausente ou expirada só é indicada quando a resposta informa isso
+explicitamente para um modelo Go. Erros de autenticação ou HTTP 403, por si só,
+não confirmam falta de assinatura; o motivo original é preservado no aviso.
+Saldo, pendências de cobrança, limites de uso, modelo indisponível e falhas de
+rede ou do serviço também recebem mensagens específicas quando identificados.
+
+Modelos gratuitos do catálogo OpenCode podem retornar uma recusa de acesso
+ao plano gratuito. Há relatos desse erro no próprio OpenCode v2 ao usar agentes
+com ferramentas bloqueadas ([relato no repositório oficial](https://github.com/anomalyco/opencode/issues/50081)).
+O Ômega Notes mantém essas restrições para limitar as consultas ao vault ativo.
+Por isso, o seletor da integração OpenCode mostra modelos OpenCode Go e pagos
+do Zen (Console), sem os modelos gratuitos da categoria OpenCode ou de outros
+provedores. A presença de um modelo no catálogo não garante acesso pela conta.
+Sem modelos elegíveis disponíveis, o envio é
+bloqueado com um aviso para conferir a conexão no CLI.
 
 Enter envia a mensagem; Shift+Enter insere uma linha. Você pode continuar
 escrevendo enquanto a IA responde. No Codex, enviar durante uma resposta acrescenta uma
@@ -96,7 +119,8 @@ OpenCode são excluídas ao terminar ou interromper a resposta; o identificador
 em `opencode-workspace/session.json` permite repetir a limpeza se houver uma
 interrupção do aplicativo. Uma falha de limpeza é apresentada no Chat e pode
 impedir o próximo envio até ser resolvida. Logs e credenciais já administrados
-pelos CLIs continuam sob responsabilidade desses programas.
+pelos CLIs continuam sob responsabilidade desses programas. A limpeza usa
+configuração isolada e mantém o registro até a CLI confirmar a exclusão.
 Tokens e chaves de API não são guardados pelo Ômega Notes nessa pasta.
 
 ## Dados e conta
@@ -109,7 +133,8 @@ ao usuário proprietário (`0700`). O nome oculto da pasta não implica criptogr
 Cada CLI administra sua autenticação. O Ômega Notes não copia os tokens nem
 armazena chaves de API. O Codex usa a conta ChatGPT, o Claude usa a conta
 configurada no Claude Code e o OpenCode usa o provedor/modelo configurado nele.
-No OpenCode, o processamento pode ser local ou online, conforme o modelo.
+Na integração OpenCode, os modelos apresentados são do Go e do Zen (Console),
+com processamento online.
 Mensagens e textos consultados são enviados ao serviço; mídia não é enviada por
 essas ferramentas. As notas são salvas antes de enviar uma pergunta.
 
@@ -156,10 +181,16 @@ suporte (`fast` ou `priority` no catálogo do Codex). Esse modo aumenta o consum
 Claude oferece os aliases Default, Sonnet, Opus e Haiku. Sonnet e Opus oferecem
 os níveis low, medium e high; a disponibilidade efetiva depende da conta e do
 modelo resolvido pelo CLI. Default preserva a escolha configurada no Claude Code.
-O catálogo do OpenCode vem de `opencode models`, incluindo modelos locais
-configurados. Default preserva o modelo configurado no CLI.
-Fast fica indisponível nesses dois adaptadores; pensamento fica indisponível
-no OpenCode enquanto seu catálogo não fornece essas capacidades à integração.
+A listagem de modelos exige OpenCode CLI v2. O catálogo vem de `opencode models --standalone`,
+filtrado para incluir IDs `opencode-go/` e os modelos pagos de `opencode/` (Zen).
+Modelos `opencode/` com sufixo `-free` e Big Pickle são ocultados. A lista não é limitada aos
+primeiros 500 modelos e não contém uma opção Default artificial.
+Os envios usam `opencode run --standalone --format json`, com um servidor
+privado, configuração v2 e o diretório do vault definido explicitamente.
+O agente usa `agents.omega.system`, permissões ordenadas e `mcp.servers.omega`,
+com Code Mode desativado para disponibilizar diretamente as três consultas de notas.
+Fast fica indisponível nesses dois adaptadores. No OpenCode, os seletores de
+pensamento e velocidade são ocultados, deixando somente o modelo.
 
 Claude usa modo restrito (`--restricted`), preservando o login da assinatura,
 sem ferramentas nativas e com MCP restrito ao servidor do Ômega Notes. Fontes
@@ -169,5 +200,5 @@ para essas ferramentas. A configuração de provedores e modelos é reaproveitad
 instruções, agentes, plugins e outros servidores MCP globais ficam fora da conversa.
 
 Referências: [CLI Claude Code](https://code.claude.com/docs/en/cli-reference),
-[CLI OpenCode](https://opencode.ai/docs/cli/) e
-[MCP no OpenCode](https://opencode.ai/docs/mcp-servers/).
+[CLI OpenCode v2](https://opencode.ai/v2/docs/cli/commands/) e
+[MCP no OpenCode v2](https://opencode.ai/v2/docs/mcp-servers).

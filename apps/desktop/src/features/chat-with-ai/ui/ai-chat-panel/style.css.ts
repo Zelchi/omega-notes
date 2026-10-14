@@ -26,6 +26,7 @@ export const styles = {
     providerButton: style([button, { width: 180, maxWidth: "100%", minHeight: 38, gap: 10 }]),
     hint: style({ margin: 0, fontSize: 12, lineHeight: 1.6, color: "var(--muted)" }),
     options: style({ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, alignItems: "end" }),
+    modelOnly: style({ gridTemplateColumns: "minmax(0, 1fr)" }),
     option: style({ display: "flex", flexDirection: "column", gap: 5, minWidth: 0, fontSize: 11, color: "var(--muted)" }),
     messageArea: style({ vars: { "--omega-scrollbar-right": "1px" } }),
     messages: style({ display: "flex", flexDirection: "column", gap: 14, minHeight: "100%" }),

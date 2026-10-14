@@ -47,7 +47,7 @@ pub(crate) struct Client {
     pub(crate) operation: Mutex<()>,
 }
 
-fn executable() -> Result<PathBuf, String> {
+pub(super) fn executable() -> Result<PathBuf, String> {
     let name = if cfg!(windows) { "codex.exe" } else { "codex" };
     let mut candidates: Vec<PathBuf> = std::env::var_os("PATH")
         .map(|path| {
@@ -88,7 +88,7 @@ fn executable() -> Result<PathBuf, String> {
     }
     candidates
         .into_iter()
-        .find(|path| path.is_file())
+        .find(|path| super::process::is_executable(path))
         .ok_or_else(|| "AI_NOT_FOUND".into())
 }
 

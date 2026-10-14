@@ -94,30 +94,34 @@ const ChatBody: Component<Props> = (props) => {
                     </div>
                 </div>
             }>
-                <div class={styles.options}>
+                <div class={styles.options} classList={{ [styles.modelOnly]: props.aiChat.provider.id === "opencode" }}>
                     <div class={styles.option}>
                         <Dropdown id="aiChat-model" ariaLabel={props.t("aiModel")}
+                            scrollable={props.aiChat.provider.id === "opencode"}
                             value={props.aiChat.selectedModel()?.id ?? ""}
-                            options={props.aiChat.models().length ? props.aiChat.models().map((model) => ({ value: model.id, label: model.name })) : [{ value: "", label: props.t("aiDefaultModel") }]}
-                            disabled={props.aiChat.chat().busy || props.aiChat.sending() || props.aiChat.pending()}
+                            options={props.aiChat.models().length ? props.aiChat.models().map((model) => ({ value: model.id, label: model.name })) : props.aiChat.provider.id === "opencode" ? [] : [{ value: "", label: props.t("aiDefaultModel") }]}
+                            placeholder={props.t("aiModel")}
+                            disabled={props.aiChat.chat().busy || props.aiChat.sending() || props.aiChat.pending() || (props.aiChat.provider.id === "opencode" && !props.aiChat.models().length)}
                             onChange={(value) => props.aiChat.setModel(value)} />
                     </div>
-                    <div class={styles.option}>
-                        <Dropdown id="aiChat-effort" ariaLabel={props.t("aiThinkingLevel")}
-                            value={props.aiChat.selectedEffort()}
-                            options={props.aiChat.selectedModel()?.efforts.length
-                                ? props.aiChat.selectedModel()!.efforts.map((effort) => ({ value: effort, label: effortLabels[effort] ? props.t(effortLabels[effort]) : effort }))
-                                : [{ value: "", label: props.t("aiDefaultModel") }]}
-                            disabled={props.aiChat.chat().busy || props.aiChat.sending() || props.aiChat.pending() || !props.aiChat.selectedModel()?.efforts.length}
-                            onChange={(value) => props.aiChat.setEffort(value)} />
-                    </div>
-                    <div class={styles.option}>
-                        <Dropdown id="aiChat-speed" ariaLabel={props.t("aiSpeed")}
-                            value={props.aiChat.chat().fast && props.aiChat.fastAvailable() ? "fast" : "default"}
-                            options={[{ value: "default", label: "Default" }, { value: "fast", label: "Fast", disabled: !props.aiChat.fastAvailable() }]}
-                            disabled={props.aiChat.chat().busy || props.aiChat.sending() || props.aiChat.pending()}
-                            onChange={(value) => props.aiChat.setFast(value === "fast")} />
-                    </div>
+                    <Show when={props.aiChat.provider.id !== "opencode"}>
+                        <div class={styles.option}>
+                            <Dropdown id="aiChat-effort" ariaLabel={props.t("aiThinkingLevel")}
+                                value={props.aiChat.selectedEffort()}
+                                options={props.aiChat.selectedModel()?.efforts.length
+                                    ? props.aiChat.selectedModel()!.efforts.map((effort) => ({ value: effort, label: effortLabels[effort] ? props.t(effortLabels[effort]) : effort }))
+                                    : [{ value: "", label: props.t("aiDefaultModel") }]}
+                                disabled={props.aiChat.chat().busy || props.aiChat.sending() || props.aiChat.pending() || !props.aiChat.selectedModel()?.efforts.length}
+                                onChange={(value) => props.aiChat.setEffort(value)} />
+                        </div>
+                        <div class={styles.option}>
+                            <Dropdown id="aiChat-speed" ariaLabel={props.t("aiSpeed")}
+                                value={props.aiChat.chat().fast && props.aiChat.fastAvailable() ? "fast" : "default"}
+                                options={[{ value: "default", label: "Default" }, { value: "fast", label: "Fast", disabled: !props.aiChat.fastAvailable() }]}
+                                disabled={props.aiChat.chat().busy || props.aiChat.sending() || props.aiChat.pending()}
+                                onChange={(value) => props.aiChat.setFast(value === "fast")} />
+                        </div>
+                    </Show>
                 </div>
             </Show>
         </Show>
@@ -127,7 +131,7 @@ const ChatBody: Component<Props> = (props) => {
                     <h3 id="connect-ai-heading" class={styles.connectTitle}>{props.t("connectAi")}</h3>
                     <div class={styles.providers}>
                         <For each={props.aiChat.providers}>{(provider) =>
-                            <button class={styles.providerButton} type="button" disabled={props.aiChat.pending() || !props.aiChat.ready()}
+                            <button class={styles.providerButton} type="button" disabled={props.aiChat.pending() || !props.aiChat.ready() || props.aiChat.checkingProviders() || !props.aiChat.installedProviders()[provider.id]}
                                 onClick={() => void props.aiChat.connect(provider.id)}>
                                 <AiProviderIcon provider={provider.id} />
                                 <span>{props.aiChat.pending() && props.aiChat.provider.id === provider.id ? props.t("aiConnecting") : provider.name}</span>
