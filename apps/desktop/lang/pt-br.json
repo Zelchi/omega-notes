@@ -219,5 +219,19 @@
   "aiOpenCodeServiceFailed": "O serviço usado pelo OpenCode falhou ao processar a solicitação. Tente novamente mais tarde.",
   "aiOpenCodeConnectionFailed": "O OpenCode não conseguiu acessar o serviço de IA. Confira a conexão de rede e tente novamente.",
   "aiOpenCodeRequestRejected": "O OpenCode retornou um erro ao processar esta solicitação.",
-  "aiSessionCleanupFailed": "Também não foi possível apagar a sessão temporária de IA. A limpeza será tentada novamente antes da próxima mensagem."
+  "aiSessionCleanupFailed": "Também não foi possível apagar a sessão temporária de IA. A limpeza será tentada novamente antes da próxima mensagem.",
+  "aiChatShortcut": "Atalho do Chat",
+  "aiChatShortcutRecord": "Pressione uma tecla ou atalho…",
+  "aiChatShortcutReserved": "Ctrl+A seleciona tudo",
+  "aiClaudeVersionRequired": "É necessário Claude Code 2.1.248 ou mais recente. Atualize o CLI antes de conectar.",
+  "aiClaudeAuthCheckFailed": "Não foi possível ler a autenticação do Claude Code. Execute claude auth status no terminal.",
+  "aiClaudeAuthFailed": "O Claude recusou as credenciais da conta. Confira a conta conectada no CLI do Claude.",
+  "aiClaudeBillingFailed": "O Claude informou um problema de cobrança ou saldo. Confira a conta conectada.",
+  "aiClaudeLimitReached": "O Claude informou um limite de uso ou de solicitações. Confira os limites da conta e tente novamente mais tarde.",
+  "aiClaudeServiceFailed": "O serviço do Claude falhou ao processar a solicitação. Tente novamente mais tarde.",
+  "aiClaudeRequestFailed": "O Claude retornou um erro ao processar esta solicitação.",
+  "aiClaudeCliFailed": "O CLI do Claude não conseguiu concluir a solicitação. Confira se ele abre normalmente no terminal.",
+  "aiClaudeSendFailed": "Não foi possível entregar a mensagem ao CLI do Claude. Reconecte e tente novamente.",
+  "aiClaudeEmptyResponse": "O Claude terminou sem retornar uma resposta. Tente novamente ou escolha outro modelo.",
+  "aiClaudeMcpFailed": "O Claude não conseguiu conectar às ferramentas de notas deste vault. A solicitação foi interrompida. Reconecte e confira as permissões do CLI."
 }

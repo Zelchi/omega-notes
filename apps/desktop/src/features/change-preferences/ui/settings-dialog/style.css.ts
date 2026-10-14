@@ -2,6 +2,12 @@ import { motion } from "@/shared/ui/motion.css";
 import { style } from "@vanilla-extract/css";
 
 export const styles = {
+	shortcutInput: style({
+		width: 160, maxWidth: "55%", flexShrink: 0, minHeight: 34, padding: "7px 10px",
+		backgroundColor: "var(--surface-input)", color: "var(--ink)", fontSize: 12,
+		border: "1px solid var(--border-strong)", borderRadius: 5, cursor: "pointer",
+		selectors: { '&[aria-pressed="true"]': { borderColor: "var(--focus)" } },
+	}),
 	error: style({ margin: "4px 0 8px", fontSize: 12, lineHeight: 1.5, color: "var(--danger)" }),
 	footer: style({
 		marginTop: 16,

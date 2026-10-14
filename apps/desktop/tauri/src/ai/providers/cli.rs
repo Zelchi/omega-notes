@@ -1,4 +1,4 @@
-use super::{opencode, opencode_catalog, process, protocol::Stream};
+use super::{claude, opencode, opencode_catalog, process, protocol::Stream};
 use crate::ai::{
     repository::{self, Provider},
     tools,
@@ -70,6 +70,9 @@ impl Client {
         if provider == Provider::Opencode && !opencode_catalog::is_v2(&version) {
             return Err("AI_OPENCODE_V2_REQUIRED".into());
         }
+        if provider == Provider::Claude && !claude::supported_version(&version) {
+            return Err("AI_CLAUDE_VERSION_REQUIRED".into());
+        }
         Ok(Arc::new(Self {
             provider,
             binary,
@@ -91,8 +94,7 @@ impl Client {
             let mut command = process::command(&self.binary);
             command.args(["auth", "status"]);
             let (success, output) = process::output(command)?;
-            let status: Value = serde_json::from_str(&output).map_err(|_| "AI_PROTOCOL_ERROR")?;
-            success && status["loggedIn"] == true
+            claude::authenticated(success, &output)?
         } else {
             true
         }; // Account access is validated by OpenCode when sending the request.
@@ -196,45 +198,10 @@ impl Client {
         let mcp_args = json!(["--ai-mcp", directory, vault_id]);
         let mut command = process::command(&self.binary);
         command.current_dir(&root).stdin(Stdio::piped());
-        if self.provider == Provider::Opencode {
-            command.stderr(Stdio::piped());
-        }
+        command.stderr(Stdio::piped());
         if self.provider == Provider::Claude {
             let mcp = json!({"mcpServers":{"omega":{"command":binary,"args":mcp_args}}});
-            command
-                .args([
-                    "--restricted",
-                    "--setting-sources",
-                    "",
-                    "--disable-slash-commands",
-                    "--settings",
-                    "{\"disableAllHooks\":true,\"autoMemoryEnabled\":false}",
-                    "--print",
-                    "--output-format",
-                    "stream-json",
-                    "--verbose",
-                    "--include-partial-messages",
-                    "--no-session-persistence",
-                    "--tools",
-                    "",
-                    "--strict-mcp-config",
-                    "--permission-mode",
-                    "dontAsk",
-                    "--allowedTools",
-                    "mcp__omega__list_notes,mcp__omega__search_notes,mcp__omega__read_note",
-                    "--system-prompt",
-                    INSTRUCTIONS,
-                ])
-                .env("CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1")
-                .arg("--mcp-config")
-                .arg(mcp.to_string());
-            if let Some(model) = model.filter(|model| !model.is_empty()) {
-                command.arg("--model").arg(model);
-            }
-            if let Some(effort) = effort.filter(|effort| ["low", "medium", "high"].contains(effort))
-            {
-                command.arg("--effort").arg(effort);
-            }
+            claude::configure(&mut command, mcp, INSTRUCTIONS, model, effort);
         } else {
             if model.is_none_or(|model| !opencode_catalog::supported_model(model)) {
                 return Err("AI_OPENCODE_MODELS_UNAVAILABLE".into());
@@ -349,6 +316,10 @@ impl Client {
                             client.emit(&vault, &current.request_id, event);
                         }
                     }
+                    if stream.error_code == Some("AI_CLAUDE_MCP_FAILED") {
+                        current.cancel();
+                        break;
+                    }
                     if let Some(id) = stream.session_id.as_deref().filter(|id| {
                         id.starts_with("ses_")
                             && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
@@ -411,6 +382,20 @@ impl Client {
                     None
                 };
             }
+            if client.provider == Provider::Claude
+                && stream.error_code.is_none()
+                && !current.cancelled.load(Ordering::SeqCst)
+            {
+                stream.error_code = if !written {
+                    Some("AI_CLAUDE_SEND_FAILED")
+                } else if !success {
+                    Some("AI_CLAUDE_CLI_FAILED")
+                } else if !stream.answered {
+                    Some("AI_CLAUDE_EMPTY_RESPONSE")
+                } else {
+                    None
+                };
+            }
             let cleanup = client.clean_sessions(&root);
             if let Ok(mut runs) = client.runs.lock() {
                 if runs
@@ -436,7 +421,7 @@ impl Client {
             client.emit(&vault, &current.request_id, json!({"kind":"completed","failed":failed,
                 "status":if failed { "failed" } else if current.cancelled.load(Ordering::SeqCst) { "interrupted" } else { "completed" },
                 "cleanupFailed":cleanup.is_err(),
-                "errorCode":error,"errorDetail":if error.is_some_and(|code| code.starts_with("AI_OPENCODE_")) { stream.error_detail } else { None }}));
+                "errorCode":error,"errorDetail":if error.is_some_and(|code| code.starts_with("AI_OPENCODE_") || code.starts_with("AI_CLAUDE_")) { stream.error_detail } else { None }}));
         });
         *run.worker.lock().map_err(|_| "AI_DISCONNECTED")? = Some(worker);
         Ok(json!({"threadId":request_id}))

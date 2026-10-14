@@ -13,6 +13,17 @@ const errorKeys: Record<string, TranslationKey> = {
     AI_OPENCODE_CONFIG_FAILED: "aiOpenCodeConfigFailed",
     AI_OPENCODE_FREE_TIER_REJECTED: "aiOpenCodeFreeTierRejected",
     AI_OPENCODE_MODELS_UNAVAILABLE: "aiOpenCodeModelsUnavailable",
+    AI_CLAUDE_VERSION_REQUIRED: "aiClaudeVersionRequired",
+    AI_CLAUDE_AUTH_CHECK_FAILED: "aiClaudeAuthCheckFailed",
+    AI_CLAUDE_AUTH_FAILED: "aiClaudeAuthFailed",
+    AI_CLAUDE_BILLING_FAILED: "aiClaudeBillingFailed",
+    AI_CLAUDE_LIMIT_REACHED: "aiClaudeLimitReached",
+    AI_CLAUDE_SERVICE_FAILED: "aiClaudeServiceFailed",
+    AI_CLAUDE_REQUEST_FAILED: "aiClaudeRequestFailed",
+    AI_CLAUDE_CLI_FAILED: "aiClaudeCliFailed",
+    AI_CLAUDE_SEND_FAILED: "aiClaudeSendFailed",
+    AI_CLAUDE_EMPTY_RESPONSE: "aiClaudeEmptyResponse",
+    AI_CLAUDE_MCP_FAILED: "aiClaudeMcpFailed",
 };
 
 const openCodeErrorKeys: Record<string, TranslationKey> = {

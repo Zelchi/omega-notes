@@ -5,11 +5,15 @@ import type { Language, TranslationKey } from "@/shared/lib/i18n";
 import type { CanvasLayout, TextCursor, Theme } from "../../model/preferences";
 import Icon from "@/shared/ui/icon";
 import Dropdown from "@/shared/ui/dropdown";
+import AiChatShortcutInput from "./ai-chat-shortcut-input";
+import type { AiChatShortcut } from "../../model/ai-chat-shortcut";
 import { styles } from "./style.css.ts";
 
 type Props = {
 	open: boolean;
 	aiFeaturesEnabled: boolean;
+	aiChatShortcut: AiChatShortcut;
+	onAiChatShortcutChange: (value: AiChatShortcut) => void;
 	aiResetting?: boolean;
 	aiCleanupError?: string;
 	onAiFeaturesEnabledChange: (value: boolean) => void;
@@ -71,6 +75,12 @@ const SettingsDialog: Component<Props> = (props) => {
 					<input class={styles.toggle} type="checkbox" checked={props.aiFeaturesEnabled} disabled={props.aiResetting}
 						onChange={(event) => props.onAiFeaturesEnabledChange(event.currentTarget.checked)} />
 				</label>
+				<Show when={props.aiFeaturesEnabled}>
+					<div class={styles.option}>
+						<label for="settings-aiChatShortcut">{props.t("aiChatShortcut")}</label>
+						<AiChatShortcutInput value={props.aiChatShortcut} onChange={props.onAiChatShortcutChange} t={props.t} />
+					</div>
+				</Show>
 				<Show when={props.aiCleanupError}>{(error) => <p role="alert" class={styles.error}>{error()}</p>}</Show>
 				<div class={styles.option}>
 					<label for="settings-canvasLayout">{props.t("canvasLayout")}</label>

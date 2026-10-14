@@ -5,7 +5,7 @@ import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { translate, type TranslationKey } from "@/shared/lib/i18n";
 import { useVaults } from "@/features/manage-vault";
 import type { Vault } from "@/entities/vault";
-import { usePreferences } from "@/features/change-preferences";
+import { matchesAiChatShortcut, usePreferences } from "@/features/change-preferences";
 import { useWindowControls } from "./model/window-controls.controller";
 import { useNoteNavigationController } from "./model/note-navigation.controller";
 import { useUpdatesController } from "@/features/check-for-updates";
@@ -66,6 +66,17 @@ export const useAppController = () => {
 		};
 		addEventListener("keydown", preventNativeTab, true);
 		onCleanup(() => removeEventListener("keydown", preventNativeTab, true));
+
+		const onAiShortcut = (event: KeyboardEvent) => {
+			if (event.defaultPrevented || event.isComposing || !preferences.aiFeaturesEnabled() || !vaults.activeVaultId() ||
+				navigation.nameDialog() || vaults.dialogOpen() || settingsOpen() || updates.installing()) return;
+			if (!matchesAiChatShortcut(event, preferences.aiChatShortcut())) return;
+			event.preventDefault();
+			event.stopPropagation();
+			if (!event.repeat) aiChat.setOpen((open) => !open);
+		};
+		addEventListener("keydown", onAiShortcut, true);
+		onCleanup(() => removeEventListener("keydown", onAiShortcut, true));
 
 		const onShortcut = (event: KeyboardEvent) => {
 			if (event.key !== "Escape") return;

@@ -21,6 +21,28 @@ pub(super) fn executable(name: &str) -> Result<Executable, String> {
     }
     #[cfg(windows)]
     if let Some(appdata) = std::env::var_os("APPDATA") {
+        if name == "claude" {
+            let npm = PathBuf::from(&appdata).join("npm/node_modules/@anthropic-ai");
+            let platform = if cfg!(target_arch = "aarch64") {
+                "claude-code-win32-arm64"
+            } else {
+                "claude-code-win32-x64"
+            };
+            for native in [
+                npm.join("claude-code/bin/claude.exe"),
+                npm.join("claude-code/node_modules/@anthropic-ai")
+                    .join(platform)
+                    .join("claude.exe"),
+                npm.join(platform).join("claude.exe"),
+            ] {
+                if is_executable(&native) {
+                    return Ok(Executable {
+                        program: native,
+                        arguments: vec![],
+                    });
+                }
+            }
+        }
         let package = match name {
             "claude" => "@anthropic-ai/claude-code/cli.js",
             "opencode" => "opencode-ai/bin/opencode",
@@ -77,6 +99,15 @@ pub(super) fn is_executable(path: &Path) -> bool {
     };
     if !metadata.is_file() {
         return false;
+    }
+    #[cfg(windows)]
+    {
+        let mut header = [0; 2];
+        if !std::fs::File::open(path).is_ok_and(|mut file| file.read_exact(&mut header).is_ok())
+            || header != *b"MZ"
+        {
+            return false;
+        }
     }
     #[cfg(unix)]
     {

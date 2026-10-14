@@ -15,6 +15,7 @@ type Props = {
 	onSettings: () => void;
 	onAiChat: () => void;
 	aiChatOpen: boolean;
+	aiChatShortcut: string;
 	aiFeaturesEnabled: boolean;
 	onMinimize: () => void;
 	onToggleMaximize: () => void;
@@ -37,7 +38,7 @@ const WindowTitlebar: Component<Props> = (props) => (
 			<div class={styles.controls} onPointerDown={(event) => event.stopPropagation()}>
 				<Show when={props.aiFeaturesEnabled}>
 					<button class={styles.button} type="button" disabled={!props.vaultName} aria-label={props.t("aiChat")}
-						aria-expanded={props.aiChatOpen} aria-controls="ai-chat-panel" onClick={props.onAiChat}>
+						aria-expanded={props.aiChatOpen} aria-controls="ai-chat-panel" aria-keyshortcuts={props.aiChatShortcut} onClick={props.onAiChat}>
 						<Icon name="chat" size={15} />
 					</button>
 				</Show>

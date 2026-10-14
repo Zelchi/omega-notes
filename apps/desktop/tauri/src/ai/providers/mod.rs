@@ -1,3 +1,4 @@
+mod claude;
 pub(crate) mod cli;
 pub(crate) mod codex;
 mod opencode;

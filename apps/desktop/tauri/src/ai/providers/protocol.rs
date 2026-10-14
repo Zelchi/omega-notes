@@ -1,5 +1,5 @@
 use super::super::repository::Provider;
-use super::opencode_error;
+use super::{claude, opencode_error};
 use serde_json::{json, Value};
 
 #[derive(Default)]
@@ -46,7 +46,26 @@ impl Stream {
             }
         } else {
             match value["type"].as_str()? {
+                "system" if value["subtype"] == "init" => {
+                    let unavailable = value["mcp_servers"].as_array().is_some_and(|servers| {
+                        servers.iter().any(|server| {
+                            server["name"] == "omega"
+                                && matches!(
+                                    server["status"].as_str(),
+                                    Some("failed" | "needs-auth" | "disabled")
+                                )
+                        })
+                    });
+                    if unavailable {
+                        self.failed = true;
+                        self.error_code = Some("AI_CLAUDE_MCP_FAILED");
+                    }
+                    None
+                }
                 "stream_event" => {
+                    if !value["parent_tool_use_id"].is_null() {
+                        return None;
+                    }
                     let event = &value["event"];
                     if event["type"] == "message_start" {
                         self.message_id =
@@ -62,6 +81,22 @@ impl Stream {
                     )
                 }
                 "assistant" if value["parent_tool_use_id"].is_null() => {
+                    if let Some(error) = value["error"].as_str() {
+                        let detail = value["message"]["content"]
+                            .as_array()
+                            .map(|blocks| {
+                                blocks
+                                    .iter()
+                                    .filter_map(|block| block["text"].as_str())
+                                    .collect::<Vec<_>>()
+                                    .join("\n")
+                            })
+                            .unwrap_or_else(|| error.into());
+                        self.failed = true;
+                        self.error_code = Some(claude::error_code(error, &detail));
+                        self.error_detail = Some(detail.chars().take(2000).collect());
+                        return None;
+                    }
                     // Final blocks replace the corresponding deltas instead of duplicating them.
                     let content = value["message"]["content"].as_array()?;
                     let id = value["message"]["id"].as_str().unwrap_or("answer");
@@ -75,6 +110,30 @@ impl Stream {
                 }
                 "result" => {
                     self.failed |= value["is_error"] == true;
+                    if value["is_error"] == true {
+                        if self.error_code.is_none() {
+                            let detail = value["errors"]
+                                .as_array()
+                                .map(|errors| {
+                                    errors
+                                        .iter()
+                                        .filter_map(Value::as_str)
+                                        .collect::<Vec<_>>()
+                                        .join("\n")
+                                })
+                                .filter(|detail| !detail.is_empty())
+                                .or_else(|| value["result"].as_str().map(String::from))
+                                .unwrap_or_else(|| {
+                                    value["subtype"].as_str().unwrap_or("Request failed").into()
+                                });
+                            self.error_code = Some(claude::error_code(
+                                value["subtype"].as_str().unwrap_or(""),
+                                &detail,
+                            ));
+                            self.error_detail = Some(detail.chars().take(2000).collect());
+                        }
+                        return None;
+                    }
                     if self.answered || self.failed {
                         return None;
                     }

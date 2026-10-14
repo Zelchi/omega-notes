@@ -1,8 +1,11 @@
 import { createSignal } from "solid-js";
 import type { Language } from "@/shared/lib/i18n";
 import type { CanvasLayout, TextCursor, Theme } from "./preferences";
+import { isAiChatShortcut, type AiChatShortcut } from "./ai-chat-shortcut";
 import {
 	readAiFeaturesEnabled,
+	readAiChatShortcut,
+	saveAiChatShortcut,
 	saveAiFeaturesEnabled,
 	readCanvasLayout,
 	readCenterCanvasOnLaunch,
@@ -20,6 +23,7 @@ import {
 
 export const usePreferences = () => {
 	const [aiFeaturesEnabled, setAiFeaturesEnabled] = createSignal(readAiFeaturesEnabled());
+	const [aiChatShortcut, setAiChatShortcut] = createSignal(readAiChatShortcut());
 	const [canvasLayout, setCanvasLayout] = createSignal<CanvasLayout>(readCanvasLayout());
 	const [centerCanvasOnLaunch, setCenterCanvasOnLaunch] = createSignal(readCenterCanvasOnLaunch());
 	const [hideCanvasControls, setHideCanvasControls] = createSignal(readHideCanvasControls());
@@ -45,6 +49,12 @@ export const usePreferences = () => {
 
 	return {
 		aiFeaturesEnabled,
+		aiChatShortcut,
+		setAiChatShortcut: (value: AiChatShortcut) => {
+			if (!isAiChatShortcut(value)) return;
+			setAiChatShortcut(value);
+			saveAiChatShortcut(value);
+		},
 		setAiFeaturesEnabled: (value: boolean) => { setAiFeaturesEnabled(value); saveAiFeaturesEnabled(value); },
 		canvasLayout,
 		setCanvasLayout: (value: CanvasLayout) => { setCanvasLayout(value); saveCanvasLayout(value); },
