@@ -112,6 +112,7 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 					block={fragment().format!.block as TableBlock}
 					left={editor.x() + fragment().left} top={editor.y() + fragment().top} width={fragment().width}
 					t={props.t} renderText={props.renderText} formatCell={editor.formatTableCell}
+					resolvePastedLink={editor.resolvePastedLink} canResolvePastedUrl={editor.canResolvePastedUrl}
 					onChange={(text, kind) => editor.updateTable(fragment().format!.block as TableBlock, text, kind)}
 					onDelete={() => editor.deleteTable(fragment().format!.block as TableBlock)}
 					onHistory={editor.handleKeyDown}

@@ -7,6 +7,14 @@ export type TextFormatHandler = (format: TextFormat) => void;
 export const formatSelection = (text: string, selection: TextSelection, format: TextFormat, options: { tableColumnLabel?: string } = {}): { text: string; selection: TextSelection } => {
 	const start = Math.max(0, Math.min(selection.start, text.length));
 	const end = Math.max(start, Math.min(selection.end, text.length));
+    if (format === "note-link") {
+        const selected = text.slice(start, end);
+        const caret = start + 2 + selected.length;
+        return {
+            text: text.slice(0, start) + `[[${selected}]]` + text.slice(end),
+            selection: { start: caret, end: caret },
+        };
+    }
     if (format === "quote" || format === "ordered-list" || format === "bullet-list" || format === "task") {
         const lineStart = start === 0 ? 0 : text.lastIndexOf("\n", start - 1) + 1;
         const last = end > start && text[end - 1] === "\n" ? end - 1 : end;

@@ -1,5 +1,19 @@
 # Histórico de atualizações
 
+## v0.2.7
+
+### Notas e chat com IA
+
+- Corrigida a inicialização TLS da busca de títulos de URLs, evitando o encerramento da tarefa ao colar links.
+- Colar uma URL nas notas ou nas células de tabelas busca o título da página e cria um link com esse nome. Em caso de falha, a URL é preservada; respostas atrasadas respeitam alterações no texto.
+- Envolver vários parágrafos em `[[ ]]` preserva seus alinhamentos individuais, inclusive ao desfazer e refazer.
+- Tab insere quatro espaços nas notas ou indenta as linhas selecionadas; Shift+Tab remove um nível, com suporte a desfazer/refazer.
+- Blocos de código com linguagem após as crases recebem destaque de sintaxe em leitura, na prévia com Alt e no chat, com cores para os temas claro e escuro.
+- Negrito, itálico, texto riscado e marca-texto agrupados numa subbarra de formatação, como os títulos H1–H6.
+- Ícone de link na barra de edição insere `[[]]` ou envolve a seleção em `[[texto]]`, incluindo células de tabelas, com suporte a desfazer/refazer.
+- Selecionar um texto na nota e digitar `[[` envolve a seleção em `[[texto]]`, preservando o conteúdo e deixando o cursor antes dos colchetes de fechamento.
+- Links externos aceitam nomes personalizados, como `[GitHub](https://github.com)`, exibindo apenas o nome clicável na leitura, na prévia com Alt, nas tabelas e no chat.
+
 ## v0.2.6
 
 ### Canvas

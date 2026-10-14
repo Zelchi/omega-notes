@@ -13,7 +13,9 @@ import { layoutFormattedText } from "../../lib/formatted-text-layout";
 import { EMPTY_CHARACTER, syncEditableTextDom } from "../../lib/editable-text-dom";
 import { styles } from "./style.css.ts";
 import { createTextHistory, type TextHistoryState } from "@/features/undo-note-edit";
-import { formatSelection, type TextRun, type TextFormatHandler, type TextSelection, type FormattedFragment } from "@/features/format-text";
+import { createAsyncTextReplacement } from "@/shared/lib/async-text-replacement";
+import { pastedUrl, canResolvePastedUrl, resolvePastedLink } from "@/features/paste-url-link";
+import { formatSelection, indentSelection, type TextRun, type TextFormatHandler, type TextSelection, type FormattedFragment } from "@/features/format-text";
 
 const IMAGE_TEXT_MARGIN = 15;
 const LINK_BRACKET_INTERVAL = 250;
@@ -168,9 +170,28 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	let measureContext: CanvasRenderingContext2D | null | undefined;
 	const measureCache = new Map<string, number>();
 	let composing = false;
-	let lastOpeningBracket: { time: number; offset: number } | undefined;
+	let lastOpeningBracket: { time: number; offset: number; selectedText?: string; expectedText?: string; paragraphAlignments?: NoteTextAlignment[] } | undefined;
 	let pendingBracketDeletion: { key: string; offset: number; start: number; close: number; text: string } | undefined;
 	let rememberedSelection: TextSelection | undefined;
+	const urlPastes = createAsyncTextReplacement({ read: draft, apply: (text, range, kind) => {
+		if (!props.editable || props.locked || composing) return;
+		const root = contentRoot();
+		const active = document.activeElement === root;
+		const current = active ? selectionOffsets() : rememberedSelection;
+		const delta = text.length - (range.end - range.start);
+		const offset = (value: number) => value <= range.start ? value : value >= range.end ? value + delta : range.start + Math.min(value - range.start, text.length);
+		const nextSelection = current ? { start: offset(current.start), end: offset(current.end) } : undefined;
+		pendingHistory = captureHistory(current);
+		pendingHistoryKind = kind;
+		emitText(draft().slice(0, range.start) + text + draft().slice(range.end), undefined,
+			{ start: range.start, end: range.end, length: text.length }, nextSelection);
+		if (active && root && nextSelection) {
+			const anchor = findTextPosition(root, nextSelection.start), focus = findTextPosition(root, nextSelection.end);
+			if (anchor && focus) getSelection()?.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
+			scheduleCaretMeasure();
+		}
+		if (nextSelection) rememberedSelection = nextSelection;
+	} });
 	let caretFrame: number | undefined;
 	let caretRenderFrame: number | undefined;
 	let noteEntryFrame: number | undefined;
@@ -500,6 +521,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		const noteId = props.element().id;
 		if (historyNoteId === noteId) return;
 		historyNoteId = noteId;
+		urlPastes.clear();
 		history.clear();
 		setTableHeights({});
 		pendingHistory = undefined;
@@ -657,6 +679,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	});
 
 	const restoreHistory = (state: TextHistoryState | undefined): void => {
+		urlPastes.clear();
 		pendingHistory = undefined;
 		pendingHistoryKind = "replace";
 		if (!state) return;
@@ -686,12 +709,13 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		scheduleCaretMeasure();
 	};
 
-	const emitText = (text: string, caret?: number, change?: { start: number; end: number; length: number }, historySelection?: TextSelection): void => {
+	const emitText = (text: string, caret?: number, change?: { start: number; end: number; length: number }, historySelection?: TextSelection, restoredAlignments?: NoteTextAlignment[]): void => {
 		const before = pendingHistory ?? captureHistory();
 		const kind = pendingHistoryKind;
 		pendingHistory = undefined;
 		pendingHistoryKind = "replace";
-		const paragraphAlignments = remapParagraphAlignments(draft(), text, props.element().paragraphAlignments, alignment(), change);
+		const paragraphAlignments = restoredAlignments?.slice() ?? remapParagraphAlignments(draft(), text, props.element().paragraphAlignments, alignment(), change);
+		urlPastes.changed(draft(), text, change);
 		if (caretFrame !== undefined) cancelAnimationFrame(caretFrame);
 		caretFrame = undefined;
 		setDraft(text);
@@ -734,7 +758,6 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			if (fragment.format?.block.kind !== "table") return false;
 			if (range.start < fragment.end && range.end > fragment.start) return true;
 			if (range.end !== fragment.start || range.start >= fragment.start) return false;
-			// Blank lines can be removed; keep a separator from a preceding text paragraph.
 			const before = draft().slice(0, range.start) + replacement;
 			return Boolean(before) && !before.endsWith("\n");
 		});
@@ -754,6 +777,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		replacement: string,
 		range = selectionOffsets(),
 		caretInReplacement?: number,
+		restoredAlignments?: NoteTextAlignment[],
 	): void => {
 		if (touchesProtectedTable(range, replacement)) {
 			pendingHistory = undefined;
@@ -773,7 +797,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			const tableAtCaret = parseFormattedText(next).some((block) => block.kind === "table" && paragraphStarts(next)[block.sourceLine] === caret);
 			if (tableAtCaret && caret > 0 && next[caret - 2] !== "\n") caret--;
 		}
-		emitText(next, caret, { start, end, length: insertion.length });
+		emitText(next, caret, { start, end, length: insertion.length }, undefined, restoredAlignments);
 	};
 	const linkSuggestions = useNoteLinkSuggestions({
 		notes: () => props.notes,
@@ -1063,7 +1087,6 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		const previous = event.key === "ArrowUp";
 		const target = previous ? paragraph - 1 : paragraph + 1;
 		if (target < 0 || target >= starts.length) return false;
-		// From an empty line, Up lands at the end of the preceding line; Down at the next start.
 		const nextOffset = previous ? starts[paragraph]! - 1 : starts[target]!;
 		const table = layout().fragments.find((fragment) => fragment.format?.block.kind === "table" &&
 			nextOffset >= fragment.start && nextOffset < fragment.end);
@@ -1125,15 +1148,49 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			if (event.repeat) return;
 			const range = selectionOffsets();
 			const elapsed = previous ? event.timeStamp - previous.time : Infinity;
-			if (range.start === range.end && previous?.offset === range.start && elapsed >= 0 && elapsed <= LINK_BRACKET_INTERVAL && draft()[range.start - 1] === "[") {
+			const wrappingSelection = previous?.selectedText !== undefined && previous.expectedText === draft();
+			if (range.start === range.end && previous?.offset === range.start &&
+				(wrappingSelection || (elapsed >= 0 && elapsed <= LINK_BRACKET_INTERVAL)) && draft()[range.start - 1] === "[") {
 				event.preventDefault();
-				replaceSelection(draft().slice(range.start, range.start + 2) === "]]" ? "[" : "[]]", range, 1);
+				pendingHistoryKind = "insertText";
+				const body = wrappingSelection ? previous.selectedText! : "";
+				const closing = !wrappingSelection && draft().slice(range.start, range.start + 2) === "]]" ? "" : "]]";
+				replaceSelection(`[${body}${closing}`, range, 1 + body.length, wrappingSelection ? previous.paragraphAlignments : undefined);
 				return;
 			}
-			lastOpeningBracket = { time: event.timeStamp, offset: range.start + 1 };
+			lastOpeningBracket = {
+				time: event.timeStamp, offset: range.start + 1,
+				...(range.end > range.start ? {
+					selectedText: draft().slice(range.start, range.end),
+					expectedText: draft().slice(0, range.start) + "[" + draft().slice(range.end),
+					paragraphAlignments: props.element().paragraphAlignments?.slice(),
+				} : {}),
+			};
 			return;
 		}
 		if (props.editable && linkSuggestions.handleKeyDown(event)) return;
+		if (props.editable && !props.locked && event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+			event.preventDefault();
+			const range = selectionOffsets();
+			const boundary = range.start === range.end && layout().fragments.some((fragment) => fragment.beforeTable && fragment.start === range.start);
+			const atTableEnd = range.start === range.end && range.end === draft().length &&
+				layout().fragments.some((fragment) => fragment.format?.block.kind === "table" && fragment.end === range.end);
+			if (boundary || atTableEnd) {
+				if (!event.shiftKey) { pendingHistoryKind = "indent"; replaceSelection((atTableEnd ? "\n" : "") + "    ", range); }
+				return;
+			}
+			const result = indentSelection(draft(), range, event.shiftKey);
+			if (result.text === draft() || touchesProtectedTable(result.change, result.replacement)) return;
+			pendingHistory = captureHistory(range);
+			pendingHistoryKind = "indent";
+			emitText(result.text, result.selection.start, result.change, result.selection);
+			const root = contentRoot();
+			const anchor = root && findTextPosition(root, result.selection.start);
+			const focus = root && findTextPosition(root, result.selection.end);
+			if (anchor && focus) getSelection()?.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
+			rememberedSelection = result.selection;
+			return;
+		}
 		if (moveFromEmptyLine(event)) return;
 		if (props.editable && (event.ctrlKey || event.metaKey) && !event.altKey && ["b", "i"].includes(event.key.toLowerCase())) {
 			event.preventDefault();
@@ -1182,7 +1239,15 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			return;
 		}
 		const text = event.clipboardData?.getData("text/plain");
-		if (text !== undefined) replaceSelection(text);
+		if (text === undefined) return;
+		const range = selectionOffsets();
+		const url = pastedUrl(text);
+		if (url && canResolvePastedUrl(draft(), range) && !touchesProtectedTable(range, url)) {
+			const kind = urlPastes.kind();
+			pendingHistoryKind = kind;
+			replaceSelection(url, range);
+			urlPastes.resolve(url, { start: range.start, end: range.start + url.length }, resolvePastedLink(url), kind);
+		} else replaceSelection(text);
 	};
 
 	const handleCompositionEnd = (): void => {
@@ -1196,7 +1261,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 
 	const applyFormatting: TextFormatHandler = (format) => {
 		if (document.activeElement?.closest("[data-editable-table]")) {
-			if (props.editable && !props.locked && ["bold", "italic", "strike", "highlight", "code"].includes(format)) formatActiveTableCell?.(format as InlineTextFormat);
+			if (props.editable && !props.locked && ["bold", "italic", "strike", "highlight", "code", "note-link"].includes(format)) formatActiveTableCell?.(format as InlineTextFormat);
 			return;
 		}
 		const root = contentRoot();
@@ -1305,6 +1370,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	onMount(() => props.onAlignmentReady?.(applyAlignment));
 
 	onCleanup(() => {
+		urlPastes.clear();
 		props.onFormattingReady?.(undefined);
 		props.onAlignmentReady?.(undefined);
 		if (caretFrame !== undefined) cancelAnimationFrame(caretFrame);
@@ -1321,6 +1387,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		toggleTask,
 		updateTable, deleteTable, exitTable,
 		formatTableCell: formatSelection,
+		resolvePastedLink, canResolvePastedUrl,
 		registerTableFormatting: (handler?: (format: InlineTextFormat) => void) => { formatActiveTableCell = handler; },
 		registerTableFocus: (line: number, focus?: () => void) => { if (focus) tableFocus.set(line, focus); else tableFocus.delete(line); },
 		caret,

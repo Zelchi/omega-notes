@@ -61,6 +61,12 @@ export const useAppController = () => {
 	});
 
 	onMount(() => {
+		const preventNativeTab = (event: KeyboardEvent) => {
+			if (event.key === "Tab") event.preventDefault();
+		};
+		addEventListener("keydown", preventNativeTab, true);
+		onCleanup(() => removeEventListener("keydown", preventNativeTab, true));
+
 		const onShortcut = (event: KeyboardEvent) => {
 			if (event.key !== "Escape") return;
 			if (vaults.dialogOpen()) {

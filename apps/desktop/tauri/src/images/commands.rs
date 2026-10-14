@@ -35,7 +35,9 @@ pub(crate) async fn import_clipboard_image(
         tauri::ipc::InvokeBody::Raw(bytes) => bytes.clone(),
         _ => return Err("Conteúdo de imagem inválido.".into()),
     };
-    tauri::async_runtime::spawn_blocking(move || service::import_clipboard_image(&directory, &bytes))
-        .await
-        .map_err(|error| format!("Não foi possível colar a imagem: {error}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        service::import_clipboard_image(&directory, &bytes)
+    })
+    .await
+    .map_err(|error| format!("Não foi possível colar a imagem: {error}"))?
 }

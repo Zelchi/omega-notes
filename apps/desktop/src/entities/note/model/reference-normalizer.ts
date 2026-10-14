@@ -9,7 +9,6 @@ export const createNoteReferenceNormalizer = () => {
     return {
         bind: (notes: StudyNote[]) => {
             if (notes.length === titles.size && notes.every((note) => titles.get(note.id) === note.title)) return false;
-            // Keep previous names during an ongoing response, while storing references by ID.
             for (const note of notes) targets.set(normalizeNoteTitle(note.title), note.id);
             for (const note of notes) targets.set(normalizeNoteTitle(note.id), note.id);
             titles.clear();

@@ -36,8 +36,6 @@ export const syncEditableTextDom = (root: HTMLElement, layout: EditableTextLayou
 		const alignment = fragment.alignment ?? layout.alignment;
 		node.style.textAlign = alignment;
 		node.style.textAlignLast = alignment === "justify" && !fragment.paragraphEnd ? "justify" : "auto";
-		// Give every empty visual line a measurable caret, including interior blank lines.
-		// Fragment layouts already supply the next line as a separate node.
 		const text = table ? fragment.text : fragment.text.split("\n")
 			.map((line, index, lines) => line || (!layout.fragments || index < lines.length - 1 ? EMPTY_CHARACTER : ""))
 			.join("\n") || EMPTY_CHARACTER;

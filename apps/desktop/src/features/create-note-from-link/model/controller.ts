@@ -1,6 +1,8 @@
 import { createSignal, onCleanup, type Accessor } from "solid-js";
-import { bindNoteReferences, canCreateNoteReference, createNoteTitleIndex, normalizeNoteTitle, resolveNoteReference,
-    type NotesLibrary, type StudyNote } from "@/entities/note";
+import {
+    bindNoteReferences, canCreateNoteReference, createNoteTitleIndex, normalizeNoteTitle, resolveNoteReference,
+    type NotesLibrary, type StudyNote
+} from "@/entities/note";
 
 export const useCreateNoteFromLink = (options: {
     notes: NotesLibrary;
@@ -30,7 +32,6 @@ export const useCreateNoteFromLink = (options: {
             if (!note) {
                 try { note = await options.notes.create(target.trim()); }
                 catch (cause) {
-                    // Another action may have created this title while the request was in flight.
                     note = resolve(target);
                     if (!note) throw cause;
                 }

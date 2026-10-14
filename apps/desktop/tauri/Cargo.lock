@@ -2480,8 +2480,11 @@ dependencies = [
 
 [[package]]
 name = "omega-notes"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
+ "html5ever",
+ "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "tauri",
