@@ -20,9 +20,23 @@ pub(super) fn executable(name: &str) -> Result<Executable, String> {
         });
     }
     #[cfg(windows)]
-    if let Some(appdata) = std::env::var_os("APPDATA") {
+    for prefix in npm_prefixes() {
+        if name == "opencode" {
+            let package = prefix.join("node_modules/opencode-ai");
+            for native in [
+                package.join("bin/opencode.exe"),
+                package.join("bin/opencode"),
+            ] {
+                if is_executable(&native) {
+                    return Ok(Executable {
+                        program: native,
+                        arguments: vec![],
+                    });
+                }
+            }
+        }
         if name == "claude" {
-            let npm = PathBuf::from(&appdata).join("npm/node_modules/@anthropic-ai");
+            let npm = prefix.join("node_modules/@anthropic-ai");
             let platform = if cfg!(target_arch = "aarch64") {
                 "claude-code-win32-arm64"
             } else {
@@ -48,9 +62,7 @@ pub(super) fn executable(name: &str) -> Result<Executable, String> {
             "opencode" => "opencode-ai/bin/opencode",
             _ => return Err("AI_NOT_FOUND".into()),
         };
-        let script = PathBuf::from(appdata)
-            .join("npm/node_modules")
-            .join(package);
+        let script = prefix.join("node_modules").join(package);
         if script.is_file() {
             if let Some(program) = native_executable("node") {
                 return Ok(Executable {
@@ -61,6 +73,20 @@ pub(super) fn executable(name: &str) -> Result<Executable, String> {
         }
     }
     Err("AI_NOT_FOUND".into())
+}
+
+#[cfg(windows)]
+fn npm_prefixes() -> Vec<PathBuf> {
+    let mut prefixes: Vec<_> = std::env::var_os("PATH")
+        .map(|path| std::env::split_paths(&path).collect())
+        .unwrap_or_default();
+    if let Some(appdata) = std::env::var_os("APPDATA") {
+        let prefix = PathBuf::from(appdata).join("npm");
+        if !prefixes.contains(&prefix) {
+            prefixes.push(prefix);
+        }
+    }
+    prefixes
 }
 
 fn native_executable(name: &str) -> Option<PathBuf> {
