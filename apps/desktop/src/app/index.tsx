@@ -1,5 +1,5 @@
 import Button from "@/shared/ui/button";
-import { onCleanup, onMount, Show, type Component } from "solid-js";
+import { Show, type Component } from "solid-js";
 
 import { Canvas } from "@/pages/canvas";
 import { Note } from "@/pages/notes";
@@ -14,16 +14,9 @@ import { useAppController } from "./controller";
 import { styles } from "./style.css.ts";
 import { CheckForUpdatesButton } from "@/features/check-for-updates";
 import { AiChatPanel } from "@/features/chat-with-ai";
-import { useNoteZoomTransition } from "./model/note-zoom-transition";
 
 const App: Component = () => {
 	const app = useAppController();
-	let pageSurface: HTMLDivElement | undefined;
-	const zoomTransition = useNoteZoomTransition(() => pageSurface, app.vaults.activeVaultId);
-	onMount(() => {
-		app.navigation.registerTransition(zoomTransition.run);
-		onCleanup(() => app.navigation.registerTransition());
-	});
 
 	return (
 		<>
@@ -62,7 +55,7 @@ const App: Component = () => {
 					onSelectNote={app.navigation.selectSearchResult}
 				/>
 				<div class={styles.pageViewport} style={{ "pointer-events": app.navigation.navigating() ? "none" : undefined }} aria-busy={app.navigation.navigating()}>
-					<div class={styles.pageSurface} ref={(element) => { pageSurface = element; }}>
+					<div class={styles.pageSurface}>
 						<Show
 							when={app.navigation.route() === "canvas"}
 							fallback={

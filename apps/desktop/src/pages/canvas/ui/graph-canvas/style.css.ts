@@ -5,7 +5,7 @@ import { HOME_HEIGHT, HOME_WIDTH } from "../../lib/graph";
 export const styles = {
 	createdBubble: style(motion.createdNode),
 	root: style({
-		...motion.fade, width: "100%", height: "100%" }),
+		width: "100%", height: "100%" }),
 	board: style({
 		position: "relative",
 		width: "100%",

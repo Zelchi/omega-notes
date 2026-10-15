@@ -1,9 +1,8 @@
-import { motion } from "@/shared/ui/motion.css";
 import { style } from "@vanilla-extract/css";
 
 export const styles = {
 	root: style({
-		...motion.fade, paddingTop: 40 }),
+		paddingTop: 40 }),
 	heading: style({
 		position: "relative",
 		display: "flex",

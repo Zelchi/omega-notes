@@ -60,7 +60,6 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 											enabled: () => !props.notes.some((current) => current.id === note.id) });
 									}}
 									data-note-id={note.id}
-									data-canvas-note-id={note.id}
 									aria-pressed={graph.selectedIds().has(note.id)}
 									type="button"
 									style={{

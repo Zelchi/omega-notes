@@ -1,5 +1,14 @@
 # Histórico de atualizações
 
+## v0.3.5
+
+### Navegação e desempenho
+
+- Histórico das setas à esquerda da busca passa a guardar apenas notas, separado por vault. Os botões ficam desativados no canvas.
+- O botão à direita continua alternando entre canvas e última nota, preservando o histórico de voltar e avançar.
+- Removidas as animações de entrada e saída entre notas e canvas para evitar lentidão em janelas grandes no Linux. As demais animações da interface continuam disponíveis.
+- Removida a ocultação temporária da scrollbar durante a navegação.
+
 ## v0.3.4
 
 ### Navegação

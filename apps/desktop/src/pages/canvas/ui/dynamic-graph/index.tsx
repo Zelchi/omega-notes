@@ -40,7 +40,7 @@ const DynamicGraph: Component<GraphCanvasProps> = (props) => {
 				const hitDiameter = () => diameter() + NODE_HIT_MARGIN * 2;
 				return <div class={cx(styles.node, graph.hoveredId() && !graph.neighbors().has(note.id) && styles.dimmedNode)}
 					style={{ translate: `${point().x}px ${point().y}px` }}>
-					<Button type="button" aria-label={note.title} sound={false} data-canvas-note-id={note.id}
+					<Button type="button" aria-label={note.title} sound={false}
 						class={styles.hitTarget}
 						style={{ width: `${hitDiameter()}px`, height: `${hitDiameter()}px`, left: `${-hitDiameter() / 2}px`, top: `${-hitDiameter() / 2}px` }}
 					onPointerDown={(event) => graph.begin(event, hitsNodeCircle(event) ? note.id : undefined)}

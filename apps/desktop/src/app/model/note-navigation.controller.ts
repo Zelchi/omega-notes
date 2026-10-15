@@ -2,7 +2,7 @@ import { batch, createEffect, createMemo, createSignal, onCleanup, untrack, type
 import { isNoteTitleAvailable, type NotesLibrary, type NoteDocument, type StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { playSound } from "@/shared/ui/sound";
-import { createNavigationHistory, findHistoryIndex, recordNavigation, type NavigationHistory, type NavigationLocation, type NavigationTransition } from "./navigation-history";
+import { createNavigationHistory, findHistoryIndex, recordNavigation, type NavigationHistory, type NavigationLocation } from "./navigation-history";
 
 type NoteRoute = "canvas" | "note";
 type NoteMode = "edit" | "view";
@@ -30,7 +30,6 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 	const [renameTargetId, setRenameTargetId] = createSignal<string>();
 	const [savingName, setSavingName] = createSignal(false);
 	let resolveCreateNote: ((note: StudyNote | undefined) => void) | undefined;
-	let transition: NavigationTransition | undefined;
 	const histories = new Map<string, NavigationHistory>();
 	const lastNotes = new Map<string, string>();
 	const [history, setHistory] = createSignal(createNavigationHistory());
@@ -47,7 +46,7 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 	createEffect(() => {
 		const vaultId = dependencies.activeVaultId();
 		untrack(() => batch(() => {
-			storeHistory(recordNavigation(vaultId ? histories.get(vaultId) ?? createNavigationHistory() : createNavigationHistory(), { route: "canvas" }));
+			storeHistory(vaultId ? histories.get(vaultId) ?? createNavigationHistory() : createNavigationHistory());
 			setSelectedId(vaultId ? lastNotes.get(vaultId) : undefined);
 			setRoute("canvas");
 		}));
@@ -146,19 +145,18 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 			if (dependencies.beforeNavigate && !(await dependencies.beforeNavigate())) return;
 			if (!(await notes.flushSave()) || disposed || vaultId !== dependencies.activeVaultId()) return;
 			if (location.route === "note" && !noteIds().has(location.noteId)) return;
-			const from: NavigationLocation = route() === "note" && selectedId() ? { route: "note", noteId: selectedId()! } : { route: "canvas" };
 			const commit = () => {
 				if (disposed || vaultId !== dependencies.activeVaultId() || location.route === "note" && !noteIds().has(location.noteId)) return;
 				batch(() => {
-					storeHistory(targetIndex === undefined ? recordNavigation(history(), location) : { ...history(), index: targetIndex });
+					if (location.route === "note") storeHistory(targetIndex === undefined ? recordNavigation(history(), location) : { ...history(), index: targetIndex });
 					applyLocation(location);
 				});
 			};
-			if (transition && from.route !== location.route) await transition(from, location, commit);
-			else commit();
+			commit();
 		} finally { if (!disposed) setNavigating(false); }
 	};
 	const travel = async (direction: -1 | 1): Promise<void> => {
+		if (route() !== "note") return;
 		const index = findHistoryIndex(history(), direction, noteIds());
 		if (index >= 0) await navigate(history().entries[index], index);
 	};
@@ -214,15 +212,14 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		backToCanvas,
 		backToLastNote,
 		navigating,
-		registerTransition: (handler?: NavigationTransition) => { transition = handler; },
-		canGoBack: () => !navigating() && !notes.loading() && findHistoryIndex(history(), -1, noteIds()) >= 0,
-		canGoForward: () => !navigating() && !notes.loading() && findHistoryIndex(history(), 1, noteIds()) >= 0,
+		canGoBack: () => route() === "note" && !navigating() && !notes.loading() && findHistoryIndex(history(), -1, noteIds()) >= 0,
+		canGoForward: () => route() === "note" && !navigating() && !notes.loading() && findHistoryIndex(history(), 1, noteIds()) >= 0,
 		goBack: () => travel(-1),
 		goForward: () => travel(1),
 		updateTitle,
 		updateDocument,
 		handleEscape,
-		resetToCanvas: () => batch(() => { storeHistory(recordNavigation(history(), { route: "canvas" })); setRoute("canvas"); }),
+		resetToCanvas: () => setRoute("canvas"),
 	};
 };
 

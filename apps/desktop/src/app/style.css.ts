@@ -26,7 +26,7 @@ export const styles = {
 		minWidth: 0,
 		minHeight: 0,
 	}),
-	pageViewport: style({ position: "relative", display: "flex", flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }),
+	pageViewport: style({ position: "relative", display: "flex", flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden", isolation: "isolate", zIndex: 0 }),
 	pageSurface: style({ position: "relative", display: "flex", flexDirection: "column", width: "100%", height: "100%", minWidth: 0, minHeight: 0 }),
 	saveNotice: style({
 		position: "absolute",
