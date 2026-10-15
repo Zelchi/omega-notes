@@ -1,8 +1,7 @@
 import { style } from "@vanilla-extract/css";
-import { motion } from "@/shared/ui/motion.css";
 
 export const styles = {
-	root: style({ ...motion.fade, position: "relative", width: "100%", height: "100%", overflow: "hidden", backgroundColor: "var(--board)", backgroundImage: "radial-gradient(var(--board-dots) 0.8px, transparent 0.8px)", backgroundSize: "21px 21px", touchAction: "none", userSelect: "none", cursor: "grab" }),
+	root: style({ position: "relative", width: "100%", height: "100%", overflow: "hidden", backgroundColor: "var(--board)", backgroundImage: "radial-gradient(var(--board-dots) 0.8px, transparent 0.8px)", backgroundSize: "21px 21px", touchAction: "none", userSelect: "none", cursor: "grab" }),
 	world: style({ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", transformOrigin: "top left", overflow: "visible" }),
 	edges: style({ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", overflow: "visible", pointerEvents: "none" }),
 	edge: style({ stroke: "var(--edge)", strokeWidth: 1, opacity: 0.45, vectorEffect: "non-scaling-stroke", transition: "opacity 140ms ease" }),
