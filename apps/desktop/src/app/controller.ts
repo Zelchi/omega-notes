@@ -35,6 +35,7 @@ export const useAppController = () => {
 		notes,
 		activeVaultId: vaults.activeVaultId,
 		centerCanvasOnLaunch: preferences.centerCanvasOnLaunch,
+		beforeNavigate: async () => saveNoteTitle ? saveNoteTitle() : true,
 		t,
 	});
 	const canvasHistory = useCanvasHistory({

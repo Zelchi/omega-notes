@@ -1,5 +1,6 @@
 export type NavigationLocation = { route: "canvas" } | { route: "note"; noteId: string };
 export type NavigationHistory = { entries: NavigationLocation[]; index: number };
+export type NavigationTransition = (from: NavigationLocation, to: NavigationLocation, commit: () => void) => Promise<void>;
 
 export const createNavigationHistory = (): NavigationHistory => ({ entries: [{ route: "canvas" }], index: 0 });
 

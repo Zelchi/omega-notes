@@ -8,6 +8,7 @@ export type { Edge, GraphState, NodeSize, Point, View } from "../../model/graph"
 export type GraphCanvasProps = {
 	mode: "edit" | "view";
 	busy: boolean;
+	suspended?: boolean;
 	restoration?: CanvasRestore;
 	onRegisterHistory: (reader?: () => CanvasSnapshot) => void;
 	onHistoryRestored: () => void;

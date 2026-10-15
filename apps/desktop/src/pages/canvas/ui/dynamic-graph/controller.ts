@@ -81,7 +81,7 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 	};
 	const animate = (time: number): void => {
 		frame = undefined;
-		if (!mounted || document.hidden) return;
+		if (!mounted || document.hidden || props.suspended) return;
 		const elapsed = time - lastFrame;
 		const interval = 1000 / 60;
 		if (elapsed >= interval - 0.5) {
@@ -93,8 +93,14 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 		else save();
 	};
 	const run = () => {
-		if (mounted && !document.hidden && frame === undefined) frame = requestAnimationFrame(animate);
+		if (mounted && !document.hidden && !props.suspended && frame === undefined) frame = requestAnimationFrame(animate);
 	};
+	createEffect(() => {
+		if (props.suspended) {
+			if (frame !== undefined) cancelAnimationFrame(frame);
+			frame = undefined;
+		} else run();
+	});
 	createEffect(() => {
 		const changed = simulation.setGraph(props.notes.map((note) => note.id), edges().map((edge) => ({ source: edge.source.id, target: edge.target.id })));
 		if (!changed) return;
