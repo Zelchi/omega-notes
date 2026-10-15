@@ -7,14 +7,18 @@ const CELL_SIZE = 240;
 /** Local repulsion, link attraction and gravity; no permanent manual placement. */
 export class ForceLayout {
 	private bodies = new Map<string, Body>();
-	private links: Link[] = [];
+	private links: { source: Body; target: Body }[] = [];
 	private signature = "";
 	private alpha = 0;
 
 	constructor(private initialPositions: Record<string, Point>) {}
 
 	setGraph(ids: string[], links: Link[]): boolean {
-		const signature = JSON.stringify([ids, links]);
+		const signature = JSON.stringify([
+			[...ids].sort(),
+			links.map(({ source, target }) => [source, target].sort()).sort((a, b) =>
+				a[0].localeCompare(b[0]) || a[1].localeCompare(b[1])),
+		]);
 		if (signature === this.signature) return false;
 		this.signature = signature;
 		const activeIds = new Set(ids);
@@ -28,7 +32,11 @@ export class ForceLayout {
 				y: saved?.y ?? Math.sin(angle) * radius, vx: 0, vy: 0 });
 		});
 		this.initialPositions = {};
-		this.links = links.filter((link) => activeIds.has(link.source) && activeIds.has(link.target));
+		this.links = links.flatMap((link) => {
+			const source = this.bodies.get(link.source);
+			const target = this.bodies.get(link.target);
+			return source && target ? [{ source, target }] : [];
+		});
 		this.wake();
 		return true;
 	}
@@ -41,7 +49,7 @@ export class ForceLayout {
 		this.wake();
 	}
 
-	wake(): void { this.alpha = 1; }
+	wake(): void { this.alpha = this.bodies.size ? 1 : 0; }
 	get active(): boolean { return this.alpha > 0.015; }
 
 	pin(id: string, point: Point): void {
@@ -58,43 +66,57 @@ export class ForceLayout {
 	}
 
 	positions(): Record<string, Point> {
-		return Object.fromEntries([...this.bodies].map(([id, body]) => [id, { x: body.x, y: body.y }]));
+		const positions: Record<string, Point> = {};
+		for (const body of this.bodies.values()) positions[body.id] = { x: body.x, y: body.y };
+		return positions;
 	}
 
 	step(): void {
 		if (!this.active) return;
-		const grid = new Map<string, Body[]>();
-		for (const body of this.bodies.values()) {
-			const key = `${Math.floor(body.x / CELL_SIZE)},${Math.floor(body.y / CELL_SIZE)}`;
-			const cell = grid.get(key);
-			if (cell) cell.push(body);
-			else grid.set(key, [body]);
+		const bodies = [...this.bodies.values()];
+		const grid = new Map<number, Map<number, number[]>>();
+		for (let index = 0; index < bodies.length; index++) {
+			const body = bodies[index];
+			const cellX = Math.floor(body.x / CELL_SIZE), cellY = Math.floor(body.y / CELL_SIZE);
+			let column = grid.get(cellX);
+			if (!column) { column = new Map(); grid.set(cellX, column); }
+			const cell = column.get(cellY);
+			if (cell) cell.push(index);
+			else column.set(cellY, [index]);
 		}
-		for (const body of this.bodies.values()) {
+		for (let index = 0; index < bodies.length; index++) {
+			const body = bodies[index];
 			const cellX = Math.floor(body.x / CELL_SIZE);
 			const cellY = Math.floor(body.y / CELL_SIZE);
 			for (let x = cellX - 1; x <= cellX + 1; x++) {
+				const column = grid.get(x);
+				if (!column) continue;
 				for (let y = cellY - 1; y <= cellY + 1; y++) {
-					for (const other of grid.get(`${x},${y}`) ?? []) {
-						if (body === other) continue;
+					const cell = column.get(y);
+					if (!cell) continue;
+					for (const otherIndex of cell) {
+						if (otherIndex <= index) continue;
+						const other = bodies[otherIndex];
 						let dx = body.x - other.x;
 						let dy = body.y - other.y;
 						if (Math.abs(dx) + Math.abs(dy) < 0.01) {
 							dx = body.id < other.id ? -0.1 : 0.1;
 							dy = 0.1;
 						}
-						const distance = Math.hypot(dx, dy);
-						if (distance > CELL_SIZE) continue;
-						const force = (Math.min(4, 1600 / (distance * distance + 64)) + Math.max(0, 55 - distance) * 0.08) * this.alpha;
-						body.vx += dx / distance * force;
-						body.vy += dy / distance * force;
+						const squaredDistance = dx * dx + dy * dy;
+						if (squaredDistance > CELL_SIZE * CELL_SIZE) continue;
+						const distance = Math.sqrt(squaredDistance);
+						const force = (Math.min(4, 1600 / (squaredDistance + 64)) + Math.max(0, 55 - distance) * 0.08) * this.alpha;
+						const fx = dx / distance * force;
+						const fy = dy / distance * force;
+						body.vx += fx; body.vy += fy;
+						other.vx -= fx; other.vy -= fy;
 					}
 				}
 			}
 		}
 		for (const link of this.links) {
-			const source = this.bodies.get(link.source)!;
-			const target = this.bodies.get(link.target)!;
+			const { source, target } = link;
 			const dx = target.x - source.x;
 			const dy = target.y - source.y;
 			const distance = Math.max(1, Math.hypot(dx, dy));

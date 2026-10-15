@@ -4,7 +4,6 @@ use std::path::Path;
 
 use super::tools;
 
-/// A stdio-only MCP endpoint launched by the host with one authorized vault.
 pub(crate) fn run_if_requested() -> bool {
     let args: Vec<_> = std::env::args_os().collect();
     if args.get(1).is_none_or(|arg| arg != "--ai-mcp") {

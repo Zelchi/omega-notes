@@ -128,7 +128,9 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 					clearTimeout(saveTimer);
 					saveTimer = undefined;
 				}
-				await saveQueue;
+				const queued = saveQueue;
+				await queued;
+				if (queued !== saveQueue) continue;
 				if (saveTimer !== undefined) {
 					clearTimeout(saveTimer);
 					saveTimer = undefined;

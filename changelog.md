@@ -1,5 +1,21 @@
 # Histórico de atualizações
 
+## v0.3.2
+
+### Correções
+
+- Links internos mostram o título da nota no editor, mantendo o vínculo por ID no arquivo, inclusive ao criar uma nota a partir de um link inexistente. Apelidos e conteúdo de código são preservados.
+- Importações de mídia deixam de inserir conteúdo quando a nota de origem é fechada ou deixa de estar em edição; lotes interrompidos não continuam importando os arquivos seguintes.
+- A conclusão do salvamento aguarda também operações adicionadas à fila enquanto uma gravação anterior estava em andamento.
+- No modo navegador, falhas de leitura das notas são informadas e impedem sobrescrever a biblioteca como se estivesse vazia.
+- O índice de nomes usado para editar links internos é reaproveitado quando apenas o conteúdo das notas muda. Títulos com delimitadores de código mantêm a referência por ID para evitar uma conversão ambígua.
+
+### Desempenho do canvas dinâmico
+
+- Repulsão entre notas calcula cada par uma única vez, com grade numérica e menos alocações durante a simulação.
+- Conexões são desenhadas em três grupos SVG, com renderização apenas das notas e conexões próximas da área visível. A nota arrastada permanece montada mesmo fora dessa área.
+- Arraste e movimento da câmera agrupam atualizações por frame. Alterar apenas a ordem da lista de notas não reinicia a simulação, que deixa de consumir frames quando está estabilizada.
+
 ## v0.3.1
 
 ### Sons e interface

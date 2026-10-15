@@ -2,6 +2,7 @@ import { createEffect, createMemo, createSignal, onCleanup, onMount } from "soli
 import type { TranslationKey } from "@/shared/lib/i18n";
 import {
 	createAudioElement,
+	createEditableNoteReferences,
 	createImageElement,
 	createVideoElement,
 	type NoteDocument,
@@ -83,6 +84,11 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		props.onPositioningChange?.(Boolean(positioningElementId()));
 	});
 
+	const referenceNotes = createMemo(() => props.notes.map(({ id, title }) => ({ id, title })), undefined, {
+		equals: (previous, next) => previous.length === next.length &&
+			previous.every((note, index) => note.id === next[index].id && note.title === next[index].title),
+	});
+	const editableReferences = createMemo(() => createEditableNoteReferences(referenceNotes()));
 	const flowDocument = createMemo<NoteDocument>(() => {
 		const text = props.document.elements.find(
 			(element): element is NoteTextElement => element.type === "text",
@@ -99,7 +105,7 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 					y: PAGE_MARGIN,
 					width: props.document.page.width - PAGE_MARGIN * 2 - PAGE_BORDER * 2,
 					height: props.document.page.height - PAGE_MARGIN * 2 - PAGE_BORDER * 2,
-					text: text.text,
+					text: editableReferences().display(text.text),
 					alignment: text.alignment,
 				},
 				...positionedElements,
@@ -129,7 +135,8 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		const positionedElements = document.elements.filter(
 			(element): element is NotePositionedElement => element.type !== "text",
 		);
-		props.onChange({ ...document, elements: [text, ...positionedElements] });
+		const storedText = props.document.elements.find((element): element is NoteTextElement => element.type === "text")!;
+		props.onChange({ ...document, elements: [{ ...text, text: storedText.text }, ...positionedElements] });
 	};
 
 	const updateElement = (next: NoteElement): void => {
@@ -147,7 +154,7 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		const positionedElements = base.elements.filter(
 			(element): element is NotePositionedElement => element.type !== "text",
 		);
-		props.onChange({ ...base, elements: [{ ...text, text: next.text, paragraphAlignments: next.paragraphAlignments }, ...positionedElements] });
+		props.onChange({ ...base, elements: [{ ...text, text: editableReferences().store(next.text), paragraphAlignments: next.paragraphAlignments }, ...positionedElements] });
 	};
 
 	const updateTextAlignment = (alignment: NoteTextAlignment): void => {
@@ -218,8 +225,18 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		setCatalogOpen(true);
 	};
 
-	const importFiles = async (files: File[]): Promise<void> => {
-		insertMedia(await attachMediaFiles(files));
+	const importMedia = async (
+		load: (canImport: () => boolean) => Promise<ImportedMedia[]>,
+		position?: AttachmentPosition,
+	): Promise<void> => {
+		const noteId = props.noteId;
+		const canImport = () => active && editable() && props.noteId === noteId;
+		if (!canImport()) return;
+		const sources = await load(canImport);
+		if (canImport()) insertMedia(sources, position);
+	};
+	const importFiles = (files: File[]): Promise<void> => {
+		return importMedia((canImport) => attachMediaFiles(files, canImport));
 	};
 	const pasteImages = (files: File[]): void => {
 		if (!editable() || positioningElementId()) return;
@@ -236,8 +253,8 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 			pasteErrorTimer = setTimeout(() => setPasteError(false), 3000);
 		});
 	};
-	const importPaths = async (paths: string[]): Promise<void> => {
-		insertMedia(await importMediaPaths(paths));
+	const importPaths = (paths: string[]): Promise<void> => {
+		return importMedia((canImport) => importMediaPaths(paths, canImport));
 	};
 	const openExternalLink = (url: string): void => {
 		if (isTauriRuntime()) void openTauriExternalUrl(url).catch(() => undefined);
@@ -252,11 +269,7 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 				const bounds = paper.getBoundingClientRect();
 				if (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom) return;
 				const position = pointOnPage(x, y);
-				void importMediaPaths(paths)
-					.then((media) => {
-						if (active) insertMedia(media, position);
-					})
-					.catch(console.error);
+				void importMedia((canImport) => importMediaPaths(paths, canImport), position).catch(console.error);
 			})
 				.then((stop) => {
 					if (active) unlisten = stop;
@@ -273,16 +286,12 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		const onDragOver = (event: DragEvent) => {
 			if (editable() && event.dataTransfer?.files.length) event.preventDefault();
 		};
-		const insertMediaFromDrop = async (files: File[], position: AttachmentPosition): Promise<void> => {
-			const sources = await attachMediaFiles(files);
-			insertMedia(sources, position);
-		};
 		const onDrop = (event: DragEvent) => {
 			if (!editable() || !event.dataTransfer?.files.length) return;
 			event.preventDefault();
 			if (positioningElementId()) return;
 			const files = [...event.dataTransfer.files];
-			void insertMediaFromDrop(files, pointOnPage(event.clientX, event.clientY));
+			void importMedia((canImport) => attachMediaFiles(files, canImport), pointOnPage(event.clientX, event.clientY)).catch(console.error);
 		};
 		paper.addEventListener("dragover", onDragOver);
 		paper.addEventListener("drop", onDrop);

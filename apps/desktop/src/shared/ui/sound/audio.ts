@@ -75,7 +75,6 @@ const getSession = (): Session | undefined => {
         session = { context, output, registered: new Set(), clock: context.currentTime, clockObservedAt: now, resumeStartedAt: 0 };
         context.onstatechange = () => {
             if (session?.context === context && context.state !== "running") {
-                // Clear paused playback, without cancelling requests waiting for resume.
                 send(session, { type: "stop-all", immediate: true });
             }
         };
@@ -169,7 +168,6 @@ export const playTones = (tones: readonly SoundTone[]): void => {
         };
         if (audio.processor && audio.context.state === "running") play();
         else {
-            // Resume inside the component gesture, while the processor loads.
             const resumed = audio.context.state === "running" ? Promise.resolve() : resumeSession(audio);
             void Promise.all([prepareProcessor(audio), resumed]).then(play).catch(reportError);
         }

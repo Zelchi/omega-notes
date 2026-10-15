@@ -18,7 +18,6 @@ pub(super) fn is_v2(version: &str) -> bool {
     })
 }
 
-/// Go models and paid Zen models; Big Pickle has no `-free` suffix.
 pub(super) fn supported_model(id: &str) -> bool {
     id.split_once('/').is_some_and(|(provider, model)| {
         !model.is_empty()
@@ -30,7 +29,6 @@ pub(super) fn supported_model(id: &str) -> bool {
     })
 }
 
-/// V2's `models` command prints one provider/model identifier per line.
 pub(super) fn models(output: &str) -> Result<Value, String> {
     let unique: BTreeSet<_> = output
         .lines()

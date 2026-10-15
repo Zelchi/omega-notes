@@ -1,6 +1,5 @@
 import { SOUND_PROCESSOR_NAME, type SoundProcessorMessage } from "./processor-messages";
 
-// Worklet globals are provided by the audio rendering thread, not the DOM.
 declare const sampleRate: number;
 declare class AudioWorkletProcessor { readonly port: MessagePort; }
 declare function registerProcessor(name: string, processor: typeof AudioWorkletProcessor): void;
@@ -35,7 +34,6 @@ class InterfaceSoundsProcessor extends AudioWorkletProcessor {
             } else if (message.type === "play") {
                 const voice = this.voices.get(message.id);
                 if (!voice) return;
-                // Finish the last sample smoothly while the new sound starts.
                 voice.releaseSample = voice.lastOutput;
                 voice.releaseFrames = voice.lastOutput === 0 ? 0 : this.fadeFrames;
                 voice.position = 0;

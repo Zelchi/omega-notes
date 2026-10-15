@@ -17,7 +17,38 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 	const [hoveredId, setHoveredId] = createSignal<string>();
 	const [draggedId, setDraggedId] = createSignal<string>();
 	const [contextMenu, setContextMenu] = createSignal<ContextMenu>();
+	const [viewport, setViewport] = createSignal({ width: 0, height: 0 });
 	const edges = createMemo(() => graphEdges(props.notes));
+	const visibleBounds = createMemo(() => {
+		const { x, y, scale } = view();
+		const { width, height } = viewport();
+		const padding = Math.max(100, 160 / scale);
+		return { left: -x / scale - padding, right: (width - x) / scale + padding,
+			top: -y / scale - padding, bottom: (height - y) / scale + padding };
+	});
+	const visibleNotes = createMemo(() => {
+		const bounds = visibleBounds();
+		const points = positions();
+		const dragged = draggedId();
+		return props.notes.filter((note) => {
+			const point = points[note.id];
+			return note.id === dragged || point && point.x >= bounds.left && point.x <= bounds.right && point.y >= bounds.top && point.y <= bounds.bottom;
+		});
+	});
+	const edgePaths = createMemo(() => {
+		const bounds = visibleBounds();
+		const points = positions();
+		const hovered = hoveredId();
+		const normal: string[] = [], dimmed: string[] = [], highlighted: string[] = [];
+		for (const edge of edges()) {
+			const source = points[edge.source.id], target = points[edge.target.id];
+			if (!source || !target || Math.max(source.x, target.x) < bounds.left || Math.min(source.x, target.x) > bounds.right ||
+				Math.max(source.y, target.y) < bounds.top || Math.min(source.y, target.y) > bounds.bottom) continue;
+			const group = !hovered ? normal : hovered === edge.source.id || hovered === edge.target.id ? highlighted : dimmed;
+			group.push(`M${source.x.toFixed(2)} ${source.y.toFixed(2)}L${target.x.toFixed(2)} ${target.y.toFixed(2)}`);
+		}
+		return { normal: normal.join(""), dimmed: dimmed.join(""), highlighted: highlighted.join("") };
+	});
 	const degrees = createMemo(() => {
 		const result = new Map<string, number>();
 		for (const edge of edges()) for (const id of [edge.source.id, edge.target.id]) result.set(id, (result.get(id) ?? 0) + 1);
@@ -37,6 +68,8 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 	});
 	let mounted = false;
 	let frame: number | undefined;
+	let panFrame: number | undefined;
+	let pendingPan: Point | undefined;
 	let lastFrame = 0;
 	let saveTimer: ReturnType<typeof setTimeout> | undefined;
 	let gesture: Gesture | undefined;
@@ -49,12 +82,14 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 	const animate = (time: number): void => {
 		frame = undefined;
 		if (!mounted || document.hidden) return;
-		if (time - lastFrame >= 16) {
-			lastFrame = time;
+		const elapsed = time - lastFrame;
+		const interval = 1000 / 60;
+		if (elapsed >= interval - 0.5) {
+			lastFrame = time - Math.max(0, elapsed % interval);
 			simulation.step();
 			setPositions(simulation.positions());
 		}
-		if (simulation.active || draggedId()) frame = requestAnimationFrame(animate);
+		if (simulation.active) frame = requestAnimationFrame(animate);
 		else save();
 	};
 	const run = () => {
@@ -98,6 +133,10 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 	const finish = (event?: PointerEvent): void => {
 		const current = gesture;
 		if (!current || (event && current.pointerId !== event.pointerId)) return;
+		if (panFrame !== undefined) cancelAnimationFrame(panFrame);
+		panFrame = undefined;
+		if (pendingPan) setView((previous) => ({ ...previous, ...pendingPan }));
+		pendingPan = undefined;
 		gesture = undefined;
 		if (current.nodeId) simulation.release(current.nodeId);
 		setDraggedId(undefined);
@@ -131,10 +170,17 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 		const dy = event.clientY - current.start.y;
 		if (Math.abs(dx) + Math.abs(dy) > 4) current.moved = true;
 		if (!current.moved) return;
-		if (current.kind === "pan") setView((previous) => ({ ...previous, x: current.origin.x + dx, y: current.origin.y + dy }));
+		if (current.kind === "pan") {
+			pendingPan = { x: current.origin.x + dx, y: current.origin.y + dy };
+			if (panFrame === undefined) panFrame = requestAnimationFrame(() => {
+				panFrame = undefined;
+				if (pendingPan) setView((previous) => ({ ...previous, ...pendingPan }));
+				pendingPan = undefined;
+			});
+		}
 		else if (current.nodeId) {
 			simulation.pin(current.nodeId, { x: current.origin.x + dx / view().scale, y: current.origin.y + dy / view().scale });
-			setPositions(simulation.positions()); run();
+			run();
 		}
 	};
 	const end = (event: PointerEvent): void => {
@@ -175,6 +221,11 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 	};
 	onMount(() => {
 		mounted = true;
+		const updateViewport = () => {
+			const rect = getBoard().getBoundingClientRect();
+			setViewport({ width: rect.width, height: rect.height });
+		};
+		updateViewport();
 		props.onRegisterHistory(snapshot);
 		if (!stored.view || props.centerOnMount) fit();
 		props.onCanvasMount();
@@ -188,7 +239,7 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 			if (!(event.target instanceof Element) || !event.target.closest(".graph-context-menu")) setContextMenu(undefined);
 		};
 		const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { finish(); setContextMenu(undefined); } };
-		const resize = new ResizeObserver(() => { if (!props.notes.length) fit(); });
+		const resize = new ResizeObserver(() => { updateViewport(); if (!props.notes.length) fit(); });
 		resize.observe(getBoard());
 		document.addEventListener("visibilitychange", visibility);
 		window.addEventListener("blur", blur);
@@ -206,6 +257,6 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 			window.removeEventListener("keydown", escape);
 		});
 	});
-	return { positions, view, edges, neighbors, hoveredId, setHoveredId, draggedId, degrees, contextMenu, setContextMenu,
+	return { positions, view, visibleNotes, edgePaths, neighbors, hoveredId, setHoveredId, draggedId, degrees, contextMenu, setContextMenu,
 		fit, begin, move, end, finish, wheel, zoomBy, openMenu, shouldIgnoreClick: () => Date.now() < suppressClickUntil };
 };
