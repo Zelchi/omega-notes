@@ -1,3 +1,4 @@
+import Button from "@/shared/ui/button";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { For, Show, type Component } from "solid-js";
@@ -29,14 +30,14 @@ const NoteLoadIssuesDialog: Component<Props> = (props) => {
 						<h2 class={styles.title} id="load-issues-heading">
 							{props.t("noteLoadIssues")}
 						</h2>
-						<button
+						<Button
 							class={styles.close}
 							type="button"
 							aria-label={props.t("close")}
 							onClick={props.onClose}
 						>
 							<Icon name="close" size={16} />
-						</button>
+						</Button>
 					</header>
 					<For each={props.issues}>
 						{(issue) => (
@@ -51,13 +52,13 @@ const NoteLoadIssuesDialog: Component<Props> = (props) => {
 										<div class={styles.recovery}>
 											<span>{props.t("recoveryCopy")}</span>
 											<code class={styles.path}>{path()}</code>
-											<button
+											<Button
 												class={styles.copy}
 												type="button"
 												onClick={() => void dialog.copyPath(path())}
 											>
 												{props.t(dialog.copiedPath() === path() ? "pathCopied" : "copyPath")}
-											</button>
+											</Button>
 										</div>
 									)}
 								</Show>

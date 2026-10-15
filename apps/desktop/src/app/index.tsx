@@ -1,3 +1,4 @@
+import Button from "@/shared/ui/button";
 import { Show, type Component } from "solid-js";
 
 import { Canvas } from "@/pages/canvas";
@@ -95,13 +96,15 @@ const App: Component = () => {
 				<Show when={app.notes.saveError()}>
 					<div class={styles.saveNotice} role="alert">
 						<span>{app.t("saveFailed")}</span>
-						<button class={styles.retryButton} type="button" onClick={() => void app.notes.flushSave()}>
+						<Button class={styles.retryButton} type="button" onClick={() => void app.notes.flushSave()}>
 							{app.t("retry")}
-						</button>
+						</Button>
 					</div>
 				</Show>
 			</main>
 			<SettingsDialog
+				soundVolume={app.preferences.soundVolume()}
+				onSoundVolumeChange={app.preferences.setSoundVolume}
 				aiResetting={app.aiChat.resetting()}
 				aiCleanupError={app.aiChat.cleanupError()}
 				canvasLayout={app.preferences.canvasLayout()}

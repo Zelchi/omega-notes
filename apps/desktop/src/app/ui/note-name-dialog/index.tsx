@@ -1,3 +1,5 @@
+import Input from "@/shared/ui/input";
+import Button from "@/shared/ui/button";
 import { createEffect, createMemo, createUniqueId, onCleanup, Show, type Component } from "solid-js";
 import ModalError from "@/shared/ui/modal-error";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
@@ -56,7 +58,7 @@ const NoteNameDialog: Component<Props> = (props) => {
 					<h2 class={styles.title} id="note-name-heading">
 						{props.t(displayed().mode === "create" ? "newNote" : "renameNote")}
 					</h2>
-					<input
+					<Input
 						ref={(element) => (titleInput = element)}
 						class={styles.input}
 						value={displayed().title}
@@ -68,21 +70,21 @@ const NoteNameDialog: Component<Props> = (props) => {
 						disabled={displayed().saving}
 					/>
 					<div class={styles.actions}>
-						<button
+						<Button
 							class={cx(styles.action, styles.cancel)}
 							type="button"
 							onClick={props.onClose}
 							disabled={displayed().saving}
 						>
 							{props.t("cancel")}
-						</button>
-						<button
+						</Button>
+						<Button
 							class={cx(styles.action, styles.confirm)}
 							type="submit"
 							disabled={!displayed().title.trim() || displayed().saving}
 						>
 							{props.t(displayed().mode === "create" ? "create" : "save")}
-						</button>
+						</Button>
 					</div>
 				</form>
 			</div>

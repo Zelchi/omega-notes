@@ -1,3 +1,4 @@
+import Button from "@/shared/ui/button";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { For, Show, type Component } from "solid-js";
 import { HOME_HEIGHT, HOME_WIDTH } from "../../lib/graph";
@@ -51,7 +52,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 						{(note, index) => {
 							const point = () => graph.nodePosition(note, index());
 							return (
-								<button
+								<Button
 									class={cx(styles.bubble, graph.createdNoteId() === note.id && styles.createdBubble, graph.selectedIds().has(note.id) && styles.selectedBubble)}
 									ref={(element) => {
 										graph.registerNode(note.id, element);
@@ -76,7 +77,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 									<span class={styles.bubbleCopy}>
 										<strong class={styles.bubbleTitle}>{note.title}</strong>
 									</span>
-								</button>
+								</Button>
 							);
 						}}
 					</For>
@@ -96,22 +97,22 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 							graph.clearContextMenu();
 						}}
 					>
-						<button
+						<Button
 							class={styles.controlButton}
 							type="button"
 							aria-label={props.t("zoomOut")}
 							onClick={() => graph.zoomBy(-0.1)}
 						>
 							−
-						</button>
-						<button
+						</Button>
+						<Button
 							class={styles.controlButton}
 							type="button"
 							aria-label={props.t("zoomIn")}
 							onClick={() => graph.zoomBy(0.1)}
 						>
 							+
-						</button>
+						</Button>
 					</div>
 				</Show>
 
@@ -126,7 +127,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 								onPointerDown={(event) => event.stopPropagation()}
 								onContextMenu={(event) => event.preventDefault()}
 							>
-								<button
+								<Button
 									class={styles.menuButton}
 									type="button"
 									onClick={() => {
@@ -138,8 +139,8 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 									}}
 								>
 									{props.t("rename")}
-								</button>
-								<button
+								</Button>
+								<Button
 									class={cx(styles.menuButton, styles.dangerButton)}
 									type="button"
 									onClick={() => {
@@ -151,7 +152,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 									}}
 								>
 									{props.t("delete")}
-								</button>
+								</Button>
 							</div>
 						);
 					}}

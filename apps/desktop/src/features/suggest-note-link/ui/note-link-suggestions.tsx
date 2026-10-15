@@ -1,3 +1,4 @@
+import Button from "@/shared/ui/button";
 import { For, Show, type Component } from "solid-js";
 import { Portal } from "solid-js/web";
 import type { StudyNote } from "@/entities/note";
@@ -27,11 +28,11 @@ export const NoteLinkSuggestions: Component<{
 			onContextMenu={(event) => event.preventDefault()}>
 			<Show when={props.notes.length} fallback={<div class={styles.empty} role="status">{props.t("noNoteLinkSuggestions")}</div>}>
 				<For each={props.notes}>{(note, index) => (
-					<button id={`${props.id}-${note.id}`} class={cx(styles.option, index() === props.selectedIndex && styles.selected)}
+					<Button id={`${props.id}-${note.id}`} class={cx(styles.option, index() === props.selectedIndex && styles.selected)}
 						type="button" role="option" aria-selected={index() === props.selectedIndex} tabIndex={-1}
 						onClick={() => props.onSelect(note)}>
 						<Icon name="link" size={15} /><span class={styles.title}>{note.title}</span>
-					</button>
+					</Button>
 				)}</For>
 			</Show>
 		</div>

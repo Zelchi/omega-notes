@@ -1,5 +1,6 @@
 import { createEffect, createSignal, onCleanup, onMount, untrack, type Accessor } from "solid-js";
 import type { NotesLibrary, StudyNote } from "@/entities/note";
+import { playSound } from "@/shared/ui/sound";
 
 export type CanvasSnapshot = {
 	layout: "static" | "dynamic";
@@ -73,6 +74,7 @@ export const useCanvasHistory = (options: {
 		setPending(true);
 		try {
 			if (!(await options.notes.remove(note))) throw new Error("SAVE_FAILED");
+			if (!disposed && id === options.vaultId()) playSound("note-delete");
 			setPending(false);
 			if (id === options.vaultId()) record({ kind: "delete", noteId: note.id, before, after: capture() });
 		} catch (cause) { reportError(cause); }
@@ -90,8 +92,13 @@ export const useCanvasHistory = (options: {
 			if (action.kind !== "move") {
 				const shouldExist = action.kind === "create" ? redo : !redo;
 				const note = options.notes.notes().find((item) => item.id === action.noteId);
-				if (shouldExist && !note) await options.notes.restore(action.noteId);
-				else if (!shouldExist && note && !(await options.notes.remove(note))) throw new Error("SAVE_FAILED");
+				if (shouldExist && !note) {
+					await options.notes.restore(action.noteId);
+					if (!disposed && current === history()) playSound("note-create");
+				} else if (!shouldExist && note) {
+					if (!(await options.notes.remove(note))) throw new Error("SAVE_FAILED");
+					if (!disposed && current === history()) playSound("note-delete");
+				}
 			}
 			restorePositions(redo ? action.after : action.before);
 			source.pop();

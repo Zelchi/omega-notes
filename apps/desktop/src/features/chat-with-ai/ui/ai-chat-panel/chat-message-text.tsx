@@ -1,3 +1,4 @@
+import Link from "@/shared/ui/link";
 import { For, Show, createMemo, type Component } from "solid-js";
 import { parseNoteTextLinks, type StudyNote } from "@/entities/note";
 import { parseFormattedText, type TextRun } from "@/shared/lib/formatted-text";
@@ -34,10 +35,10 @@ const NoteReferences: Component<ChatMessageTextProps> = (props) => {
     });
     return <For each={parts()}>{(part) =>
         <Show when={part.note} fallback={part.text}>{(note) =>
-            <a class={styles.noteLink} href={`#${note().id}`} onClick={(event) => {
+            <Link class={styles.noteLink} href={`#${note().id}`} onClick={(event) => {
                 event.preventDefault();
                 props.onOpenNote(note());
-            }}>{part.text}</a>
+            }}>{part.text}</Link>
         }</Show>
     }</For>;
 };

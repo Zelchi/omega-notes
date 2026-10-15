@@ -1,3 +1,5 @@
+import Button from "@/shared/ui/button";
+import Input from "@/shared/ui/input";
 import { Show, createSignal, onMount, onCleanup, type Component } from "solid-js";
 import { cx } from "@/shared/lib/classes";
 import type { TranslationKey } from "@/shared/lib/i18n";
@@ -60,7 +62,7 @@ const NoteVideoPlayer: Component<NoteVideoPlayerProps> = (props) => {
 			/>
 			<Show when={!props.hidden}>
 				<div class={cx(styles.controls, videoStyles.controls)}>
-					<button
+					<Button
 						class={styles.button}
 						type="button"
 						aria-label={props.t(player.playing() ? "pauseVideo" : "playVideo")}
@@ -75,14 +77,14 @@ const NoteVideoPlayer: Component<NoteVideoPlayerProps> = (props) => {
 								<path d="m8 5 12 7-12 7V5Z" fill="currentColor" />
 							</svg>
 						)}
-					</button>
+					</Button>
 					<span class={cx(styles.time, videoStyles.time)}>
 						{player.formatTime(player.currentTime())} / {player.formatTime(player.duration())}
 					</span>
 					<Show
 						when={!player.volumeControlOpen()}
 						fallback={
-							<input
+							<Input
 								class={`${styles.slider} ${styles.volumeSlider}`}
 								type="range"
 								min="0"
@@ -99,7 +101,7 @@ const NoteVideoPlayer: Component<NoteVideoPlayerProps> = (props) => {
 							/>
 						}
 					>
-						<input
+						<Input
 							class={`${styles.slider} ${styles.seek}`}
 							type="range"
 							min="0"
@@ -112,7 +114,7 @@ const NoteVideoPlayer: Component<NoteVideoPlayerProps> = (props) => {
 							onInput={player.seek}
 						/>
 					</Show>
-					<button
+					<Button
 						class={cx(styles.button, player.volumeControlOpen() && styles.buttonActive)}
 						type="button"
 						aria-label={props.t(player.volumeControlOpen() ? "hideVideoVolume" : "showVideoVolume")}
@@ -137,15 +139,15 @@ const NoteVideoPlayer: Component<NoteVideoPlayerProps> = (props) => {
 								<path d="m16 9 5 6m0-6-5 6" fill="none" stroke="currentColor" stroke-width="1.7" />
 							</Show>
 						</svg>
-					</button>
+					</Button>
 					<Show when={document.fullscreenEnabled}>
-						<button class={styles.button} type="button"
+						<Button class={styles.button} type="button"
 							aria-label={props.t(fullscreen() ? "exitFullscreen" : "enterFullscreen")}
 							onClick={toggleFullscreen}>
 							<svg class={styles.icon} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
 								<path d={fullscreen() ? "M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" : "M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6"} />
 							</svg>
-						</button>
+						</Button>
 					</Show>
 				</div>
 			</Show>

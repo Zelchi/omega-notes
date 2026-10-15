@@ -1,3 +1,4 @@
+import Button from "@/shared/ui/button";
 import type { Component } from "solid-js";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import Icon from "@/shared/ui/icon";
@@ -21,19 +22,19 @@ const MediaPositioningActions: Component<{
     }}
         onPointerDown={(event) => event.stopPropagation()}
         onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}>
-        <button class={`${styles.button} ${styles.danger}`} type="button" onClick={props.onDelete}
+        <Button class={`${styles.button} ${styles.danger}`} type="button" onClick={props.onDelete}
             aria-label={props.t("deleteMediaElement")}>
             <Icon name="delete" size={18} />
-        </button>
-        <button class={styles.button} type="button" onClick={props.onConfirm}
+        </Button>
+        <Button class={styles.button} type="button" onClick={props.onConfirm}
             aria-label={props.t("confirmMediaPosition")}>
             <Icon name="check" size={18} />
-        </button>
-        <button class={styles.button} type="button" onPointerDown={props.onResize}
+        </Button>
+        <Button class={styles.button} type="button" onPointerDown={props.onResize}
             onKeyDown={props.onResizeKeyDown} style={{ cursor: props.audio ? "ew-resize" : "nwse-resize" }}
             aria-label={props.t("resizeMedia")}>
             <Icon name={props.audio ? "resizeHorizontal" : "resizeDiagonal"} size={16} />
-        </button>
+        </Button>
     </div>
 );
 

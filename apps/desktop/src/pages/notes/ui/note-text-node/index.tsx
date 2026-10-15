@@ -4,9 +4,15 @@ import { NoteLinkSuggestions } from "@/features/suggest-note-link";
 import { cx } from "@/shared/lib/classes";
 import { useNoteTextNodeController, type NoteTextNodeProps } from "./controller";
 import { styles } from "./style.css.ts";
+import { playSound } from "@/shared/ui/sound";
 
 const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 	const editor = useNoteTextNodeController(props);
+	const updateWithTypingSound = (update: () => void, audible = true) => {
+		const before = editor.draft();
+		update();
+		if (audible && props.editable && !props.locked && before !== editor.draft()) playSound("typing");
+	};
 	const suggestionsId = createUniqueId();
 	const suggestionsAnchor = () => editor.linkSuggestions.open() ? editor.caretAnchor() : undefined;
 	const naturalViewText = createMemo(() =>
@@ -95,16 +101,16 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 					onPointerDown={editor.handlePointerDown}
 					onPointerUp={editor.handlePointerUp}
 					onFocus={editor.handleFocus}
-					onKeyDown={editor.handleKeyDown}
+					onKeyDown={(event) => updateWithTypingSound(() => editor.handleKeyDown(event), !event.ctrlKey && !event.metaKey && !event.altKey)}
 					onKeyUp={editor.handleKeyUp}
-					onInput={editor.handleInput}
-					onBeforeInput={editor.handleBeforeInput}
+					onInput={(event) => updateWithTypingSound(editor.handleInput, !(event.inputType ?? "").startsWith("history"))}
+					onBeforeInput={(event) => updateWithTypingSound(() => editor.handleBeforeInput(event), !(event.inputType ?? "").startsWith("history"))}
 					onBlur={editor.handleBlur}
 					onPaste={editor.handlePaste}
 					onCopy={editor.handleCopy}
 					onCut={editor.handleCut}
 					onCompositionStart={editor.startComposition}
-					onCompositionEnd={editor.handleCompositionEnd}
+					onCompositionEnd={() => updateWithTypingSound(editor.handleCompositionEnd)}
 				/>
 			</Show>
 			<Show when={props.editable}>

@@ -1,3 +1,4 @@
+import Link from "@/shared/ui/link";
 import { For, type JSX } from "solid-js";
 import FormattedRun from "@/shared/ui/formatted-run";
 import FormattedBlockView from "@/shared/ui/formatted-block";
@@ -42,12 +43,12 @@ const renderNoteLinks = (text: string, options: RenderTextOptions): JSX.Element 
             const note = resolveNoteReference(link.target, options.notesById, options.notesByTitle);
             if (!note) {
                 if (!options.onOpenMissingNote || !canCreateNoteReference(link.target)) return link.label;
-                return <a href="#" style={{ ...textLinkStyle, "text-decoration-style": "dashed" }} onClick={(event) => {
+                return <Link href="#" style={{ ...textLinkStyle, "text-decoration-style": "dashed" }} onClick={(event) => {
                     event.preventDefault(); options.onOpenMissingNote!(link.target);
-                }}>{link.label}</a>;
+                }}>{link.label}</Link>;
             }
-            return <a href={`#${note.id}`} style={textLinkStyle}
-                onClick={(event) => { event.preventDefault(); options.onOpenNote(note); }}>{link.alias || note.title}</a>;
+            return <Link href={`#${note.id}`} style={textLinkStyle}
+                onClick={(event) => { event.preventDefault(); options.onOpenNote(note); }}>{link.alias || note.title}</Link>;
         }
         return <ExternalLink url={link.url} style={textLinkStyle} onOpen={options.onOpenExternalUrl}>{link.label}</ExternalLink>;
     }}</For>

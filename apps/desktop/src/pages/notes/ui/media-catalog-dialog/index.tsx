@@ -1,3 +1,5 @@
+import Button from "@/shared/ui/button";
+import Input from "@/shared/ui/input";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { For, mergeProps, Show, type Component } from "solid-js";
@@ -41,7 +43,7 @@ const MediaCatalogDialog: Component<MediaCatalogDialogProps> = (props) => {
 							{props.t("mediaCatalog")}
 						</h2>
 						<div class={styles.actions}>
-							<button
+							<Button
 								class={styles.action}
 								type="button"
 								aria-label={props.t("importMedia")}
@@ -61,18 +63,18 @@ const MediaCatalogDialog: Component<MediaCatalogDialogProps> = (props) => {
 									<path d="M12 15V3m-5 5 5-5 5 5" />
 									<path d="M4 14v6h16v-6" />
 								</svg>
-							</button>
-							<button
+							</Button>
+							<Button
 								class={styles.action}
 								type="button"
 								aria-label={props.t("close")}
 								onClick={catalog.close}
 							>
 								×
-							</button>
+							</Button>
 						</div>
 					</header>
-					<input
+					<Input
 						ref={catalog.setFileInput}
 						type="file"
 						accept="image/*,.aac,.flac,.m4a,.mp3,.oga,.ogg,.opus,.wav,.webm,.mp4,.ogv"
@@ -80,7 +82,7 @@ const MediaCatalogDialog: Component<MediaCatalogDialogProps> = (props) => {
 						style={{ display: "none" }}
 						onChange={catalog.importFiles}
 					/>
-					<input
+					<Input
 						class={styles.search}
 						value={catalog.query()}
 						onInput={(event) => catalog.setQuery(event.currentTarget.value)}
@@ -91,7 +93,7 @@ const MediaCatalogDialog: Component<MediaCatalogDialogProps> = (props) => {
 					<div class={styles.grid}>
 						<For each={catalog.filtered()}>
 							{(media) => (
-								<button class={styles.item} type="button" onClick={() => catalog.selectMedia(media)}>
+								<Button class={styles.item} type="button" onClick={() => catalog.selectMedia(media)}>
 									<Show
 										when={media.source.type === "image"}
 										fallback={
@@ -142,7 +144,7 @@ const MediaCatalogDialog: Component<MediaCatalogDialogProps> = (props) => {
 											alt=""
 										/>
 									</Show>
-								</button>
+								</Button>
 							)}
 						</For>
 					</div>

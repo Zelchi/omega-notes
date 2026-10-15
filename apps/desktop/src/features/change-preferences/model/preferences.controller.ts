@@ -1,9 +1,12 @@
 import { createSignal } from "solid-js";
+import { setSoundVolume as applySoundVolume } from "@/shared/ui/sound";
 import type { Language } from "@/shared/lib/i18n";
 import type { CanvasLayout, TextCursor, Theme } from "./preferences";
 import { isAiChatShortcut, type AiChatShortcut } from "./ai-chat-shortcut";
 import {
 	readAiFeaturesEnabled,
+	readSoundVolume,
+	saveSoundVolume,
 	readAiChatShortcut,
 	saveAiChatShortcut,
 	saveAiFeaturesEnabled,
@@ -22,6 +25,8 @@ import {
 } from "../api/preferences.repository";
 
 export const usePreferences = () => {
+	const [soundVolume, setSoundVolume] = createSignal(readSoundVolume());
+	applySoundVolume(soundVolume());
 	const [aiFeaturesEnabled, setAiFeaturesEnabled] = createSignal(readAiFeaturesEnabled());
 	const [aiChatShortcut, setAiChatShortcut] = createSignal(readAiChatShortcut());
 	const [canvasLayout, setCanvasLayout] = createSignal<CanvasLayout>(readCanvasLayout());
@@ -48,6 +53,14 @@ export const usePreferences = () => {
 	};
 
 	return {
+		soundVolume,
+		setSoundVolume: (value: number) => {
+			if (!Number.isFinite(value)) return;
+			const volume = Math.max(0, Math.min(1, value));
+			setSoundVolume(volume);
+			applySoundVolume(volume);
+			saveSoundVolume(volume);
+		},
 		aiFeaturesEnabled,
 		aiChatShortcut,
 		setAiChatShortcut: (value: AiChatShortcut) => {

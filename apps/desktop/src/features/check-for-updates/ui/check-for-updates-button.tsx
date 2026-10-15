@@ -1,3 +1,4 @@
+import Button from "@/shared/ui/button";
 import type { Component } from "solid-js";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { UpdatesController } from "../model/updates.controller";
@@ -22,9 +23,9 @@ export const CheckForUpdatesButton: Component<{
 			default: return props.t("checkForUpdates");
 		}
 	};
-	return <button class={styles.button} type="button" disabled={props.updates.busy()}
+	return <Button class={styles.button} type="button" disabled={props.updates.busy()}
 		aria-busy={props.updates.busy()}
 		onClick={() => void props.updates.activate()}>
 		<span aria-live="polite" aria-atomic="true">{label()}</span>
-	</button>;
+	</Button>;
 };

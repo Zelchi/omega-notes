@@ -1,3 +1,5 @@
+import Button from "@/shared/ui/button";
+import { playSound } from "@/shared/ui/sound";
 import { For, Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup, onMount, untrack, type Component, type JSX } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
@@ -106,6 +108,7 @@ const Dropdown: Component<Props> = (props) => {
     const choose = (index: number) => {
         const option = props.options[index];
         if (!option || option.disabled) return;
+        playSound("click");
         close();
         if (option.value !== props.value) props.onChange(option.value);
         if (trigger.isConnected) trigger.focus({ preventScroll: true });
@@ -192,14 +195,14 @@ const Dropdown: Component<Props> = (props) => {
         </div>}</For>
     </div>;
     return <div ref={root} class={`${styles.root} ${props.class ?? ""}`} style={{ ...props.style, "z-index": presence.present() ? 20 : undefined }}>
-        <button ref={trigger} id={props.id} class={styles.trigger} type="button" role="combobox"
+        <Button ref={trigger} id={props.id} class={styles.trigger} type="button" role="combobox"
             aria-label={props.ariaLabel} aria-haspopup="listbox" aria-expanded={open()} aria-controls={presence.present() ? listId : undefined}
             aria-activedescendant={open() && active() >= 0 ? `${listId}-${active()}` : undefined}
             disabled={props.disabled} onClick={() => open() ? close() : show()} onKeyDown={keyDown}
             onBlur={(event) => { if (!root.contains(event.relatedTarget as Node)) close(); }}>
             <span class={styles.label}>{selected()?.label ?? props.placeholder ?? ""}</span>
             <span class={styles.arrow} style={{ transform: open() ? "rotate(180deg)" : undefined }}><Icon name="chevronDown" size={14} /></span>
-        </button>
+        </Button>
         <Show when={presence.present()}>
             <div class={styles.menu} inert={presence.exiting()} aria-hidden={presence.exiting() ? "true" : undefined}
                 ref={(element) => { menu = element; registerVisibilityAnimation(element, presence.exiting, "dialog"); schedule(); }}
