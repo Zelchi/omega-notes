@@ -14,8 +14,10 @@ pub(crate) use deleted::{
 pub(crate) use document::{
     audio_ids_in_document, empty_document, image_ids_in_document, video_ids_in_document,
 };
-pub(crate) use links::{note_title_indexes, rename_resolved_note_links};
-pub(crate) use models::{NoteDocument, NoteLibrary, NoteLoadIssue, NoteSaveResult, StudyNote};
+pub(crate) use links::{note_reference_targets, note_title_indexes, rename_resolved_note_links};
+pub(crate) use models::{
+    NoteDocument, NoteElement, NoteLibrary, NoteLoadIssue, NoteSaveResult, StudyNote,
+};
 pub(crate) use repository::{
     delete_note_files, existing_note, existing_note_document, note_backup_exists, note_backup_path,
     note_file_exists, note_from_path, note_from_path_with_id, note_id_from_backup, note_path,

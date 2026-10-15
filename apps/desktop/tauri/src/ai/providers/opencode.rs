@@ -50,6 +50,16 @@ pub(super) fn isolate(command: &mut Command, root: &Path, config: &Value) -> Res
     Ok(())
 }
 
+pub(super) fn permissions() -> Value {
+    let mut permissions = vec![json!({"action":"*","resource":"*","effect":"deny"})];
+    permissions.extend(
+        crate::ai::tools::names()
+            .iter()
+            .map(|name| json!({"action":format!("omega_{name}"),"resource":"*","effect":"allow"})),
+    );
+    Value::Array(permissions)
+}
+
 pub(super) fn configure(
     command: &mut Command,
     binary: &Executable,
@@ -58,12 +68,7 @@ pub(super) fn configure(
     instructions: &str,
     model: Option<&str>,
 ) -> Result<(), String> {
-    let permissions = json!([
-        {"action":"*","resource":"*","effect":"deny"},
-        {"action":"omega_list_notes","resource":"*","effect":"allow"},
-        {"action":"omega_search_notes","resource":"*","effect":"allow"},
-        {"action":"omega_read_note","resource":"*","effect":"allow"}
-    ]);
+    let permissions = permissions();
     let mut config = json!({"update":"disable","share":"disabled","snapshots":false,
         "plugins":[],"skills":[],"instructions":[],"references":{},"commands":{},
         "permissions":permissions,

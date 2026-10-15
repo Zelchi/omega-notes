@@ -81,3 +81,7 @@ fn reply(directory: &Path, vault_id: &str, message: Value) -> Option<Value> {
     };
     Some(json!({"jsonrpc":"2.0","id":id,"result":result}))
 }
+
+#[cfg(test)]
+#[path = "../../test/ai_tools.rs"]
+mod tests;

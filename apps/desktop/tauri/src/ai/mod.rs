@@ -1,5 +1,6 @@
 pub(crate) mod cli_commands;
 pub(crate) mod commands;
+mod instructions;
 mod mcp;
 mod providers;
 mod repository;

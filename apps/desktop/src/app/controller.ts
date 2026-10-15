@@ -52,7 +52,7 @@ export const useAppController = () => {
 		beforeOpen: beforeShutdown, onOpenNote: navigation.openNote,
 	});
 	const updates = useUpdatesController(beforeShutdown, () =>
-		!navigation.nameDialog() && !vaults.dialogOpen() && !vaults.saving() && !vaultActionPending() && !canvasHistory.pending() && !noteReferences.pending(),
+		!navigation.nameDialog() && !navigation.navigating() && !vaults.dialogOpen() && !vaults.saving() && !vaultActionPending() && !canvasHistory.pending() && !noteReferences.pending(),
 	);
 	const temporaryReading = useTemporaryNoteReading({
 		mode: navigation.mode,
@@ -105,7 +105,7 @@ export const useAppController = () => {
 	});
 
 	const selectVault = async (vault: Vault): Promise<void> => {
-		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.nameDialog()) return;
+		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.navigating() || navigation.nameDialog()) return;
 		setVaultActionPending(true);
 		try {
 			if (!(await notes.flushSave())) return;
@@ -124,7 +124,7 @@ export const useAppController = () => {
 		await navigation.openNote(current);
 	};
 	const createVault = async (name: string): Promise<boolean> => {
-		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.nameDialog()) return false;
+		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.navigating() || navigation.nameDialog()) return false;
 		setVaultActionPending(true);
 		try {
 			return await vaults.create(name);
@@ -133,7 +133,7 @@ export const useAppController = () => {
 		}
 	};
 	const renameVault = async (vault: Vault, name: string): Promise<boolean> => {
-		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.nameDialog()) return false;
+		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.navigating() || navigation.nameDialog()) return false;
 		setVaultActionPending(true);
 		try {
 			if (!(await notes.flushSave())) return false;
@@ -143,7 +143,7 @@ export const useAppController = () => {
 		}
 	};
 	const deleteVault = async (vault: Vault): Promise<boolean> => {
-		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.nameDialog()) return false;
+		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.navigating() || navigation.nameDialog()) return false;
 		setVaultActionPending(true);
 		try {
 			if (!(await notes.flushSave())) return false;

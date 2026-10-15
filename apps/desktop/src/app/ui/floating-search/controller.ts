@@ -8,9 +8,13 @@ export type FloatingSearchProps = {
 	mode: "edit" | "view";
 	showBackButton: boolean;
 	backButtonDisabled: boolean;
+	canGoBack: boolean;
+	canGoForward: boolean;
 	isOnCanvas: boolean;
 	t: (key: TranslationKey) => string;
 	onBack: () => void;
+	onHistoryBack: () => void;
+	onHistoryForward: () => void;
 	onModeChange: (mode: "edit" | "view") => void;
 	onSelectNote: (note: StudyNote) => void;
 };

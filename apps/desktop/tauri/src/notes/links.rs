@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::models::{NoteDocument, NoteElement, StudyNote};
 use crate::names::normalize_name;
@@ -23,14 +23,7 @@ pub(crate) fn note_title_indexes(
     (by_id, by_title)
 }
 
-fn rewrite_resolved_text_links(
-    content: &str,
-    previous_title: &str,
-    next_title: &str,
-    renamed_id: &str,
-    notes_by_id: &HashMap<String, String>,
-    notes_by_title: &HashMap<String, String>,
-) -> String {
+fn map_text_outside_code(content: &str, mut rewrite: impl FnMut(&str) -> String) -> String {
     let mut fence_length = 0;
     let mut result = String::with_capacity(content.len());
     for line in content.split_inclusive('\n') {
@@ -49,16 +42,6 @@ fn rewrite_resolved_text_links(
             result.push_str(line);
             continue;
         }
-        let rewrite = |prose: &str| {
-            rewrite_prose_links(
-                prose,
-                previous_title,
-                next_title,
-                renamed_id,
-                notes_by_id,
-                notes_by_title,
-            )
-        };
         let mut cursor = 0;
         while let Some(relative_start) = line[cursor..].find('`') {
             let start = cursor + relative_start;
@@ -93,6 +76,43 @@ fn rewrite_resolved_text_links(
         result.push_str(&rewrite(&line[cursor..]));
     }
     result
+}
+
+pub(crate) fn note_reference_targets(document: &NoteDocument) -> HashSet<String> {
+    let mut targets = HashSet::new();
+    for element in &document.elements {
+        let NoteElement::Text { text, .. } = element else {
+            continue;
+        };
+        if !text.contains("[[") {
+            continue;
+        }
+        map_text_outside_code(text, |prose| {
+            let mut cursor = 0;
+            while let Some(start) = prose[cursor..].find("[[") {
+                let start = cursor + start + 2;
+                let Some(end) = prose[start..].find("]]") else {
+                    break;
+                };
+                let end = start + end;
+                let body = &prose[start..end];
+                if !body.contains([']', '\r', '\n']) {
+                    let target = body
+                        .split('|')
+                        .next()
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string();
+                    if !target.is_empty() {
+                        targets.insert(target);
+                    }
+                }
+                cursor = end + 2;
+            }
+            String::new()
+        });
+    }
+    targets
 }
 
 fn rewrite_prose_links(
@@ -160,14 +180,16 @@ pub(crate) fn rename_resolved_note_links(
     let mut changed = false;
     for element in &mut updated.elements {
         if let NoteElement::Text { text, .. } = element {
-            let rewritten = rewrite_resolved_text_links(
-                text,
-                previous_title,
-                next_title,
-                renamed_id,
-                notes_by_id,
-                notes_by_title,
-            );
+            let rewritten = map_text_outside_code(text, |prose| {
+                rewrite_prose_links(
+                    prose,
+                    previous_title,
+                    next_title,
+                    renamed_id,
+                    notes_by_id,
+                    notes_by_title,
+                )
+            });
             if *text != rewritten {
                 *text = rewritten;
                 changed = true;

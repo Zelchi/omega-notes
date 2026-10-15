@@ -107,7 +107,8 @@ enquanto o painel está aberto.
 - As ferramentas recebem a pasta autorizada pelo Rust. A IA não pode fornecer
   outro vault nem um caminho de arquivo.
 - Antes de cada leitura, o Rust verifica se o vault continua registrado e ativo.
-- O host oferece `list_notes`, `search_notes` e `read_note`, com paginação.
+- O host oferece as dez ferramentas descritas em **Ferramentas de consulta**, com
+  paginação e limites de leitura.
   Claude e OpenCode recebem essas ferramentas por um endpoint MCP via stdio
   do próprio executável do Ômega Notes. Cada consulta verifica novamente o vault ativo.
   As consultas não executam recuperação, limpeza ou gravação de notas.
@@ -137,6 +138,53 @@ impedir o próximo envio até ser resolvida. Logs e credenciais já administrado
 pelos CLIs continuam sob responsabilidade desses programas. A limpeza usa
 configuração isolada e mantém o registro até a CLI confirmar a exclusão.
 Tokens e chaves de API não são guardados pelo Ômega Notes nessa pasta.
+
+## Ferramentas de consulta
+
+O catálogo e as descrições ficam em `apps/desktop/tauri/src/ai/tools/catalog.rs`.
+Codex recebe esse catálogo como ferramentas dinâmicas; Claude e OpenCode o consultam
+pelo MCP. As permissões desses dois provedores são geradas a partir do catálogo.
+Todas as consultas são de leitura e usam somente o vault autorizado.
+Resultados que identificam notas também incluem `reference`, com o link `[[ID]]`
+pronto para copiar na resposta; fontes de links sem destino usam `sourceReference`.
+As instruções compartilhadas em `ai/instructions.rs` orientam os três provedores
+a usar esses links também em listas, resumos e confirmações, em vez de apenas nomes em negrito.
+
+| Ferramenta | Consulta e limites |
+|---|---|
+| `list_notes` | Lista IDs, títulos e prévias; 100 notas por página. |
+| `search_notes` | Busca em títulos e textos; 20 resultados por página, com trecho do conteúdo encontrado e seu deslocamento em caracteres. |
+| `read_note` | Lê até 16 mil caracteres de uma nota. |
+| `read_notes` | Lê até oito notas distintas; até 4 mil caracteres por nota, com erros individuais e continuação pela leitura de uma nota. |
+| `list_note_connections` | Lista referências de entrada, saída ou ambas, sem duplicatas; 100 notas por página. |
+| `get_vault_overview` | Conta notas legíveis, referências direcionadas, conexões únicas, notas isoladas e links sem destino. |
+| `get_note_outline` | Lista títulos Markdown h1–h6, com nível, linhas e `sectionId`; 100 títulos por página. |
+| `read_note_section` | Lê uma seção pelo `sectionId`, incluindo os subtítulos, até o próximo título de nível igual ou superior; até 16 mil caracteres. O ID zero lê a introdução. |
+| `find_unresolved_links` | Lista links para notas ausentes, com ID/título da origem e destino escrito; permite filtrar a origem por `noteId`, com 100 resultados por página. |
+| `find_connection_path` | Encontra um caminho mínimo entre duas notas, considerando ambas as direções ou somente as saídas; profundidade padrão de 12 conexões e máxima de 32. |
+
+Consultas paginadas usam `offset` e retornam `nextOffset`; valor nulo indica o fim.
+Deslocamentos de texto contam caracteres Unicode. A busca retorna `snippetOffset`
+para continuar a leitura perto do resultado. IDs de seção são específicos da versão
+atual do texto: consulte novamente o sumário depois de editar uma nota.
+
+Conexões reconhecem destinos por ID ou título e apelidos `[[destino|nome]]`, ignorando
+referências dentro de código e a própria nota. Links inexistentes são listados pela
+ferramenta de referências sem destino. Consultas do grafo e de listagem informam
+`unreadableNotes` quando há arquivos que não puderam ser lidos; os resultados podem
+estar incompletos. Na busca de caminhos, `depthLimited` indica que a profundidade
+máxima impediu explorar todas as possibilidades.
+
+Rótulos de títulos de seção e destinos sem referência são limitados a 600 caracteres,
+com `titleTruncated` ou `targetTruncated` indicando cortes. A leitura da seção ou
+da nota de origem permite consultar o conteúdo completo.
+
+Os testes geram vaults temporários e ficam em `apps/desktop/tauri/test/ai_tools.rs`
+e `apps/desktop/tauri/test/ai_provider_tools.rs`:
+
+```sh
+CCACHE_DIR=/tmp/omega-notes-ccache cargo test --locked --manifest-path apps/desktop/tauri/Cargo.toml --lib
+```
 
 ## Dados e conta
 
@@ -173,7 +221,8 @@ exigirá um fluxo próprio de revisão e confirmação das alterações.
 - `apps/desktop/tauri/src/ai/providers/protocol.rs`: normalização dos eventos dos provedores.
 - `apps/desktop/tauri/src/ai/mcp.rs`: consultas de notas por MCP, restritas ao vault autorizado.
 - `apps/desktop/tauri/src/ai/repository.rs`: leitura e gravação atômica dos dados de IA por vault.
-- `apps/desktop/tauri/src/ai/tools.rs`: resolução do vault e consultas de notas.
+- `apps/desktop/tauri/src/ai/tools.rs`: resolução do vault, validação e despacho das consultas.
+- `apps/desktop/tauri/src/ai/tools/`: catálogo, leitura, seções e consultas ao grafo.
 
 Na integração Codex, não é aberto um servidor HTTP. As ferramentas são registradas diretamente no
 App Server por `dynamicTools`, uma API experimental. A implementação segue o
@@ -207,7 +256,7 @@ primeiros 500 modelos e não contém uma opção Default artificial.
 Os envios usam `opencode run --standalone --format json`, com um servidor
 privado, configuração v2 e o diretório do vault definido explicitamente.
 O agente usa `agents.omega.system`, permissões ordenadas e `mcp.servers.omega`,
-com Code Mode desativado para disponibilizar diretamente as três consultas de notas.
+com Code Mode desativado para disponibilizar diretamente as ferramentas de consulta de notas.
 Fast fica indisponível nesses dois adaptadores. No OpenCode, os seletores de
 pensamento e velocidade são ocultados, deixando somente o modelo.
 

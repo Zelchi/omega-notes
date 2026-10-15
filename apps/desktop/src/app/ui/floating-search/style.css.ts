@@ -8,16 +8,17 @@ export const styles = {
 		top: 50,
 		left: "50%",
 		zIndex: 5,
-		width: "min(420px, 42vw)",
+		width: "min(504px, calc(42vw + 84px))",
+		maxWidth: "calc(100% - 24px)",
 		transform: "translateX(-50%)",
 		"@media": {
-			"(max-width: 860px)": { width: "min(420px, 58vw)" },
+			"(max-width: 860px)": { width: "min(504px, calc(58vw + 84px))" },
 		},
 	}),
 	rootWithBack: style({
-		width: "min(462px, calc(42vw + 42px))",
+		width: "min(546px, calc(42vw + 126px))",
 		"@media": {
-			"(max-width: 860px)": { width: "min(462px, calc(58vw + 42px))" },
+			"(max-width: 860px)": { width: "min(546px, calc(58vw + 126px))" },
 		},
 	}),
 	row: style({ display: "flex", alignItems: "center", gap: 6, width: "100%" }),
@@ -73,8 +74,9 @@ export const styles = {
 		cursor: "default",
 		opacity: 0.5,
 	}),
-	backIcon: style({ display: "grid", placeItems: "center", width: 17, height: 17 }),
-	flippedBackIcon: style({ transform: "scaleX(-1)" }),
+	navigationIcon: style({ display: "grid", placeItems: "center", width: 17, height: 17, transform: "rotate(90deg)" }),
+	downNavigationIcon: style({ transform: "rotate(-90deg)" }),
+	forwardHistoryIcon: style({ display: "grid", placeItems: "center", width: 17, height: 17, transform: "scaleX(-1)" }),
 	results: style({
 		...motion.menu,
 		position: "absolute",
