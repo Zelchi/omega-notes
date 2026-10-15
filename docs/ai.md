@@ -30,7 +30,9 @@ salvo para reconexão. Ao reativar, conecte novamente pelo botão.
 Somente o identificador do provedor é salvo nas preferências locais, sem credenciais.
 
 Os CLIs são localizados pelo PATH e por pastas comuns de instalação. No Windows,
-as instalações globais por npm também são reconhecidas quando o Node está no PATH.
+as instalações globais por npm são procuradas nos prefixos do PATH e em
+`%APPDATA%\npm`. O executável nativo `opencode-ai/bin/opencode.exe` é reconhecido
+sem depender do Node no PATH. Para lançadores JavaScript, o Node precisa estar no PATH.
 Caso o provedor não seja encontrado, confira a instalação e reinicie o Ômega Notes.
 Ao abrir a tela Conectar IA, o aplicativo verifica os executáveis usando os mesmos
 caminhos da conexão e desativa os botões dos CLIs não encontrados. Essa verificação

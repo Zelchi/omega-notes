@@ -1,5 +1,12 @@
 # Histórico de atualizações
 
+## v0.3.7
+
+### Correções
+
+- Corrigida a detecção do OpenCode instalado pelo npm no Windows, reconhecendo o executável nativo do pacote sem depender do Node no PATH.
+- A busca por instalações npm também considera os prefixos presentes no PATH, além de `%APPDATA%\npm`.
+
 ## v0.3.6
 
 ### Chat e vínculos com IA
