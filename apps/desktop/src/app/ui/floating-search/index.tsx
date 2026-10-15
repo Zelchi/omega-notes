@@ -18,19 +18,14 @@ const FloatingSearch: Component<FloatingSearchProps> = (props) => {
 			data-omega-floating-search
 		>
 			<div class={styles.row}>
-				<Show when={props.showBackButton}>
-					<Button
-						class={cx(styles.modeButton, props.backButtonDisabled && styles.disabledButton)}
-						type="button"
-						aria-label={props.t("backToCanvas")}
-						disabled={props.backButtonDisabled}
-						onClick={props.onBack}
-					>
-						<span class={cx(styles.backIcon, props.isOnCanvas && styles.flippedBackIcon)}>
-							<Icon name="back" size={17} />
-						</span>
-					</Button>
-				</Show>
+				<Button class={cx(styles.modeButton, !props.canGoBack && styles.disabledButton)} type="button"
+					aria-label={props.t("navigationBack")} disabled={!props.canGoBack} onClick={props.onHistoryBack}>
+					<Icon name="back" size={17} />
+				</Button>
+				<Button class={cx(styles.modeButton, !props.canGoForward && styles.disabledButton)} type="button"
+					aria-label={props.t("navigationForward")} disabled={!props.canGoForward} onClick={props.onHistoryForward}>
+					<span class={styles.forwardHistoryIcon}><Icon name="back" size={17} /></span>
+				</Button>
 				<label class={styles.box}>
 					<Icon name="search" size={17} />
 					<Input
@@ -55,6 +50,19 @@ const FloatingSearch: Component<FloatingSearchProps> = (props) => {
 				>
 					<Icon name={props.mode === "edit" ? "view" : "edit"} size={17} />
 				</Button>
+				<Show when={props.showBackButton}>
+					<Button
+						class={cx(styles.modeButton, props.backButtonDisabled && styles.disabledButton)}
+						type="button"
+						aria-label={props.t(props.isOnCanvas ? "backToLastNote" : "backToCanvas")}
+						disabled={props.backButtonDisabled}
+						onClick={props.onBack}
+					>
+						<span class={cx(styles.navigationIcon, props.isOnCanvas && styles.downNavigationIcon)}>
+							<Icon name="back" size={17} />
+						</span>
+					</Button>
+				</Show>
 			</div>
 			<Show when={search.results().length > 0}>
 				<div id={resultsId} role="listbox" aria-label={props.t("searchNotes")} class={styles.results} ref={(element) => registerExitSnapshot(element, { kind: "menu", key: "search-results" })}>

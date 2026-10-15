@@ -1,7 +1,8 @@
-import { createEffect, createMemo, createSignal, type Accessor } from "solid-js";
+import { batch, createEffect, createMemo, createSignal, onCleanup, untrack, type Accessor } from "solid-js";
 import { isNoteTitleAvailable, type NotesLibrary, type NoteDocument, type StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { playSound } from "@/shared/ui/sound";
+import { createNavigationHistory, findHistoryIndex, recordNavigation, type NavigationHistory, type NavigationLocation } from "./navigation-history";
 
 type NoteRoute = "canvas" | "note";
 type NoteMode = "edit" | "view";
@@ -28,10 +29,26 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 	const [renameTargetId, setRenameTargetId] = createSignal<string>();
 	const [savingName, setSavingName] = createSignal(false);
 	let resolveCreateNote: ((note: StudyNote | undefined) => void) | undefined;
+	const histories = new Map<string, NavigationHistory>();
+	const lastNotes = new Map<string, string>();
+	const [history, setHistory] = createSignal(createNavigationHistory());
+	const [navigating, setNavigating] = createSignal(false);
+	const noteIds = createMemo(() => new Set(notes.notes().map((note) => note.id)));
+	let disposed = false;
+	onCleanup(() => { disposed = true; });
+	const storeHistory = (next: NavigationHistory): void => {
+		const vaultId = dependencies.activeVaultId();
+		if (vaultId) histories.set(vaultId, next);
+		setHistory(next);
+	};
 
 	createEffect(() => {
-		dependencies.activeVaultId();
-		setSelectedId(undefined);
+		const vaultId = dependencies.activeVaultId();
+		untrack(() => batch(() => {
+			storeHistory(recordNavigation(vaultId ? histories.get(vaultId) ?? createNavigationHistory() : createNavigationHistory(), { route: "canvas" }));
+			setSelectedId(vaultId ? lastNotes.get(vaultId) : undefined);
+			setRoute("canvas");
+		}));
 	});
 
 	const createNoteAtCanvas = async (): Promise<StudyNote | undefined> => {
@@ -111,22 +128,38 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		}
 	};
 
-	const openNote = async (note: StudyNote): Promise<void> => {
-		if (!(await notes.flushSave())) return;
-		setSelectedId(note.id);
-		setRoute("note");
+	const applyLocation = (location: NavigationLocation): void => {
+		if (location.route === "note") {
+			setSelectedId(location.noteId);
+			const vaultId = dependencies.activeVaultId();
+			if (vaultId) lastNotes.set(vaultId, location.noteId);
+		}
+		setRoute(location.route);
 	};
+	const navigate = async (location: NavigationLocation, targetIndex?: number): Promise<void> => {
+		const vaultId = dependencies.activeVaultId();
+		if (!vaultId || navigating() || notes.loading() || nameDialog()) return;
+		setNavigating(true);
+		try {
+			if (!(await notes.flushSave()) || disposed || vaultId !== dependencies.activeVaultId()) return;
+			if (location.route === "note" && !noteIds().has(location.noteId)) return;
+			batch(() => {
+				storeHistory(targetIndex === undefined ? recordNavigation(history(), location) : { ...history(), index: targetIndex });
+				applyLocation(location);
+			});
+		} finally { if (!disposed) setNavigating(false); }
+	};
+	const travel = async (direction: -1 | 1): Promise<void> => {
+		const index = findHistoryIndex(history(), direction, noteIds());
+		if (index >= 0) await navigate(history().entries[index], index);
+	};
+	const openNote = (note: StudyNote): Promise<void> => navigate({ route: "note", noteId: note.id });
 
 	const selectSearchResult = (note: StudyNote) => void openNote(note);
-	const backToCanvas = async () => {
-		if (!(await notes.flushSave())) return;
-		setRoute("canvas");
-	};
-	const backToLastNote = async () => {
+	const backToCanvas = (): Promise<void> => navigate({ route: "canvas" });
+	const backToLastNote = (): Promise<void> => {
 		const lastNote = selectedNote();
-		if (!lastNote) return;
-		if (!(await notes.flushSave())) return;
-		setRoute("note");
+		return lastNote ? openNote(lastNote) : Promise.resolve();
 	};
 
 	const updateTitle = async (title: string): Promise<boolean> => {
@@ -171,10 +204,15 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		selectSearchResult,
 		backToCanvas,
 		backToLastNote,
+		navigating,
+		canGoBack: () => !navigating() && !notes.loading() && findHistoryIndex(history(), -1, noteIds()) >= 0,
+		canGoForward: () => !navigating() && !notes.loading() && findHistoryIndex(history(), 1, noteIds()) >= 0,
+		goBack: () => travel(-1),
+		goForward: () => travel(1),
 		updateTitle,
 		updateDocument,
 		handleEscape,
-		resetToCanvas: () => setRoute("canvas"),
+		resetToCanvas: () => batch(() => { storeHistory(recordNavigation(history(), { route: "canvas" })); setRoute("canvas"); }),
 	};
 };
 

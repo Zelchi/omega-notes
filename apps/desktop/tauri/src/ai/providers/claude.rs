@@ -27,6 +27,11 @@ pub(super) fn configure(
     model: Option<&str>,
     effort: Option<&str>,
 ) {
+    let allowed = crate::ai::tools::names()
+        .iter()
+        .map(|name| format!("mcp__omega__{name}"))
+        .collect::<Vec<_>>()
+        .join(",");
     command
         .args([
             "--restricted",
@@ -47,7 +52,7 @@ pub(super) fn configure(
             "--permission-mode",
             "dontAsk",
             "--allowedTools",
-            "mcp__omega__list_notes,mcp__omega__search_notes,mcp__omega__read_note",
+            allowed.as_str(),
             "--system-prompt",
             instructions,
         ])

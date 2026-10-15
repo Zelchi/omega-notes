@@ -7,6 +7,10 @@ mod opencode_error;
 mod process;
 mod protocol;
 
+#[cfg(test)]
+#[path = "../../../test/ai_provider_tools.rs"]
+mod tests;
+
 pub(crate) fn installed() -> serde_json::Value {
     serde_json::json!({
         "codex": codex::executable().is_ok(),

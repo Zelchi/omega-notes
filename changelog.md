@@ -1,5 +1,19 @@
 # Histórico de atualizações
 
+## v0.3.3
+
+### Chat e ferramentas de IA
+
+- Catálogo com dez ferramentas de consulta: listagem, busca com trechos encontrados, leitura individual ou em lote, conexões de entrada e saída, panorama do vault, sumário, leitura por seção, referências sem destino e caminhos entre notas.
+- Consultas mantêm o isolamento por vault, com validação dos argumentos, paginação, limites de leitura e indicação de arquivos ilegíveis. As ferramentas são somente de leitura.
+- Ferramentas devolvem referências `[[ID]]` prontas para copiar. Instruções compartilhadas dos três provedores orientam usar links também em listas e confirmações, em vez de apenas nomes em negrito.
+- Permissões do Claude e do OpenCode acompanham automaticamente o catálogo de ferramentas.
+
+### Navegação
+
+- Setas de voltar e avançar à esquerda da busca, com histórico de canvas e notas separado por vault durante a sessão. Notas apagadas são ignoradas; abrir outro destino depois de voltar descarta o caminho de avanço.
+- Botão de alternar entre canvas e última nota movido para a direita da alternância de leitura/edição, com seta para cima ou para baixo conforme o destino.
+
 ## v0.3.2
 
 ### Correções

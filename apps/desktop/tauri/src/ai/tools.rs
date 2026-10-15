@@ -4,6 +4,12 @@ use serde_json::{json, Value};
 
 use crate::{app::runtime, notes, vaults};
 
+mod catalog;
+mod connections;
+mod library;
+mod reading;
+mod structure;
+
 pub(super) fn resolve_vault(app: &tauri::AppHandle, id: &str) -> Result<PathBuf, String> {
     uuid::Uuid::parse_str(id).map_err(|_| "AI_INVALID_VAULT".to_string())?;
     let directory = runtime::app_directory(app)?;
@@ -23,28 +29,18 @@ pub(super) fn resolve_vault_in(directory: &Path, id: &str) -> Result<PathBuf, St
         .ok_or("AI_INVALID_VAULT")?;
     let root = vaults::vault_directory(directory, vault)?;
     let path = root.join("notes");
-    for folder in [&root, &path] {
-        if std::fs::symlink_metadata(folder)
-            .map_err(|_| "AI_INVALID_VAULT")?
-            .file_type()
-            .is_symlink()
-        {
+    let base = directory.join("vaults");
+    for folder in [&base, &root, &path] {
+        let metadata = std::fs::symlink_metadata(folder).map_err(|_| "AI_INVALID_VAULT")?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
             return Err("AI_INVALID_VAULT".into());
         }
     }
     path.canonicalize().map_err(|_| "AI_INVALID_VAULT".into())
 }
 
-pub(super) fn definitions() -> Value {
-    json!([
-        {"type":"function","name":"list_notes","description":"List notes in the authorized vault. Paginate with offset.",
-         "inputSchema":{"type":"object","properties":{"offset":{"type":"integer","minimum":0}},"additionalProperties":false}},
-        {"type":"function","name":"search_notes","description":"Search titles and text in the authorized vault. Paginate with offset.",
-         "inputSchema":{"type":"object","properties":{"query":{"type":"string"},"offset":{"type":"integer","minimum":0}},"required":["query"],"additionalProperties":false}},
-        {"type":"function","name":"read_note","description":"Read a note in the authorized vault. Returns text only. Paginate long notes with offset (characters).",
-         "inputSchema":{"type":"object","properties":{"noteId":{"type":"string"},"offset":{"type":"integer","minimum":0}},"required":["noteId"],"additionalProperties":false}}
-    ])
-}
+pub(super) use catalog::definitions;
+pub(crate) use catalog::names;
 
 fn read(path: &Path) -> Result<notes::StudyNote, String> {
     if std::fs::symlink_metadata(path)
@@ -58,80 +54,51 @@ fn read(path: &Path) -> Result<notes::StudyNote, String> {
 }
 
 fn text(note: &notes::StudyNote) -> String {
-    let document = serde_json::to_value(&note.document).unwrap_or(Value::Null);
-    document["elements"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|element| element["text"].as_str())
+    note.document
+        .elements
+        .iter()
+        .filter_map(|element| match element {
+            notes::NoteElement::Text { text, .. } => Some(text.as_str()),
+            _ => None,
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }
 
+fn offset(args: &Value) -> usize {
+    args["offset"].as_u64().unwrap_or(0).min(usize::MAX as u64) as usize
+}
+
+fn reference(id: &str) -> String {
+    format!("[[{id}]]")
+}
+fn required_note(directory: &Path, args: &Value, key: &str) -> Result<notes::StudyNote, String> {
+    let id = args[key].as_str().ok_or("AI_NOTE_NOT_FOUND")?;
+    notes::validate_note_id(id)?;
+    read(&notes::note_path(directory, id))
+}
+
 pub(super) fn call(directory: &Path, tool: &str, args: &Value) -> Result<Value, String> {
-    let offset = args["offset"].as_u64().unwrap_or(0).min(usize::MAX as u64) as usize;
-    if tool == "read_note" {
-        let id = args["noteId"].as_str().ok_or("AI_NOTE_NOT_FOUND")?;
-        notes::validate_note_id(id)?;
-        let note = read(&notes::note_path(directory, id))?;
-        let contents = text(&note);
-        let total = contents.chars().count();
-        let excerpt: String = contents.chars().skip(offset).take(16_000).collect();
-        let end = offset.saturating_add(excerpt.chars().count());
-        return Ok(
-            json!({"id":note.id,"title":note.title,"text":excerpt,"totalCharacters":total,"nextOffset":(end < total).then_some(end)}),
-        );
-    }
-    if tool != "list_notes" && tool != "search_notes" {
-        return Err("AI_UNKNOWN_TOOL".into());
-    }
-    let query = if tool == "search_notes" {
-        args["query"]
-            .as_str()
-            .ok_or("AI_INVALID_QUERY")?
-            .trim()
-            .to_lowercase()
-    } else {
-        String::new()
-    };
-    if query.len() > 1000 {
-        return Err("AI_INVALID_QUERY".into());
-    }
-    let (mut paths, _) = notes::note_paths(directory).map_err(|_| "AI_READ_FAILED")?;
-    paths.sort();
-    let mut matches = Vec::new();
-    let mut count = 0usize;
-    let limit = if tool == "search_notes" { 20 } else { 100 };
-    let mut issues = 0usize;
-    for path in paths
+    let definitions = definitions();
+    let definition = definitions
+        .as_array()
+        .unwrap()
         .iter()
-        .filter(|path| path.extension().is_some_and(|ext| ext == "omega"))
-    {
-        let note = match read(path) {
-            Ok(note) => note,
-            Err(_) => {
-                issues += 1;
-                continue;
-            }
-        };
-        let contents = if tool == "search_notes" {
-            text(&note)
-        } else {
-            String::new()
-        };
-        if !query.is_empty()
-            && !note.title.to_lowercase().contains(&query)
-            && !contents.to_lowercase().contains(&query)
-        {
-            continue;
-        }
-        if count >= offset && matches.len() < limit {
-            matches.push(json!({"id":note.id,"title":note.title,"preview":note.preview.chars().take(600).collect::<String>()}));
-        }
-        count += 1;
+        .find(|definition| definition["name"] == tool)
+        .ok_or("AI_UNKNOWN_TOOL")?;
+    let empty = json!({});
+    let args = if args.is_null() { &empty } else { args };
+    catalog::validate(&definition["inputSchema"], args)?;
+    match tool {
+        "list_notes" | "search_notes" => reading::list(directory, args, tool == "search_notes"),
+        "read_note" => reading::read_one(directory, args),
+        "read_notes" => reading::read_many(directory, args),
+        "get_note_outline" => structure::outline(directory, args),
+        "read_note_section" => structure::read_section(directory, args),
+        "list_note_connections" => connections::list(directory, args),
+        "get_vault_overview" => connections::overview(directory),
+        "find_unresolved_links" => connections::unresolved(directory, args),
+        "find_connection_path" => connections::path(directory, args),
+        _ => Err("AI_UNKNOWN_TOOL".into()),
     }
-    let end = offset.saturating_add(matches.len());
-    Ok(
-        json!({"notes":matches,"total":count,"unreadableNotes":issues,"nextOffset":(end < count).then_some(end)}),
-    )
 }

@@ -40,7 +40,11 @@ const App: Component = () => {
 					notes={app.notes.sortedNotes()}
 					mode={app.temporaryReading.mode()}
 					showBackButton={true}
-					backButtonDisabled={app.navigation.route() === "canvas" && !app.navigation.selectedNote()}
+					backButtonDisabled={app.navigation.navigating() || app.notes.loading() || app.navigation.route() === "canvas" && !app.navigation.selectedNote()}
+					canGoBack={app.navigation.canGoBack()}
+					canGoForward={app.navigation.canGoForward()}
+					onHistoryBack={() => void app.navigation.goBack()}
+					onHistoryForward={() => void app.navigation.goForward()}
 					isOnCanvas={app.navigation.route() === "canvas"}
 					t={app.t}
 					onBack={() => {
