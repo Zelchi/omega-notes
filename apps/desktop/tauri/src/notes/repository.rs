@@ -132,13 +132,6 @@ pub(crate) fn existing_note(directory: &Path, note_id: &str) -> Result<Option<St
     Ok(None)
 }
 
-pub(crate) fn existing_note_document(
-    directory: &Path,
-    note_id: &str,
-) -> Result<Option<NoteDocument>, String> {
-    Ok(existing_note(directory, note_id)?.map(|note| note.document))
-}
-
 pub(crate) struct FileSnapshot {
     path: PathBuf,
     contents: Option<Vec<u8>>,

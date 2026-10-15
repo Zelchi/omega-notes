@@ -237,5 +237,12 @@
   "aiClaudeCliFailed": "The Claude CLI could not complete the request. Check that it opens normally in your terminal.",
   "aiClaudeSendFailed": "Could not pass the message to the Claude CLI. Reconnect and try again.",
   "aiClaudeEmptyResponse": "Claude finished without returning an answer. Try again or choose another model.",
-  "aiClaudeMcpFailed": "Claude could not connect to this vault's note tools. The request was stopped. Reconnect and check CLI permissions."
+  "aiClaudeMcpFailed": "Claude could not connect to this vault's note tools. The request was stopped. Reconnect and check CLI permissions.",
+  "aiNoteChanged": "The note changed after the analysis. Read it again before applying or undoing links.",
+  "aiUndoLinks": "Undo last note links",
+  "aiUndoLinksRequest": "Undo the links you created in note {note}, preserving my later edits. Reread the current note and remove only the links from that operation; ask me if any are ambiguous.",
+  "aiUndoRequest": "Undo request",
+  "findInNote": "Find in note",
+  "findPrevious": "Previous occurrence",
+  "findNext": "Next occurrence"
 }

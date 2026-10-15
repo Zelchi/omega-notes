@@ -105,6 +105,7 @@ pub(crate) struct NoteLoadIssue {
 pub(crate) struct NoteLibrary {
     pub(crate) notes: Vec<StudyNote>,
     pub(crate) issues: Vec<NoteLoadIssue>,
+    pub(crate) reference_titles: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize)]

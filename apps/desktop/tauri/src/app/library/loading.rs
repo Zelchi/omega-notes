@@ -19,6 +19,7 @@ pub(crate) fn list_notes(
         Ok(entries) => entries,
         Err(error) => {
             return Ok(NoteLibrary {
+                reference_titles: Default::default(),
                 notes: Vec::new(),
                 issues: vec![NoteLoadIssue {
                     file_name: "notes".to_string(),
@@ -196,5 +197,11 @@ pub(crate) fn list_notes(
             format!("Não foi possível limpar mídias sem referência: {error}"),
         ));
     }
-    Ok(NoteLibrary { notes, issues })
+    let (reference_titles, title_issues) = crate::notes::load_reference_titles(&directory);
+    issues.extend(title_issues);
+    Ok(NoteLibrary {
+        notes,
+        issues,
+        reference_titles,
+    })
 }

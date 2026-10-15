@@ -26,11 +26,6 @@ export const useAppController = () => {
 		return saveAiChats ? saveAiChats() : true;
 	};
 	const windowControls = useWindowControls(beforeShutdown, t);
-	const aiChat = useAiChat({ provider: defaultAiProvider, enabled: preferences.aiFeaturesEnabled, vaultId: vaults.activeVaultId,
-		notes: notes.notes, notesReady: () => !notes.loading() && notes.hasLoadedVault(), beforeSend: beforeShutdown, t });
-	saveAiChats = aiChat.flushSave;
-	const [settingsOpen, setSettingsOpen] = createSignal(false);
-	const [vaultActionPending, setVaultActionPending] = createSignal(false);
 	const navigation = useNoteNavigationController({
 		notes,
 		activeVaultId: vaults.activeVaultId,
@@ -38,6 +33,11 @@ export const useAppController = () => {
 		beforeNavigate: async () => saveNoteTitle ? saveNoteTitle() : true,
 		t,
 	});
+	const aiChat = useAiChat({ provider: defaultAiProvider, enabled: preferences.aiFeaturesEnabled, vaultId: vaults.activeVaultId,
+		notes: notes.notes, currentNote: () => navigation.route() === "note" ? navigation.selectedNote() : undefined, notesReady: () => !notes.loading() && notes.hasLoadedVault(), beforeSend: beforeShutdown, applyLinkedMentions: notes.applyLinkedMentions, t });
+	saveAiChats = aiChat.flushSave;
+	const [settingsOpen, setSettingsOpen] = createSignal(false);
+	const [vaultActionPending, setVaultActionPending] = createSignal(false);
 	const canvasHistory = useCanvasHistory({
 		vaultId: vaults.activeVaultId,
 		notes,

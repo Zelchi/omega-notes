@@ -7,18 +7,15 @@
   "inlineCode": "Código em linha",
   "codeBlock": "Bloco de código",
   "insertTask": "Lista de tarefas",
-
   "createLinkedNoteFailed": "Não foi possível criar ou abrir a nota referenciada. Tente novamente.",
   "taskCheck": "Marcar tarefa como concluída",
   "taskUncheck": "Marcar tarefa como pendente",
-
   "tableDelete": "Apagar tabela",
   "tableAddRow": "Adicionar linha",
   "tableRemoveRow": "Remover linha",
   "tableAddColumn": "Adicionar coluna",
   "tableRemoveColumn": "Remover coluna",
   "tableCell": "Célula da tabela",
-
   "canvasHistoryFailed": "Não foi possível alterar o histórico do canvas. Verifique se o título da nota a restaurar já está em uso e tente novamente.",
   "locale": "pt-BR",
   "appName": "Ômega Notes",
@@ -237,5 +234,12 @@
   "aiClaudeCliFailed": "O CLI do Claude não conseguiu concluir a solicitação. Confira se ele abre normalmente no terminal.",
   "aiClaudeSendFailed": "Não foi possível entregar a mensagem ao CLI do Claude. Reconecte e tente novamente.",
   "aiClaudeEmptyResponse": "O Claude terminou sem retornar uma resposta. Tente novamente ou escolha outro modelo.",
-  "aiClaudeMcpFailed": "O Claude não conseguiu conectar às ferramentas de notas deste vault. A solicitação foi interrompida. Reconecte e confira as permissões do CLI."
+  "aiClaudeMcpFailed": "O Claude não conseguiu conectar às ferramentas de notas deste vault. A solicitação foi interrompida. Reconecte e confira as permissões do CLI.",
+  "aiNoteChanged": "A nota mudou após a análise. Leia novamente antes de aplicar ou desfazer os vínculos.",
+  "aiUndoLinks": "Desfazer últimos vínculos da nota",
+  "aiUndoLinksRequest": "Desfaça os vínculos que você criou na nota {note}, preservando minhas edições posteriores. Leia a versão atual e remova apenas os vínculos daquela operação; se houver ambiguidade, me pergunte.",
+  "aiUndoRequest": "Desfaça o pedido",
+  "findInNote": "Buscar na nota",
+  "findPrevious": "Ocorrência anterior",
+  "findNext": "Próxima ocorrência"
 }

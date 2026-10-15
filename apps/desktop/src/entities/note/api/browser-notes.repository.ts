@@ -47,10 +47,33 @@ const writeNotes = (notes: StudyNote[]): void => {
 	localStorage.setItem(vaultStorageKey(), JSON.stringify(notes));
 };
 
-export const listNotes = async (): Promise<NoteLibrary> => ({
-	notes: readNotes().sort((a, b) => b.updatedAt - a.updatedAt),
-	issues: [],
-});
+const referenceTitlesKey = (): string => `${vaultStorageKey()}:reference-titles`;
+const readReferenceTitles = (): Record<string, string> => {
+	const stored = localStorage.getItem(referenceTitlesKey());
+	if (!stored) return {};
+	const parsed: unknown = JSON.parse(stored);
+	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || Object.values(parsed).some((value) => typeof value !== "string")) throw new Error("INVALID_REFERENCE_TITLES");
+	return parsed as Record<string, string>;
+};
+
+export const listNotes = async (): Promise<NoteLibrary> => {
+	const notes = readNotes().sort((a, b) => b.updatedAt - a.updatedAt);
+	const issues: NoteLoadIssue[] = [];
+	let referenceTitles: Record<string, string> = {};
+	let writable = true;
+	const report = (error: unknown) => issues.push({ fileName: "reference-titles", message: String(error), recoveryPath: null, recovered: false });
+	try { referenceTitles = readReferenceTitles(); }
+	catch (error) { writable = false; report(error); }
+	let changed = false;
+	try {
+		for (const note of await listDeletedNotes()) if (!Object.hasOwn(referenceTitles, note.id)) { referenceTitles[note.id] = note.title; changed = true; }
+	} catch (error) { report(error); }
+	if (writable && changed) {
+		try { localStorage.setItem(referenceTitlesKey(), JSON.stringify(referenceTitles)); }
+		catch (error) { report(error); }
+	}
+	return { notes, issues, referenceTitles };
+};
 
 export const createNote = async (title: string): Promise<StudyNote> => {
 	const existingNotes = readNotes();
@@ -148,6 +171,7 @@ export const deleteNote = async (noteId: string): Promise<NoteLoadIssue[]> => {
 	const note = existing.find((item) => item.id === noteId);
 	if (!note) throw new Error("NOTE_NOT_FOUND");
 	const deleted = await listDeletedNotes();
+	localStorage.setItem(referenceTitlesKey(), JSON.stringify({ ...readReferenceTitles(), [note.id]: note.title }));
 	localStorage.setItem(deletedStorageKey(), JSON.stringify([
 		{ ...note, updatedAt: Date.now() }, ...deleted.filter((item) => item.id !== noteId),
 	].slice(0, 100)));
@@ -214,4 +238,5 @@ export const getBrowserNotesStats = (vaultId: string): NoteStorageStats => {
 export const deleteBrowserNotesForVault = (vaultId: string): void => {
 	localStorage.removeItem(notesStorageKey(vaultId));
 	localStorage.removeItem(`${notesStorageKey(vaultId)}:deleted`);
+	localStorage.removeItem(`${notesStorageKey(vaultId)}:reference-titles`);
 };

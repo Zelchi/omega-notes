@@ -14,6 +14,7 @@ pub(crate) fn definitions() -> Value {
         ("read_note_section", "Read one section using sectionId from get_note_outline; 0 means introduction. Includes the heading and nested sections. offset and limit are Unicode characters within that section, default/max 16000. IDs can change after edits.", json!({"noteId":note_id,"sectionId":{"type":"integer","minimum":0},"offset":offset,"limit":{"type":"integer","minimum":1,"maximum":16000}}), json!(["noteId","sectionId"])),
         ("find_unresolved_links", "Find references to missing notes, excluding code and self-links. Returns source ID/title and the unresolved target, deduplicated per source. Optional noteId restricts the source note. unreadableNotes can make references appear missing. Paginate with offset, 100 per page. Targets are capped at 600 characters with targetTruncated; read the source note for full text.", json!({"noteId":note_id,"offset":offset}), json!([])),
         ("find_connection_path", "Find a shortest connection path between two note IDs in the authorized vault. Defaults to both directions (like the canvas); outgoing follows arrows only. maxDepth defaults to 12, maximum 32 links. depthLimited=true means a path may exist beyond the depth limit. unreadableNotes reports incomplete results.", json!({"sourceId":note_id,"targetId":note_id,"direction":{"type":"string","enum":["outgoing","both"]},"maxDepth":{"type":"integer","minimum":1,"maximum":32}}), json!(["sourceId","targetId"])),
+        ("link_note_mentions", "Manage internal links in ONE authorized-vault note only on explicit user request. operation defaults to link: insert links around existing prose. operation unlink: remove only the wrappers of exact existing [[id]] or [[id|label]] references, preserving their current display text; use this to undo links without reverting subsequent edits. Before unlinking reread the current note, identify only links from the requested operation, preserve pre-existing or later user-created links, and ask if ambiguous. For unlink, mentions.text must be the entire current reference and targetId its exact ID. Never restore old note contents. For analysis/suggestions alone do not call this tool. First read_note and inspect candidate notes for semantic relevance; never link merely because names match. Pass revision from read_note and up to 100 non-overlapping mentions using zero-based Unicode character offsets in the full read_note text, not snippet-relative offsets. end is exclusive; text must exactly match that span. Targets must be existing notes in this vault. Self-references to the source note are allowed. Uses [[targetId]] when text exactly equals the current target title (case-sensitive); otherwise preserves the original visible text with [[targetId|text]]. It refuses stale revisions and code. Link insertion also refuses partial words, existing links and URLs; unlink only accepts entire internal references outside code. The app applies and saves the change; a conflict requires rereading and reanalysis, never retrying old offsets blindly. No other text, titles or media may be edited. Returns applied references or an error.", json!({"noteId":note_id,"revision":{"type":"string","minLength":16,"maxLength":16},"operation":{"type":"string","enum":["link","unlink"]},"mentions":{"type":"array","minItems":1,"maxItems":100,"items":{"type":"object","additionalProperties":false,"required":["start","end","text","targetId"],"properties":{"start":offset,"end":{"type":"integer","minimum":1},"text":{"type":"string","minLength":1,"maxLength":1000},"targetId":note_id}}}}), json!(["noteId","revision","mentions"])),
     ];
     Value::Array(tools.into_iter().map(|(name, description, properties, required)| json!({
         "type":"function","name":name,"description":format!("{description} When mentioning an existing note, copy its reference field (or sourceReference for an unresolved link source) into your reply as a clickable [[id]] link. Never cite only the plain or bold title."),
@@ -31,45 +32,49 @@ pub(crate) fn names() -> Vec<String> {
 }
 
 pub(super) fn validate(schema: &Value, args: &Value) -> Result<(), String> {
-    let args = args.as_object().ok_or("AI_INVALID_ARGUMENTS")?;
-    let properties = schema["properties"]
-        .as_object()
-        .ok_or("AI_INVALID_ARGUMENTS")?;
-    if schema["required"].as_array().is_some_and(|keys| {
-        keys.iter()
-            .any(|key| !args.contains_key(key.as_str().unwrap_or_default()))
-    }) {
-        return Err("AI_INVALID_ARGUMENTS".into());
+    if valid(schema, args) {
+        Ok(())
+    } else {
+        Err("AI_INVALID_ARGUMENTS".into())
     }
-    for (name, value) in args {
-        let rule = properties.get(name).ok_or("AI_INVALID_ARGUMENTS")?;
-        let valid = match rule["type"].as_str() {
-            Some("string") => value.as_str().is_some_and(|text| {
-                let length = text.chars().count() as u64;
-                rule["minLength"].as_u64().is_none_or(|min| length >= min)
-                    && rule["maxLength"].as_u64().is_none_or(|max| length <= max)
-            }),
-            Some("integer") => value.as_u64().is_some_and(|number| {
-                rule["minimum"].as_u64().is_none_or(|min| number >= min)
-                    && rule["maximum"].as_u64().is_none_or(|max| number <= max)
-            }),
-            Some("array") => value.as_array().is_some_and(|items| {
-                items.len() >= rule["minItems"].as_u64().unwrap_or(0) as usize
-                    && items.len() <= rule["maxItems"].as_u64().unwrap_or(u64::MAX) as usize
-                    && items.iter().enumerate().all(|(index, item)| {
-                        item.is_string()
-                            && (rule["uniqueItems"] != true || !items[..index].contains(item))
-                    })
-            }),
-            _ => false,
-        };
-        if !valid
-            || rule["enum"]
-                .as_array()
-                .is_some_and(|allowed| !allowed.contains(value))
-        {
-            return Err("AI_INVALID_ARGUMENTS".into());
-        }
-    }
-    Ok(())
+}
+
+fn valid(rule: &Value, value: &Value) -> bool {
+    let valid_type = match rule["type"].as_str() {
+        Some("string") => value.as_str().is_some_and(|text| {
+            let length = text.chars().count() as u64;
+            rule["minLength"].as_u64().is_none_or(|min| length >= min)
+                && rule["maxLength"].as_u64().is_none_or(|max| length <= max)
+        }),
+        Some("integer") => value.as_u64().is_some_and(|number| {
+            rule["minimum"].as_u64().is_none_or(|min| number >= min)
+                && rule["maximum"].as_u64().is_none_or(|max| number <= max)
+        }),
+        Some("array") => value.as_array().is_some_and(|items| {
+            items.len() >= rule["minItems"].as_u64().unwrap_or(0) as usize
+                && items.len() <= rule["maxItems"].as_u64().unwrap_or(u64::MAX) as usize
+                && items.iter().enumerate().all(|(index, item)| {
+                    valid(&rule["items"], item)
+                        && (rule["uniqueItems"] != true || !items[..index].contains(item))
+                })
+        }),
+        Some("object") => value.as_object().is_some_and(|object| {
+            let Some(properties) = rule["properties"].as_object() else {
+                return false;
+            };
+            rule["required"].as_array().is_none_or(|keys| {
+                keys.iter()
+                    .all(|key| object.contains_key(key.as_str().unwrap_or_default()))
+            }) && object.iter().all(|(key, value)| {
+                properties
+                    .get(key)
+                    .is_some_and(|schema| valid(schema, value))
+            })
+        }),
+        _ => false,
+    };
+    valid_type
+        && rule["enum"]
+            .as_array()
+            .is_none_or(|allowed| allowed.contains(value))
 }

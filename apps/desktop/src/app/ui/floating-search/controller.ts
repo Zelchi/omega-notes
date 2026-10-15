@@ -49,8 +49,23 @@ export const useFloatingSearchController = (props: FloatingSearchProps) => {
 		if (document.activeElement === input) input?.blur();
 		setQuery("");
 	};
-	onMount(() => addEventListener("pointerdown", onOutsidePointer));
-	onCleanup(() => removeEventListener("pointerdown", onOutsidePointer));
+	const onSearchShortcut = (event: KeyboardEvent): void => {
+		if (event.defaultPrevented || event.isComposing || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "p") return;
+		event.preventDefault();
+		event.stopImmediatePropagation();
+		if (event.repeat || !root.isConnected || root.closest("[inert]") || document.querySelector("[aria-modal='true']:not([inert])")) return;
+		const input = root.querySelector("input");
+		input?.focus({ preventScroll: true });
+		input?.select();
+	};
+	onMount(() => {
+		addEventListener("pointerdown", onOutsidePointer);
+		addEventListener("keydown", onSearchShortcut, true);
+	});
+	onCleanup(() => {
+		removeEventListener("pointerdown", onOutsidePointer);
+		removeEventListener("keydown", onSearchShortcut, true);
+	});
 
 	const select = (note: StudyNote): void => {
 		setQuery("");

@@ -167,9 +167,17 @@ const ChatBody: Component<Props> = (props) => {
                         const initial = untrack(() => messagesById().get(id))!;
                         const message = () => messagesById().get(id) ?? initial;
                         return <div class={`${styles.message} ${message().role === "user" ? styles.user : styles.assistant}`}>
-                            <span class={styles.role}>{message().role === "user" ? props.t("aiYou") : props.aiChat.provider.name}</span>
+                            <div class={styles.messageHeader}>
+                                <span class={styles.role}>{message().role === "user" ? props.t("aiYou") : props.aiChat.provider.name}</span>
+                                <Show when={message().role === "assistant" && props.aiChat.canUndoLinks(id)}>
+                                    <Button class={styles.undoButton} type="button" aria-label={props.t("aiUndoLinks")}
+                                        disabled={props.aiChat.pending() || props.aiChat.chat().busy} onClick={() => void props.aiChat.undoLinks()}>
+                                        <Icon name="undo" size={14} />
+                                    </Button>
+                                </Show>
+                            </div>
                             <ChatMessageText t={props.t}
-                                text={message().text || (id === props.aiChat.chat().requestId && props.aiChat.chat().busy ? props.t("aiThinking") : props.t("aiNoResponse"))}
+                                text={message().role === "user" && message().action === "undo-links" ? props.t("aiUndoRequest") : message().text || (id === props.aiChat.chat().requestId && props.aiChat.chat().busy ? props.t("aiThinking") : props.t("aiNoResponse"))}
                                 referenceTitles={props.aiChat.chat().referenceTitles}
                                 resolveNote={resolveNote}
                                 onOpenNote={props.onOpenNote}

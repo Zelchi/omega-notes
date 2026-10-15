@@ -24,6 +24,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(app::runtime::ActiveVault(Mutex::new(None)))
         .manage(ai::AiState::default())
+        .manage(ai::link_requests::LinkRequests::default())
         .setup(|app| {
             app::setup::initialize(app.handle().clone())?;
             Ok(())
@@ -48,6 +49,7 @@ pub fn run() {
             ai::commands::read_ai_chat,
             ai::commands::save_ai_chat,
             ai::commands::clear_ai_chats,
+            ai::link_requests::complete_ai_link_request,
             app::updates::updater_ready,
             web::fetch_url_title,
             exports::commands::export_note_pdf,

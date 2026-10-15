@@ -62,6 +62,7 @@ const App: Component = () => {
 								<Note
 									note={app.navigation.selectedNote()}
 									notes={app.notes.notes()}
+									referenceTitles={app.notes.referenceTitles()}
 									mode={app.temporaryReading.mode()}
 									t={app.t}
 									onTitleChange={app.navigation.updateTitle}

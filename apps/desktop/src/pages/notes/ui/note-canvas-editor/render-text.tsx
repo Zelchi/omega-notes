@@ -5,11 +5,12 @@ import FormattedBlockView from "@/shared/ui/formatted-block";
 import ExternalLink from "@/shared/ui/external-link";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { parseFormattedText, type TextRun, type FormattedFragment } from "@/features/format-text";
-import { parseNoteTextLinks, resolveNoteReference, canCreateNoteReference, type NoteTextLink, type StudyNote } from "@/entities/note";
+import { parseNoteTextLinks, resolveNoteReference, canCreateNoteReference, normalizeNoteTitle, type NoteTextLink, type StudyNote } from "@/entities/note";
 
 type RenderTextOptions = {
 	notesById: Map<string, StudyNote>;
 	notesByTitle: Map<string, StudyNote>;
+	rememberedTitles: ReadonlyMap<string, string>;
 	onOpenNote: (note: StudyNote) => void;
 	onOpenMissingNote?: (target: string) => void;
 	onOpenExternalUrl: (url: string) => void;
@@ -42,6 +43,8 @@ const renderNoteLinks = (text: string, options: RenderTextOptions): JSX.Element 
         if (link.kind === "note") {
             const note = resolveNoteReference(link.target, options.notesById, options.notesByTitle);
             if (!note) {
+                const rememberedTitle = options.rememberedTitles.get(normalizeNoteTitle(link.target));
+                if (rememberedTitle !== undefined) return link.alias || rememberedTitle;
                 if (!options.onOpenMissingNote || !canCreateNoteReference(link.target)) return link.label;
                 return <Link href="#" style={{ ...textLinkStyle, "text-decoration-style": "dashed" }} onClick={(event) => {
                     event.preventDefault(); options.onOpenMissingNote!(link.target);

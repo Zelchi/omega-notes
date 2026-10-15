@@ -19,6 +19,7 @@ use tauri::{AppHandle, Emitter};
 use crate::ai::instructions::VAULT_INSTRUCTIONS as INSTRUCTIONS;
 
 struct Run {
+    bridge: crate::ai::link_requests::Bridge,
     request_id: String,
     child: Mutex<Child>,
     cancelled: AtomicBool,
@@ -27,6 +28,7 @@ struct Run {
 }
 impl Run {
     fn cancel(&self) {
+        self.bridge.stop();
         self.cancelled.store(true, Ordering::SeqCst);
         if let Ok(mut child) = self.child.lock() {
             process::stop(&mut child);
@@ -195,7 +197,17 @@ impl Client {
         self.clean_sessions(&root)?;
         let directory = crate::app::runtime::app_directory(&self.app)?;
         let binary = std::env::current_exe().map_err(|_| "AI_START_FAILED")?;
-        let mcp_args = json!(["--ai-mcp", directory, vault_id]);
+        let bridge = crate::ai::link_requests::Bridge::start(
+            self.app.clone(),
+            vault_id.into(),
+            self.connection_id.clone(),
+            request_id.into(),
+        )?;
+        let mut mcp_args = json!(["--ai-mcp", directory, vault_id]);
+        mcp_args
+            .as_array_mut()
+            .unwrap()
+            .extend(bridge.arguments().as_array().unwrap().iter().cloned());
         let mut command = process::command(&self.binary);
         command.current_dir(&root).stdin(Stdio::piped());
         command.stderr(Stdio::piped());
@@ -259,6 +271,7 @@ impl Client {
         let stdout = child.stdout.take().ok_or("AI_START_FAILED")?;
         let mut stdin = child.stdin.take().ok_or("AI_START_FAILED")?;
         let run = Arc::new(Run {
+            bridge,
             request_id: request_id.into(),
             child: Mutex::new(child),
             cancelled: AtomicBool::new(false),
