@@ -24,6 +24,7 @@ export type NoteCanvasEditorProps = {
 	noteId: string;
 	document: NoteDocument;
 	notes: StudyNote[];
+	referenceTitles: Record<string, string>;
 	mode: "edit" | "view";
 	t: (key: TranslationKey) => string;
 	onChange: (document: NoteDocument) => void;
@@ -88,7 +89,14 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		equals: (previous, next) => previous.length === next.length &&
 			previous.every((note, index) => note.id === next[index].id && note.title === next[index].title),
 	});
-	const editableReferences = createMemo(() => createEditableNoteReferences(referenceNotes()));
+	const editableReferences = createMemo(() => {
+		const current = referenceNotes();
+		const ids = new Set(current.map((note) => note.id));
+		return createEditableNoteReferences([
+			...current,
+			...Object.entries(props.referenceTitles).filter(([id]) => !ids.has(id)).map(([id, title]) => ({ id, title })),
+		]);
+	});
 	const flowDocument = createMemo<NoteDocument>(() => {
 		const text = props.document.elements.find(
 			(element): element is NoteTextElement => element.type === "text",

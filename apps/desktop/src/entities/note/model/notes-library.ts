@@ -12,6 +12,12 @@ import {
 import type { NoteLoadIssue, StudyNote } from "./note";
 import { documentPreview, type NoteDocument } from "./note-document";
 import { isNoteTitleAvailable } from "./note-titles";
+import type { NoteLinkPatch } from "./note-link-patch";
+
+const documentSignature = (document: NoteDocument): string => JSON.stringify(document, (_key, value: unknown) => {
+	if (value && typeof value === "object" && !Array.isArray(value)) return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)));
+	return value;
+});
 
 export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 	const [notes, setNotes] = createSignal<StudyNote[]>([]);
@@ -19,10 +25,11 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 	const [hasLoadedVault, setHasLoadedVault] = createSignal(false);
 	const [saveError, setSaveError] = createSignal(false);
 	const [loadIssues, setLoadIssues] = createSignal<NoteLoadIssue[]>([]);
+	const [referenceTitles, setReferenceTitles] = createSignal<Record<string, string>>({});
 	const sortedNotes = createMemo(() => [...notes()].sort((a, b) => b.updatedAt - a.updatedAt));
 
 	const pendingSaves = new Map<string, StudyNote>();
-	const notesByVault = new Map<string, { notes: StudyNote[]; issues: NoteLoadIssue[] }>();
+	const notesByVault = new Map<string, { notes: StudyNote[]; issues: NoteLoadIssue[]; referenceTitles: Record<string, string> }>();
 	let saveTimer: ReturnType<typeof setTimeout> | undefined;
 	let saveQueue: Promise<void> = Promise.resolve();
 	let activeFlush: Promise<boolean> | undefined;
@@ -31,7 +38,8 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 	createEffect(() => {
 		const currentNotes = notes();
 		const currentIssues = loadIssues();
-		if (loadedVaultId) notesByVault.set(loadedVaultId, { notes: currentNotes, issues: currentIssues });
+		const titles = referenceTitles();
+		if (loadedVaultId) notesByVault.set(loadedVaultId, { notes: currentNotes, issues: currentIssues, referenceTitles: titles });
 	});
 
 	let loadRevision = 0;
@@ -44,6 +52,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 			loadedVaultId = undefined;
 			setNotes([]);
 			setLoadIssues([]);
+			setReferenceTitles({});
 			setLoading(false);
 			return;
 		}
@@ -53,6 +62,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 			loadedVaultId = vaultId;
 			setNotes(cached.notes);
 			setLoadIssues(cached.issues);
+			setReferenceTitles(cached.referenceTitles);
 			setLoading(false);
 			setHasLoadedVault(true);
 			return;
@@ -61,6 +71,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		loadedVaultId = undefined;
 		setNotes([]);
 		setLoadIssues([]);
+		setReferenceTitles({});
 		setLoading(true);
 		void listNotes()
 			.then((library) => {
@@ -68,7 +79,8 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 				loadedVaultId = vaultId;
 				setNotes(library.notes);
 				setLoadIssues(library.issues);
-				notesByVault.set(vaultId, { notes: library.notes, issues: library.issues });
+				setReferenceTitles(library.referenceTitles);
+				notesByVault.set(vaultId, { notes: library.notes, issues: library.issues, referenceTitles: library.referenceTitles });
 				setHasLoadedVault(true);
 			})
 			.catch((error) => {
@@ -199,6 +211,8 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		await saveQueue;
 		try {
 			const cleanupIssues = await deleteNoteRecord(note.id);
+			const deleted = notes().find((item) => item.id === note.id) ?? note;
+			setReferenceTitles((current) => ({ ...current, [note.id]: deleted.title }));
 			setNotes((current) => current.filter((item) => item.id !== note.id));
 			reportCleanupIssues(cleanupIssues);
 			return true;
@@ -232,6 +246,29 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		queueSave({ ...current, document, preview: documentPreview(document), updatedAt: Date.now() });
 	};
 
+	const applyLinkedMentions = async (patch: NoteLinkPatch, stillValid: () => boolean): Promise<() => Promise<void>> => {
+		const vaultId = activeVaultId();
+		if (!(await flushSave())) throw "AI_SAVE_FAILED";
+		if (!vaultId || vaultId !== activeVaultId()) throw "AI_VAULT_CHANGED";
+		if (!stillValid()) throw "AI_CANCELLED";
+		const current = notes().find((note) => note.id === patch.noteId);
+		if (!current || current.title !== patch.title || documentSignature(current.document) !== documentSignature(patch.expectedDocument)) throw "AI_NOTE_CHANGED";
+		if (patch.links.some((link) => !notes().some((note) => note.id === link.id))) throw "AI_NOTE_CHANGED";
+		const before = new Map(current.document.elements.filter((element) => element.type === "text").map((element) => [element.id, element.text]));
+		const after = new Map(patch.document.elements.flatMap((element) => element.type === "text" && before.get(element.id) !== element.text ? [[element.id, element.text] as const] : []));
+		updateDocument(current.id, { ...current.document, elements: current.document.elements.map((element) => element.type === "text" && after.has(element.id) ? { ...element, text: after.get(element.id)! } : element) });
+		if (!(await flushSave())) throw "AI_SAVE_FAILED";
+		return async () => {
+			if (vaultId !== activeVaultId()) throw "AI_VAULT_CHANGED";
+			if (!(await flushSave())) throw "AI_SAVE_FAILED";
+			if (vaultId !== activeVaultId()) throw "AI_VAULT_CHANGED";
+			const latest = notes().find((note) => note.id === patch.noteId);
+			if (!latest || [...after].some(([id, text]) => !latest.document.elements.some((element) => element.id === id && element.type === "text" && element.text === text))) throw "AI_NOTE_CHANGED";
+			updateDocument(latest.id, { ...latest.document, elements: latest.document.elements.map((element) => element.type === "text" && after.has(element.id) ? { ...element, text: before.get(element.id)! } : element) });
+			if (!(await flushSave())) throw "AI_SAVE_FAILED";
+		};
+	};
+
 	return {
 		notes,
 		sortedNotes,
@@ -239,6 +276,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		hasLoadedVault,
 		saveError,
 		loadIssues,
+		referenceTitles,
 		dismissLoadIssues: () => setLoadIssues([]),
 		flushSave,
 		create,
@@ -247,6 +285,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		restore,
 		listDeleted: listDeletedNotes,
 		updateDocument,
+		applyLinkedMentions,
 	};
 };
 

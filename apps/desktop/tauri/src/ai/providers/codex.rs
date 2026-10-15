@@ -489,11 +489,22 @@ impl Client {
                     if current != session.directory {
                         return Err("AI_VAULT_CHANGED".into());
                     }
-                    tools::call(
-                        &session.directory,
-                        params["tool"].as_str().unwrap_or_default(),
-                        &params["arguments"],
-                    )
+                    let vault_id = session.vault_id.clone();
+                    let request_id = session.request_id.clone();
+                    let directory = session.directory.clone();
+                    drop(sessions);
+                    let tool = params["tool"].as_str().unwrap_or_default();
+                    if tools::is_mutation(tool) {
+                        crate::ai::link_requests::apply(
+                            &self.app,
+                            &vault_id,
+                            &self.connection_id,
+                            &request_id,
+                            &params["arguments"],
+                        )
+                    } else {
+                        tools::call(&directory, tool, &params["arguments"])
+                    }
                 })();
                 match call {
                     Ok(data) => {

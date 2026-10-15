@@ -49,10 +49,11 @@ const NoteEditor: Component<NoteEditorProps> = (props) => {
 				onExportPdf={EXPORT_PDF_ENABLED ? async () => {
 					await editor.onTitleBlur();
 					if (editor.titleError()) throw new Error(editor.titleError());
-					await exportNote(props.note, props.notes, props.t);
+					await exportNote(props.note, props.notes, props.t, props.referenceTitles);
 				} : undefined}
 				document={props.note.document}
 				notes={props.notes}
+				referenceTitles={props.referenceTitles}
 				mode={props.mode}
 				t={props.t}
 				onChange={props.onDocumentChange}

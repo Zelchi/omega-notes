@@ -12,6 +12,7 @@ export const styles = {
 		maxWidth: "calc(100vw - 32px)",
 		transform: "translateX(-50%)",
 	}),
+	readOnlyRoot: style({ height: 46, pointerEvents: "none" }),
 	row: style({
 		display: "flex",
 		alignItems: "center",
@@ -27,6 +28,7 @@ export const styles = {
 		borderRadius: 6,
 	}),
 	subbar: style({
+		pointerEvents: "auto",
 		position: "absolute",
 		bottom: "calc(100% + 8px)",
 		left: "50%",

@@ -1,5 +1,6 @@
 export { useNotes } from "./model/notes-library";
 export type { NotesLibrary } from "./model/notes-library";
+export type { NoteLinkPatch } from "./model/note-link-patch";
 export { parseNoteTextLinks, type NoteTextLink } from "./model/text-links";
 export { createNoteReferenceNormalizer } from "./model/reference-normalizer";
 export { createEditableNoteReferences } from "./model/editable-note-references";

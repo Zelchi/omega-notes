@@ -10,8 +10,11 @@ import { cx } from "@/shared/lib/classes";
 import Icon, { type IconName } from "@/shared/ui/icon";
 import { styles } from "./style.css.ts";
 import type { TextFormat } from "@/features/format-text";
+import { NoteFindBar, type FindInNote } from "@/features/find-in-note";
 
 type Props = {
+	find: FindInNote;
+	readOnly?: boolean;
 	exiting?: boolean;
 	t: (key: TranslationKey) => string;
 	alignment: NoteTextAlignment | undefined;
@@ -65,7 +68,7 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 	let exitStarted = false;
 	createRenderEffect(() => {
 		exitStarted = Boolean(props.exiting);
-		if (props.exiting) setActivePanel(undefined);
+		if (props.exiting || props.readOnly) setActivePanel(undefined);
 	});
 	const closeOutside = (event: PointerEvent) => {
 		if (event.target instanceof Node && !root.contains(event.target)) setActivePanel(undefined);
@@ -79,7 +82,7 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 		registerExitSnapshot(element, { kind: "bar", key: "note-editing-toolbar", enabled: () => !exitStarted });
 		registerVisibilityAnimation(element, () => Boolean(props.exiting), "bar");
 	}}
-		class={styles.root} inert={props.exiting}
+		class={cx(styles.root, props.readOnly && styles.readOnlyRoot)} inert={props.exiting}
 		aria-hidden={props.exiting || undefined}
 		onKeyDown={(event) => {
 			if (event.key === "Escape" && activePanel()) {
@@ -144,6 +147,10 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 				</Switch>
 			</div>
 		</Show>
+		<Show when={props.find.open() && !panel.present() && !props.exiting}>
+			<div class={styles.subbar}><NoteFindBar find={props.find} t={props.t} /></div>
+		</Show>
+		<Show when={!props.readOnly}>
 		<div class={styles.row} role="toolbar" aria-label={props.t("textFormatting")}>
 		<Button
 			class={cx(styles.button, styles.attachButton)}
@@ -196,6 +203,7 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 			</>}
 		</Show>
 		</div>
+		</Show>
 	</div>
 	);
 };

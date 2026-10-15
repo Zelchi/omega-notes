@@ -14,6 +14,7 @@ fn read_result(note: &crate::notes::StudyNote, args: &Value, limit: usize) -> Va
     result["title"] = json!(note.title);
     result["reference"] = json!(super::reference(&note.id));
     result["updatedAt"] = json!(note.updated_at);
+    result["revision"] = json!(super::linking::revision(note).ok());
     result
 }
 pub(super) fn read_one(directory: &Path, args: &Value) -> Result<Value, String> {

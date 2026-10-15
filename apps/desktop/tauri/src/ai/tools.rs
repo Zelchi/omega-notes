@@ -7,6 +7,7 @@ use crate::{app::runtime, notes, vaults};
 mod catalog;
 mod connections;
 mod library;
+mod linking;
 mod reading;
 mod structure;
 
@@ -72,6 +73,9 @@ fn offset(args: &Value) -> usize {
 fn reference(id: &str) -> String {
     format!("[[{id}]]")
 }
+pub(super) fn is_mutation(tool: &str) -> bool {
+    tool == "link_note_mentions"
+}
 fn required_note(directory: &Path, args: &Value, key: &str) -> Result<notes::StudyNote, String> {
     let id = args[key].as_str().ok_or("AI_NOTE_NOT_FOUND")?;
     notes::validate_note_id(id)?;
@@ -99,6 +103,7 @@ pub(super) fn call(directory: &Path, tool: &str, args: &Value) -> Result<Value, 
         "get_vault_overview" => connections::overview(directory),
         "find_unresolved_links" => connections::unresolved(directory, args),
         "find_connection_path" => connections::path(directory, args),
+        "link_note_mentions" => linking::prepare(directory, args),
         _ => Err("AI_UNKNOWN_TOOL".into()),
     }
 }

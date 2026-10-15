@@ -7,10 +7,9 @@ use crate::names::normalize_name;
 use crate::notes::{
     archive_deleted_note, audio_ids_in_document, delete_note_files, deleted_notes,
     deleted_notes_directory, empty_document, ensure_unique_note_title, existing_note,
-    existing_note_document, image_ids_in_document, note_backup_exists, note_backup_path,
-    note_from_path_with_id, note_path, prune_deleted_notes, remove_deleted_note, validate_note_id,
-    validate_note_title, video_ids_in_document, write_note, NoteDocument, NoteLoadIssue,
-    NoteSaveResult, StudyNote,
+    image_ids_in_document, note_backup_exists, note_backup_path, note_from_path_with_id, note_path,
+    prune_deleted_notes, remove_deleted_note, validate_note_id, validate_note_title,
+    video_ids_in_document, write_note, NoteDocument, NoteLoadIssue, NoteSaveResult, StudyNote,
 };
 
 use super::cleanup::{cleanup_issue, collect_unreferenced_images, collect_unreferenced_media};
@@ -123,10 +122,9 @@ pub(crate) fn delete_note(
 ) -> Result<Vec<NoteLoadIssue>, String> {
     validate_note_id(&note_id)?;
     let (directory, backups_directory) = resolve_directories()?;
-    let previous_document = existing_note_document(&directory, &note_id)?;
-    let Some(previous_document) = previous_document else {
-        return Err("Nota não encontrada.".to_string());
-    };
+    let note = existing_note(&directory, &note_id)?.ok_or("Nota não encontrada.")?;
+    crate::notes::remember_reference_title(&directory, &note_id, &note.title)?;
+    let previous_document = note.document;
     archive_deleted_note(&directory, &note_id)?;
     delete_note_files(&directory, &backups_directory, &note_id)?;
     let mut removed_images = image_ids_in_document(&previous_document);

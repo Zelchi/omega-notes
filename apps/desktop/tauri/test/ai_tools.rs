@@ -54,7 +54,7 @@ impl Drop for Vault {
 }
 
 #[test]
-fn catalog_has_all_tools_and_readonly_mcp_annotations() {
+fn catalog_has_all_tools_and_correct_mcp_annotations() {
     let vault = Vault::new();
     let response = super::reply(
         &vault.root,
@@ -63,10 +63,13 @@ fn catalog_has_all_tools_and_readonly_mcp_annotations() {
     )
     .unwrap();
     let list = response["result"]["tools"].as_array().unwrap();
-    assert_eq!(list.len(), 10);
+    assert_eq!(list.len(), 11);
     for tool in list {
         assert!(!tool["description"].as_str().unwrap().is_empty());
-        assert_eq!(tool["annotations"]["readOnlyHint"], true);
+        assert_eq!(
+            tool["annotations"]["readOnlyHint"],
+            tool["name"] != "link_note_mentions"
+        );
         assert_eq!(tool["annotations"]["openWorldHint"], false);
     }
     let names = tools::names();

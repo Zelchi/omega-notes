@@ -37,10 +37,40 @@ pub(crate) enum Role {
 }
 
 #[derive(Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum MessageAction {
+    UndoLinks,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(
+    tag = "route",
+    rename_all = "lowercase",
+    rename_all_fields = "camelCase"
+)]
+pub(crate) enum NoteContext {
+    Canvas,
+    Note {
+        note_id: String,
+        title: String,
+        title_truncated: bool,
+        reference: String,
+    },
+}
+
+#[derive(Deserialize, Serialize)]
 pub(crate) struct Message {
     pub id: String,
     pub role: Role,
     pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action: Option<MessageAction>,
+    #[serde(
+        default,
+        rename = "noteContext",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub note_context: Option<NoteContext>,
 }
 
 #[derive(Default, Deserialize, Serialize)]

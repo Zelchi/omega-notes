@@ -9,6 +9,34 @@ export const formatSelection = (text: string, selection: TextSelection, format: 
 	const end = Math.max(start, Math.min(selection.end, text.length));
     if (format === "note-link") {
         const selected = text.slice(start, end);
+        const references = [...text.matchAll(/\[\[([^\[\]\r\n]*)\]\]/g)];
+        const enclosing = references.find((match) => {
+            const from = match.index!;
+            const to = from + match[0].length;
+            return start === end ? start > from && start < to : start >= from && end <= to;
+        });
+        const visibleText = (body: string): string => {
+            const separator = body.indexOf("|");
+            return separator < 0 ? body : body.slice(separator + 1);
+        };
+        if (enclosing) {
+            const from = enclosing.index!;
+            const body = enclosing[1]!;
+            const content = visibleText(body);
+            const labelStart = from + 2 + (body.includes("|") ? body.indexOf("|") + 1 : 0);
+            const caret = from + Math.max(0, Math.min(content.length, start - labelStart));
+            return {
+                text: text.slice(0, from) + content + text.slice(from + enclosing[0].length),
+                selection: start === end ? { start: caret, end: caret } : { start: from, end: from + content.length },
+            };
+        }
+        const contained = references.filter((match) => match.index! >= start && match.index! + match[0].length <= end);
+        if (contained.length) {
+            const content = selected.replace(/\[\[([^\[\]\r\n]*)\]\]/g, (_reference, body: string) => visibleText(body));
+            return { text: text.slice(0, start) + content + text.slice(end), selection: { start, end: start + content.length } };
+        }
+        // A selection crossing a reference boundary must not create nested links.
+        if (references.some((match) => start < match.index! + match[0].length && end > match.index!)) return { text, selection: { start, end } };
         const caret = start + 2 + selected.length;
         return {
             text: text.slice(0, start) + `[[${selected}]]` + text.slice(end),

@@ -7,6 +7,7 @@ export type IconName =
 	| "stop"
 	| "disconnect"
 	| "back"
+	| "undo"
 	| "search"
 	| "settings"
 	| "minimize"
@@ -67,6 +68,7 @@ const paths: Record<IconName, Component> = {
 	textFormatting: () => <path d="M4 5h16M12 5v14M8 19h8" />,
 	table: () => <><rect x="3" y="4" width="18" height="16" rx="1" /><path d="M3 9h18M3 14h18M9 4v16M15 4v16" /></>,
 	back: () => <path d="m14.5 5-7 7 7 7M8 12h12" />,
+	undo: () => <path d="M3 10h11a6 6 0 0 1 0 12M3 10l5-5M3 10l5 5" />,
 	minimize: () => <path d="M5 12h14" />,
 	maximize: () => <rect x="5" y="5" width="14" height="14" rx="1" />,
 	restore: () => (

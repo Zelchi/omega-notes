@@ -20,7 +20,8 @@ export type AiEvent = {
     errorDetail?: string;
     cleanupFailed?: boolean;
 };
-export type ChatMessage = { id: string; role: "user" | "assistant"; text: string; items?: Record<string, string> };
+export type AiNoteContext = { route: "canvas" } | { route: "note"; noteId: string; title: string; titleTruncated: boolean; reference: string };
+export type ChatMessage = { id: string; role: "user" | "assistant"; text: string; action?: "undo-links"; noteContext?: AiNoteContext; items?: Record<string, string> };
 export type VaultChat = { messages: ChatMessage[]; referenceTitles: Record<string, string>; draft: string; model: string; effort: string; fast: boolean; busy: boolean; requestId?: string; error?: string };
 
 export type StoredChat = Pick<VaultChat, "messages" | "referenceTitles" | "draft" | "model" | "effort" | "fast">;

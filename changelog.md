@@ -1,5 +1,23 @@
 # Histórico de atualizações
 
+## v0.3.6
+
+### Chat e vínculos com IA
+
+- A IA recebe o ID e o título da nota aberta em cada mensagem, ou a indicação de que o usuário está no canvas. Esse contexto é usado quando o pedido não especifica outra nota, mantendo a consulta às demais notas do mesmo vault.
+- Ferramenta restrita para aplicar vínculos entre menções e notas existentes, incluindo autorreferências, com preservação do texto. Aliases são usados apenas quando o trecho difere do título do destino.
+- Validação de revisão, trechos exatos e destinos, com aplicação pela fila de salvamento do aplicativo para evitar sobrescrever edições concorrentes. Código, URLs e links existentes são protegidos na inserção.
+- Ícone discreto de desfazer na resposta que aplicou os vínculos. Se os blocos afetados tiverem sido editados, o botão solicita à IA uma nova análise para remover os vínculos preservando as alterações posteriores.
+- Pedidos automáticos de desfazer aparecem no Chat como uma mensagem curta e traduzida: “Pedido de desfazer”. O pedido completo continua disponível para a IA e o rascunho é preservado.
+
+### Busca e edição
+
+- Referências a notas apagadas preservam o último título conhecido, com armazenamento por vault e reaproveitamento do histórico de exclusões. O destino por ID é mantido para restaurar o vínculo se a nota voltar.
+- Ctrl + F abre e fecha a busca dentro da nota, no espaço da subbarra inferior, com contador, destaques e setas para navegar pelas ocorrências. Funciona em edição e leitura; outras subbarras têm prioridade enquanto abertas.
+- Enter e Shift + Enter avançam ou voltam entre os resultados. Escape fecha a busca. A busca exibe até 1.000 ocorrências, com indicação quando esse limite é atingido.
+- Ctrl + P foca a busca de notas na barra superior e seleciona o texto existente, tanto no canvas quanto nas notas.
+- Botão de vínculo da barra de edição passa a remover a marcação de links já selecionados, preservando o alias quando existir, em vez de criar colchetes aninhados.
+
 ## v0.3.5
 
 ### Navegação e desempenho

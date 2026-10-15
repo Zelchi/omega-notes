@@ -23,6 +23,7 @@ export type NoteSaveResult = {
 export type NoteLibrary = {
 	notes: StudyNote[];
 	issues: NoteLoadIssue[];
+	referenceTitles: Record<string, string>;
 };
 
 export type NoteStorageStats = {

@@ -97,6 +97,21 @@ O chat entra e sai pela direita. Clique novamente no ícone da barra, no botão 
 fechar ou use Escape para ocultá-lo. As notas e o canvas continuam acessíveis
 enquanto o painel está aberto.
 
+## Nota aberta no contexto
+
+Cada envio inclui o ID, o título (até 500 caracteres) e a referência da nota aberta.
+No canvas, informa explicitamente que nenhuma nota está aberta. O contexto é
+capturado ao enviar; trocar de nota depois não altera uma solicitação já enviada.
+O título é consultado após o salvamento, para incluir uma renomeação pendente.
+Isso também vale para mensagens enviadas durante uma resposta no Codex.
+
+A IA é orientada a usar essa nota quando o pedido não especifica outra, como em
+“analise esta nota”. Uma referência explícita tem prioridade. Se o pedido exigir
+uma nota e o usuário estiver no canvas, a IA deve perguntar qual nota usar.
+O contexto não inclui automaticamente o conteúdo: a IA o lê pelas ferramentas.
+Esses dados ficam associados à mensagem no histórico do vault, sem aparecer no
+balão, e permitem interpretar mensagens anteriores sem confundir com a nota atual.
+
 ## Contexto separado por vault
 
 - No Codex, cada ID de vault possui uma thread própria no App Server. Claude e
@@ -107,7 +122,7 @@ enquanto o painel está aberto.
 - As ferramentas recebem a pasta autorizada pelo Rust. A IA não pode fornecer
   outro vault nem um caminho de arquivo.
 - Antes de cada leitura, o Rust verifica se o vault continua registrado e ativo.
-- O host oferece as dez ferramentas descritas em **Ferramentas de consulta**, com
+- O host oferece dez ferramentas de consulta e uma ferramenta restrita de vinculação, com
   paginação e limites de leitura.
   Claude e OpenCode recebem essas ferramentas por um endpoint MCP via stdio
   do próprio executável do Ômega Notes. Cada consulta verifica novamente o vault ativo.
@@ -138,6 +153,52 @@ impedir o próximo envio até ser resolvida. Logs e credenciais já administrado
 pelos CLIs continuam sob responsabilidade desses programas. A limpeza usa
 configuração isolada e mantém o registro até a CLI confirmar a exclusão.
 Tokens e chaves de API não são guardados pelo Ômega Notes nessa pasta.
+
+## Criar vínculos com ajuda da IA
+
+Peça uma análise para receber sugestões, ou peça explicitamente para aplicar os
+vínculos. Exemplo: “Analise a nota Teste e vincule as menções a outras notas
+existentes neste vault”. A instrução do provedor diferencia sugerir de aplicar;
+esta distinção depende da interpretação da IA, não de um classificador de comandos.
+
+`link_note_mentions` é a única ferramenta de edição. Ela recebe `noteId`,
+`revision` retornada por `read_note`, `operation` opcional (`link` por padrão,
+`unlink` para remover referências) e até 100 `mentions`, cada uma com
+`start`, `end` (exclusivo), `text` exato e `targetId`. Os deslocamentos contam
+caracteres Unicode no texto completo retornado por `read_note`; páginas lidas com
+`offset` precisam somar esse deslocamento. A IA deve ler as notas candidatas
+para avaliar o contexto e a ambiguidade antes de escolher os destinos.
+
+O Rust valida os destinos no mesmo vault, a revisão, os trechos exatos e a ausência
+de sobreposição. Autorreferências à própria nota de origem são permitidas.
+Na inserção, código, links existentes, URLs e partes de palavras são recusados.
+Se o trecho for exatamente igual ao título atual do destino, incluindo maiúsculas
+e acentos, ele vira `[[ID]]`. Caso contrário, vira `[[ID|texto original]]`,
+preservando a escrita original. Títulos, mídias e outros trechos são preservados.
+O MCP anuncia essa ferramenta com `readOnlyHint: false`.
+
+A aplicação acontece pela biblioteca de notas no frontend, usando a fila normal
+de salvamento. O documento em memória também precisa corresponder ao que foi
+analisado: uma revisão antiga ou edição concorrente exige nova leitura e análise.
+Codex encaminha a chamada diretamente ao aplicativo. Claude e OpenCode usam uma
+ponte temporária em loopback, com porta aleatória e capacidade por solicitação,
+apenas em memória. A ponte não grava notas nem aceita caminhos de arquivo.
+Pedidos de outra conexão, solicitação cancelada ou vault inativo são recusados.
+
+Após aplicar, aparece um pequeno ícone de desfazer à direita do nome da IA, na
+resposta que fez a última vinculação do vault na sessão. Ele desfaz diretamente
+quando os blocos afetados continuam iguais. Se houver
+edições posteriores, envia um pedido à IA para reler a nota atual e desfazer
+somente os vínculos daquela operação, preservando as alterações do usuário.
+O balão exibe apenas “Pedido de desfazer” (traduzido conforme o idioma),
+enquanto o histórico mantém o pedido completo para a IA. Essa identificação
+também é salva para preservar a apresentação ao reabrir o Chat.
+O rascunho do Chat é mantido. A IA recebe os destinos e rótulos daquela operação
+como contexto; rótulos longos são abreviados, e ambiguidades exigem esclarecimento.
+O modo `unlink` só remove uma referência interna completa fora de código,
+substituindo-a pelo alias atual ou pelo título atual do destino, sem restaurar
+uma cópia antiga do documento. Também exige revisão atual e trecho exato.
+Desativar Recursos de IA remove esse estado de desfazer, mas mantém os links já salvos nas notas.
 
 ## Ferramentas de consulta
 
@@ -222,7 +283,8 @@ exigirá um fluxo próprio de revisão e confirmação das alterações.
 - `apps/desktop/tauri/src/ai/mcp.rs`: consultas de notas por MCP, restritas ao vault autorizado.
 - `apps/desktop/tauri/src/ai/repository.rs`: leitura e gravação atômica dos dados de IA por vault.
 - `apps/desktop/tauri/src/ai/tools.rs`: resolução do vault, validação e despacho das consultas.
-- `apps/desktop/tauri/src/ai/tools/`: catálogo, leitura, seções e consultas ao grafo.
+- `apps/desktop/tauri/src/ai/tools/`: catálogo, leitura, seções, consultas ao grafo e validação de vínculos.
+- `apps/desktop/tauri/src/ai/link_requests.rs`: aplicação pelo frontend e ponte temporária para processos MCP.
 
 Na integração Codex, não é aberto um servidor HTTP. As ferramentas são registradas diretamente no
 App Server por `dynamicTools`, uma API experimental. A implementação segue o
