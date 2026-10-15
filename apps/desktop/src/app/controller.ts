@@ -11,6 +11,7 @@ import { useNoteNavigationController } from "./model/note-navigation.controller"
 import { useUpdatesController } from "@/features/check-for-updates";
 import { useAiChat, defaultAiProvider } from "@/features/chat-with-ai";
 import { useTemporaryNoteReading } from "@/features/follow-note-link";
+import { disposeSounds, prepareSounds } from "@/shared/ui/sound";
 
 export const useAppController = () => {
 	const vaults = useVaults();
@@ -61,6 +62,8 @@ export const useAppController = () => {
 	});
 
 	onMount(() => {
+		prepareSounds();
+		onCleanup(disposeSounds);
 		const preventNativeTab = (event: KeyboardEvent) => {
 			if (event.key === "Tab") event.preventDefault();
 		};

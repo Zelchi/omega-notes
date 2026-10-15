@@ -1,3 +1,4 @@
+import Input from "@/shared/ui/input";
 import { Show, type Component } from "solid-js";
 import NoteCanvasEditor from "../note-canvas-editor";
 import { useNoteEditorController, type NoteEditorProps } from "./controller";
@@ -26,7 +27,7 @@ const NoteEditor: Component<NoteEditorProps> = (props) => {
 						</h1>
 					}
 				>
-					<input
+					<Input
 						class={styles.title}
 						value={editor.titleDraft()}
 						disabled={editor.positioningElement() || editor.savingTitle()}

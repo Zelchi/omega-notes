@@ -1,3 +1,5 @@
+import Textarea from "@/shared/ui/textarea";
+import Button from "@/shared/ui/button";
 import { For, Show, createEffect, createMemo, untrack, onCleanup, type Component } from "solid-js";
 import { normalizeNoteTitle, type StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
@@ -58,7 +60,7 @@ const ChatComposer: Component<Pick<Props, "aiChat" | "t"> & { onSend: () => void
         <div class={styles.messageInput} ref={composerScroll.setRoot} data-omega-scroll-root
             onPointerMove={composerScroll.moveThumb} onPointerUp={composerScroll.finishDrag}
             onPointerCancel={composerScroll.finishDrag} onLostPointerCapture={composerScroll.finishDrag}>
-            <textarea ref={(element) => { input = element; messageCaret.bind(element); composerScroll.setViewport(element); composerScroll.setContent(element); }}
+            <Textarea ref={(element) => { input = element; messageCaret.bind(element); composerScroll.setViewport(element); composerScroll.setContent(element); }}
                 data-omega-scroll-viewport class={styles.textarea} aria-label={props.t("aiMessage")} placeholder={props.t("aiMessagePlaceholder")} value={props.aiChat.chat().draft} maxlength={8000}
                 disabled={!props.aiChat.status().authenticated || props.aiChat.pending()}
                 onInput={(event) => props.aiChat.setDraft(event.currentTarget.value)}
@@ -68,12 +70,12 @@ const ChatComposer: Component<Pick<Props, "aiChat" | "t"> & { onSend: () => void
             <div class={styles.caretClip} aria-hidden="true"><TextCaret geometry={messageCaret.caret()} /></div>
             <CustomScrollbars scroll={composerScroll} compact />
         </div>
-        <button class={styles.button} type="submit"
+        <Button class={styles.button} type="submit"
             disabled={!props.aiChat.status().authenticated || !props.aiChat.chat().draft.trim() || props.aiChat.pending() || props.aiChat.sending()
                 || (props.aiChat.chat().busy && !props.aiChat.provider.steer)}
-            aria-label={props.t(props.aiChat.chat().busy ? "aiSteer" : "aiSend")}><Icon name="send" size={18} /></button>
+            aria-label={props.t(props.aiChat.chat().busy ? "aiSteer" : "aiSend")}><Icon name="send" size={18} /></Button>
         <Show when={props.aiChat.chat().busy}>
-            <button class={styles.button} type="button" disabled={props.aiChat.pending()} aria-label={props.t("aiStop")} onClick={() => void props.aiChat.cancel()}><Icon name="stop" size={18} /></button>
+            <Button class={styles.button} type="button" disabled={props.aiChat.pending()} aria-label={props.t("aiStop")} onClick={() => void props.aiChat.cancel()}><Icon name="stop" size={18} /></Button>
         </Show>
     </form>;
 };
@@ -97,7 +99,7 @@ const ChatBody: Component<Props> = (props) => {
         <header class={styles.header}>
             <h2 id="ai-chat-heading" class={styles.title}>{props.t("aiChat")}</h2>
             <div class={styles.actions}>
-                <button class={styles.closeButton} type="button" aria-label={props.t("close")} onClick={() => props.aiChat.setOpen(false)}><Icon name="close" size={15} /></button>
+                <Button class={styles.closeButton} type="button" aria-label={props.t("close")} onClick={() => props.aiChat.setOpen(false)}><Icon name="close" size={15} /></Button>
             </div>
         </header>
         <Show when={props.aiChat.status().connected}>
@@ -105,8 +107,8 @@ const ChatBody: Component<Props> = (props) => {
                 <div class={styles.setup}>
                     <p class={styles.hint}>{props.t(props.aiChat.provider.labels.signInRequired)}</p>
                     <div class={styles.actions}>
-                        <button class={styles.button} type="button" disabled={props.aiChat.pending()} onClick={() => void props.aiChat.signIn()}>{props.t(props.aiChat.provider.labels.signIn)}</button>
-                        <button class={styles.button} type="button" disabled={props.aiChat.pending()} onClick={() => void props.aiChat.refresh()}>{props.t("aiRefreshAccount")}</button>
+                        <Button class={styles.button} type="button" disabled={props.aiChat.pending()} onClick={() => void props.aiChat.signIn()}>{props.t(props.aiChat.provider.labels.signIn)}</Button>
+                        <Button class={styles.button} type="button" disabled={props.aiChat.pending()} onClick={() => void props.aiChat.refresh()}>{props.t("aiRefreshAccount")}</Button>
                     </div>
                 </div>
             }>
@@ -147,11 +149,11 @@ const ChatBody: Component<Props> = (props) => {
                     <h3 id="connect-ai-heading" class={styles.connectTitle}>{props.t("connectAi")}</h3>
                     <div class={styles.providers}>
                         <For each={props.aiChat.providers}>{(provider) =>
-                            <button class={styles.providerButton} type="button" disabled={props.aiChat.pending() || !props.aiChat.ready() || props.aiChat.checkingProviders() || !props.aiChat.installedProviders()[provider.id]}
+                            <Button class={styles.providerButton} type="button" disabled={props.aiChat.pending() || !props.aiChat.ready() || props.aiChat.checkingProviders() || !props.aiChat.installedProviders()[provider.id]}
                                 onClick={() => void props.aiChat.connect(provider.id)}>
                                 <AiProviderIcon provider={provider.id} />
                                 <span>{props.aiChat.pending() && props.aiChat.provider.id === provider.id ? props.t("aiConnecting") : provider.name}</span>
-                            </button>
+                            </Button>
                         }</For>
                     </div>
                 </section>

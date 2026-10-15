@@ -1,3 +1,5 @@
+import Button from "@/shared/ui/button";
+import Input from "@/shared/ui/input";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { Show, type Component, type JSX } from "solid-js";
@@ -8,6 +10,7 @@ import Dropdown from "@/shared/ui/dropdown";
 import AiChatShortcutInput from "./ai-chat-shortcut-input";
 import type { AiChatShortcut } from "../../model/ai-chat-shortcut";
 import { styles } from "./style.css.ts";
+import BlockSlider from "@/shared/ui/block-slider";
 
 type Props = {
 	open: boolean;
@@ -24,6 +27,8 @@ type Props = {
 	language: Language;
 	theme: Theme;
 	textCursor: TextCursor;
+	soundVolume: number;
+	onSoundVolumeChange: (value: number) => void;
 	footer?: JSX.Element;
 	t: (key: TranslationKey) => string;
 	onClose: () => void;
@@ -48,13 +53,13 @@ const SettingsDialog: Component<Props> = (props) => {
 					<h2 class={styles.title} id="settings-heading">
 						{props.t("settings")}
 					</h2>
-					<button class={styles.close} type="button" aria-label={props.t("close")} onClick={props.onClose}>
+					<Button class={styles.close} type="button" aria-label={props.t("close")} onClick={props.onClose}>
 						<Icon name="close" size={16} />
-					</button>
+					</Button>
 				</header>
 				<label class={styles.option}>
 					<span>{props.t("centerCanvasOnLaunch")}</span>
-					<input
+					<Input
 						class={styles.toggle}
 						type="checkbox"
 						checked={props.centerCanvasOnLaunch}
@@ -63,7 +68,7 @@ const SettingsDialog: Component<Props> = (props) => {
 				</label>
 				<label class={styles.option}>
 					<span>{props.t("hideCanvasControls")}</span>
-					<input
+					<Input
 						class={styles.toggle}
 						type="checkbox"
 						checked={props.hideCanvasControls}
@@ -72,7 +77,7 @@ const SettingsDialog: Component<Props> = (props) => {
 				</label>
 				<label class={styles.option}>
 					<span>{props.t("aiFeatures")}</span>
-					<input class={styles.toggle} type="checkbox" checked={props.aiFeaturesEnabled} disabled={props.aiResetting}
+					<Input class={styles.toggle} type="checkbox" checked={props.aiFeaturesEnabled} disabled={props.aiResetting}
 						onChange={(event) => props.onAiFeaturesEnabledChange(event.currentTarget.checked)} />
 				</label>
 				<Show when={props.aiFeaturesEnabled}>
@@ -109,6 +114,12 @@ const SettingsDialog: Component<Props> = (props) => {
 						style={{ width: "160px", "max-width": "55%", "flex-shrink": 0 }} value={props.textCursor}
 						options={[{ value: "line", label: props.t("textCursorLine") }, { value: "line-static", label: props.t("textCursorLineStatic") }, { value: "terminal", label: props.t("textCursorTerminal") }, { value: "terminal-static", label: props.t("textCursorTerminalStatic") }]}
 						onChange={(value) => props.onTextCursorChange(value as TextCursor)} />
+				</div>
+				<div class={styles.option}>
+					<label for="settings-soundVolume">{props.t("soundVolume")}</label>
+					<div class={styles.volumeControl}>
+						<BlockSlider id="settings-soundVolume" value={props.soundVolume} onChange={props.onSoundVolumeChange} />
+					</div>
 				</div>
 				<footer class={styles.footer}>{props.footer}</footer>
 			</section>

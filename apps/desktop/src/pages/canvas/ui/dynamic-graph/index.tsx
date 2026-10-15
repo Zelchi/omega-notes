@@ -1,6 +1,8 @@
+import Button from "@/shared/ui/button";
 import { For, Show, type Component } from "solid-js";
 import { cx } from "@/shared/lib/classes";
 import Icon from "@/shared/ui/icon";
+import { playSound } from "@/shared/ui/sound";
 import type { GraphCanvasProps } from "../graph-canvas/types";
 import { styles as menuStyles } from "../graph-canvas/style.css.ts";
 import { styles } from "./style.css.ts";
@@ -42,7 +44,7 @@ const DynamicGraph: Component<GraphCanvasProps> = (props) => {
 				const hitDiameter = () => diameter() + NODE_HIT_MARGIN * 2;
 				return <div class={cx(styles.node, graph.hoveredId() && !graph.neighbors().has(note.id) && styles.dimmedNode)}
 					style={{ translate: `${point().x}px ${point().y}px` }}>
-					<button type="button" aria-label={note.title}
+					<Button type="button" aria-label={note.title} sound={false}
 						class={styles.hitTarget}
 						style={{ width: `${hitDiameter()}px`, height: `${hitDiameter()}px`, left: `${-hitDiameter() / 2}px`, top: `${-hitDiameter() / 2}px` }}
 					onPointerDown={(event) => graph.begin(event, hitsNodeCircle(event) ? note.id : undefined)}
@@ -55,10 +57,15 @@ const DynamicGraph: Component<GraphCanvasProps> = (props) => {
 					}}
 					onPointerLeave={() => graph.setHoveredId(undefined)}
 					onFocus={() => graph.setHoveredId(note.id)} onBlur={() => graph.setHoveredId(undefined)}
-					onClick={(event) => { if (!graph.shouldIgnoreClick() && (event.detail === 0 || hitsNodeCircle(event))) props.onOpenNote(note); }}>
+						onClick={(event) => {
+							if (!graph.shouldIgnoreClick() && (event.detail === 0 || hitsNodeCircle(event))) {
+								playSound("click");
+								props.onOpenNote(note);
+							}
+						}}>
 						<span aria-hidden="true" class={cx(styles.dot, graph.neighbors().has(note.id) && styles.highlightedDot, graph.draggedId() === note.id && styles.draggedDot)}
 							style={{ width: `${diameter()}px`, height: `${diameter()}px` }} />
-					</button>
+					</Button>
 					<span class={styles.label} aria-hidden="true" style={{ top: `${diameter() / 2 + 8}px` }}>{note.title}</span>
 				</div>;
 			}}</For>
@@ -66,20 +73,20 @@ const DynamicGraph: Component<GraphCanvasProps> = (props) => {
 		<Show when={!props.hideCanvasControls}>
 			<div class={styles.controls} onPointerDown={(event) => event.stopPropagation()}>
 				<Show when={props.mode === "edit"}>
-					<button type="button" class={styles.button} aria-label={props.t("createCanvasNote")}
-						onClick={() => { graph.setContextMenu(undefined); void props.onCreateNote(); }}><Icon name="add" size={16} /></button>
+					<Button type="button" class={styles.button} aria-label={props.t("createCanvasNote")}
+						onClick={() => { graph.setContextMenu(undefined); void props.onCreateNote(); }}><Icon name="add" size={16} /></Button>
 				</Show>
-				<button type="button" class={styles.button} aria-label={props.t("fitCanvas")} onClick={graph.fit}><Icon name="maximize" size={15} /></button>
-				<button type="button" class={styles.button} aria-label={props.t("zoomOut")} onClick={() => graph.zoomBy(1 / 1.2)}>−</button>
-				<button type="button" class={styles.button} aria-label={props.t("zoomIn")} onClick={() => graph.zoomBy(1.2)}>+</button>
+				<Button type="button" class={styles.button} aria-label={props.t("fitCanvas")} onClick={graph.fit}><Icon name="maximize" size={15} /></Button>
+				<Button type="button" class={styles.button} aria-label={props.t("zoomOut")} onClick={() => graph.zoomBy(1 / 1.2)}>−</Button>
+				<Button type="button" class={styles.button} aria-label={props.t("zoomIn")} onClick={() => graph.zoomBy(1.2)}>+</Button>
 			</div>
 		</Show>
 		<Show when={graph.contextMenu()}>{(menu) => {
 			const note = () => props.notes.find((item) => item.id === menu().noteId);
 			return <div class={cx(menuStyles.contextMenu, "graph-context-menu")} style={{ left: `${menu().x}px`, top: `${menu().y}px` }}
 				onPointerDown={(event) => event.stopPropagation()} onContextMenu={(event) => event.preventDefault()}>
-				<button type="button" class={menuStyles.menuButton} onClick={() => { const current = note(); graph.setContextMenu(undefined); if (current) props.onRequestRename(current); }}>{props.t("rename")}</button>
-				<button type="button" class={cx(menuStyles.menuButton, menuStyles.dangerButton)} onClick={() => { const current = note(); graph.setContextMenu(undefined); if (current) void props.onDeleteNote(current); }}>{props.t("delete")}</button>
+				<Button type="button" class={menuStyles.menuButton} onClick={() => { const current = note(); graph.setContextMenu(undefined); if (current) props.onRequestRename(current); }}>{props.t("rename")}</Button>
+				<Button type="button" class={cx(menuStyles.menuButton, menuStyles.dangerButton)} onClick={() => { const current = note(); graph.setContextMenu(undefined); if (current) void props.onDeleteNote(current); }}>{props.t("delete")}</Button>
 			</div>;
 		}}</Show>
 	</section>;

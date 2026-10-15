@@ -1,3 +1,4 @@
+import Button from "@/shared/ui/button";
 import { createSignal, Show, type Component } from "solid-js";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import Icon from "@/shared/ui/icon";
@@ -16,11 +17,11 @@ export const ExportPdfButton: Component<Props> = (props) => {
 		finally { setBusy(false); }
 	};
 	return <div class={styles.root}>
-		<button class={styles.button} type="button" disabled={busy() || props.disabled} aria-busy={busy()}
+		<Button class={styles.button} type="button" disabled={busy() || props.disabled} aria-busy={busy()}
 			aria-label={props.t(busy() ? "exportingPdf" : "exportPdf")}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => void exportPdf()}>
 			<Icon name="exportPdf" size={17} />
-		</button>
+		</Button>
 		<Show when={failed()}><span role="alert" class={styles.error}>{props.t("exportPdfFailed")}</span></Show>
 	</div>;
 };

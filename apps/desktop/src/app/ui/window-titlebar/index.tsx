@@ -1,3 +1,4 @@
+import Button from "@/shared/ui/button";
 import { Show, type Component } from "solid-js";
 import Icon from "@/shared/ui/icon";
 import { isTauriRuntime } from "@/shared/lib/tauri";
@@ -29,41 +30,41 @@ const WindowTitlebar: Component<Props> = (props) => (
 			<span data-tauri-drag-region>{props.t("windowName")}</span>
 		</div>
 		<Show when={props.vaultName}>
-			<button class={styles.vaultName} type="button" onClick={props.onVaultClick}>
+			<Button class={styles.vaultName} type="button" onClick={props.onVaultClick}>
 				{props.vaultName}
-			</button>
+			</Button>
 		</Show>
 		<div class={styles.drag} data-tauri-drag-region />
 		<Show when={isTauriRuntime()}>
 			<div class={styles.controls} onPointerDown={(event) => event.stopPropagation()}>
 				<Show when={props.aiFeaturesEnabled}>
-					<button class={styles.button} type="button" disabled={!props.vaultName} aria-label={props.t("aiChat")}
+					<Button class={styles.button} type="button" disabled={!props.vaultName} aria-label={props.t("aiChat")}
 						aria-expanded={props.aiChatOpen} aria-controls="ai-chat-panel" aria-keyshortcuts={props.aiChatShortcut} onClick={props.onAiChat}>
 						<Icon name="chat" size={15} />
-					</button>
+					</Button>
 				</Show>
-				<button class={styles.button} type="button" aria-label={props.t("settings")} onClick={props.onSettings}>
+				<Button class={styles.button} type="button" aria-label={props.t("settings")} onClick={props.onSettings}>
 					<Icon name="settings" size={15} />
-				</button>
-				<button class={styles.button} type="button" aria-label={props.t("minimize")} onClick={props.onMinimize}>
+				</Button>
+				<Button class={styles.button} type="button" aria-label={props.t("minimize")} onClick={props.onMinimize}>
 					<Icon name="minimize" size={14} />
-				</button>
-				<button
+				</Button>
+				<Button
 					class={styles.button}
 					type="button"
 					aria-label={props.t(props.maximized ? "restore" : "maximize")}
 					onClick={props.onToggleMaximize}
 				>
 					<Icon name={props.maximized ? "restore" : "maximize"} size={14} />
-				</button>
-				<button
+				</Button>
+				<Button
 					class={cx(styles.button, styles.closeButton)}
 					type="button"
 					aria-label={props.t("close")}
 					onClick={props.onClose}
 				>
 					<Icon name="close" size={14} />
-				</button>
+				</Button>
 			</div>
 		</Show>
 	</header>

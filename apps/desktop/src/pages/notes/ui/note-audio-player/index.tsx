@@ -1,3 +1,5 @@
+import Button from "@/shared/ui/button";
+import Input from "@/shared/ui/input";
 import { Show, type Component } from "solid-js";
 import { cx } from "@/shared/lib/classes";
 import type { TranslationKey } from "@/shared/lib/i18n";
@@ -43,7 +45,7 @@ const NoteAudioPlayer: Component<NoteAudioPlayerProps> = (props) => {
 			/>
 			<Show when={!props.hidden}>
 				<div class={styles.controls}>
-					<button
+					<Button
 						class={styles.button}
 						type="button"
 						aria-label={props.t(player.playing() ? "pauseAudio" : "playAudio")}
@@ -58,14 +60,14 @@ const NoteAudioPlayer: Component<NoteAudioPlayerProps> = (props) => {
 								<path d="m8 5 12 7-12 7V5Z" fill="currentColor" />
 							</svg>
 						)}
-					</button>
+					</Button>
 					<span class={styles.time}>
 						{player.formatTime(player.currentTime())} / {player.formatTime(player.duration())}
 					</span>
 					<Show
 						when={!player.volumeControlOpen()}
 						fallback={
-							<input
+							<Input
 								class={`${styles.slider} ${styles.volumeSlider}`}
 								type="range"
 								min="0"
@@ -82,7 +84,7 @@ const NoteAudioPlayer: Component<NoteAudioPlayerProps> = (props) => {
 							/>
 						}
 					>
-						<input
+						<Input
 							class={`${styles.slider} ${styles.seek}`}
 							type="range"
 							min="0"
@@ -95,7 +97,7 @@ const NoteAudioPlayer: Component<NoteAudioPlayerProps> = (props) => {
 							onInput={player.seek}
 						/>
 					</Show>
-					<button
+					<Button
 						class={cx(styles.button, player.volumeControlOpen() && styles.buttonActive)}
 						type="button"
 						aria-label={props.t(player.volumeControlOpen() ? "hideAudioVolume" : "showAudioVolume")}
@@ -120,7 +122,7 @@ const NoteAudioPlayer: Component<NoteAudioPlayerProps> = (props) => {
 								<path d="m16 9 5 6m0-6-5 6" fill="none" stroke="currentColor" stroke-width="1.7" />
 							</Show>
 						</svg>
-					</button>
+					</Button>
 				</div>
 			</Show>
 		</div>

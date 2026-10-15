@@ -1,3 +1,4 @@
+import Button from "@/shared/ui/button";
 import { createSignal, type Component } from "solid-js";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { formatAiChatShortcut, isAiChatShortcut, type AiChatShortcut } from "../../model/ai-chat-shortcut";
@@ -10,7 +11,7 @@ const AiChatShortcutInput: Component<{
 }> = (props) => {
     const [recording, setRecording] = createSignal(false);
     const [reserved, setReserved] = createSignal(false);
-    return <button id="settings-aiChatShortcut" class={styles.shortcutInput} type="button"
+    return <Button id="settings-aiChatShortcut" class={styles.shortcutInput} type="button"
         aria-label={props.t("aiChatShortcut")} aria-pressed={recording()}
         onClick={() => { setReserved(false); setRecording((value) => !value); }}
         onBlur={() => { setRecording(false); setReserved(false); }}
@@ -30,7 +31,7 @@ const AiChatShortcutInput: Component<{
             setReserved(false);
         }}>
         {recording() ? props.t(reserved() ? "aiChatShortcutReserved" : "aiChatShortcutRecord") : formatAiChatShortcut(props.value)}
-    </button>;
+    </Button>;
 };
 
 export default AiChatShortcutInput;

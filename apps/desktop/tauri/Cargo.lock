@@ -2480,7 +2480,7 @@ dependencies = [
 
 [[package]]
 name = "omega-notes"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "html5ever",
  "libc",

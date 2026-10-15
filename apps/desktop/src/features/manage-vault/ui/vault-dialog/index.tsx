@@ -1,3 +1,5 @@
+import Input from "@/shared/ui/input";
+import Button from "@/shared/ui/button";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { For, Show, createEffect, createSignal, type Component } from "solid-js";
@@ -226,7 +228,7 @@ const VaultDialog: Component<Props> = (props) => {
 						<div class={props.vaults.length > 0 ? styles.listPanel : undefined}>
 							<form class={styles.form} onSubmit={submit}>
 								<div ref={setCreateInputRow} class={styles.createInputRow}>
-									<input
+									<Input
 										class={styles.input}
 										autofocus
 										maxLength={64}
@@ -236,24 +238,24 @@ const VaultDialog: Component<Props> = (props) => {
 										aria-label={props.t("vaultName")}
 										disabled={props.saving}
 									/>
-									<button
+									<Button
 										class={styles.createButton}
 										type="submit"
 										aria-label={props.t("create")}
 										disabled={!name().trim() || props.saving || props.errorAction === "load"}
 									>
 										<Icon name="add" size={18} />
-									</button>
+									</Button>
 								</div>
 								<Show when={props.errorAction === "load"}>
-									<button
+									<Button
 										class={styles.cancel}
 										type="button"
 										disabled={props.saving}
 										onClick={props.onRetryLoad}
 									>
 										{props.t("retry")}
-									</button>
+									</Button>
 								</Show>
 							</form>
 							<Show when={props.vaults.length > 0}>
@@ -265,7 +267,7 @@ const VaultDialog: Component<Props> = (props) => {
 													when={editingVaultId() === vault.id}
 													fallback={
 														<>
-															<button
+															<Button
 																class={cx(
 																	styles.vault,
 																	vault.id === props.activeVaultId &&
@@ -282,9 +284,9 @@ const VaultDialog: Component<Props> = (props) => {
 																}}
 															>
 																{vault.name}
-															</button>
+															</Button>
 															<div class={styles.vaultActions}>
-																<button
+																<Button
 																	class={styles.iconAction}
 																	type="button"
 																	aria-label={props.t("rename")}
@@ -296,8 +298,8 @@ const VaultDialog: Component<Props> = (props) => {
 																	}}
 																>
 																	<Icon name="edit" size={14} />
-																</button>
-																<button
+																</Button>
+																<Button
 																	class={styles.iconAction}
 																	type="button"
 																	aria-label={props.t("delete")}
@@ -308,7 +310,7 @@ const VaultDialog: Component<Props> = (props) => {
 																	}}
 																>
 																	<Icon name="delete" size={14} />
-																</button>
+																</Button>
 															</div>
 														</>
 													}
@@ -317,7 +319,7 @@ const VaultDialog: Component<Props> = (props) => {
 														class={styles.renameForm}
 														onSubmit={(event) => void submitRename(event, vault)}
 													>
-														<input
+														<Input
 															ref={setRenameInput}
 															class={styles.renameInput}
 															maxLength={64}
@@ -328,15 +330,15 @@ const VaultDialog: Component<Props> = (props) => {
 															aria-label={props.t("vaultName")}
 															disabled={props.saving}
 														/>
-														<button
+														<Button
 															class={styles.iconAction}
 															type="submit"
 															aria-label={props.t("save")}
 															disabled={!editingName().trim() || props.saving}
 														>
 															<Icon name="check" size={14} />
-														</button>
-														<button
+														</Button>
+														<Button
 															class={styles.iconAction}
 															type="button"
 															aria-label={props.t("cancel")}
@@ -347,7 +349,7 @@ const VaultDialog: Component<Props> = (props) => {
 															}}
 														>
 															<Icon name="close" size={14} />
-														</button>
+														</Button>
 													</form>
 												</Show>
 											</div>
@@ -382,16 +384,16 @@ const VaultDialog: Component<Props> = (props) => {
 							<Show when={props.vaults.length > 0}>
 								<div class={styles.footerActions}>
 									<Show when={!props.required}>
-										<button
+										<Button
 											class={cx(styles.cancel, styles.footerCancel)}
 											type="button"
 											onClick={props.onClose}
 											disabled={props.saving}
 										>
 											{props.t("cancel")}
-										</button>
+										</Button>
 									</Show>
-									<button
+									<Button
 										class={styles.selectAction}
 										type="button"
 										disabled={!selectedVault() || props.saving}
@@ -404,7 +406,7 @@ const VaultDialog: Component<Props> = (props) => {
 										}}
 									>
 										{props.t("selectVault")}
-									</button>
+									</Button>
 								</div>
 							</Show>
 						</div>
@@ -428,7 +430,7 @@ const VaultDialog: Component<Props> = (props) => {
 								</p>
 							</Show>
 							<div class={styles.actions}>
-								<button
+								<Button
 									class={styles.cancel}
 									type="button"
 									disabled={props.saving}
@@ -438,15 +440,15 @@ const VaultDialog: Component<Props> = (props) => {
 									}}
 								>
 									{props.t("cancel")}
-								</button>
-								<button
+								</Button>
+								<Button
 									class={styles.deleteConfirm}
 									type="button"
 									disabled={props.saving}
 									onClick={() => void confirmDelete(vault())}
 								>
 									{props.t("delete")}
-								</button>
+								</Button>
 							</div>
 						</section>
 					</div>

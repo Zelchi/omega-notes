@@ -1,6 +1,7 @@
 import { createEffect, createMemo, createSignal, type Accessor } from "solid-js";
 import { isNoteTitleAvailable, type NotesLibrary, type NoteDocument, type StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
+import { playSound } from "@/shared/ui/sound";
 
 type NoteRoute = "canvas" | "note";
 type NoteMode = "edit" | "view";
@@ -82,6 +83,7 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		try {
 			if (currentMode === "create") {
 				const note = await notes.create(title);
+				playSound("note-create");
 				setNameDialog(undefined);
 				resolveCreateNote?.(note);
 				resolveCreateNote = undefined;

@@ -1,3 +1,5 @@
+import Textarea from "@/shared/ui/textarea";
+import Button from "@/shared/ui/button";
 import type { InlineTextFormat } from "@/shared/lib/formatted-text";
 import { createEffect, createMemo, createSignal, Index, onCleanup, type Component, type JSX } from "solid-js";
 import Icon, { type IconName } from "@/shared/ui/icon";
@@ -65,7 +67,7 @@ const Cell: Component<{
     onCleanup(() => { pastes.clear(); if (focused()) props.onFormattingReady(); });
     return <div class={styles.field}>
         <div style={{ visibility: focused() ? "hidden" : "visible" }}>{focused() ? value() || "\u200B" : props.renderText(value() || "\u200B")}</div>
-        <textarea class={styles.input} ref={(element) => { input = element; caret.bind(element); props.register(element); }}
+        <Textarea class={styles.input} ref={(element) => { input = element; caret.bind(element); props.register(element); }}
             value={value()} aria-label={props.label} rows={1} spellcheck={true}
             style={{ opacity: focused() ? 1 : 0 }}
             onFocus={() => { setFocused(true); props.onFocus(); props.onFormattingReady(format); }}
@@ -136,11 +138,11 @@ const TableEditor: Component<Props> = (props) => {
             </th>}</Index></tr></thead>
             <tbody><Index each={source().cells.slice(1)}>{(_, index) => <tr><Index each={source().cells[index + 1]}>{(_, column) => <td class={styles.cell} style={{ "text-align": props.block.table.alignments[column] }}>{cellsFor(index + 1, column)}</td>}</Index></tr>}</Index></tbody>
         </table>
-        <div class={styles.controls}><Index each={controls}>{(control) => <button class={styles.button} type="button" aria-label={props.t(control().label)}
+        <div class={styles.controls}><Index each={controls}>{(control) => <Button class={styles.button} type="button" aria-label={props.t(control().label)}
             disabled={control().action === "removeRow" ? source().cells.length <= 1 : control().action === "removeColumn" && source().delimiters.length <= 1}
-            onPointerDown={(event) => event.preventDefault()} onClick={() => changeStructure(control().action)}><Icon name={control().icon} size={18} /></button>}</Index>
-            <button class={`${styles.button} ${styles.danger}`} type="button" aria-label={props.t("tableDelete")}
-                onPointerDown={(event) => event.preventDefault()} onClick={props.onDelete}><Icon name="delete" size={18} /></button>
+            onPointerDown={(event) => event.preventDefault()} onClick={() => changeStructure(control().action)}><Icon name={control().icon} size={18} /></Button>}</Index>
+            <Button class={`${styles.button} ${styles.danger}`} type="button" aria-label={props.t("tableDelete")}
+                onPointerDown={(event) => event.preventDefault()} onClick={props.onDelete}><Icon name="delete" size={18} /></Button>
         </div>
     </div>;
 

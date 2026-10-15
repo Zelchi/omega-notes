@@ -1,5 +1,19 @@
 # Histórico de atualizações
 
+## v0.3.1
+
+### Sons e interface
+
+- Efeitos sonoros de bolha/pingo ao criar, restaurar e excluir notas, além de sons de clique nos controles e de digitação nos campos de texto, nas notas, nas tabelas e no Chat.
+- Controle de volume dos efeitos nas configurações, com barra de dez blocos. A escolha permanece ao reabrir o aplicativo; volume zero silencia os efeitos.
+- Uma nova solicitação do mesmo som interrompe e reinicia a reprodução anterior, sem fila, limite de três reproduções ou intervalo mínimo entre pedidos.
+- Interações sonoras são emitidas pelos próprios componentes e pelas ações de criação/exclusão, com sons dessas operações após a conclusão com sucesso.
+- Processador fixo de áudio mantém os efeitos em memória e recebe comandos de reprodução, com suavização nas interrupções e proteção dos picos contra distorção.
+
+### Limitações conhecidas
+
+- A estabilidade do áudio durante digitação prolongada no Fedora ainda precisa ser confirmada com o processador final. As verificações de compilação não validam a saída de som no dispositivo.
+
 ## v0.3.0
 
 ### Chat com IA

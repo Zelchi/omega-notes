@@ -1,3 +1,5 @@
+import Button from "@/shared/ui/button";
+import Input from "@/shared/ui/input";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createUniqueId, For, Show, type Component } from "solid-js";
 import { cx } from "@/shared/lib/classes";
@@ -17,7 +19,7 @@ const FloatingSearch: Component<FloatingSearchProps> = (props) => {
 		>
 			<div class={styles.row}>
 				<Show when={props.showBackButton}>
-					<button
+					<Button
 						class={cx(styles.modeButton, props.backButtonDisabled && styles.disabledButton)}
 						type="button"
 						aria-label={props.t("backToCanvas")}
@@ -27,11 +29,11 @@ const FloatingSearch: Component<FloatingSearchProps> = (props) => {
 						<span class={cx(styles.backIcon, props.isOnCanvas && styles.flippedBackIcon)}>
 							<Icon name="back" size={17} />
 						</span>
-					</button>
+					</Button>
 				</Show>
 				<label class={styles.box}>
 					<Icon name="search" size={17} />
-					<input
+					<Input
 						class={styles.input}
 						role="combobox"
 						aria-autocomplete="list"
@@ -45,20 +47,20 @@ const FloatingSearch: Component<FloatingSearchProps> = (props) => {
 						placeholder={props.t("searchPlaceholder")}
 					/>
 				</label>
-				<button
+				<Button
 					class={styles.modeButton}
 					type="button"
 					aria-label={props.t(props.mode === "edit" ? "viewMode" : "editMode")}
 					onClick={() => props.onModeChange(props.mode === "edit" ? "view" : "edit")}
 				>
 					<Icon name={props.mode === "edit" ? "view" : "edit"} size={17} />
-				</button>
+				</Button>
 			</div>
 			<Show when={search.results().length > 0}>
 				<div id={resultsId} role="listbox" aria-label={props.t("searchNotes")} class={styles.results} ref={(element) => registerExitSnapshot(element, { kind: "menu", key: "search-results" })}>
 					<For each={search.results()}>
 						{(note, index) => (
-							<button
+							<Button
 								id={`${resultsId}-${index()}`}
 								role="option"
 								aria-selected={search.activeIndex() === index()}
@@ -69,7 +71,7 @@ const FloatingSearch: Component<FloatingSearchProps> = (props) => {
 								onClick={() => search.select(note)}
 							>
 								<strong class={styles.resultTitle}>{note.title}</strong>
-							</button>
+							</Button>
 						)}
 					</For>
 				</div>

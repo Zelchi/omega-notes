@@ -9,6 +9,21 @@ const LANGUAGE_KEY = "omega-notes.settings.language";
 const TEXT_CURSOR_KEY = "omega-notes.settings.text-cursor";
 const AI_FEATURES_KEY = "omega-notes.settings.ai-features-enabled";
 const AI_CHAT_SHORTCUT_KEY = "omega-notes.settings.ai-chat-shortcut";
+const SOUND_VOLUME_KEY = "omega-notes.settings.sound-volume";
+
+export const readSoundVolume = (): number => {
+    try {
+        const stored = localStorage.getItem(SOUND_VOLUME_KEY);
+        if (stored === null || stored.trim() === "") return 1;
+        const value = Number(stored);
+        return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
+    } catch { return 1; }
+};
+
+export const saveSoundVolume = (value: number): void => {
+    try { localStorage.setItem(SOUND_VOLUME_KEY, String(value)); }
+    catch (error) { console.error(error); }
+};
 
 export const readAiChatShortcut = (): AiChatShortcut => {
     try {

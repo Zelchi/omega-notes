@@ -1,3 +1,4 @@
+import Button from "@/shared/ui/button";
 import { createMemo, createRenderEffect, createSignal, createUniqueId, For, Match, onCleanup, onMount, Show, Switch, type Component } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
 import { ExportPdfButton } from "@/features/export-note-pdf";
@@ -111,26 +112,26 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 				<Switch>
 				<Match when={displayedPanel() === "alignment"}>
 					<For each={alignmentButtons}>
-						{(button) => <button class={cx(styles.button, props.alignment === button.value && styles.activeButton)} type="button"
+						{(button) => <Button class={cx(styles.button, props.alignment === button.value && styles.activeButton)} type="button"
 							 aria-label={props.t(button.label)} aria-pressed={props.alignment === button.value}
 							onPointerDown={(event) => event.preventDefault()} onClick={() => {
 								props.onAlignmentChange(button.value);
 								setActivePanel(undefined);
-							}}><Icon name={button.icon} size={17} /></button>}
+							}}><Icon name={button.icon} size={17} /></Button>}
 					</For>
 				</Match>
 				<Match when={displayedPanel() === "headings"}>
 				<For each={["h1", "h2", "h3", "h4", "h5", "h6"] as const}>
-					{(heading) => <button class={styles.button} type="button"
+					{(heading) => <Button class={styles.button} type="button"
 						 aria-label={`${props.t("heading")} ${heading.slice(1)}`}
 						onPointerDown={(event) => event.preventDefault()} onClick={() => {
 							props.onFormat(heading);
 							setActivePanel(undefined);
-						}}>{heading.toUpperCase()}</button>}
+						}}>{heading.toUpperCase()}</Button>}
 				</For>
 				</Match>
 				<Match when={displayedPanel() === "formatting"}>
-					<For each={textFormats}>{(button) => <button class={styles.button} type="button" aria-label={props.t(button.label)}
+					<For each={textFormats}>{(button) => <Button class={styles.button} type="button" aria-label={props.t(button.label)}
 						onPointerDown={(event) => event.preventDefault()} onClick={() => {
 							props.onFormat(button.format);
 							setActivePanel(undefined);
@@ -138,22 +139,22 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 						<Show when={button.icon} fallback={button.format === "bold" ? <strong>B</strong> : <em>I</em>}>
 							{(icon) => <Icon name={icon()} size={17} />}
 						</Show>
-					</button>}</For>
+					</Button>}</For>
 				</Match>
 				</Switch>
 			</div>
 		</Show>
 		<div class={styles.row} role="toolbar" aria-label={props.t("textFormatting")}>
-		<button
+		<Button
 			class={cx(styles.button, styles.attachButton)}
 			type="button"
 			aria-label={props.t("attachMedia")}
 			onClick={props.onAttachMedia}
 		>
 			<Icon name="attachment" size={17} />
-		</button>
+		</Button>
 		<span class={styles.divider} aria-hidden="true" />
-		<button ref={alignmentButton} class={cx(styles.button, activePanel() === "alignment" && styles.activeButton)} type="button"
+		<Button ref={alignmentButton} class={cx(styles.button, activePanel() === "alignment" && styles.activeButton)} type="button"
 			 aria-label={props.t("textAlignment")} aria-expanded={activePanel() === "alignment"} aria-controls={panelId}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => setActivePanel((current) => current === "alignment" ? undefined : "alignment")}
 			onKeyDown={(event) => {
@@ -162,9 +163,9 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 				setActivePanel("alignment");
 				queueMicrotask(() => (panelRoot?.querySelector<HTMLButtonElement>("button[aria-pressed='true']") ??
 					panelRoot?.querySelector<HTMLButtonElement>("button"))?.focus());
-			}}><Icon name={alignmentIcon()} size={17} /></button>
+			}}><Icon name={alignmentIcon()} size={17} /></Button>
 		<span class={styles.divider} aria-hidden="true" />
-		<button ref={headingButton} class={cx(styles.button, activePanel() === "headings" && styles.activeButton)} type="button"
+		<Button ref={headingButton} class={cx(styles.button, activePanel() === "headings" && styles.activeButton)} type="button"
 			 aria-label={props.t("heading")} aria-expanded={activePanel() === "headings"} aria-controls={panelId}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => setActivePanel((current) => current === "headings" ? undefined : "headings")}
 			onKeyDown={(event) => {
@@ -172,8 +173,8 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 				event.preventDefault();
 				setActivePanel("headings");
 				queueMicrotask(() => panelRoot?.querySelector("button")?.focus());
-			}}><Icon name="heading" size={17} /></button>
-		<button ref={formattingButton} class={cx(styles.button, activePanel() === "formatting" && styles.activeButton)} type="button"
+			}}><Icon name="heading" size={17} /></Button>
+		<Button ref={formattingButton} class={cx(styles.button, activePanel() === "formatting" && styles.activeButton)} type="button"
 			aria-label={props.t("textFormatting")} aria-expanded={activePanel() === "formatting"} aria-controls={panelId}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => setActivePanel((current) => current === "formatting" ? undefined : "formatting")}
 			onKeyDown={(event) => {
@@ -181,13 +182,13 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 				event.preventDefault();
 				setActivePanel("formatting");
 				queueMicrotask(() => panelRoot?.querySelector("button")?.focus());
-			}}><Icon name="textFormatting" size={17} /></button>
-		<For each={extraFormats}>{(button) => <button class={styles.button} type="button" aria-label={props.t(button.label)}
-			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat(button.format)}><Icon name={button.icon} size={17} /></button>}</For>
-		<button class={styles.button} type="button" aria-label={props.t("separator")}
-			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("separator")}>―</button>
-		<button class={styles.button} type="button" aria-label={props.t("insertTable")}
-			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("table")}><Icon name="table" size={17} /></button>
+			}}><Icon name="textFormatting" size={17} /></Button>
+		<For each={extraFormats}>{(button) => <Button class={styles.button} type="button" aria-label={props.t(button.label)}
+			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat(button.format)}><Icon name={button.icon} size={17} /></Button>}</For>
+		<Button class={styles.button} type="button" aria-label={props.t("separator")}
+			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("separator")}>―</Button>
+		<Button class={styles.button} type="button" aria-label={props.t("insertTable")}
+			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("table")}><Icon name="table" size={17} /></Button>
 		<Show when={props.onExportPdf}>
 			{(onExport) => <>
 				<span class={styles.divider} aria-hidden="true" />

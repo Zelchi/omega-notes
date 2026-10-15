@@ -2,6 +2,7 @@ import { motion } from "@/shared/ui/motion.css";
 import { style } from "@vanilla-extract/css";
 
 export const styles = {
+	volumeControl: style({ display: "flex", alignItems: "center", gap: 8, width: 155, maxWidth: "55%", flexShrink: 0 }),
 	shortcutInput: style({
 		width: 160, maxWidth: "55%", flexShrink: 0, minHeight: 34, padding: "7px 10px",
 		backgroundColor: "var(--surface-input)", color: "var(--ink)", fontSize: 12,

@@ -1,4 +1,5 @@
 import { createSignal, onCleanup, type Accessor } from "solid-js";
+import { playSound } from "@/shared/ui/sound";
 import {
     bindNoteReferences, canCreateNoteReference, createNoteTitleIndex, normalizeNoteTitle, resolveNoteReference,
     type NotesLibrary, type StudyNote
@@ -30,7 +31,10 @@ export const useCreateNoteFromLink = (options: {
             if (disposed || vaultId !== options.vaultId() || sourceId !== options.sourceNoteId()) return;
             let note = resolve(target);
             if (!note) {
-                try { note = await options.notes.create(target.trim()); }
+                try {
+                    note = await options.notes.create(target.trim());
+                    if (!disposed && vaultId === options.vaultId()) playSound("note-create");
+                }
                 catch (cause) {
                     note = resolve(target);
                     if (!note) throw cause;
