@@ -14,3 +14,5 @@ Thumbs.db
 **/tauri/tauri.release.conf.json
 
 .astro/
+
+/image.png
