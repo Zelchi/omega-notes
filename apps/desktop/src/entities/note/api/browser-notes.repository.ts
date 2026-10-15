@@ -38,13 +38,9 @@ const parseNotes = (serialized: string): StudyNote[] => {
 };
 
 const readNotes = (): StudyNote[] => {
-	try {
-		const value = localStorage.getItem(vaultStorageKey());
-		if (!value) return [];
-		return parseNotes(value);
-	} catch {
-		return [];
-	}
+	const value = localStorage.getItem(vaultStorageKey());
+	if (value === null) return [];
+	return parseNotes(value);
 };
 
 const writeNotes = (notes: StudyNote[]): void => {

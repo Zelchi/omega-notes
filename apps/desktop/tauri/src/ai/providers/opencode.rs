@@ -2,8 +2,6 @@ use super::process::{self, Executable};
 use serde_json::{json, Value};
 use std::{path::Path, process::Command};
 
-/// V2 emits configuration documents in precedence order; only provider/model
-/// settings belong in our isolated note session. Redacted secrets are omitted.
 fn public_value(value: &Value) -> Option<Value> {
     match value {
         Value::String(value) if value == "***" => None,

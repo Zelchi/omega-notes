@@ -30,15 +30,11 @@ const DynamicGraph: Component<GraphCanvasProps> = (props) => {
 		onContextMenu={(event) => event.preventDefault()}>
 		<div class={styles.world} style={{ transform: `translate(${graph.view().x}px, ${graph.view().y}px) scale(${graph.view().scale})` }}>
 			<svg class={styles.edges} aria-hidden="true">
-				<For each={graph.edges()}>{(edge) => {
-					const source = () => graph.positions()[edge.source.id] ?? { x: 0, y: 0 };
-					const target = () => graph.positions()[edge.target.id] ?? { x: 0, y: 0 };
-					const highlighted = () => graph.hoveredId() === edge.source.id || graph.hoveredId() === edge.target.id;
-					return <line x1={source().x} y1={source().y} x2={target().x} y2={target().y}
-						class={cx(styles.edge, highlighted() && styles.highlightedEdge, graph.hoveredId() && !highlighted() && styles.dimmedEdge)} />;
-				}}</For>
+				<path d={graph.edgePaths().normal} fill="none" class={styles.edge} />
+				<path d={graph.edgePaths().dimmed} fill="none" class={cx(styles.edge, styles.dimmedEdge)} />
+				<path d={graph.edgePaths().highlighted} fill="none" class={cx(styles.edge, styles.highlightedEdge)} />
 			</svg>
-			<For each={props.notes}>{(note) => {
+			<For each={graph.visibleNotes()}>{(note) => {
 				const point = () => graph.positions()[note.id] ?? { x: 0, y: 0 };
 				const diameter = () => 12 + Math.min(12, Math.sqrt(graph.degrees().get(note.id) ?? 0) * 3);
 				const hitDiameter = () => diameter() + NODE_HIT_MARGIN * 2;

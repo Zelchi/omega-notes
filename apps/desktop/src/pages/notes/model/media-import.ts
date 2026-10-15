@@ -33,9 +33,10 @@ const readAsDataUrl = async (file: File): Promise<string> => {
 	});
 };
 
-export const attachMediaFiles = async (files: File[]): Promise<ImportedMedia[]> => {
+export const attachMediaFiles = async (files: File[], canImport: () => boolean = () => true): Promise<ImportedMedia[]> => {
 	const media: ImportedMedia[] = [];
 	for (const file of files) {
+		if (!canImport()) return [];
 		const extension = extensionFromFileName(file.name);
 		const type = mediaTypeFromExtension(extension);
 		if (!type) continue;
@@ -54,6 +55,7 @@ export const attachMediaFiles = async (files: File[]): Promise<ImportedMedia[]> 
 export const importClipboardImages = async (files: File[], canImport: () => boolean): Promise<ImportedMedia[]> => {
 	const media: ImportedMedia[] = [];
 	for (const file of files) {
+		if (!canImport()) return [];
 		if (!file.type.startsWith("image/")) continue;
 		if (isTauriRuntime()) {
 			const bytes = await file.arrayBuffer();
@@ -67,9 +69,10 @@ export const importClipboardImages = async (files: File[], canImport: () => bool
 	return media;
 };
 
-export const importMediaPaths = async (paths: string[]): Promise<ImportedMedia[]> => {
+export const importMediaPaths = async (paths: string[], canImport: () => boolean = () => true): Promise<ImportedMedia[]> => {
 	const media: ImportedMedia[] = [];
 	for (const sourcePath of paths) {
+		if (!canImport()) return [];
 		try {
 			const extension = extensionFromFileName(sourcePath);
 			const type = mediaTypeFromExtension(extension);

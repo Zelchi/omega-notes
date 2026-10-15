@@ -97,7 +97,6 @@ impl Stream {
                         self.error_detail = Some(detail.chars().take(2000).collect());
                         return None;
                     }
-                    // Final blocks replace the corresponding deltas instead of duplicating them.
                     let content = value["message"]["content"].as_array()?;
                     let id = value["message"]["id"].as_str().unwrap_or("answer");
                     let blocks: Vec<_> = content.iter().enumerate().filter_map(|(index, block)| {

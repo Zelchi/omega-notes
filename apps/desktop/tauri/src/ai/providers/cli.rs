@@ -97,7 +97,7 @@ impl Client {
             claude::authenticated(success, &output)?
         } else {
             true
-        }; // Account access is validated by OpenCode when sending the request.
+        };
         Ok(
             json!({"connected":true,"authenticated":authenticated,"connectionId":self.connection_id}),
         )
@@ -246,7 +246,6 @@ impl Client {
             std::thread::spawn(move || {
                 let mut captured = Vec::new();
                 let mut buffer = [0; 4096];
-                // Keep draining after the limit so a verbose CLI cannot block.
                 while let Ok(size) = stderr.read(&mut buffer) {
                     if size == 0 {
                         break;
@@ -513,7 +512,6 @@ pub(crate) fn clean_sessions(root: &std::path::Path) -> Result<(), String> {
     )?;
     command.args(["session", "delete", "--standalone", &id]);
     if !process::output(command)?.0 {
-        // A project-scoped, paginated list cannot prove that this session was deleted.
         return Err("AI_HISTORY_CLEAR_FAILED".into());
     }
     std::fs::remove_file(path).map_err(|_| "AI_STORAGE_FAILED".into())

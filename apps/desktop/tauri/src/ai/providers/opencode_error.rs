@@ -1,6 +1,5 @@
 use serde_json::Value;
 
-/// HTTP status alone cannot establish whether a Go subscription is missing.
 pub(super) fn classify(error: &Value, is_go: bool) -> &'static str {
     let message = error["message"].as_str().unwrap_or("").to_ascii_lowercase();
     let kind = error["type"].as_str().unwrap_or("").to_ascii_lowercase();
