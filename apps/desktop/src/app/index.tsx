@@ -1,5 +1,5 @@
 import Button from "@/shared/ui/button";
-import { Show, type Component } from "solid-js";
+import { onCleanup, onMount, Show, type Component } from "solid-js";
 
 import { Canvas } from "@/pages/canvas";
 import { Note } from "@/pages/notes";
@@ -14,9 +14,16 @@ import { useAppController } from "./controller";
 import { styles } from "./style.css.ts";
 import { CheckForUpdatesButton } from "@/features/check-for-updates";
 import { AiChatPanel } from "@/features/chat-with-ai";
+import { useNoteZoomTransition } from "./model/note-zoom-transition";
 
 const App: Component = () => {
 	const app = useAppController();
+	let pageSurface: HTMLDivElement | undefined;
+	const zoomTransition = useNoteZoomTransition(() => pageSurface, app.vaults.activeVaultId);
+	onMount(() => {
+		app.navigation.registerTransition(zoomTransition.run);
+		onCleanup(() => app.navigation.registerTransition());
+	});
 
 	return (
 		<>
@@ -54,43 +61,48 @@ const App: Component = () => {
 					onModeChange={app.navigation.setMode}
 					onSelectNote={app.navigation.selectSearchResult}
 				/>
-				<Show
-					when={app.navigation.route() === "canvas"}
-					fallback={
-						<Note
-							note={app.navigation.selectedNote()}
-							notes={app.notes.notes()}
-							mode={app.temporaryReading.mode()}
-							t={app.t}
-							onTitleChange={app.navigation.updateTitle}
-							onDocumentChange={app.navigation.updateDocument}
-							onOpenMissingNote={(target) => void app.noteReferences.open(target)}
-							onOpenNote={app.navigation.openNote}
-							onRegisterBeforeShutdown={app.registerBeforeShutdown}
-						/>
-					}
-				>
-					<Canvas
-						layout={app.preferences.canvasLayout()}
-						ready={!app.notes.loading() || app.notes.hasLoadedVault()}
-						notes={app.notes.sortedNotes()}
-						onCreateNote={app.navigation.createNoteAtCanvas}
-						onOpenNote={app.navigation.openNote}
-						onRequestRename={(note) => void app.navigation.requestRenameNote(note)}
-						onDeleteNote={app.canvasHistory.remove}
-						busy={app.canvasHistory.pending() || app.vaultActionPending()}
-						restoration={app.canvasHistory.restoration()?.vaultId === app.vaults.activeVaultId() ? app.canvasHistory.restoration() : undefined}
-						onRegisterHistory={app.canvasHistory.register}
-						onHistoryRestored={app.canvasHistory.restored}
-						onNoteCreated={app.canvasHistory.created}
-						onNotesMoved={app.canvasHistory.moved}
-						mode={app.navigation.mode()}
-						t={app.t}
-						centerOnMount={app.navigation.canvasCenterOnMount()}
-						onCanvasMount={() => app.navigation.setCenteredAtLaunch(true)}
-						hideCanvasControls={app.preferences.hideCanvasControls()}
-					/>
-				</Show>
+				<div class={styles.pageViewport} style={{ "pointer-events": app.navigation.navigating() ? "none" : undefined }} aria-busy={app.navigation.navigating()}>
+					<div class={styles.pageSurface} ref={(element) => { pageSurface = element; }}>
+						<Show
+							when={app.navigation.route() === "canvas"}
+							fallback={
+								<Note
+									note={app.navigation.selectedNote()}
+									notes={app.notes.notes()}
+									mode={app.temporaryReading.mode()}
+									t={app.t}
+									onTitleChange={app.navigation.updateTitle}
+									onDocumentChange={app.navigation.updateDocument}
+									onOpenMissingNote={(target) => void app.noteReferences.open(target)}
+									onOpenNote={app.navigation.openNote}
+									onRegisterBeforeShutdown={app.registerBeforeShutdown}
+								/>
+							}
+						>
+							<Canvas
+								layout={app.preferences.canvasLayout()}
+								ready={!app.notes.loading() || app.notes.hasLoadedVault()}
+								notes={app.notes.sortedNotes()}
+								onCreateNote={app.navigation.createNoteAtCanvas}
+								onOpenNote={app.navigation.openNote}
+								onRequestRename={(note) => void app.navigation.requestRenameNote(note)}
+								onDeleteNote={app.canvasHistory.remove}
+								busy={app.canvasHistory.pending() || app.vaultActionPending() || app.navigation.navigating()}
+								suspended={app.navigation.navigating()}
+								restoration={app.canvasHistory.restoration()?.vaultId === app.vaults.activeVaultId() ? app.canvasHistory.restoration() : undefined}
+								onRegisterHistory={app.canvasHistory.register}
+								onHistoryRestored={app.canvasHistory.restored}
+								onNoteCreated={app.canvasHistory.created}
+								onNotesMoved={app.canvasHistory.moved}
+								mode={app.navigation.mode()}
+								t={app.t}
+								centerOnMount={app.navigation.canvasCenterOnMount()}
+								onCanvasMount={() => app.navigation.setCenteredAtLaunch(true)}
+								hideCanvasControls={app.preferences.hideCanvasControls()}
+							/>
+						</Show>
+					</div>
+				</div>
 				<Show when={app.noteReferences.error()}>
 					<div class={styles.saveNotice} role="alert">{app.t("createLinkedNoteFailed")}</div>
 				</Show>

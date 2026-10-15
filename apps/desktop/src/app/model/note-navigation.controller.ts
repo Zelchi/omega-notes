@@ -2,7 +2,7 @@ import { batch, createEffect, createMemo, createSignal, onCleanup, untrack, type
 import { isNoteTitleAvailable, type NotesLibrary, type NoteDocument, type StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { playSound } from "@/shared/ui/sound";
-import { createNavigationHistory, findHistoryIndex, recordNavigation, type NavigationHistory, type NavigationLocation } from "./navigation-history";
+import { createNavigationHistory, findHistoryIndex, recordNavigation, type NavigationHistory, type NavigationLocation, type NavigationTransition } from "./navigation-history";
 
 type NoteRoute = "canvas" | "note";
 type NoteMode = "edit" | "view";
@@ -13,6 +13,7 @@ type NoteNavigationDependencies = {
 	activeVaultId: Accessor<string | undefined>;
 	centerCanvasOnLaunch: Accessor<boolean>;
 	t: (key: TranslationKey) => string;
+	beforeNavigate?: () => Promise<boolean>;
 };
 
 export const useNoteNavigationController = (dependencies: NoteNavigationDependencies) => {
@@ -29,6 +30,7 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 	const [renameTargetId, setRenameTargetId] = createSignal<string>();
 	const [savingName, setSavingName] = createSignal(false);
 	let resolveCreateNote: ((note: StudyNote | undefined) => void) | undefined;
+	let transition: NavigationTransition | undefined;
 	const histories = new Map<string, NavigationHistory>();
 	const lastNotes = new Map<string, string>();
 	const [history, setHistory] = createSignal(createNavigationHistory());
@@ -141,12 +143,19 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		if (!vaultId || navigating() || notes.loading() || nameDialog()) return;
 		setNavigating(true);
 		try {
+			if (dependencies.beforeNavigate && !(await dependencies.beforeNavigate())) return;
 			if (!(await notes.flushSave()) || disposed || vaultId !== dependencies.activeVaultId()) return;
 			if (location.route === "note" && !noteIds().has(location.noteId)) return;
-			batch(() => {
-				storeHistory(targetIndex === undefined ? recordNavigation(history(), location) : { ...history(), index: targetIndex });
-				applyLocation(location);
-			});
+			const from: NavigationLocation = route() === "note" && selectedId() ? { route: "note", noteId: selectedId()! } : { route: "canvas" };
+			const commit = () => {
+				if (disposed || vaultId !== dependencies.activeVaultId() || location.route === "note" && !noteIds().has(location.noteId)) return;
+				batch(() => {
+					storeHistory(targetIndex === undefined ? recordNavigation(history(), location) : { ...history(), index: targetIndex });
+					applyLocation(location);
+				});
+			};
+			if (transition && from.route !== location.route) await transition(from, location, commit);
+			else commit();
 		} finally { if (!disposed) setNavigating(false); }
 	};
 	const travel = async (direction: -1 | 1): Promise<void> => {
@@ -205,6 +214,7 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		backToCanvas,
 		backToLastNote,
 		navigating,
+		registerTransition: (handler?: NavigationTransition) => { transition = handler; },
 		canGoBack: () => !navigating() && !notes.loading() && findHistoryIndex(history(), -1, noteIds()) >= 0,
 		canGoForward: () => !navigating() && !notes.loading() && findHistoryIndex(history(), 1, noteIds()) >= 0,
 		goBack: () => travel(-1),

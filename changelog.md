@@ -1,5 +1,13 @@
 # Histórico de atualizações
 
+## v0.3.4
+
+### Navegação
+
+- Animação de zoom em direção à nota ao abrir pelo canvas estático ou dinâmico, com afastamento ao voltar ao canvas e preservação da posição da câmera.
+- Scrollbars ficam ocultas durante a transição e reaparecem ao terminar, sem alterar a posição da rolagem.
+- Animações respeitam a preferência de movimento reduzido do sistema. A simulação do canvas dinâmico fica pausada durante a transição.
+
 ## v0.3.3
 
 ### Chat e ferramentas de IA

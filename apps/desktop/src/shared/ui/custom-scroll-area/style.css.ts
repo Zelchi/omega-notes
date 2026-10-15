@@ -34,6 +34,7 @@ export const styles = {
 	}),
 	content: style({ minWidth: "100%", minHeight: "100%" }),
 	verticalTrack: style({
+		visibility: "var(--omega-scrollbar-visibility, visible)",
 		position: "absolute",
 		zIndex: 5,
 		top: 8,
@@ -43,6 +44,7 @@ export const styles = {
 		touchAction: "none",
 	}),
 	horizontalTrack: style({
+		visibility: "var(--omega-scrollbar-visibility, visible)",
 		position: "absolute",
 		zIndex: 5,
 		right: 20,
