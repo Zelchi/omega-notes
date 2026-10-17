@@ -101,6 +101,42 @@ pub(super) fn create_vault(
     })
 }
 
+pub(super) fn reorder_vaults(
+    resolve_app_directory: &impl Fn() -> Result<PathBuf, String>,
+    vault_ids: Vec<String>,
+) -> Result<VaultLibrary, String> {
+    let directory = resolve_app_directory()?;
+    let mut registry = read_vault_registry(&directory)?;
+    let requested: std::collections::HashSet<_> = vault_ids.iter().collect();
+    if vault_ids.len() != registry.vaults.len()
+        || requested.len() != vault_ids.len()
+        || !registry
+            .vaults
+            .iter()
+            .all(|vault| requested.contains(&vault.id))
+    {
+        return Err("INVALID_VAULT_ORDER".to_string());
+    }
+    let mut by_id: std::collections::HashMap<_, _> = registry
+        .vaults
+        .into_iter()
+        .map(|vault| (vault.id.clone(), vault))
+        .collect();
+    registry.vaults = vault_ids
+        .into_iter()
+        .map(|id| {
+            by_id
+                .remove(&id)
+                .ok_or_else(|| "INVALID_VAULT_ORDER".to_string())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    write_vault_registry(&directory, &registry)?;
+    Ok(VaultLibrary {
+        vaults: registry.vaults,
+        active_vault_id: registry.active_vault_id,
+    })
+}
+
 pub(super) fn switch_vault(
     resolve_app_directory: &impl Fn() -> Result<PathBuf, String>,
     set_active_vault: &impl Fn(Option<(PathBuf, PathBuf)>, &str) -> Result<(), String>,

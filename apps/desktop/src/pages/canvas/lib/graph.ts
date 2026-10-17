@@ -1,3 +1,4 @@
+import { mapTextOutsideCode } from "@/shared/lib/formatted-text";
 import {
 	createNoteTitleIndex,
 	documentText,
@@ -37,13 +38,16 @@ export const graphEdges = (notes: StudyNote[]): Edge[] => {
 	const unique = new Map<string, Edge>();
 
 	for (const source of notes) {
-		for (const match of documentText(source.document).matchAll(/\[\[([^\]]+)\]\]/g)) {
-			const targetText = (match[1] ?? "").split("|")[0].trim();
-			const target = resolveNoteReference(targetText, byId, byTitle);
-			if (!target || target.id === source.id) continue;
-			const [firstId, secondId] = [source.id, target.id].sort();
-			unique.set(`${firstId}:${secondId}`, { source, target });
-		}
+		mapTextOutsideCode(documentText(source.document), (prose) => {
+			for (const match of prose.matchAll(/\[\[([^\]\r\n]+)\]\]/g)) {
+				const targetText = (match[1] ?? "").split("|")[0].trim();
+				const target = resolveNoteReference(targetText, byId, byTitle);
+				if (!target || target.id === source.id) continue;
+				const [firstId, secondId] = [source.id, target.id].sort();
+				unique.set(`${firstId}:${secondId}`, { source, target });
+			}
+			return prose;
+		});
 	}
 	return [...unique.values()];
 };

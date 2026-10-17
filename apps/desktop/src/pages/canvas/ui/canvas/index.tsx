@@ -13,14 +13,16 @@ type CanvasProps = GraphCanvasProps & {
 const Canvas: Component<CanvasProps> = (props) => {
 	return (
 		<div class={styles.canvasScroll} inert={props.busy}>
-			<Show when={props.ready} fallback={<div aria-busy="true" />}>
-				<Show when={props.layout === "static"} fallback={<DynamicGraph {...props} />}>
-					<GraphCanvas {...props} />
+			<Show when={props.ready ? props.vaultId : undefined} keyed fallback={<div aria-busy="true" />}>
+				{(vaultId) => <>
+				<Show when={props.layout === "static"} fallback={<DynamicGraph {...props} vaultId={vaultId} />}>
+					<GraphCanvas {...props} vaultId={vaultId} />
 				</Show>
 				<Show when={props.notes.length === 0}>
 					<p class={styles.empty}>{props.t(props.mode === "edit" ? "emptyCanvasMessage" : "emptyCanvasReadMessage")}</p>
 				</Show>
 
+				</>}
 			</Show>
 		</div>
 	);

@@ -58,6 +58,7 @@ pub fn run() {
             vaults::commands::create_vault,
             vaults::commands::switch_vault,
             vaults::commands::rename_vault,
+            vaults::commands::reorder_vaults,
             vaults::commands::delete_vault,
             notes::commands::list_notes,
             notes::commands::create_note,

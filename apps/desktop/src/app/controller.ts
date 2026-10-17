@@ -1,4 +1,5 @@
 import { useCreateNoteFromLink } from "@/features/create-note-from-link";
+import { useNoteDeletion } from "@/features/delete-note";
 import { useCanvasHistory } from "@/features/undo-canvas-edit";
 import { useNotes, type StudyNote } from "@/entities/note";
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
@@ -44,16 +45,29 @@ export const useAppController = () => {
 		setLayout: preferences.setCanvasLayout,
 		enabled: () => navigation.route() === "canvas" && navigation.mode() === "edit" &&
 			!notes.loading() && !navigation.nameDialog() && !vaults.dialogOpen() && !settingsOpen() &&
-			!aiChat.open() && !vaultActionPending() && !updates.installing() && !notes.loadIssues().length,
+			!aiChat.open() && !noteDeletion.target() && !noteDeletion.pending() && !vaultActionPending() && !updates.installing() && !notes.loadIssues().length,
+	});
+	const noteDeletion = useNoteDeletion({
+		vaultId: vaults.activeVaultId,
+		notes: notes.notes,
+		blocked: () => notes.loading() || canvasHistory.pending() || vaultActionPending() || navigation.navigating() || updates.installing(),
+		beforeDelete: async () => {
+			if (saveNoteTitle && !(await saveNoteTitle())) return false;
+			return notes.flushSave();
+		},
+		remove: canvasHistory.remove,
+		onDeleted: () => {
+			if (navigation.route() === "note" && !navigation.selectedNote()) void navigation.backToCanvas();
+		},
 	});
 	const noteReferences = useCreateNoteFromLink({
 		notes, vaultId: vaults.activeVaultId, sourceNoteId: () => navigation.selectedNote()?.id,
 		enabled: () => !notes.loading() && !vaultActionPending() && !canvasHistory.pending() &&
-			!navigation.nameDialog() && !vaults.dialogOpen() && !updates.installing(),
+			!navigation.nameDialog() && !vaults.dialogOpen() && !noteDeletion.target() && !noteDeletion.pending() && !updates.installing(),
 		beforeOpen: beforeShutdown, onOpenNote: navigation.openNote,
 	});
 	const updates = useUpdatesController(beforeShutdown, () =>
-		!navigation.nameDialog() && !navigation.navigating() && !vaults.dialogOpen() && !vaults.saving() && !vaultActionPending() && !canvasHistory.pending() && !noteReferences.pending(),
+		!noteDeletion.target() && !noteDeletion.pending() && !navigation.nameDialog() && !navigation.navigating() && !vaults.dialogOpen() && !vaults.saving() && !vaultActionPending() && !canvasHistory.pending() && !noteReferences.pending(),
 	);
 	const temporaryReading = useTemporaryNoteReading({
 		mode: navigation.mode,
@@ -73,7 +87,7 @@ export const useAppController = () => {
 
 		const onAiShortcut = (event: KeyboardEvent) => {
 			if (event.defaultPrevented || event.isComposing || !preferences.aiFeaturesEnabled() || !vaults.activeVaultId() ||
-				navigation.nameDialog() || vaults.dialogOpen() || settingsOpen() || updates.installing()) return;
+				navigation.nameDialog() || vaults.dialogOpen() || settingsOpen() || noteDeletion.target() || noteDeletion.pending() || updates.installing()) return;
 			if (!matchesAiChatShortcut(event, preferences.aiChatShortcut())) return;
 			event.preventDefault();
 			event.stopPropagation();
@@ -154,6 +168,7 @@ export const useAppController = () => {
 		}
 	};
 	return {
+		noteDeletion,
 		noteReferences,
 		canvasHistory,
 		aiChat,

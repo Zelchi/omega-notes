@@ -29,6 +29,8 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 	const sortedNotes = createMemo(() => [...notes()].sort((a, b) => b.updatedAt - a.updatedAt));
 
 	const pendingSaves = new Map<string, StudyNote>();
+	// Retain the newest revision even after it has left pendingSaves for the write queue.
+	const latestSaves = new Map<string, StudyNote>();
 	const notesByVault = new Map<string, { notes: StudyNote[]; issues: NoteLoadIssue[]; referenceTitles: Record<string, string> }>();
 	let saveTimer: ReturnType<typeof setTimeout> | undefined;
 	let saveQueue: Promise<void> = Promise.resolve();
@@ -48,6 +50,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		setNotesVaultId(vaultId);
 		const revision = ++loadRevision;
 		setSaveError(false);
+		setHasLoadedVault(false);
 		if (!vaultId) {
 			loadedVaultId = undefined;
 			setNotes([]);
@@ -104,6 +107,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 
 	onCleanup(() => {
 		if (saveTimer !== undefined) clearTimeout(saveTimer);
+		++loadRevision;
 	});
 
 	const persist = (note: StudyNote): Promise<void> => {
@@ -118,10 +122,11 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 							: item,
 					),
 				);
+				if (latestSaves.get(note.id) === note) latestSaves.delete(note.id);
 				reportCleanupIssues(result.cleanupIssues);
 				if (pendingSaves.size === 0) setSaveError(false);
 			} catch (error) {
-				if (!pendingSaves.has(note.id)) pendingSaves.set(note.id, note);
+				if (latestSaves.get(note.id) === note && !pendingSaves.has(note.id)) pendingSaves.set(note.id, note);
 				setSaveError(true);
 				throw error;
 			}
@@ -152,7 +157,8 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 				if (pending.length === 0) return true;
 
 				for (const note of pending) {
-					if (pendingSaves.get(note.id) === note) pendingSaves.delete(note.id);
+					if (pendingSaves.get(note.id) !== note) continue;
+					pendingSaves.delete(note.id);
 					await persist(note);
 				}
 			}
@@ -173,6 +179,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 
 	const queueSave = (note: StudyNote): void => {
 		setNotes((current) => current.map((item) => (item.id === note.id ? note : item)));
+		latestSaves.set(note.id, note);
 		pendingSaves.set(note.id, note);
 		if (saveTimer !== undefined) clearTimeout(saveTimer);
 		saveTimer = setTimeout(() => {
@@ -209,17 +216,12 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		const vaultId = activeVaultId();
 		if (!(await flushSave()) || vaultId !== activeVaultId()) return false;
 		await saveQueue;
-		try {
-			const cleanupIssues = await deleteNoteRecord(note.id);
-			const deleted = notes().find((item) => item.id === note.id) ?? note;
-			setReferenceTitles((current) => ({ ...current, [note.id]: deleted.title }));
-			setNotes((current) => current.filter((item) => item.id !== note.id));
-			reportCleanupIssues(cleanupIssues);
-			return true;
-		} catch (error) {
-			console.error(error);
-			throw error;
-		}
+		const cleanupIssues = await deleteNoteRecord(note.id);
+		const deleted = notes().find((item) => item.id === note.id) ?? note;
+		setReferenceTitles((current) => ({ ...current, [note.id]: deleted.title }));
+		setNotes((current) => current.filter((item) => item.id !== note.id));
+		reportCleanupIssues(cleanupIssues);
+		return true;
 	};
 
 	const restore = async (noteId: string): Promise<StudyNote> => {

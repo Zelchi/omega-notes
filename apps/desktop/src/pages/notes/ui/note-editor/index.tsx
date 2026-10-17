@@ -57,6 +57,8 @@ const NoteEditor: Component<NoteEditorProps> = (props) => {
 				mode={props.mode}
 				t={props.t}
 				onChange={props.onDocumentChange}
+				onDelete={props.onDelete}
+				deleteDisabled={props.deleteDisabled}
 				onOpenNote={props.onOpenNote}
 					onOpenMissingNote={props.onOpenMissingNote}
 				onPositioningChange={editor.setPositioningElement}

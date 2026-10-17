@@ -9,6 +9,7 @@ import { cx } from "@/shared/lib/classes";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { Vault, VaultDetails } from "@/entities/vault";
 import type { VaultErrorAction } from "../../model/vault-error";
+import { useVaultReorder } from "../../model/vault-reorder";
 import { styles } from "./style.css.ts";
 
 const formatStorageSize = (bytes: number, locale: string): string => {
@@ -49,9 +50,11 @@ type Props = {
 	onRename: (vault: Vault, name: string) => Promise<boolean>;
 	onDelete: (vault: Vault) => Promise<boolean>;
 	onSelect: (vault: Vault) => void;
+	onReorder: (vaultIds: string[]) => Promise<boolean>;
 };
 
 const VaultDialog: Component<Props> = (props) => {
+	let vaultList: HTMLDivElement | undefined;
 	const [name, setName] = createSignal("");
 	const [createInputRow, setCreateInputRow] = createSignal<HTMLDivElement>();
 	const [renameInput, setRenameInput] = createSignal<HTMLInputElement>();
@@ -62,6 +65,12 @@ const VaultDialog: Component<Props> = (props) => {
 	const deleteBackdropDismiss = createBackdropDismiss(() => { if (!props.saving) setDeletingVault(undefined); });
 	const [selectedVaultId, setSelectedVaultId] = createSignal<string>();
 	const [vaultDetails, setVaultDetails] = createSignal<Record<string, VaultDetails>>({});
+	const reorder = useVaultReorder({
+		vaults: () => props.vaults,
+		enabled: () => props.open && !props.saving && !editingVaultId() && !deletingVault(),
+		getList: () => vaultList,
+		onReorder: ids => props.onReorder(ids),
+	});
 	const selectedVault = () => props.vaults.find((vault) => vault.id === selectedVaultId());
 	const detailRequests = new Map<string, number>();
 	let detailsRevision = 0;
@@ -259,10 +268,10 @@ const VaultDialog: Component<Props> = (props) => {
 								</Show>
 							</form>
 							<Show when={props.vaults.length > 0}>
-								<div class={styles.list}>
-									<For each={props.vaults}>
+								<div class={styles.list} ref={vaultList}>
+									<For each={reorder.vaults()}>
 										{(vault) => (
-											<div class={styles.vaultRow}>
+											<div data-vault-row={vault.id} class={cx(styles.vaultRow, reorder.draggedId() === vault.id && styles.draggingVault)}>
 												<Show
 													when={editingVaultId() === vault.id}
 													fallback={
@@ -278,7 +287,9 @@ const VaultDialog: Component<Props> = (props) => {
 																type="button"
 																aria-pressed={vault.id === selectedVaultId()}
 																disabled={props.saving}
-																onClick={() => {
+																onPointerDown={event => reorder.begin(event, vault.id)}
+																onClick={(event) => {
+																	if (reorder.consumeClick(event)) return;
 																	props.onClearError();
 																	setSelectedVaultId(vault.id);
 																}}

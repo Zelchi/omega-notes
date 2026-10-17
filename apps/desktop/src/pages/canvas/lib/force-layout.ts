@@ -11,7 +11,8 @@ export class ForceLayout {
 	private signature = "";
 	private alpha = 0;
 
-	constructor(private initialPositions: Record<string, Point>) {}
+	private initialPositions: Record<string, Point>;
+	constructor(initialPositions: Record<string, Point>) { this.initialPositions = initialPositions; }
 
 	setGraph(ids: string[], links: Link[]): boolean {
 		const signature = JSON.stringify([
@@ -46,7 +47,8 @@ export class ForceLayout {
 			const body = this.bodies.get(id);
 			if (body) Object.assign(body, point, { vx: 0, vy: 0, fixed: undefined });
 		}
-		this.wake();
+		// History restoration must remain stable until the next graph edit or drag.
+		this.alpha = 0;
 	}
 
 	wake(): void { this.alpha = this.bodies.size ? 1 : 0; }

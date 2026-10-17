@@ -13,6 +13,7 @@ import NoteNameDialog from "./ui/note-name-dialog";
 import { useAppController } from "./controller";
 import { styles } from "./style.css.ts";
 import { CheckForUpdatesButton } from "@/features/check-for-updates";
+import { DeleteNoteDialog } from "@/features/delete-note";
 import { AiChatPanel } from "@/features/chat-with-ai";
 
 const App: Component = () => {
@@ -21,7 +22,7 @@ const App: Component = () => {
 	return (
 		<>
 		<div class={styles.shell} inert={app.updates.installing()} onContextMenu={(event) => event.preventDefault()} data-omega-app-shell>
-			<main class={styles.main} data-omega-main>
+			<main class={styles.main} data-omega-main inert={Boolean(app.noteDeletion.target()) || app.noteDeletion.pending()}>
 				<WindowTitlebar
 					maximized={app.windowControls.maximized()}
 					vaultName={app.vaults.activeVault()?.name}
@@ -65,6 +66,8 @@ const App: Component = () => {
 									referenceTitles={app.notes.referenceTitles()}
 									mode={app.temporaryReading.mode()}
 									t={app.t}
+									onDelete={() => { const note = app.navigation.selectedNote(); if (note) void app.noteDeletion.request(note); }}
+									deleteDisabled={app.noteDeletion.pending() || app.canvasHistory.pending() || app.notes.loading()}
 									onTitleChange={app.navigation.updateTitle}
 									onDocumentChange={app.navigation.updateDocument}
 									onOpenMissingNote={(target) => void app.noteReferences.open(target)}
@@ -74,13 +77,14 @@ const App: Component = () => {
 							}
 						>
 							<Canvas
+								vaultId={app.vaults.activeVaultId() ?? ""}
 								layout={app.preferences.canvasLayout()}
 								ready={!app.notes.loading() || app.notes.hasLoadedVault()}
 								notes={app.notes.sortedNotes()}
 								onCreateNote={app.navigation.createNoteAtCanvas}
 								onOpenNote={app.navigation.openNote}
 								onRequestRename={(note) => void app.navigation.requestRenameNote(note)}
-								onDeleteNote={app.canvasHistory.remove}
+								onDeleteNote={app.noteDeletion.request}
 								busy={app.canvasHistory.pending() || app.vaultActionPending() || app.navigation.navigating()}
 								suspended={app.navigation.navigating()}
 								restoration={app.canvasHistory.restoration()?.vaultId === app.vaults.activeVaultId() ? app.canvasHistory.restoration() : undefined}
@@ -100,7 +104,10 @@ const App: Component = () => {
 				<Show when={app.noteReferences.error()}>
 					<div class={styles.saveNotice} role="alert">{app.t("createLinkedNoteFailed")}</div>
 				</Show>
-				<Show when={app.canvasHistory.error()}>
+				<Show when={app.noteDeletion.error() && !app.noteDeletion.target()}>
+					<div class={styles.saveNotice} role="alert">{app.t("deleteNoteFailed")}</div>
+				</Show>
+				<Show when={app.canvasHistory.error() && !app.noteDeletion.error()}>
 					<div class={styles.saveNotice} role="alert">{app.t("canvasHistoryFailed")}</div>
 				</Show>
 				<Show when={app.notes.saveError()}>
@@ -112,6 +119,8 @@ const App: Component = () => {
 					</div>
 				</Show>
 			</main>
+			<DeleteNoteDialog note={app.noteDeletion.target()} pending={app.noteDeletion.pending()} error={app.noteDeletion.error()}
+				t={app.t} onClose={app.noteDeletion.close} onConfirm={app.noteDeletion.confirm} />
 			<SettingsDialog
 				soundVolume={app.preferences.soundVolume()}
 				onSoundVolumeChange={app.preferences.setSoundVolume}
@@ -165,6 +174,7 @@ const App: Component = () => {
 				onRename={app.renameVault}
 				onDelete={app.deleteVault}
 				onSelect={(vault) => void app.selectVault(vault)}
+				onReorder={app.vaults.reorder}
 			/>
 			<NoteLoadIssuesDialog issues={app.notes.loadIssues()} t={app.t} onClose={app.notes.dismissLoadIssues} />
 			<AiChatPanel aiChat={app.aiChat} notes={app.notes.notes()}

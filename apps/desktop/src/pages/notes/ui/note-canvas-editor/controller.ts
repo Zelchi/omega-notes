@@ -28,6 +28,8 @@ export type NoteCanvasEditorProps = {
 	mode: "edit" | "view";
 	t: (key: TranslationKey) => string;
 	onChange: (document: NoteDocument) => void;
+	onDelete?: () => void;
+	deleteDisabled?: boolean;
 	onOpenNote: (note: StudyNote) => void;
 	onOpenMissingNote?: (target: string) => void;
 	onPositioningChange?: (active: boolean) => void;

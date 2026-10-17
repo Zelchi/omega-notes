@@ -180,13 +180,16 @@ export const sliceTextRuns = (runs: TextRun[], start: number, end: number): Text
 /** Apply changes to prose while retaining literal inline and fenced code. */
 export const mapTextOutsideCode = (text: string, transform: (text: string) => string): string => {
 	let fenceLength = 0;
+	let fenceMarker = "";
 	return text.split("\n").map((line) => {
-		const fence = line.match(/^[ \t]*(`{3,})([^`]*?)\s*$/);
+		const fence = line.match(/^[ \t]*(`{3,}|~{3,})(.*)$/);
 		if (fenceLength) {
-			if (fence && !fence[2]!.trim() && fence[1]!.length >= fenceLength) fenceLength = 0;
+			if (fence && fence[1]![0] === fenceMarker && !fence[2]!.trim() && fence[1]!.length >= fenceLength) fenceLength = 0;
 			return line;
 		}
-		if (fence) { fenceLength = fence[1]!.length; return line; }
+		if (fence && (fence[1]![0] === "~" || !fence[2]!.includes("`"))) {
+			fenceLength = fence[1]!.length; fenceMarker = fence[1]![0]!; return line;
+		}
 		let result = "";
 		let offset = 0;
 		const ticks = /`+/g;
