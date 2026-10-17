@@ -92,3 +92,13 @@ export const deleteVault = async (vaultId: string): Promise<VaultDeleteResult> =
 	writeBrowserLibrary(nextLibrary);
 	return { library: nextLibrary, cleanupError: null };
 };
+
+export const reorderVaults = async (vaultIds: string[]): Promise<VaultLibrary> => {
+	const library = readBrowserLibrary();
+	const byId = new Map(library.vaults.map(vault => [vault.id, vault]));
+	if (vaultIds.length !== library.vaults.length || new Set(vaultIds).size !== vaultIds.length || vaultIds.some(id => !byId.has(id)))
+		throw new Error("INVALID_VAULT_ORDER");
+	const nextLibrary = { ...library, vaults: vaultIds.map(id => byId.get(id)!) };
+	writeBrowserLibrary(nextLibrary);
+	return nextLibrary;
+};

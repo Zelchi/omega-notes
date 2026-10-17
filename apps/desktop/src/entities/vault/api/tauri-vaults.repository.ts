@@ -16,3 +16,6 @@ export const renameVault = (vaultId: string, name: string): Promise<VaultLibrary
 
 export const deleteVault = (vaultId: string): Promise<VaultDeleteResult> =>
 	invoke<VaultDeleteResult>("delete_vault", { vaultId });
+
+export const reorderVaults = (vaultIds: string[]): Promise<VaultLibrary> =>
+	invoke<VaultLibrary>("reorder_vaults", { vaultIds });

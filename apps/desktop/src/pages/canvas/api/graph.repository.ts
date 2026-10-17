@@ -1,16 +1,19 @@
 import type { CanvasLayout } from "@/features/change-preferences";
 import type { GraphState } from "../model/graph";
 
-const STORAGE_KEY = "omega-notes.graph.v1";
+const storageKey = (vaultId: string, layout: CanvasLayout): string =>
+	`omega-notes.graph.${encodeURIComponent(vaultId)}.${layout}`;
 
-export const readGraphState = (layout: CanvasLayout = "static"): GraphState => {
-	if (typeof window === "undefined") return { positions: {} };
+export const readGraphState = (vaultId: string, layout: CanvasLayout = "static"): GraphState => {
+	if (!vaultId || typeof window === "undefined") return { positions: {} };
 	try {
-		const value = localStorage.getItem(layout === "static" ? STORAGE_KEY : "omega-notes.graph.dynamic.v1");
+		const value = localStorage.getItem(storageKey(vaultId, layout));
 		if (!value) return { positions: {} };
 		const parsed = JSON.parse(value) as GraphState;
-		if (!parsed || typeof parsed.positions !== "object" || parsed.positions === null) return { positions: {} };
+		if (!parsed || typeof parsed.positions !== "object" || parsed.positions === null || Array.isArray(parsed.positions)) return { positions: {} };
 
+		const minimumScale = layout === "static" ? 0.55 : 0.15;
+		const maximumScale = layout === "static" ? 1.5 : 2.5;
 		return {
 			positions: Object.fromEntries(
 				Object.entries(parsed.positions).filter(
@@ -21,7 +24,8 @@ export const readGraphState = (layout: CanvasLayout = "static"): GraphState => {
 				parsed.view &&
 				Number.isFinite(parsed.view.x) &&
 				Number.isFinite(parsed.view.y) &&
-				Number.isFinite(parsed.view.scale)
+				Number.isFinite(parsed.view.scale) &&
+				parsed.view.scale >= minimumScale && parsed.view.scale <= maximumScale
 					? parsed.view
 					: undefined,
 		};
@@ -30,10 +34,10 @@ export const readGraphState = (layout: CanvasLayout = "static"): GraphState => {
 	}
 };
 
-export const saveGraphState = (state: GraphState, layout: CanvasLayout = "static"): void => {
-	if (typeof window === "undefined") return;
+export const saveGraphState = (vaultId: string, state: GraphState, layout: CanvasLayout = "static"): void => {
+	if (!vaultId || typeof window === "undefined") return;
 	try {
-		localStorage.setItem(layout === "static" ? STORAGE_KEY : "omega-notes.graph.dynamic.v1", JSON.stringify(state));
+		localStorage.setItem(storageKey(vaultId, layout), JSON.stringify(state));
 	} catch {
 		console.error("The graph remains usable if browser storage is unavailable.");
 	}

@@ -1,5 +1,17 @@
 # Histórico de atualizações
 
+## v0.3.8
+
+### Notas e canvas
+
+- A lista de vaults permite arrastar pelo nome para reorganizar a ordem, que permanece salva ao reabrir o aplicativo.
+- Botão de apagar na barra de edição; notas com texto ou mídia pedem confirmação, e notas vazias são apagadas diretamente.
+- Posições e câmera do canvas passam a ser armazenadas separadamente por vault e modo. A organização anterior, que era global, não é migrada; cada vault inicia sua própria organização.
+- Desfazer uma exclusão feita dentro da nota recupera a posição anterior no canvas, incluindo o modo dinâmico.
+- Carregamentos antigos do histórico não alteram os erros ou o bloqueio de operações de outro vault.
+- Corrigida a recuperação de autosave após falhas para preservar as edições mais recentes.
+- Referências em código não criam conexões no canvas; zoom inválido no armazenamento é descartado.
+
 ## v0.3.7
 
 ### Correções

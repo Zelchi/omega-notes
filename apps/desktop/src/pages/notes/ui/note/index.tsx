@@ -20,6 +20,8 @@ const Note: Component<NoteProps> = (props) => (
 					t={props.t}
 					onTitleChange={props.onTitleChange}
 					onDocumentChange={props.onDocumentChange}
+					onDelete={props.onDelete}
+					deleteDisabled={props.deleteDisabled}
 					onOpenNote={props.onOpenNote}
 					onOpenMissingNote={props.onOpenMissingNote}
 					onRegisterBeforeShutdown={props.onRegisterBeforeShutdown}

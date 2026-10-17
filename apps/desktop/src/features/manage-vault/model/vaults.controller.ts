@@ -7,6 +7,7 @@ import {
 	getVaultDetails,
 	listVaults,
 	renameVault,
+	reorderVaults,
 	switchVault,
 	type Vault,
 } from "@/entities/vault";
@@ -101,6 +102,21 @@ export const useVaults = () => {
 		}
 	};
 
+	const reorder = async (vaultIds: string[]): Promise<boolean> => {
+		if (saving()) return false;
+		setSaving(true);
+		clearError();
+		try {
+			const library = await reorderVaults(vaultIds);
+			setVaults(library.vaults);
+			return true;
+		} catch (cause) {
+			console.error(cause);
+			reportError("vaultReorderFailed", "notice");
+			return false;
+		} finally { setSaving(false); }
+	};
+
 	const remove = async (vault: Vault): Promise<boolean> => {
 		if (saving()) return false;
 		setSaving(true);
@@ -168,6 +184,7 @@ export const useVaults = () => {
 		create,
 		rename,
 		remove,
+		reorder,
 		select,
 	};
 };

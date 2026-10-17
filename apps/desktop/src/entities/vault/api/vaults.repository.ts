@@ -24,3 +24,6 @@ export const renameVault = (vaultId: string, name: string): Promise<VaultLibrary
 
 export const deleteVault = (vaultId: string): Promise<VaultDeleteResult> =>
 	isTauriRuntime() ? tauriVaultsRepository.deleteVault(vaultId) : browserVaultsRepository.deleteVault(vaultId);
+
+export const reorderVaults = (vaultIds: string[]): Promise<VaultLibrary> =>
+	isTauriRuntime() ? tauriVaultsRepository.reorderVaults(vaultIds) : browserVaultsRepository.reorderVaults(vaultIds);

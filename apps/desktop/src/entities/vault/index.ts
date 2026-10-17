@@ -5,5 +5,6 @@ export {
 	getVaultDetails,
 	listVaults,
 	renameVault,
+	reorderVaults,
 	switchVault,
 } from "./api/vaults.repository";

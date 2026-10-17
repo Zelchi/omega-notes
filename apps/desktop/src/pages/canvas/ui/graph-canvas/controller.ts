@@ -7,12 +7,14 @@ import { readGraphState, saveGraphState as persistGraphState } from "../../api/g
 import type { GraphCanvasProps } from "./types";
 
 export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivElement) => {
+	const vaultId = props.vaultId;
+	let unregisterHistory: (() => void) | undefined;
 	const snapshot = () => ({ layout: "static" as const, positions: positions() });
 	const recordMove = (finished?: Gesture) => {
 		if (finished?.kind === "node" && finished.moved && finished.beforePositions)
-			props.onNotesMoved({ layout: "static", positions: finished.beforePositions }, snapshot());
+			props.onNotesMoved(vaultId, { layout: "static", positions: finished.beforePositions }, snapshot());
 	};
-	const storedState = readGraphState();
+	const storedState = readGraphState(vaultId);
 	const [positions, setPositions] = createSignal<Record<string, Point>>(storedState.positions);
 	const [view, setView] = createSignal<View>(storedState.view ?? { x: 0, y: 0, scale: 1 });
 	const [contextMenu, setContextMenu] = createSignal<ContextMenu>();
@@ -40,7 +42,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			clearTimeout(graphSaveTimer);
 			graphSaveTimer = undefined;
 		}
-		persistGraphState({ positions: nextPositions, view: nextView });
+		persistGraphState(vaultId, { positions: nextPositions, view: nextView });
 	};
 
 	const scheduleGraphSave = (): void => {
@@ -121,7 +123,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		disposed = true;
 		if (gesture) flushPendingMove(gesture.pointerId);
 		recordMove(gesture);
-		props.onRegisterHistory(undefined);
+		unregisterHistory?.();
 		if (graphSaveTimer !== undefined) saveGraphState();
 		clearTimeout(creationTimer);
 		if (moveFrame !== undefined) cancelAnimationFrame(moveFrame);
@@ -129,7 +131,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	});
 
 	onMount(() => {
-		props.onRegisterHistory(snapshot);
+		unregisterHistory = props.onRegisterHistory(vaultId, snapshot);
 		const board = getBoard();
 		sizeObserver = new ResizeObserver((entries) => {
 			setMeasuredSizes((current) => {
@@ -381,7 +383,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			clearTimeout(creationTimer);
 			creationTimer = setTimeout(() => setCreatedNoteId(undefined), 480);
 			saveGraphState(nextPositions);
-			props.onNoteCreated(note, beforeCreation, snapshot());
+			props.onNoteCreated(vaultId, note, beforeCreation, snapshot());
 		});
 	};
 

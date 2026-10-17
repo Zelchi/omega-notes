@@ -11,6 +11,8 @@ export type NoteEditorProps = {
 	t: (key: TranslationKey) => string;
 	onTitleChange: (title: string) => Promise<boolean>;
 	onDocumentChange: (document: NoteDocument) => void;
+	onDelete?: () => void;
+	deleteDisabled?: boolean;
 	onOpenNote: (note: StudyNote) => void;
 	onOpenMissingNote: (target: string) => void;
 };

@@ -19,6 +19,8 @@ type Props = {
 	t: (key: TranslationKey) => string;
 	alignment: NoteTextAlignment | undefined;
 	onAttachMedia: () => void;
+	onDelete?: () => void;
+	deleteDisabled?: boolean;
 	onAlignmentChange: (alignment: NoteTextAlignment) => void;
 	onFormat: (format: TextFormat) => void;
 	onExportPdf?: () => Promise<void>;
@@ -201,6 +203,13 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 				<span class={styles.divider} aria-hidden="true" />
 				<ExportPdfButton t={props.t} onExport={onExport()} disabled={props.exportPdfDisabled} />
 			</>}
+		</Show>
+		<Show when={props.onDelete}>
+			<span class={styles.divider} aria-hidden="true" />
+			<Button class={cx(styles.button, styles.deleteButton)} type="button" aria-label={props.t("deleteNote")}
+				disabled={props.deleteDisabled} onPointerDown={event => event.preventDefault()} onClick={() => props.onDelete?.()}>
+				<Icon name="delete" size={17} />
+			</Button>
 		</Show>
 		</div>
 		</Show>

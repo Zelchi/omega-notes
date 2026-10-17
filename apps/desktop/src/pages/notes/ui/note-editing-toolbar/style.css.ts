@@ -60,6 +60,7 @@ export const styles = {
 			"&:active:not(:disabled)": { transform: "scale(0.94)" },
 		},
 	}),
+	deleteButton: style({ color: "var(--danger)", selectors: { "&:hover:not(:disabled)": { color: "var(--danger)", backgroundColor: "var(--danger-hover)" }, "&:disabled": { opacity: 0.45, cursor: "default" } } }),
 	attachButton: style({ marginRight: 3 }),
 	divider: style({
 		width: 1,

@@ -6,14 +6,15 @@ import type { TranslationKey } from "@/shared/lib/i18n";
 export type { Edge, GraphState, NodeSize, Point, View } from "../../model/graph";
 
 export type GraphCanvasProps = {
+	vaultId: string;
 	mode: "edit" | "view";
 	busy: boolean;
 	suspended?: boolean;
 	restoration?: CanvasRestore;
-	onRegisterHistory: (reader?: () => CanvasSnapshot) => void;
+	onRegisterHistory: (vaultId: string, reader: () => CanvasSnapshot) => () => void;
 	onHistoryRestored: () => void;
-	onNoteCreated: (note: StudyNote, before: CanvasSnapshot, after: CanvasSnapshot) => void;
-	onNotesMoved: (before: CanvasSnapshot, after: CanvasSnapshot) => void;
+	onNoteCreated: (vaultId: string, note: StudyNote, before: CanvasSnapshot, after: CanvasSnapshot) => void;
+	onNotesMoved: (vaultId: string, before: CanvasSnapshot, after: CanvasSnapshot) => void;
 	notes: StudyNote[];
 	onCreateNote: () => Promise<StudyNote | undefined>;
 	onOpenNote: (note: StudyNote) => void;

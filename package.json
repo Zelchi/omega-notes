@@ -9,6 +9,7 @@
         "dev": "yarn workspace omega-notes-desktop dev",
         "tauri": "node scripts/desktop.mjs",
         "typecheck": "yarn workspace omega-notes-desktop typecheck",
+        "test:desktop": "yarn workspace omega-notes-desktop test",
         "build": "yarn workspace omega-notes-desktop build",
         "dev:desktop": "node scripts/desktop.mjs dev",
         "build:desktop": "node scripts/desktop.mjs build",

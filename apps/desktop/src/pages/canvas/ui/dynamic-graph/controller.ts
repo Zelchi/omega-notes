@@ -9,8 +9,9 @@ type Gesture = { pointerId: number; target: HTMLElement; kind: "pan" | "node"; n
 	start: Point; origin: Point; moved: boolean; beforePositions?: Record<string, Point> };
 
 export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLElement) => {
+	const vaultId = props.vaultId;
 	const snapshot = () => ({ layout: "dynamic" as const, positions: simulation.positions() });
-	const stored = readGraphState("dynamic");
+	const stored = readGraphState(vaultId, "dynamic");
 	const simulation = new ForceLayout(stored.positions);
 	const [positions, setPositions] = createSignal<Record<string, Point>>({});
 	const [view, setView] = createSignal<View>(stored.view ?? { x: 0, y: 0, scale: 1 });
@@ -74,7 +75,7 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 	let saveTimer: ReturnType<typeof setTimeout> | undefined;
 	let gesture: Gesture | undefined;
 	let suppressClickUntil = 0;
-	const save = () => saveGraphState({ positions: simulation.positions(), view: view() }, "dynamic");
+	const save = () => saveGraphState(vaultId, { positions: simulation.positions(), view: view() }, "dynamic");
 	const scheduleSave = () => {
 		clearTimeout(saveTimer);
 		saveTimer = setTimeout(save, 200);
@@ -147,7 +148,7 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 		if (current.nodeId) simulation.release(current.nodeId);
 		setDraggedId(undefined);
 		if (current.kind === "node" && current.moved && current.beforePositions)
-			props.onNotesMoved({ layout: "dynamic", positions: current.beforePositions }, snapshot());
+			props.onNotesMoved(vaultId, { layout: "dynamic", positions: current.beforePositions }, snapshot());
 		if (current.moved) suppressClickUntil = Date.now() + 200;
 		if (current.target.hasPointerCapture(current.pointerId)) current.target.releasePointerCapture(current.pointerId);
 		run();
@@ -198,7 +199,7 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 		if (createNote) {
 			const beforeCreation = snapshot();
 			void props.onCreateNote().then((note) => {
-				if (note && mounted) props.onNoteCreated(note, beforeCreation, snapshot());
+				if (note && mounted) props.onNoteCreated(vaultId, note, beforeCreation, snapshot());
 			});
 		}
 	};
@@ -232,7 +233,7 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 			setViewport({ width: rect.width, height: rect.height });
 		};
 		updateViewport();
-		props.onRegisterHistory(snapshot);
+		const unregisterHistory = props.onRegisterHistory(vaultId, snapshot);
 		if (!stored.view || props.centerOnMount) fit();
 		props.onCanvasMount();
 		run();
@@ -254,7 +255,7 @@ export const useDynamicGraph = (props: GraphCanvasProps, getBoard: () => HTMLEle
 		onCleanup(() => {
 			finish();
 			mounted = false;
-			props.onRegisterHistory(undefined);
+			unregisterHistory();
 			if (frame !== undefined) cancelAnimationFrame(frame);
 			clearTimeout(saveTimer); save(); resize.disconnect();
 			document.removeEventListener("visibilitychange", visibility);

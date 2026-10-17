@@ -51,6 +51,8 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 				<NoteEditingToolbar
 					find={find}
 					readOnly={!editor.editable()}
+					onDelete={props.onDelete}
+					deleteDisabled={props.deleteDisabled}
 					onExportPdf={props.onExportPdf}
 					exportPdfDisabled={props.exportPdfDisabled}
 					exiting={toolbar.exiting()}

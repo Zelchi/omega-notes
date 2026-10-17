@@ -122,6 +122,7 @@ export const styles = {
 		minWidth: 0,
 		overflow: "auto",
 	}),
+	draggingVault: style({ opacity: 0.65, outline: "1px solid var(--border-strong)", borderRadius: 4 }),
 	vaultRow: style({ display: "flex", alignItems: "center", minWidth: 0, minHeight: 34, gap: 4 }),
 	vault: style({
 		flex: 1,
@@ -136,7 +137,8 @@ export const styles = {
 		borderWidth: 0,
 		borderRadius: 4,
 		textAlign: "left",
-		cursor: "pointer",
+		cursor: "grab",
+		touchAction: "none",
 		selectors: {
 			"&:hover": { backgroundColor: "var(--surface-hover)" },
 			"&:disabled": { cursor: "default" },

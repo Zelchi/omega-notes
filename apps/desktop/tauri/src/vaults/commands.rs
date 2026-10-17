@@ -47,3 +47,11 @@ pub(crate) fn delete_vault(app: AppHandle, vault_id: String) -> Result<VaultDele
         vault_id,
     )
 }
+
+#[tauri::command]
+pub(crate) fn reorder_vaults(
+    app: AppHandle,
+    vault_ids: Vec<String>,
+) -> Result<VaultLibrary, String> {
+    service::reorder_vaults(&|| runtime::app_directory(&app), vault_ids)
+}
