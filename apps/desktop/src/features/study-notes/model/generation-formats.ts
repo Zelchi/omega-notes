@@ -1,0 +1,25 @@
+import type { StudyKind } from "@/entities/study";
+
+/** Wire examples and constraints belong to the method, independently of source selection. */
+export const generationFormats = {
+	flashcards: {
+		item: {"itemId": "copy exact manifest itemId", "question": "...", "answer": "...", "sources": ["N1"]},
+		instructions: "Create a concise recall question or cue up to 2000 characters and a clear answer up to 8000 characters. Test one useful concept per card, without revealing the answer in the question. Do not provide options, distractors or correctIndex.",
+	},
+	quiz: {
+		item: {"itemId": "copy exact manifest itemId", "question": "...", "answer": "The correct answer", "distractors": ["Incorrect alternative 1", "Incorrect alternative 2", "Incorrect alternative 3"], "explanation": "...", "sources": ["N1"]},
+		instructions: "Provide a question up to 2000 characters, one correct answer and exactly three plausible but incorrect distractors up to 1000 characters each, and an explanation up to 4000 characters. All four choices must be distinct. Do not provide options or correctIndex: the application shuffles the choices and determines the correct position.",
+	},
+	written: {
+		item: {"itemId": "copy exact manifest itemId", "question": "...", "answer": "...", "sources": ["N1"]},
+		instructions: "Create open-ended questions that the learner must answer in their own words. Each question must target a specific concept or explanation from its assigned note. Do not ask the learner to summarize the whole vault. The answer field must contain a clear reference answer covering the essential points; the application keeps it hidden until the final report. Do not provide multiple-choice options or put the answer in the question. Use a question up to 2000 characters and a reference answer up to 8000 characters.",
+	},
+	cloze: {
+		item: {"itemId": "copy exact manifest itemId", "parts": ["A sentence with ", {"answers": ["canonical answer", "equivalent answer"]}, " hidden."], "explanation": "...", "sources": ["N1"]},
+		instructions: "Create fill-in-the-blank exercises using parts: an ordered array of literal text strings and objects containing only answers. A blank object is {\"answers\":[\"canonical answer\",\"equivalent answer\"]}. Include 1-5 blank objects, each with 1-5 unambiguously equivalent answers up to 200 characters each. Preserve spaces and punctuation around the blank objects in the text strings. Do not number blanks, insert {{...}} markers, or provide question, blanks or answer fields; the application builds those values. The resulting visible sentence must be meaningful and at most 2000 characters, with enough subject context to understand it without the source note. Do not reveal hidden answers elsewhere in the visible text or hints. Alternatives differing only in case, accents or whitespace are unnecessary. These reference answers are examples, not an exhaustive whitelist: learner responses will be evaluated semantically by AI. Keep punctuation and numbers significant. Provide an explanation up to 4000 characters, shown only after completion. Do not provide multiple-choice options. Use at most 21 parts, each literal text part up to 2000 characters.",
+	},
+	correction: {
+		item: {"itemId": "copy exact manifest itemId", "segments": [{"text": "A correct claim. ", "incorrect": false}, {"text": "An intentionally incorrect claim. ", "incorrect": true, "correction": "The corrected claim. "}, {"text": "Another correct claim.", "incorrect": false}], "explanation": "Why the incorrect claims are false, according to the sources.", "sources": ["N1"]},
+		instructions: "Create a coherent short exposition about the assigned subject containing deliberate factual errors that the learner must identify. Split the entire passage into 3-16 selectable sentences or independent clauses in segments, retaining all whitespace and punctuation so concatenating text forms the passage. Mix correct claims and at least one incorrect claim; at least one claim must be correct. Vary the number and position of errors. Every segment must be substantive, not just a heading, connector or punctuation. Incorrect claims must be demonstrably contradicted by the notes, never merely absent from them or ambiguously phrased. For every incorrect segment, supply a correction replacing that complete segment and preserving surrounding spacing; correct segments have no correction field. Do not reveal which claims are incorrect in the visible text, add labels, or include hints. Use at most 2000 characters in the concatenated original passage, 1000 characters per segment or correction. Provide an explanation up to 4000 characters justifying each error from the sources; shown only after checking. The original text deliberately contains false facts for this exercise only; the corrected version must be entirely supported by the notes and at most 8000 characters. Omit question and answer: the application derives both passages from segments.",
+	},
+} satisfies Record<StudyKind, { item: object; instructions: string }>;

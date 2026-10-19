@@ -17,6 +17,7 @@ impl Default for AiState {
 }
 impl AiState {
     pub(crate) fn shutdown(&self) {
+        super::study_context::clear();
         if let Ok(mut slot) = self.0.lock() {
             if let Some(client) = slot.take() {
                 client.stop();

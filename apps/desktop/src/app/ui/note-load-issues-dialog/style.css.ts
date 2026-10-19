@@ -1,3 +1,4 @@
+import { windowLayout } from "@/shared/ui/window-layout";
 import { motion } from "@/shared/ui/motion.css";
 import { style } from "@vanilla-extract/css";
 
@@ -6,7 +7,7 @@ export const styles = {
 		...motion.fade,
 		position: "fixed",
 		zIndex: 12,
-		inset: 0,
+		inset: windowLayout.contentInset, overflow: "hidden",
 		display: "grid",
 		placeItems: "center",
 		padding: 20,

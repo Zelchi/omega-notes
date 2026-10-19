@@ -102,6 +102,10 @@ fn write_chat(path: &Path, chat: &Chat) -> Result<(), String> {
 }
 
 fn path(app: &tauri::AppHandle, id: &str, provider: Provider) -> Result<PathBuf, String> {
+    data_path(app, id, provider.filename())
+}
+
+pub(super) fn data_directory(app: &tauri::AppHandle, id: &str) -> Result<PathBuf, String> {
     let directory = runtime::app_directory(app)?;
     let registry = vaults::read_vault_registry(&directory)?;
     let vault = registry
@@ -127,7 +131,15 @@ fn path(app: &tauri::AppHandle, id: &str, provider: Provider) -> Result<PathBuf,
         }
         Err(_) => return Err("AI_STORAGE_FAILED".into()),
     }
-    let path = folder.join(provider.filename());
+    Ok(folder)
+}
+
+pub(super) fn data_path(
+    app: &tauri::AppHandle,
+    id: &str,
+    filename: &str,
+) -> Result<PathBuf, String> {
+    let path = data_directory(app, id)?.join(filename);
     match fs::symlink_metadata(&path) {
         Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
             return Err("AI_STORAGE_FAILED".into())

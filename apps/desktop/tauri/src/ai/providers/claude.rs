@@ -23,12 +23,13 @@ pub(super) fn authenticated(success: bool, output: &str) -> Result<bool, String>
 pub(super) fn configure(
     command: &mut Command,
     mcp: Value,
-    instructions: &str,
+    purpose: crate::ai::task::Purpose,
     model: Option<&str>,
     effort: Option<&str>,
 ) {
     let allowed = crate::ai::tools::names()
         .iter()
+        .filter(|name| crate::ai::tools::allowed_for(purpose, name))
         .map(|name| format!("mcp__omega__{name}"))
         .collect::<Vec<_>>()
         .join(",");
@@ -54,7 +55,7 @@ pub(super) fn configure(
             "--allowedTools",
             allowed.as_str(),
             "--system-prompt",
-            instructions,
+            purpose.instructions(),
         ])
         .env("CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1")
         .arg("--mcp-config")

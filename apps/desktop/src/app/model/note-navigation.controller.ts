@@ -1,3 +1,4 @@
+import { readNoteMode, saveNoteMode, type NoteMode } from "@/features/change-preferences";
 import { batch, createEffect, createMemo, createSignal, onCleanup, untrack, type Accessor } from "solid-js";
 import { isNoteTitleAvailable, type NotesLibrary, type NoteDocument, type StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
@@ -5,7 +6,6 @@ import { playSound } from "@/shared/ui/sound";
 import { createNavigationHistory, findHistoryIndex, recordNavigation, type NavigationHistory, type NavigationLocation } from "./navigation-history";
 
 type NoteRoute = "canvas" | "note";
-type NoteMode = "edit" | "view";
 type NameDialogMode = "create" | "rename" | undefined;
 
 type NoteNavigationDependencies = {
@@ -22,7 +22,7 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 	const [selectedId, setSelectedId] = createSignal<string>();
 	const selectedNote = createMemo(() => notes.notes().find((note) => note.id === selectedId()));
 	const [route, setRoute] = createSignal<NoteRoute>("canvas");
-	const [mode, setMode] = createSignal<NoteMode>("edit");
+	const [mode, setMode] = createSignal<NoteMode>(readNoteMode());
 	const [centeredAtLaunch, setCenteredAtLaunch] = createSignal(false);
 	const [nameDialog, setNameDialog] = createSignal<NameDialogMode>();
 	const [nameDialogTitle, setNameDialogTitle] = createSignal("");
@@ -191,7 +191,7 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 	return {
 		route,
 		mode,
-		setMode,
+		setMode: (value: NoteMode) => { setMode(value); saveNoteMode(value); },
 		selectedNote,
 		setCenteredAtLaunch,
 		canvasCenterOnMount,

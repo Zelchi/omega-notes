@@ -1,4 +1,4 @@
-import type { CanvasLayout, TextCursor, Theme } from "../model/preferences";
+import type { CanvasLayout, NoteMode, TextCursor, Theme } from "../model/preferences";
 import type { Language } from "@/shared/lib/i18n";
 import { DEFAULT_AI_CHAT_SHORTCUT, isAiChatShortcut, type AiChatShortcut } from "../model/ai-chat-shortcut";
 
@@ -10,6 +10,7 @@ const TEXT_CURSOR_KEY = "omega-notes.settings.text-cursor";
 const AI_FEATURES_KEY = "omega-notes.settings.ai-features-enabled";
 const AI_CHAT_SHORTCUT_KEY = "omega-notes.settings.ai-chat-shortcut";
 const SOUND_VOLUME_KEY = "omega-notes.settings.sound-volume";
+const NOTE_MODE_KEY = "omega-notes.settings.note-mode";
 
 export const readSoundVolume = (): number => {
     try {
@@ -115,4 +116,14 @@ export const readCanvasLayout = (): CanvasLayout => {
 export const saveCanvasLayout = (layout: CanvasLayout): void => {
 	try { localStorage.setItem("omega-notes.canvas-layout", layout); }
 	catch { /* The layout can still be switched when storage is unavailable. */ }
+};
+
+export const readNoteMode = (): NoteMode => {
+	try { return localStorage.getItem(NOTE_MODE_KEY) === "view" ? "view" : "edit"; }
+	catch { return "edit"; }
+};
+
+export const saveNoteMode = (value: NoteMode): void => {
+	try { localStorage.setItem(NOTE_MODE_KEY, value); }
+	catch (error) { console.error(error); }
 };

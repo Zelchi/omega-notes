@@ -7,6 +7,8 @@ export const styles = {
 		backgroundColor: "var(--overlay)", color: "var(--ink)", fontSize: 14,
 	}),
 	shell: style({
+		display: "flex",
+		flexDirection: "column",
 		position: "relative",
 		width: "100%",
 		height: "100%",
@@ -18,11 +20,11 @@ export const styles = {
 		borderColor: "var(--line)",
 	}),
 	main: style({
+		flex: "1 1 0",
 		position: "relative",
 		display: "flex",
 		flexDirection: "column",
 		width: "100%",
-		height: "100%",
 		minWidth: 0,
 		minHeight: 0,
 	}),

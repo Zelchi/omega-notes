@@ -17,7 +17,39 @@ use crate::ai::tools;
 
 type Reply = Result<Value, String>;
 
+fn error_detail(error: &Value) -> Option<String> {
+    error["message"]
+        .as_str()
+        .map(|message| message.chars().take(2000).collect())
+}
+fn error_code(error: &Value) -> &'static str {
+    let info = &error["codexErrorInfo"];
+    let variant = info
+        .as_str()
+        .or_else(|| {
+            info.as_object()
+                .and_then(|value| value.keys().next().map(String::as_str))
+        })
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    match variant.as_str() {
+        "contextwindowexceeded" => "AI_CODEX_CONTEXT_LIMIT",
+        "usagelimitexceeded" | "ratelimitexceeded" | "sessionbudgetexceeded" => {
+            "AI_CODEX_LIMIT_REACHED"
+        }
+        "unauthorized" => "AI_SIGN_IN_REQUIRED",
+        "httpconnectionfailed"
+        | "responsestreamconnectionfailed"
+        | "responsestreamdisconnected"
+        | "responsetoomanyfailedattempts" => "AI_CODEX_CONNECTION_FAILED",
+        "badrequest" => "AI_CODEX_REQUEST_REJECTED",
+        "internalservererror" => "AI_CODEX_SERVICE_FAILED",
+        _ => "AI_REQUEST_FAILED",
+    }
+}
+
 struct Conversation {
+    purpose: crate::ai::task::Purpose,
     vault_id: String,
     directory: PathBuf,
     request_id: String,
@@ -247,6 +279,7 @@ impl Client {
         model: Option<&str>,
         effort: Option<&str>,
         fast: bool,
+        purpose: crate::ai::task::Purpose,
     ) -> Reply {
         let directory = tools::resolve_vault(&self.app, vault_id)?;
         if self.status()?["authenticated"] != true {
@@ -257,10 +290,14 @@ impl Client {
             .lock()
             .map_err(|_| "AI_DISCONNECTED")?
             .iter()
-            .find(|(_, conversation)| conversation.vault_id == vault_id)
+            .find(|(_, conversation)| {
+                !purpose.is_study()
+                    && conversation.vault_id == vault_id
+                    && !conversation.purpose.is_study()
+            })
             .map(|(id, _)| id.clone());
         let mut turn_input = input.to_string();
-        if existing.is_none() {
+        if existing.is_none() && !purpose.is_study() {
             let history = crate::ai::repository::read(
                 &self.app,
                 vault_id,
@@ -306,18 +343,34 @@ impl Client {
                     "web_search":"disabled","model_provider":"openai"
                 });
                 if let Some(servers) = effective["config"]["mcp_servers"].as_object() {
-                    for name in servers.keys() {
-                        let quoted =
-                            serde_json::to_string(name).map_err(|_| "AI_PROTOCOL_ERROR")?;
-                        config[format!("mcp_servers.{quoted}.enabled")] = json!(false);
+                    // config/read is an API representation, not reusable TOML input:
+                    // optional nulls can become empty strings when overrides are converted.
+                    // These servers stay disabled; retain only a valid transport declaration.
+                    // Structured keys also preserve names containing dots or quotes.
+                    let mut disabled = serde_json::Map::new();
+                    for (name, server) in servers {
+                        let transport = ["command", "url"]
+                            .into_iter()
+                            .find_map(|field| {
+                                server[field]
+                                    .as_str()
+                                    .filter(|value| !value.trim().is_empty())
+                                    .map(|value| (field, value))
+                            })
+                            .ok_or("AI_PROTOCOL_ERROR")?;
+                        let mut settings = serde_json::Map::new();
+                        settings.insert("enabled".into(), json!(false));
+                        settings.insert(transport.0.into(), json!(transport.1));
+                        disabled.insert(name.clone(), Value::Object(settings));
                     }
+                    config["mcp_servers"] = Value::Object(disabled);
                 }
                 let result = self.request("thread/start", json!({
                     "model":model,"ephemeral":true,"environments":[],"selectedCapabilityRoots":[],
                     "approvalPolicy":"never","sandbox":"read-only","config":config,
                     "developerInstructions":"This thread is bound by the host to one vault. Consult only the host's note tools. Never search other threads, global memory, apps, plugins, the filesystem or any other vault. Do not make changes to files or notes.",
-                    "baseInstructions":crate::ai::instructions::VAULT_INSTRUCTIONS,
-                    "dynamicTools":tools::definitions()
+                    "baseInstructions":purpose.instructions(),
+                    "dynamicTools":tools::definitions_for(purpose)
                 }))?;
                 let id = result["thread"]["id"]
                     .as_str()
@@ -329,6 +382,7 @@ impl Client {
                     .insert(
                         id.clone(),
                         Conversation {
+                            purpose,
                             vault_id: vault_id.into(),
                             directory,
                             request_id: String::new(),
@@ -340,7 +394,16 @@ impl Client {
                 id
             }
         };
-        tools::resolve_vault(&self.app, vault_id)?;
+        if let Err(error) = tools::resolve_vault(&self.app, vault_id) {
+            // A vault can change while thread/start is in flight. No turn will
+            // complete to clean this new independent study conversation up.
+            if purpose.is_study() {
+                if let Ok(mut sessions) = self.conversations.lock() {
+                    sessions.remove(&thread_id);
+                }
+            }
+            return Err(error);
+        }
         {
             let mut conversations = self.conversations.lock().map_err(|_| "AI_DISCONNECTED")?;
             let conversation = conversations
@@ -370,6 +433,9 @@ impl Client {
                 if let Some(session) = sessions.get_mut(&thread_id) {
                     session.busy = false;
                 }
+                if purpose.is_study() {
+                    sessions.remove(&thread_id);
+                }
             }
         }
         result.map(|_| json!({"threadId":thread_id}))
@@ -383,6 +449,7 @@ impl Client {
                 .iter()
                 .find(|(_, session)| {
                     session.vault_id == vault_id
+                        && !session.purpose.is_study()
                         && session.request_id == request_id
                         && session.busy
                         && !session.cancelled
@@ -407,7 +474,12 @@ impl Client {
         match result {
             Ok(response) if response["turnId"].as_str() == Some(turn_id.as_str()) => Ok(response),
             Ok(_) => Err("AI_PROTOCOL_ERROR".into()),
-            Err(error) if error == "AI_REQUEST_FAILED" => {
+            Err(error)
+                if error == "AI_REQUEST_FAILED"
+                    || serde_json::from_str::<Value>(&error)
+                        .ok()
+                        .is_some_and(|value| value["code"] == "AI_REQUEST_FAILED") =>
+            {
                 let sessions = self.conversations.lock().map_err(|_| "AI_DISCONNECTED")?;
                 if !sessions.get(&thread_id).is_some_and(|session| {
                     session.busy
@@ -446,7 +518,13 @@ impl Client {
                     self.request("turn/interrupt", json!({"threadId":id,"turnId":turn_id}))?;
                 }
             }
-            if clear {
+            let discard = self
+                .conversations
+                .lock()
+                .map_err(|_| "AI_DISCONNECTED")?
+                .get(&id)
+                .is_some_and(|session| session.purpose.is_study());
+            if clear || discard {
                 self.conversations
                     .lock()
                     .map_err(|_| "AI_DISCONNECTED")?
@@ -463,7 +541,7 @@ impl Client {
                 if let Ok(mut pending) = self.pending.lock() {
                     if let Some(reply) = pending.remove(&id) {
                         let response = if message.get("error").is_some() {
-                            Err("AI_REQUEST_FAILED".into())
+                            Err(json!({"code": error_code(&message["error"]), "detail": error_detail(&message["error"])}).to_string())
                         } else {
                             Ok(message["result"].clone())
                         };
@@ -492,8 +570,12 @@ impl Client {
                     let vault_id = session.vault_id.clone();
                     let request_id = session.request_id.clone();
                     let directory = session.directory.clone();
+                    let purpose = session.purpose;
                     drop(sessions);
                     let tool = params["tool"].as_str().unwrap_or_default();
+                    if !tools::allowed_for(purpose, tool) {
+                        return Err("AI_UNKNOWN_TOOL".into());
+                    }
                     if tools::is_mutation(tool) {
                         crate::ai::link_requests::apply(
                             &self.app,
@@ -503,7 +585,7 @@ impl Client {
                             &params["arguments"],
                         )
                     } else {
-                        tools::call(&directory, tool, &params["arguments"])
+                        tools::call_for_request(&directory, &request_id, tool, &params["arguments"])
                     }
                 })();
                 match call {
@@ -563,10 +645,12 @@ impl Client {
                 session.busy = false;
                 session.turn_id = None;
                 Some(
-                    json!({"kind":"completed","status":params["turn"]["status"],"failed":!params["turn"]["error"].is_null()}),
+                    json!({"kind":"completed","status":params["turn"]["status"],"failed":!params["turn"]["error"].is_null(), "errorCode": if params["turn"]["error"].is_null() { None } else { Some(error_code(&params["turn"]["error"])) }, "errorDetail":error_detail(&params["turn"]["error"])}),
                 )
             }
-            "error" => Some(json!({"kind":"error","retrying":params["willRetry"]})),
+            "error" => Some(
+                json!({"kind":"error","retrying":params["willRetry"],"errorCode":error_code(&params["error"]),"errorDetail":error_detail(&params["error"])}),
+            ),
             _ => None,
         };
         if let Some(mut event) = event {
@@ -574,6 +658,9 @@ impl Client {
             event["vaultId"] = json!(session.vault_id);
             event["requestId"] = json!(session.request_id);
             let _ = self.app.emit("ai-event", event);
+        }
+        if method == "turn/completed" && session.purpose.is_study() {
+            sessions.remove(thread_id);
         }
     }
 }

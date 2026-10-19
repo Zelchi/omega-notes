@@ -1,5 +1,34 @@
 # Histórico de atualizações
 
+## v0.3.9
+
+### Estudos com IA
+
+- Barra Estudar no modo leitura com cinco métodos: Memorização, Questionário, Redação, Lacunas e Correção. Os exercícios usam a IA conectada no Chat e ficam disponíveis com Recursos de IA ativados.
+- Memorização com cartas, avaliações Fácil/Médio/Difícil e revisão espaçada. Questionário com alternativas; Redação com respostas nas próprias palavras; Lacunas com correção por significado; Correção com trechos incorretos para identificar.
+- Na nota aberta, a geração mantém esse assunto como foco e inclui suas referências diretas. No canvas, sorteia uma nota com conteúdo por exercício. Conteúdo insuficiente permite buscar outras notas em até três rodadas; no modo Nicho, o apoio prioriza notas relacionadas ao foco original.
+- Quantidade, tempo por pergunta e vidas configuráveis, com preferências lembradas por método. Nota aleatória permanece disponível sem depender de IA.
+- Materiais salvos como sessões por data e hora, com taxa de acerto, revisão de erros, revisão de cartas pendentes e opção de limpar o progresso sem apagar o material. Redação e Lacunas incluem relatórios com explicações e fontes clicáveis.
+- Redação e Lacunas avaliam respostas em fila enquanto o estudante continua nas próximas questões. Paráfrases, siglas e traduções equivalentes são aceitas; o relatório mostra os resultados individuais das lacunas.
+- Fechar um estudo preserva a tela, as respostas e o cronômetro pausado. Gerações e avaliações continuam em segundo plano; Cancelar/Home interrompe as tarefas pendentes. Cada método conserva seu próprio estado.
+- O aviso de IA ocupada identifica o método ou o Chat responsável pela solicitação em andamento.
+
+### Integração com IA e armazenamento
+
+- Estudos usam tarefas independentes do histórico do Chat, com fontes preparadas pelo aplicativo, leitura paginada e autorização restrita ao vault e à solicitação atual.
+- Geração em lotes de até cinco exercícios, com recuperação dos itens ausentes ou inválidos sem refazer os já aprovados. A sessão só começa depois de completar a quantidade solicitada.
+- Fontes inalteradas são reutilizadas nas avaliações. Alterações ou exclusões das fontes impedem aceitar uma correção desatualizada; falhas técnicas permitem tentar novamente sem descontar vidas.
+- Sessões armazenadas em arquivos individuais por método, com leitura de resumos e carregamento do material ao abrir. Leitura e gravação executadas fora da thread principal, com carregamento progressivo e proteção contra resultados de outro vault.
+- Falhas de geração e avaliação preservam o motivo informado pelo provedor; relatórios grandes deixam de ser limitados pelo tamanho reservado às respostas da IA.
+- Corrigida a desativação de MCPs externos no Codex, evitando entradas sem transporte válido. Erros distinguem limites de uso, contexto, conexão e rejeição da solicitação.
+- Corrigida a limpeza de tarefas do Codex quando o vault muda durante a criação da thread. Ferramentas de estudo ficam separadas do catálogo do Chat, incluindo as permissões do Claude.
+
+### Interface e preferências
+
+- O último modo de leitura ou escrita é restaurado ao reabrir o aplicativo. O preview temporário com Alt não altera essa preferência.
+- Modais respeitam o espaço da barra da janela.
+- Tooltips na barra de ferramentas e ajustes nos dropdowns dos estudos.
+
 ## v0.3.8
 
 ### Notas e canvas

@@ -65,6 +65,7 @@ fn catalog_has_all_tools_and_correct_mcp_annotations() {
     let list = response["result"]["tools"].as_array().unwrap();
     assert_eq!(list.len(), 11);
     for tool in list {
+        assert_ne!(tool["name"], "read_study_context");
         assert!(!tool["description"].as_str().unwrap().is_empty());
         assert_eq!(
             tool["annotations"]["readOnlyHint"],

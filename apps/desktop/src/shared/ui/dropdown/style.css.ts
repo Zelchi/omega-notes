@@ -16,9 +16,9 @@ export const styles = {
     label: style({ flex: 1, minWidth: 0, whiteSpace: "normal", overflowWrap: "anywhere" }),
     arrow: style({ display: "flex", flexShrink: 0, color: "var(--muted)", transition: "transform 160ms ease" }),
     menu: style({
-        position: "absolute", display: "flex", flexDirection: "column", minHeight: 0, boxSizing: "border-box",
+        position: "fixed", display: "flex", flexDirection: "column", minHeight: 0, boxSizing: "border-box",
         padding: 3, border: "1px solid var(--border-strong)", borderRadius: 5,
-        background: "var(--surface-panel)", color: "var(--ink)", zIndex: 20,
+        background: "var(--surface-panel)", color: "var(--ink)", zIndex: 60,
     }),
     option: style({
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,

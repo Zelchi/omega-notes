@@ -1,3 +1,4 @@
+import Tooltip from "@/shared/ui/tooltip";
 import Button from "@/shared/ui/button";
 import { createMemo, createRenderEffect, createSignal, createUniqueId, For, Match, onCleanup, onMount, Show, Switch, type Component } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
@@ -213,6 +214,7 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 		</Show>
 		</div>
 		</Show>
+		<Tooltip root={() => root} enabled={!props.exiting} />
 	</div>
 	);
 };

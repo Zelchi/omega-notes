@@ -29,7 +29,11 @@ pub(crate) fn note_from_path(path: &Path) -> Result<StudyNote, String> {
 pub(crate) fn note_from_path_with_id(path: &Path, id: &str) -> Result<StudyNote, String> {
     let stored = fs::read_to_string(path)
         .map_err(|error| format!("Não foi possível ler a nota: {error}"))?;
-    let note: OmegaNoteFile = serde_json::from_str(&stored)
+    note_from_contents(path, id, &stored)
+}
+
+pub(crate) fn note_from_contents(path: &Path, id: &str, stored: &str) -> Result<StudyNote, String> {
+    let note: OmegaNoteFile = serde_json::from_str(stored)
         .map_err(|error| format!("Não foi possível interpretar a nota: {error}"))?;
     if note.format != "omega-page" || note.version != 2 {
         return Err("Formato de nota Ômega Notes incompatível.".to_string());

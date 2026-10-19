@@ -1,3 +1,4 @@
+import { windowLayout } from "@/shared/ui/window-layout";
 import { style } from "@vanilla-extract/css";
 
 export const styles = {
@@ -8,8 +9,8 @@ export const styles = {
 		alignItems: "center",
 		flexGrow: 0,
 		flexShrink: 0,
-		flexBasis: 38,
-		minHeight: 38,
+		flexBasis: windowLayout.titlebarHeight,
+		minHeight: windowLayout.titlebarHeight,
 		paddingLeft: 12,
 		backgroundColor: "var(--surface-titlebar)",
 		borderBottomWidth: 1,

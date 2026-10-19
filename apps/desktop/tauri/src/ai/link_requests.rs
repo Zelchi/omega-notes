@@ -81,6 +81,7 @@ impl Bridge {
         vault: String,
         connection: String,
         request: String,
+        purpose: super::task::Purpose,
     ) -> Result<Self, String> {
         let listener =
             TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|_| "AI_START_FAILED")?;
@@ -113,7 +114,25 @@ impl Bridge {
                     if message["token"].as_str() != Some(&secret) || stop.load(Ordering::SeqCst) {
                         return Err("AI_CANCELLED".into());
                     }
-                    apply(&app, &vault, &connection, &request, &message["arguments"])
+                    let tool = message["tool"].as_str().unwrap_or("link_note_mentions");
+                    if !tools::allowed_for(purpose, tool) {
+                        return Err("AI_UNKNOWN_TOOL".into());
+                    }
+                    match tool {
+                        "read_study_context" => {
+                            let directory = tools::resolve_vault(&app, &vault)?;
+                            tools::call_for_request(
+                                &directory,
+                                &request,
+                                "read_study_context",
+                                &message["arguments"],
+                            )
+                        }
+                        "link_note_mentions" => {
+                            apply(&app, &vault, &connection, &request, &message["arguments"])
+                        }
+                        _ => Err("AI_UNKNOWN_TOOL".into()),
+                    }
                 })();
                 let response = match response {
                     Ok(value) => json!({"result":value}),
@@ -144,6 +163,15 @@ impl Drop for Bridge {
 }
 
 pub(super) fn forward(port: &str, token: &str, arguments: &Value) -> Result<Value, String> {
+    forward_tool(port, token, "link_note_mentions", arguments)
+}
+
+pub(super) fn forward_tool(
+    port: &str,
+    token: &str,
+    tool: &str,
+    arguments: &Value,
+) -> Result<Value, String> {
     let port: u16 = port.parse().map_err(|_| "AI_PROTOCOL_ERROR")?;
     let address = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
     let mut socket = TcpStream::connect_timeout(&address.into(), Duration::from_secs(2))
@@ -154,8 +182,12 @@ pub(super) fn forward(port: &str, token: &str, arguments: &Value) -> Result<Valu
     socket
         .set_write_timeout(Some(Duration::from_secs(2)))
         .map_err(|_| "AI_REQUEST_FAILED")?;
-    writeln!(socket, "{}", json!({"token":token,"arguments":arguments}))
-        .map_err(|_| "AI_REQUEST_FAILED")?;
+    writeln!(
+        socket,
+        "{}",
+        json!({"token":token,"tool":tool,"arguments":arguments})
+    )
+    .map_err(|_| "AI_REQUEST_FAILED")?;
     let mut line = String::new();
     BufReader::new(socket)
         .take(1024 * 1024)

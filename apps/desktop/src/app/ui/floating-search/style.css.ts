@@ -5,7 +5,7 @@ export const styles = {
 	root: style({
 		...motion.bar,
 		position: "absolute",
-		top: 50,
+		top: 12,
 		left: "50%",
 		zIndex: 5,
 		width: "min(504px, calc(42vw + 84px))",

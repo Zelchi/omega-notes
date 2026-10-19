@@ -1,6 +1,13 @@
 import type { Component } from "solid-js";
 
 export type IconName =
+	| "study"
+	| "recall"
+	| "random"
+	| "flashcards"
+	| "quiz"
+	| "cloze"
+	| "correction"
 	| "chevronDown"
 	| "chat"
 	| "send"
@@ -8,6 +15,7 @@ export type IconName =
 	| "disconnect"
 	| "back"
 	| "undo"
+	| "reset"
 	| "search"
 	| "settings"
 	| "minimize"
@@ -47,6 +55,13 @@ export type IconName =
 	| "alignMixed";
 
 const paths: Record<IconName, Component> = {
+	study: () => <><path d="M12 5C8 2 4 3 2 4v15c3-2 7-1 10 1 3-2 7-3 10-1V4c-2-1-6-2-10 1Zm0 0v15" /></>,
+	recall: () => <><path d="M9 18H7a3 3 0 0 1-3-3 3 3 0 0 1 0-6 3 3 0 0 1 3-4 3 3 0 0 1 5 0 3 3 0 0 1 5 0 3 3 0 0 1 3 4 3 3 0 0 1 0 6 3 3 0 0 1-3 3h-2M12 5v10m-4-5 4 2 4-2M9 21h6" /></>,
+	random: () => <><path d="M3 6h3c4 0 8 12 12 12h3m-4-4 4 4-4 4M3 18h3c2 0 4-3 6-6s4-6 6-6h3m-4-4 4 4-4 4" /></>,
+	flashcards: () => <><path d="m5 5 12-3 4 16-4 1" /><rect x="3" y="6" width="13" height="15" rx="2" /><path d="M6 11h7M6 15h5" /></>,
+	correction: () => <><path d="M4 5h16M4 10h9M4 15h5M13 17l3 3 5-6" /><path d="m16 8 5 5m0-5-5 5" /></>,
+	cloze: () => <><path d="M3 5h18M3 19h18M3 12h3m12 0h3" /><rect x="9" y="9" width="6" height="6" rx="1" stroke-dasharray="2 2" /></>,
+	quiz: () => <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="m7 8 1 1 2-2M12 8h5m-10 6 1 1 2-2M12 14h5" /></>,
 	bulletList: () => <><circle cx="4" cy="5" r="1" fill="currentColor" /><circle cx="4" cy="12" r="1" fill="currentColor" /><circle cx="4" cy="19" r="1" fill="currentColor" /><path d="M9 5h12M9 12h12M9 19h12" /></>,
 	orderedList: () => <><path d="M9 5h12M9 12h12M9 19h12M3 3v4M2 4l1-1M2 10h2v2l-2 2h2M2 17h2v4H2M2 19h2" /></>,
 	quote: () => <><path d="M4 6h6v7H4V6Zm0 7v2a3 3 0 0 0 3 3M14 6h6v7h-6V6Zm0 7v2a3 3 0 0 0 3 3" /></>,
@@ -69,6 +84,7 @@ const paths: Record<IconName, Component> = {
 	table: () => <><rect x="3" y="4" width="18" height="16" rx="1" /><path d="M3 9h18M3 14h18M9 4v16M15 4v16" /></>,
 	back: () => <path d="m14.5 5-7 7 7 7M8 12h12" />,
 	undo: () => <path d="M3 10h11a6 6 0 0 1 0 12M3 10l5-5M3 10l5 5" />,
+	reset: () => <path d="M3 11a9 9 0 1 1 2.6 7.4M3 4v7h7" />,
 	minimize: () => <path d="M5 12h14" />,
 	maximize: () => <rect x="5" y="5" width="14" height="14" rx="1" />,
 	restore: () => (

@@ -1,3 +1,4 @@
+import { windowLayout } from "@/shared/ui/window-layout";
 import { motion } from "@/shared/ui/motion.css";
 import { style } from "@vanilla-extract/css";
 
@@ -6,7 +7,7 @@ export const styles = {
 		...motion.fade,
 		position: "fixed",
 		zIndex: 20,
-		inset: 0,
+		inset: windowLayout.contentInset, overflow: "hidden",
 		display: "grid",
 		placeItems: "center",
 		padding: 20,
@@ -30,7 +31,7 @@ export const styles = {
 		position: "relative",
 		display: "grid",
 		width: "min(720px, 100%)",
-		height: "min(580px, calc(100vh - 40px))",
+		height: "min(580px, calc(100dvh - 80px))",
 		gridTemplateRows: "minmax(0, 1fr) auto",
 		gap: 15,
 		padding: 20,
@@ -261,7 +262,7 @@ export const styles = {
 		...motion.fade,
 		position: "fixed",
 		zIndex: 22,
-		inset: 0,
+		inset: windowLayout.contentInset, overflow: "hidden",
 		display: "grid",
 		placeItems: "center",
 		padding: 20,

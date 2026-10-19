@@ -1,6 +1,6 @@
 [package]
 name = "omega-notes"
-version = "0.3.8"
+version = "0.3.9"
 description = "Um espaço local para guardar e organizar seus estudos"
 authors = ["you"]
 edition = "2021"
@@ -8,6 +8,10 @@ edition = "2021"
 [lib]
 name = "omega_notes_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+# Work around recurring rustc panics while reusing incremental development caches.
+[profile.dev]
+incremental = false
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

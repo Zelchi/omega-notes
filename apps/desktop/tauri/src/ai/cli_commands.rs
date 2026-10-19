@@ -64,6 +64,7 @@ pub(crate) async fn ai_cli_send(
     text: String,
     model: Option<String>,
     effort: Option<String>,
+    purpose: Option<super::task::Purpose>,
 ) -> Result<Value, String> {
     if text.trim().is_empty() || text.len() > 32_000 || uuid::Uuid::parse_str(&request_id).is_err()
     {
@@ -84,6 +85,7 @@ pub(crate) async fn ai_cli_send(
             text.trim(),
             model.as_deref(),
             effort.as_deref(),
+            purpose.unwrap_or_default(),
         )
     })
     .await
