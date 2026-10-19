@@ -43,6 +43,39 @@ pub(super) fn resolve_vault_in(directory: &Path, id: &str) -> Result<PathBuf, St
 pub(super) use catalog::definitions;
 pub(crate) use catalog::names;
 
+pub(super) fn allowed_for(purpose: super::task::Purpose, tool: &str) -> bool {
+    match purpose {
+        super::task::Purpose::Chat => tool != "read_study_context",
+        super::task::Purpose::StudyGeneration | super::task::Purpose::StudyEvaluation => {
+            tool == "read_study_context"
+        }
+    }
+}
+
+pub(super) fn definitions_for(purpose: super::task::Purpose) -> Value {
+    let definitions = definitions();
+    Value::Array(
+        definitions
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|tool| allowed_for(purpose, tool["name"].as_str().unwrap_or_default()))
+            .cloned()
+            .map(|mut tool| {
+                if purpose.is_study() {
+                    if let Some(description) = tool["description"].as_str() {
+                        tool["description"] = json!(description
+                            .split(" When mentioning an existing note,")
+                            .next()
+                            .unwrap_or(description));
+                    }
+                }
+                tool
+            })
+            .collect(),
+    )
+}
+
 fn read(path: &Path) -> Result<notes::StudyNote, String> {
     if std::fs::symlink_metadata(path)
         .map_err(|_| "AI_NOTE_NOT_FOUND")?
@@ -54,7 +87,7 @@ fn read(path: &Path) -> Result<notes::StudyNote, String> {
     notes::note_from_path(path)
 }
 
-fn text(note: &notes::StudyNote) -> String {
+pub(super) fn text(note: &notes::StudyNote) -> String {
     note.document
         .elements
         .iter()
@@ -80,6 +113,32 @@ fn required_note(directory: &Path, args: &Value, key: &str) -> Result<notes::Stu
     let id = args[key].as_str().ok_or("AI_NOTE_NOT_FOUND")?;
     notes::validate_note_id(id)?;
     read(&notes::note_path(directory, id))
+}
+
+pub(super) fn context_excerpt(contents: &str, offset: usize, limit: usize) -> Value {
+    reading::excerpt(contents, offset, limit)
+}
+
+pub(super) fn call_for_request(
+    directory: &Path,
+    request_id: &str,
+    tool: &str,
+    args: &Value,
+) -> Result<Value, String> {
+    if tool != "read_study_context" {
+        return call(directory, tool, args);
+    }
+    let definitions = definitions();
+    let definition = definitions
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|definition| definition["name"] == tool)
+        .ok_or("AI_UNKNOWN_TOOL")?;
+    let empty = json!({});
+    let args = if args.is_null() { &empty } else { args };
+    catalog::validate(&definition["inputSchema"], args)?;
+    super::study_context::read(directory, request_id, args)
 }
 
 pub(super) fn call(directory: &Path, tool: &str, args: &Value) -> Result<Value, String> {

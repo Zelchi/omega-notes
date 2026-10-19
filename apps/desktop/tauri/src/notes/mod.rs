@@ -22,9 +22,9 @@ pub(crate) use models::{
 pub(crate) use reference_titles::{load_reference_titles, remember_reference_title};
 pub(crate) use repository::{
     delete_note_files, existing_note, note_backup_exists, note_backup_path, note_file_exists,
-    note_from_path, note_from_path_with_id, note_id_from_backup, note_path, note_paths,
-    preserve_recovery_copy, read_file_bytes, restore_file, restore_note_files, snapshot_note_files,
-    write_note,
+    note_from_contents, note_from_path, note_from_path_with_id, note_id_from_backup, note_path,
+    note_paths, preserve_recovery_copy, read_file_bytes, restore_file, restore_note_files,
+    snapshot_note_files, write_note,
 };
 pub(crate) use services::{content_stats, referenced_audio_and_video_ids, referenced_image_ids};
 pub(crate) use validation::{ensure_unique_note_title, validate_note_id, validate_note_title};

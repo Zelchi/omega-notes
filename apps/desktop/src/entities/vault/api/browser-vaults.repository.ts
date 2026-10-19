@@ -1,3 +1,4 @@
+import { deleteBrowserStudiesForVault } from "@/entities/study/@x/vault";
 import { deleteBrowserNotesForVault, getBrowserNotesStats } from "@/entities/note/@x/vault";
 import { createUuidV7 } from "@/shared/lib/ids";
 import type { Vault, VaultDeleteResult, VaultDetails, VaultLibrary } from "../model/vault";
@@ -85,6 +86,7 @@ export const deleteVault = async (vaultId: string): Promise<VaultDeleteResult> =
 	const library = readBrowserLibrary();
 	if (!library.vaults.some((vault) => vault.id === vaultId)) throw new Error("VAULT_NOT_FOUND");
 	deleteBrowserNotesForVault(vaultId);
+	deleteBrowserStudiesForVault(vaultId);
 	const nextLibrary = {
 		vaults: library.vaults.filter((vault) => vault.id !== vaultId),
 		activeVaultId: library.activeVaultId === vaultId ? null : library.activeVaultId,

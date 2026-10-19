@@ -117,7 +117,7 @@ balão, e permitem interpretar mensagens anteriores sem confundir com a nota atu
 ## Contexto separado por vault
 
 - No Codex, cada ID de vault possui uma thread própria no App Server. Claude e
-  OpenCode iniciam uma sessão nova em cada envio, com o histórico recente do
+  OpenCode iniciam uma sessão nova em cada envio do Chat, com o histórico recente do
   respectivo provedor e vault. Renomear o vault preserva essa associação.
 - Trocar de vault solicita a interrupção da resposta anterior. Eventos atrasados
   continuam associados ao vault, à conexão e à solicitação de origem.
@@ -219,6 +219,7 @@ a usar esses links também em listas, resumos e confirmações, em vez de apenas
 | `search_notes` | Busca em títulos e textos; 20 resultados por página, com trecho do conteúdo encontrado e seu deslocamento em caracteres. |
 | `read_note` | Lê até 16 mil caracteres de uma nota. |
 | `read_notes` | Lê até oito notas distintas; até 4 mil caracteres por nota, com erros individuais e continuação pela leitura de uma nota. |
+| `read_study_context` | Consulta o snapshot preparado para geração ou avaliação: manifesto de fontes e atribuições, 50 fontes por página, ou conteúdo de uma fonte em páginas de até 16 mil caracteres Unicode. Usa `sourceId` local, como `N1`, na leitura e nas citações. É anunciada somente nas tarefas de estudo, sem aparecer no Chat comum. Fora de uma solicitação preparada, não disponibiliza contexto. |
 | `list_note_connections` | Lista referências de entrada, saída ou ambas, sem duplicatas; 100 notas por página. |
 | `get_vault_overview` | Conta notas legíveis, referências direcionadas, conexões únicas, notas isoladas e links sem destino. |
 | `get_note_outline` | Lista títulos Markdown h1–h6, com nível, linhas e `sectionId`; 100 títulos por página. |

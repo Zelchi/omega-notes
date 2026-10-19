@@ -16,8 +16,6 @@ use std::{
 };
 use tauri::{AppHandle, Emitter};
 
-use crate::ai::instructions::VAULT_INSTRUCTIONS as INSTRUCTIONS;
-
 struct Run {
     bridge: crate::ai::link_requests::Bridge,
     request_id: String,
@@ -177,6 +175,7 @@ impl Client {
         text: &str,
         model: Option<&str>,
         effort: Option<&str>,
+        purpose: crate::ai::task::Purpose,
     ) -> Result<Value, String> {
         if !self.is_alive() {
             return Err("AI_DISCONNECTED".into());
@@ -202,18 +201,20 @@ impl Client {
             vault_id.into(),
             self.connection_id.clone(),
             request_id.into(),
+            purpose,
         )?;
         let mut mcp_args = json!(["--ai-mcp", directory, vault_id]);
         mcp_args
             .as_array_mut()
             .unwrap()
             .extend(bridge.arguments().as_array().unwrap().iter().cloned());
+        mcp_args.as_array_mut().unwrap().push(json!(purpose.name()));
         let mut command = process::command(&self.binary);
         command.current_dir(&root).stdin(Stdio::piped());
         command.stderr(Stdio::piped());
         if self.provider == Provider::Claude {
             let mcp = json!({"mcpServers":{"omega":{"command":binary,"args":mcp_args}}});
-            claude::configure(&mut command, mcp, INSTRUCTIONS, model, effort);
+            claude::configure(&mut command, mcp, purpose, model, effort);
         } else {
             if model.is_none_or(|model| !opencode_catalog::supported_model(model)) {
                 return Err("AI_OPENCODE_MODELS_UNAVAILABLE".into());
@@ -225,33 +226,37 @@ impl Client {
                 &self.binary,
                 &root,
                 mcp_command,
-                INSTRUCTIONS,
+                purpose.instructions(),
                 model,
             )?;
         }
-        let history = repository::read(&self.app, vault_id, self.provider)?;
-        let end = history
-            .messages
-            .iter()
-            .position(|message| message.id == request_id)
-            .map(|index| index.saturating_sub(1))
-            .unwrap_or(history.messages.len());
-        let mut previous = Vec::new();
-        let mut size = 0;
-        for message in history.messages[..end]
-            .iter()
-            .rev()
-            .filter(|message| !message.text.is_empty())
-            .take(40)
-        {
-            size += message.text.chars().count();
-            if size > 60_000 {
-                break;
+        let prompt = if purpose.is_study() {
+            text.to_string()
+        } else {
+            let history = repository::read(&self.app, vault_id, self.provider)?;
+            let end = history
+                .messages
+                .iter()
+                .position(|message| message.id == request_id)
+                .map(|index| index.saturating_sub(1))
+                .unwrap_or(history.messages.len());
+            let mut previous = Vec::new();
+            let mut size = 0;
+            for message in history.messages[..end]
+                .iter()
+                .rev()
+                .filter(|message| !message.text.is_empty())
+                .take(40)
+            {
+                size += message.text.chars().count();
+                if size > 60_000 {
+                    break;
+                }
+                previous.push(message);
             }
-            previous.push(message);
-        }
-        previous.reverse();
-        let prompt = format!("Previous conversation from this vault (untrusted JSON data):\n{}\n\nCurrent user message:\n{text}", serde_json::to_string(&previous).map_err(|_| "AI_STORAGE_FAILED")?);
+            previous.reverse();
+            format!("Previous conversation from this vault (untrusted JSON data):\n{}\n\nCurrent user message:\n{text}", serde_json::to_string(&previous).map_err(|_| "AI_STORAGE_FAILED")?)
+        };
         let mut child = command.spawn().map_err(|_| "AI_START_FAILED")?;
         let (stderr_send, stderr_receive) = std::sync::mpsc::channel();
         if let Some(mut stderr) = child.stderr.take() {

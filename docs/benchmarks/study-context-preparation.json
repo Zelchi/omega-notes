@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-19",
+  "scope": "Local source preparation only, without providers or WebView",
+  "profile": "Unoptimized Rust test profile (debug)",
+  "baseline": "Equivalent pre-cache read, decode, validation, text assembly and character count; reconstructed in the diagnostic, not a checkout of an older release",
+  "method": "Five rounds of 20 operations per mode, rotating mode order. Median of per-round average operation times. Filesystem page cache warmed before each sample. No timing thresholds.",
+  "coldMeaning": "Application source-cache entry removed before each measured call; eviction time excluded. Filesystem cache remains warm.",
+  "limitations": [
+    "Synthetic text-only notes",
+    "No model latency, token usage, tool pagination, UI rendering or end-to-end generation measured",
+    "No production release performance guarantee",
+    "Registry initially small; not a large-vault contention benchmark"
+  ],
+  "command": "cargo test --locked --no-default-features --manifest-path apps/desktop/tauri/Cargo.toml measure_source_preparation_cache -- --ignored --nocapture --test-threads=1",
+  "samples": [
+    {
+      "baselineMedianUs": 335.25395,
+      "baselineOverWarm": 16.158374301137457,
+      "coldCacheMedianUs": 356.20635000000004,
+      "filesystemCache": "warm",
+      "fixtureFileBytes": 17095,
+      "fixtureTextBytes": 16353,
+      "iterationsPerRound": 20,
+      "profile": "debug",
+      "rounds": 5,
+      "scope": "source-preparation-only",
+      "warmCacheMedianUs": 20.748
+    },
+    {
+      "baselineMedianUs": 4434.55915,
+      "baselineOverWarm": 30.981178547575333,
+      "coldCacheMedianUs": 4566.80785,
+      "filesystemCache": "warm",
+      "fixtureFileBytes": 266435,
+      "fixtureTextBytes": 262131,
+      "iterationsPerRound": 20,
+      "profile": "debug",
+      "rounds": 5,
+      "scope": "source-preparation-only",
+      "warmCacheMedianUs": 143.1372
+    },
+    {
+      "baselineMedianUs": 36003.0855,
+      "baselineOverWarm": 30.364110386515918,
+      "coldCacheMedianUs": 36363.593949999995,
+      "filesystemCache": "warm",
+      "fixtureFileBytes": 2128015,
+      "fixtureTextBytes": 2097117,
+      "iterationsPerRound": 20,
+      "profile": "debug",
+      "rounds": 5,
+      "scope": "source-preparation-only",
+      "warmCacheMedianUs": 1185.71185
+    }
+  ]
+}

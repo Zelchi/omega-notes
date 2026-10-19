@@ -1,32 +1,10 @@
-import { motion } from "@/shared/ui/motion.css";
+import { toolbarStyles } from "@/shared/ui/toolbar/style.css";
 import { style } from "@vanilla-extract/css";
 
 export const styles = {
-	root: style({
-		...motion.bar,
-		position: "fixed",
-		bottom: 12,
-		left: "50%",
-		zIndex: 5,
-		width: "max-content",
-		maxWidth: "calc(100vw - 32px)",
-		transform: "translateX(-50%)",
-	}),
+	root: toolbarStyles.root,
 	readOnlyRoot: style({ height: 46, pointerEvents: "none" }),
-	row: style({
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "flex-start",
-		gap: 3,
-		minWidth: 0,
-		overflowX: "auto",
-		padding: 4,
-		backgroundColor: "var(--surface-search)",
-		borderWidth: 1,
-		borderStyle: "solid",
-		borderColor: "var(--border-soft)",
-		borderRadius: 6,
-	}),
+	row: toolbarStyles.row,
 	subbar: style({
 		pointerEvents: "auto",
 		position: "absolute",
@@ -41,33 +19,9 @@ export const styles = {
 		border: "1px solid var(--border-soft)",
 		borderRadius: 6,
 	}),
-	button: style({
-		display: "grid",
-		placeItems: "center",
-		width: 36,
-		flexShrink: 0,
-		height: 36,
-		padding: 0,
-		color: "var(--text-control)",
-		backgroundColor: "transparent",
-		borderWidth: 0,
-		borderRadius: 4,
-		cursor: "pointer",
-		outline: "none",
-		transition: "background-color 140ms ease, color 140ms ease, transform 100ms ease",
-		selectors: {
-			"&:hover": { color: "var(--ink)", backgroundColor: "var(--surface-hover)" },
-			"&:active:not(:disabled)": { transform: "scale(0.94)" },
-		},
-	}),
+	button: toolbarStyles.button,
 	deleteButton: style({ color: "var(--danger)", selectors: { "&:hover:not(:disabled)": { color: "var(--danger)", backgroundColor: "var(--danger-hover)" }, "&:disabled": { opacity: 0.45, cursor: "default" } } }),
 	attachButton: style({ marginRight: 3 }),
-	divider: style({
-		width: 1,
-		flexShrink: 0,
-		height: 22,
-		marginInline: 2,
-		backgroundColor: "var(--border-soft)",
-	}),
+	divider: toolbarStyles.divider,
 	activeButton: style({ color: "var(--ink)", backgroundColor: "var(--surface-hover)" }),
 };

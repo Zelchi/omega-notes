@@ -135,6 +135,7 @@ pub(crate) async fn ai_send(
     model: Option<String>,
     effort: Option<String>,
     fast: bool,
+    purpose: Option<super::task::Purpose>,
 ) -> Result<Value, String> {
     if text.trim().is_empty() || text.len() > 32_000 || uuid::Uuid::parse_str(&request_id).is_err()
     {
@@ -150,6 +151,7 @@ pub(crate) async fn ai_send(
             model.as_deref(),
             effort.as_deref(),
             fast,
+            purpose.unwrap_or_default(),
         )
     })
     .await

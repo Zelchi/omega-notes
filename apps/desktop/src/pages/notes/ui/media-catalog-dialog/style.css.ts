@@ -1,3 +1,4 @@
+import { windowLayout } from "@/shared/ui/window-layout";
 import { motion } from "@/shared/ui/motion.css";
 import { style } from "@vanilla-extract/css";
 
@@ -6,7 +7,7 @@ export const styles = {
 		...motion.fade,
 		position: "fixed",
 		zIndex: 11,
-		inset: 0,
+		inset: windowLayout.contentInset, overflow: "hidden",
 		display: "grid",
 		placeItems: "center",
 		padding: 20,
@@ -18,7 +19,7 @@ export const styles = {
 		flexDirection: "column",
 		width: "min(760px, 100%)",
 		minHeight: 340,
-		maxHeight: "min(680px, 90vh)",
+		maxHeight: "min(680px, calc(100dvh - 80px))",
 		padding: 16,
 		backgroundColor: "var(--surface-panel)",
 		borderWidth: 1,

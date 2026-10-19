@@ -3,6 +3,8 @@ import { playSound } from "@/shared/ui/sound";
 import { For, Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup, onMount, untrack, type Component, type JSX } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
+import { Portal } from "solid-js/web";
+import { windowLayout } from "@/shared/ui/window-layout";
 import Icon from "@/shared/ui/icon";
 import CustomScrollArea from "@/shared/ui/custom-scroll-area";
 import { styles } from "./style.css.ts";
@@ -42,42 +44,30 @@ const Dropdown: Component<Props> = (props) => {
 
     const position = () => {
         if (!root?.isConnected || !trigger?.isConnected) return;
-        const bounds = root.getBoundingClientRect();
-        const triggerBounds = trigger.getBoundingClientRect();
-        const scale = bounds.width / root.offsetWidth || 1;
-        let limits = { left: 8, top: 8, right: innerWidth - 8, bottom: innerHeight - 8 };
-        for (let element = root.parentElement; element; element = element.parentElement) {
-            const computed = getComputedStyle(element);
-            const rect = element.getBoundingClientRect();
-            if (/hidden|clip|auto|scroll/.test(computed.overflowX)) {
-                limits.left = Math.max(limits.left, rect.left + 4);
-                limits.right = Math.min(limits.right, rect.right - 4);
-            }
-            if (/hidden|clip|auto|scroll/.test(computed.overflowY)) {
-                limits.top = Math.max(limits.top, rect.top + 4);
-                limits.bottom = Math.min(limits.bottom, rect.bottom - 4);
-            }
-        }
+        const bounds = trigger.getBoundingClientRect();
+        // The menu is portaled to the document, so scroll containers and modal
+        // transforms must not clip it or change its coordinate system.
+        const limits = { left: 8, top: windowLayout.titlebarHeight + 9, right: innerWidth - 8, bottom: innerHeight - 8 };
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d");
         if (context) context.font = getComputedStyle(trigger).font;
         const labelWidth = Math.max(0, ...props.options.map((option) => context?.measureText(option.label).width ?? option.label.length * 7));
-        const width = Math.min(Math.max(bounds.width, Math.min(360 * scale, (labelWidth + 56) * scale)), Math.max(0, limits.right - limits.left));
-        if (menu) menu.style.width = `${width / scale}px`;
-        const below = Math.max(0, limits.bottom - triggerBounds.bottom - 5 * scale);
-        const above = Math.max(0, triggerBounds.top - limits.top - 5 * scale);
+        const width = Math.min(Math.max(bounds.width, Math.min(360, labelWidth + 56)), Math.max(0, limits.right - limits.left));
+        if (menu) menu.style.width = `${width}px`;
+        const below = Math.max(0, limits.bottom - bounds.bottom - 5);
+        const above = Math.max(0, bounds.top - limits.top - 5);
         if (menu && props.scrollable) {
             const contentHeight = scrollViewport?.querySelector('[role="listbox"]')?.scrollHeight ?? props.options.length * 32;
-            menu.style.height = `${Math.min(contentHeight + 8, 280, Math.max(below, above) / scale)}px`;
+            menu.style.height = `${Math.min(contentHeight + 8, 280, Math.max(below, above))}px`;
         } else if (menu) {
             menu.style.removeProperty("height");
         }
-        const height = menu ? menu.offsetHeight * scale : props.options.length * 32 * scale + 8 * scale;
+        const height = menu ? menu.offsetHeight : props.options.length * 32 + 8;
         const useBelow = below >= height || below >= above;
         const left = Math.max(limits.left, Math.min(bounds.left, limits.right - width));
-        const preferredTop = useBelow ? triggerBounds.bottom + 5 * scale : triggerBounds.top - 5 * scale - height;
+        const preferredTop = useBelow ? bounds.bottom + 5 : bounds.top - 5 - height;
         const top = Math.max(limits.top, Math.min(preferredTop, limits.bottom - height));
-        setPlacement({ left: (left - bounds.left) / scale, top: (top - bounds.top) / scale, width: width / scale });
+        setPlacement({ left, top, width });
     };
     const schedule = () => {
         cancelAnimationFrame(frame);
@@ -162,9 +152,10 @@ const Dropdown: Component<Props> = (props) => {
         schedule();
     });
     onMount(() => {
-        const outside = (event: PointerEvent) => { if (open() && !root.contains(event.target as Node)) close(); };
+        const contains = (target: EventTarget | null) => target instanceof Node && (root.contains(target) || Boolean(menu?.contains(target)));
+        const outside = (event: PointerEvent) => { if (open() && !contains(event.target)) close(); };
         const resized = () => { if (open()) schedule(); };
-        const scrolled = (event: Event) => { if (open() && !root.contains(event.target as Node)) close(); };
+        const scrolled = (event: Event) => { if (open() && !contains(event.target)) close(); };
         const hidden = () => { if (root.closest('[inert], [aria-hidden="true"]')) close(); };
         const resizedTrigger = new ResizeObserver(resized);
         resizedTrigger.observe(trigger);
@@ -203,7 +194,7 @@ const Dropdown: Component<Props> = (props) => {
             <span class={styles.label}>{selected()?.label ?? props.placeholder ?? ""}</span>
             <span class={styles.arrow} style={{ transform: open() ? "rotate(180deg)" : undefined }}><Icon name="chevronDown" size={14} /></span>
         </Button>
-        <Show when={presence.present()}>
+        <Show when={presence.present()}><Portal>
             <div class={styles.menu} inert={presence.exiting()} aria-hidden={presence.exiting() ? "true" : undefined}
                 ref={(element) => { menu = element; registerVisibilityAnimation(element, presence.exiting, "dialog"); schedule(); }}
                 style={{ left: `${placement().left}px`, top: `${placement().top}px`, width: `${placement().width}px` }}>
@@ -214,7 +205,7 @@ const Dropdown: Component<Props> = (props) => {
                     </CustomScrollArea>
                 </Show>
             </div>
-        </Show>
+        </Portal></Show>
     </div>;
 };
 

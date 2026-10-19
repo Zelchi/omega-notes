@@ -8,6 +8,12 @@ import { styles } from "./style.css.ts";
 
 const iconUrl = "/icon.png";
 
+// Window controls remain available; app actions wait until the current modal closes.
+const runAppAction = (action: () => void) => {
+	if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+	action();
+};
+
 type Props = {
 	maximized: boolean;
 	vaultName?: string;
@@ -30,7 +36,7 @@ const WindowTitlebar: Component<Props> = (props) => (
 			<span data-tauri-drag-region>{props.t("windowName")}</span>
 		</div>
 		<Show when={props.vaultName}>
-			<Button class={styles.vaultName} type="button" onClick={props.onVaultClick}>
+			<Button class={styles.vaultName} type="button" onClick={() => runAppAction(props.onVaultClick)}>
 				{props.vaultName}
 			</Button>
 		</Show>
@@ -39,11 +45,11 @@ const WindowTitlebar: Component<Props> = (props) => (
 			<div class={styles.controls} onPointerDown={(event) => event.stopPropagation()}>
 				<Show when={props.aiFeaturesEnabled}>
 					<Button class={styles.button} type="button" disabled={!props.vaultName} aria-label={props.t("aiChat")}
-						aria-expanded={props.aiChatOpen} aria-controls="ai-chat-panel" aria-keyshortcuts={props.aiChatShortcut} onClick={props.onAiChat}>
+						aria-expanded={props.aiChatOpen} aria-controls="ai-chat-panel" aria-keyshortcuts={props.aiChatShortcut} onClick={() => runAppAction(props.onAiChat)}>
 						<Icon name="chat" size={15} />
 					</Button>
 				</Show>
-				<Button class={styles.button} type="button" aria-label={props.t("settings")} onClick={props.onSettings}>
+				<Button class={styles.button} type="button" aria-label={props.t("settings")} onClick={() => runAppAction(props.onSettings)}>
 					<Icon name="settings" size={15} />
 				</Button>
 				<Button class={styles.button} type="button" aria-label={props.t("minimize")} onClick={props.onMinimize}>

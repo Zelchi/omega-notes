@@ -13,6 +13,7 @@ import NoteNameDialog from "./ui/note-name-dialog";
 import { useAppController } from "./controller";
 import { styles } from "./style.css.ts";
 import { CheckForUpdatesButton } from "@/features/check-for-updates";
+import { StudyToolbar, StudyDialog } from "@/features/study-notes";
 import { DeleteNoteDialog } from "@/features/delete-note";
 import { AiChatPanel } from "@/features/chat-with-ai";
 
@@ -22,21 +23,21 @@ const App: Component = () => {
 	return (
 		<>
 		<div class={styles.shell} inert={app.updates.installing()} onContextMenu={(event) => event.preventDefault()} data-omega-app-shell>
-			<main class={styles.main} data-omega-main inert={Boolean(app.noteDeletion.target()) || app.noteDeletion.pending()}>
-				<WindowTitlebar
-					maximized={app.windowControls.maximized()}
-					vaultName={app.vaults.activeVault()?.name}
-					t={app.t}
-					onVaultClick={app.vaults.openDialog}
-					onSettings={() => app.setSettingsOpen(true)}
-					onAiChat={() => app.aiChat.setOpen((open) => !open)}
-					aiChatOpen={app.aiChat.open()}
-					aiChatShortcut={formatAiChatShortcut(app.preferences.aiChatShortcut(), true)}
-					aiFeaturesEnabled={app.preferences.aiFeaturesEnabled()}
-					onMinimize={app.windowControls.minimize}
-					onToggleMaximize={() => void app.windowControls.toggleMaximize()}
-					onClose={app.windowControls.close}
-				/>
+			<WindowTitlebar
+				maximized={app.windowControls.maximized()}
+				vaultName={app.vaults.activeVault()?.name}
+				t={app.t}
+				onVaultClick={app.vaults.openDialog}
+				onSettings={() => app.setSettingsOpen(true)}
+				onAiChat={() => app.aiChat.setOpen((open) => !open)}
+				aiChatOpen={app.aiChat.open()}
+				aiChatShortcut={formatAiChatShortcut(app.preferences.aiChatShortcut(), true)}
+				aiFeaturesEnabled={app.preferences.aiFeaturesEnabled()}
+				onMinimize={app.windowControls.minimize}
+				onToggleMaximize={() => void app.windowControls.toggleMaximize()}
+				onClose={app.windowControls.close}
+			/>
+			<main class={styles.main} data-omega-main inert={Boolean(app.noteDeletion.target()) || app.noteDeletion.pending() || app.studies.open()}>
 				<FloatingSearch
 					notes={app.notes.sortedNotes()}
 					mode={app.temporaryReading.mode()}
@@ -118,7 +119,15 @@ const App: Component = () => {
 						</Button>
 					</div>
 				</Show>
+				<StudyToolbar study={app.studies} t={app.t} aiEnabled={app.preferences.aiFeaturesEnabled()}
+					visible={Boolean(app.vaults.activeVaultId()) && !app.notes.loading() && app.navigation.mode() === "view" && !app.navigation.navigating()} />
 			</main>
+			<StudyDialog study={app.studies} t={app.t} notes={app.notes.notes()} referenceTitles={app.notes.referenceTitles()}
+				canGenerate={app.canGenerateStudy()} connected={app.aiChat.status().connected && app.aiChat.status().authenticated}
+				aiBusy={app.aiChat.pending() || app.aiChat.sending() || app.aiChat.chat().busy}
+				chatBusy={app.aiChat.sending() || app.aiChat.chat().busy}
+				onConnect={() => app.aiChat.setOpen(true)} onOpenNote={app.openStudyNote} />
+
 			<DeleteNoteDialog note={app.noteDeletion.target()} pending={app.noteDeletion.pending()} error={app.noteDeletion.error()}
 				t={app.t} onClose={app.noteDeletion.close} onConfirm={app.noteDeletion.confirm} />
 			<SettingsDialog

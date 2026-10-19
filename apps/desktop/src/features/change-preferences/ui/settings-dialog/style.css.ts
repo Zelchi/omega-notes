@@ -1,3 +1,4 @@
+import { windowLayout } from "@/shared/ui/window-layout";
 import { motion } from "@/shared/ui/motion.css";
 import { style } from "@vanilla-extract/css";
 
@@ -19,7 +20,7 @@ export const styles = {
 		...motion.fade,
 		position: "fixed",
 		zIndex: 11,
-		inset: 0,
+		inset: windowLayout.contentInset, overflow: "hidden",
 		display: "grid",
 		placeItems: "center",
 		padding: 20,
@@ -27,6 +28,8 @@ export const styles = {
 	}),
 	dialog: style({
 		...motion.dialog,
+		maxHeight: windowLayout.modalMaxHeight,
+		overflowY: "auto",
 		width: "min(400px, 100%)",
 		padding: "18px 20px 20px",
 		backgroundColor: "var(--surface-panel)",

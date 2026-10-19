@@ -5,6 +5,7 @@ import type { TranslationKey } from "@/shared/lib/i18n";
 import type { AiProvider } from "../ai-provider";
 
 const errorKeys: Record<string, TranslationKey> = {
+    AI_EMPTY_RESPONSE: "aiEmptyResponse", AI_INVALID_MESSAGE: "aiInvalidResponse",
     AI_NOT_FOUND: "aiNotFound", AI_START_FAILED: "aiStartFailed", AI_DISCONNECTED: "aiDisconnected",
     AI_TIMEOUT: "aiTimeout", AI_SIGN_IN_REQUIRED: "aiSignInRequired", AI_VAULT_CHANGED: "aiVaultChanged",
     AI_INVALID_VAULT: "aiVaultChanged", AI_BUSY: "aiBusy", AI_PROTOCOL_ERROR: "aiCliUpdateRequired",
@@ -52,8 +53,8 @@ const cliProvider = (id: "claude" | "opencode", name: string): AiProvider => ({
     models: () => invoke<AiModel[]>("ai_cli_models", { providerId: id }),
     signIn: () => invoke("ai_cli_login", { providerId: id }),
     disconnect: () => invoke("ai_cli_disconnect", { providerId: id }),
-    send: (vaultId, requestId, text, model, effort) => invoke("ai_cli_send", {
-        providerId: id, vaultId, requestId, text, model: model || null, effort: effort || null,
+    send: (vaultId, requestId, text, model, effort, _fast, purpose = "chat") => invoke("ai_cli_send", {
+        providerId: id, vaultId, requestId, text, model: model || null, effort: effort || null, purpose,
     }),
     cancel: (vaultId, _clear, requestId) => invoke("ai_cli_cancel", { providerId: id, vaultId, requestId: requestId ?? null }),
     subscribe: (handler) => listen<AiEvent>("ai-event", (event) => handler(event.payload)),

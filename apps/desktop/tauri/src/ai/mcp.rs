@@ -9,7 +9,7 @@ pub(crate) fn run_if_requested() -> bool {
     if args.get(1).is_none_or(|arg| arg != "--ai-mcp") {
         return false;
     }
-    if args.len() != 4 && args.len() != 6 {
+    if args.len() != 4 && args.len() != 6 && args.len() != 7 {
         return true;
     }
     let directory = Path::new(&args[2]);
@@ -20,6 +20,16 @@ pub(crate) fn run_if_requested() -> bool {
         .get(4)
         .and_then(|port| port.to_str())
         .zip(args.get(5).and_then(|token| token.to_str()));
+    let purpose = match args.get(6) {
+        Some(value) => match value
+            .to_str()
+            .and_then(|value| serde_json::from_value(json!(value)).ok())
+        {
+            Some(value) => value,
+            None => return true,
+        },
+        None => super::task::Purpose::Chat,
+    };
     if tools::resolve_vault_in(directory, vault_id).is_err() {
         return true;
     }
@@ -33,7 +43,7 @@ pub(crate) fn run_if_requested() -> bool {
             break;
         }
         let response = match serde_json::from_str::<Value>(&line) {
-            Ok(message) => reply_with_bridge(directory, vault_id, message, bridge),
+            Ok(message) => reply_with_bridge(directory, vault_id, message, bridge, purpose),
             Err(_) => Some(
                 json!({"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"Invalid JSON"}}),
             ),
@@ -52,7 +62,13 @@ pub(crate) fn run_if_requested() -> bool {
 
 #[cfg(test)]
 fn reply(directory: &Path, vault_id: &str, message: Value) -> Option<Value> {
-    reply_with_bridge(directory, vault_id, message, None)
+    reply_with_bridge(
+        directory,
+        vault_id,
+        message,
+        None,
+        super::task::Purpose::Chat,
+    )
 }
 
 fn reply_with_bridge(
@@ -60,6 +76,7 @@ fn reply_with_bridge(
     vault_id: &str,
     message: Value,
     bridge: Option<(&str, &str)>,
+    purpose: super::task::Purpose,
 ) -> Option<Value> {
     let id = message.get("id")?;
     let params = &message["params"];
@@ -68,7 +85,7 @@ fn reply_with_bridge(
             "serverInfo":{"name":"omega-notes","version":env!("CARGO_PKG_VERSION")}}),
         "ping" => json!({}),
         "tools/list" => {
-            let definitions = tools::definitions();
+            let definitions = tools::definitions_for(purpose);
             let definitions: Vec<_> = definitions.as_array()?.iter().map(|tool|
                 json!({"name":tool["name"],"description":tool["description"],"inputSchema":tool["inputSchema"],
                     "annotations":{"readOnlyHint":!tools::is_mutation(tool["name"].as_str().unwrap_or_default()),"destructiveHint":false,"openWorldHint":false}})).collect();
@@ -76,6 +93,18 @@ fn reply_with_bridge(
         }
         "tools/call" => {
             let result = tools::resolve_vault_in(directory, vault_id).and_then(|notes| {
+                if !tools::allowed_for(purpose, params["name"].as_str().unwrap_or_default()) {
+                    return Err("AI_UNKNOWN_TOOL".into());
+                }
+                if params["name"] == "read_study_context" {
+                    let (port, token) = bridge.ok_or("AI_STUDY_CONTEXT_UNAVAILABLE")?;
+                    return super::link_requests::forward_tool(
+                        port,
+                        token,
+                        "read_study_context",
+                        &params["arguments"],
+                    );
+                }
                 if tools::is_mutation(params["name"].as_str().unwrap_or_default()) {
                     let (port, token) = bridge.ok_or("AI_LINK_BRIDGE_REQUIRED")?;
                     return super::link_requests::forward(port, token, &params["arguments"]);

@@ -1,4 +1,4 @@
-import type { AiEvent, AiModel, AiProviderId, AiStatus } from "@/entities/ai";
+import type { AiEvent, AiModel, AiProviderId, AiStatus, AiTaskPurpose } from "@/entities/ai";
 import type { TranslationKey } from "@/shared/lib/i18n";
 
 export type AiProvider = {
@@ -10,7 +10,7 @@ export type AiProvider = {
     disconnect: () => Promise<void>;
     models: () => Promise<AiModel[]>;
     signIn: () => Promise<void>;
-    send: (vaultId: string, requestId: string, text: string, model?: string, effort?: string, fast?: boolean) => Promise<{ threadId: string }>;
+    send: (vaultId: string, requestId: string, text: string, model?: string, effort?: string, fast?: boolean, purpose?: AiTaskPurpose) => Promise<{ threadId: string }>;
     steer?: (vaultId: string, requestId: string, text: string) => Promise<{ turnId: string }>;
     cancel: (vaultId: string, clear?: boolean, requestId?: string) => Promise<void>;
     subscribe: (handler: (event: AiEvent) => void) => Promise<() => void>;
