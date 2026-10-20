@@ -212,6 +212,7 @@
   "aiSignInFailed": "Não foi possível entrar na conta. Tente novamente.",
   "aiRetrying": "Conexão interrompida. Tentando novamente…",
   "aiFeatures": "Recursos de IA",
+  "aiAntigravityEncodingFailed": "O Antigravity CLI falhou ao processar texto em UTF-8. No Windows, isso pode ser causado pela execução dos hooks ou pela codificação da saída de comandos. Atualize o CLI e tente novamente.",
   "aiAntigravityVersionRequired": "Atualize o Antigravity CLI (agy) para a versão 1.4.2 ou mais recente e tente novamente.",
   "aiAntigravityAuthFailed": "A autenticação do Antigravity falhou ou expirou. Entre novamente pelo Antigravity CLI e tente conectar.",
   "aiAntigravityLimitReached": "O limite de uso do Antigravity foi atingido. Aguarde a renovação da cota ou escolha outro modelo disponível na sua conta.",

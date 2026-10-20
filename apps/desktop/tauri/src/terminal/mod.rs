@@ -11,9 +11,9 @@ use std::{
 };
 use tauri::{ipc::Channel, AppHandle, Manager};
 
-mod antigravity_hooks;
+mod hooks;
 mod conversations;
-pub(crate) use antigravity_hooks::{hook_command, run_if_requested};
+pub(crate) use hooks::{hook_command, run_if_requested};
 mod instructions;
 pub(crate) mod studies;
 
@@ -42,7 +42,7 @@ fn shell_command(app: &AppHandle, arguments: &[String]) -> Result<CommandBuilder
     let (provider, flags) = arguments.split_first().ok_or("TERMINAL_START_FAILED")?;
     let mut resolved = crate::ai::terminal_command(provider)?;
     resolved.extend_from_slice(flags);
-    let invocation = hook_command(&resolved)?;
+    let invocation = hooks::shell_invocation(&resolved)?;
     let mut command = CommandBuilder::new_default_prog();
     #[cfg(unix)]
     {

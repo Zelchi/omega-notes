@@ -227,7 +227,7 @@ pub(super) fn prepare(
     let _guard = STORAGE.lock().map_err(|_| "TERMINAL_FAILED")?;
     let root = root.canonicalize().map_err(|_| "TERMINAL_FAILED")?;
     if provider == TerminalProvider::Antigravity {
-        super::antigravity_hooks::sync(
+        super::hooks::sync(
             &root,
             Some((&crate::app::runtime::app_directory(app)?, vault_id, run_id)),
         )?;

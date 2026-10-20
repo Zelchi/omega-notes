@@ -1,5 +1,8 @@
 import { motion } from "@/shared/ui/motion.css";
-import { style } from "@vanilla-extract/css";
+import { globalStyle, style } from "@vanilla-extract/css";
+
+const messageText = style({ whiteSpace: "pre-wrap", userSelect: "text", WebkitUserSelect: "text", cursor: "text" });
+globalStyle(`${messageText} *`, { userSelect: "text", WebkitUserSelect: "text" });
 
 const button = style({
     display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
@@ -33,7 +36,7 @@ export const styles = {
     message: style({ ...motion.dialog, transformOrigin: "bottom left", "@media": { "(prefers-reduced-motion: reduce)": { animation: "none" } }, margin: 0, padding: "10px 12px", fontSize: 13, lineHeight: 1.65, whiteSpace: "pre-wrap", overflowWrap: "anywhere", borderRadius: 5, border: "1px solid var(--border-soft)" }),
     user: style({ transformOrigin: "bottom right", background: "var(--surface-input)", alignSelf: "flex-end", maxWidth: "90%" }),
     assistant: style({ alignSelf: "stretch" }),
-    messageText: style({ whiteSpace: "pre-wrap" }),
+    messageText,
     textSeparator: style({ margin: "0.75em 0", border: 0, borderTop: "1px solid var(--border-strong)" }),
     noteLink: style({
         color: "inherit", textDecoration: "underline", textUnderlineOffset: 3,

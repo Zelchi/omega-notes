@@ -68,6 +68,43 @@ pub(super) fn configure(
     instructions: &str,
     model: Option<&str>,
 ) -> Result<(), String> {
+    let config = configuration(binary, root, mcp_command, instructions)?;
+    isolate(command, root, &config)?;
+    command.args([
+        "run",
+        "--standalone",
+        "--format",
+        "json",
+        "--agent",
+        "omega",
+    ]);
+    if let Some(model) = model.filter(|model| !model.is_empty()) {
+        command.arg("--model").arg(model);
+    }
+    Ok(())
+}
+
+pub(super) fn configure_server(
+    command: &mut Command,
+    binary: &Executable,
+    root: &Path,
+    mcp_command: Vec<Value>,
+    instructions: &str,
+    port: u16,
+) -> Result<(), String> {
+    let config = configuration(binary, root, mcp_command, instructions)?;
+    isolate(command, root, &config)?;
+    command.args(["serve", "--hostname", "127.0.0.1", "--port"]);
+    command.arg(port.to_string());
+    Ok(())
+}
+
+fn configuration(
+    binary: &Executable,
+    root: &Path,
+    mcp_command: Vec<Value>,
+    instructions: &str,
+) -> Result<Value, String> {
     let permissions = permissions();
     let mut config = json!({"update":"disable","share":"disabled","snapshots":false,
         "plugins":[],"skills":[],"instructions":[],"references":{},"commands":{},
@@ -99,17 +136,5 @@ pub(super) fn configure(
             }
         }
     }
-    isolate(command, root, &config)?;
-    command.args([
-        "run",
-        "--standalone",
-        "--format",
-        "json",
-        "--agent",
-        "omega",
-    ]);
-    if let Some(model) = model.filter(|model| !model.is_empty()) {
-        command.arg("--model").arg(model);
-    }
-    Ok(())
+    Ok(config)
 }

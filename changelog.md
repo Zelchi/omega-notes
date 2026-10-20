@@ -1,5 +1,18 @@
 # Histórico de atualizações
 
+## v0.4.2
+
+### Integrações com IA
+
+- Claude e Antigravity passam a reutilizar um processo de streaming durante a conversa, evitando iniciar o CLI a cada mensagem.
+- OpenCode v2 usa um servidor persistente e eventos em streaming, reutilizando a sessão do Chat entre mensagens.
+- Cancelamento e encerramento das solicitações acompanham as sessões persistentes dos provedores.
+
+### Chat e correções
+
+- Texto das mensagens enviadas e das respostas da IA pode ser selecionado e copiado no Chat.
+- Ajustada a chamada dos hooks do Antigravity no Windows para evitar falhas com executáveis entre aspas e solicitar UTF-8 à shell quando disponível. Falhas de codificação do CLI recebem uma mensagem específica.
+
 ## v0.4.1
 
 ### Correções

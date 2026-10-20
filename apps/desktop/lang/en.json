@@ -212,6 +212,7 @@
   "aiSignInFailed": "Sign-in failed. Try signing in again.",
   "aiRetrying": "Connection interrupted. Trying again…",
   "aiFeatures": "AI Features",
+  "aiAntigravityEncodingFailed": "Antigravity CLI failed to process UTF-8 text. On Windows, this can be caused by hook execution or command output encoding. Update the CLI and try again.",
   "aiAntigravityVersionRequired": "Update Antigravity CLI (agy) to version 1.4.2 or newer and try again.",
   "aiAntigravityAuthFailed": "Antigravity authentication failed or expired. Sign in again through Antigravity CLI and try connecting.",
   "aiAntigravityLimitReached": "Your Antigravity usage limit was reached. Wait for the quota to renew or choose another model available to your account.",

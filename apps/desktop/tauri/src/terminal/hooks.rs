@@ -7,6 +7,13 @@ use std::{
 const KEY: &str = "omega-notes-session";
 
 pub(crate) fn hook_command(arguments: &[String]) -> Result<String, String> {
+    let invocation = shell_invocation(arguments)?;
+    #[cfg(windows)]
+    let invocation = format!("chcp 65001 >nul 2>nul & {invocation}");
+    Ok(invocation)
+}
+
+pub(crate) fn shell_invocation(arguments: &[String]) -> Result<String, String> {
     arguments
         .iter()
         .map(|value| {

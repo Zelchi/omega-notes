@@ -211,6 +211,33 @@ pub(super) fn workspace(
     Ok(folder)
 }
 
+pub(super) fn workspace_for_request(
+    app: &tauri::AppHandle,
+    id: &str,
+    provider: Provider,
+    purpose: super::task::Purpose,
+    request_id: &str,
+) -> Result<PathBuf, String> {
+    let root = workspace(app, id, provider)?;
+    if !purpose.is_study() {
+        return Ok(root);
+    }
+    if uuid::Uuid::parse_str(request_id).is_err() {
+        return Err("AI_INVALID_MESSAGE".into());
+    }
+    let studies = root.join("study-sessions");
+    for component in [studies.clone(), studies.join(request_id)] {
+        match fs::symlink_metadata(&component) {
+            Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                fs::create_dir(&component).map_err(|_| "AI_STORAGE_FAILED")?;
+            }
+            _ => return Err("AI_STORAGE_FAILED".into()),
+        }
+    }
+    Ok(studies.join(request_id))
+}
+
 pub(crate) fn save(
     app: &tauri::AppHandle,
     id: &str,

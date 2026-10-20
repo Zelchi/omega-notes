@@ -61,7 +61,7 @@ fn update(root: &Path, name: &str, body: &str, enabled: bool) -> Result<(), Stri
 
 pub(super) fn sync(root: &Path, enabled: bool) -> Result<(), String> {
     if !enabled {
-        let hooks = super::antigravity_hooks::sync(root, None);
+        let hooks = super::hooks::sync(root, None);
         let agents = update(root, "AGENTS.md", "", false);
         return hooks.and(agents);
     }

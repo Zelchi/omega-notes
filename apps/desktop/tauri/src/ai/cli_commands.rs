@@ -95,12 +95,13 @@ pub(crate) async fn ai_cli_cancel(
     app: AppHandle,
     provider_id: Provider,
     vault_id: String,
+    clear: bool,
     request_id: Option<String>,
 ) -> Result<(), String> {
     blocking(move || {
         if let Ok(client) = client(&app, provider_id) {
             let _operation = client.operation.lock().map_err(|_| "AI_DISCONNECTED")?;
-            client.cancel(&vault_id, request_id.as_deref())?;
+            client.cancel(&vault_id, clear, request_id.as_deref())?;
         }
         Ok(())
     })
