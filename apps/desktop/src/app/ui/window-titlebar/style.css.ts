@@ -5,6 +5,7 @@ export const styles = {
 	bar: style({
 		position: "relative",
 		zIndex: 3,
+		isolation: "isolate",
 		display: "flex",
 		alignItems: "center",
 		flexGrow: 0,
@@ -18,6 +19,8 @@ export const styles = {
 		borderBottomColor: "var(--line)",
 	}),
 	brand: style({
+		position: "relative",
+		zIndex: 1,
 		display: "flex",
 		alignItems: "center",
 		gap: 8,
@@ -32,6 +35,7 @@ export const styles = {
 	}),
 	vaultName: style({
 		position: "absolute",
+		zIndex: 1,
 		left: "50%",
 		maxWidth: "35%",
 		height: 27,
@@ -57,8 +61,8 @@ export const styles = {
 		borderColor: "var(--outline)",
 		borderRadius: 4,
 	}),
-	drag: style({ alignSelf: "stretch", flex: 1, minWidth: 0 }),
-	controls: style({ display: "flex", alignSelf: "stretch", flexGrow: 0, flexShrink: 0, flexBasis: "auto" }),
+	drag: style({ position: "relative", zIndex: 1, alignSelf: "stretch", flex: 1, minWidth: 0 }),
+	controls: style({ position: "relative", zIndex: 1, display: "flex", alignSelf: "stretch", flexGrow: 0, flexShrink: 0, flexBasis: "auto" }),
 	button: style({
 		display: "grid",
 		placeItems: "center",

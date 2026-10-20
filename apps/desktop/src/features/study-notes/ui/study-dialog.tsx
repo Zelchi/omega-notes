@@ -17,10 +17,12 @@ import type { StudiesController } from "../model/controller";
 import { styles } from "./style.css.ts";
 import StudyRequestNotice from "@/features/gambiarra-terminal/ui/study-request-notice";
 import type { CliStudyRequest } from "@/features/gambiarra-terminal/model/study-bridge";
+import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 
 const StudyDialog: Component<{
 	study: StudiesController; notes: StudyNote[]; referenceTitles: Record<string, string>;
 	canGenerate: boolean; aiBusy: boolean; chatBusy: boolean; connected: boolean;
+	normalAiMode: boolean;
 	cliRequest?: CliStudyRequest; onOpenCli?: () => void;
 	t: (key: TranslationKey) => string; onConnect: () => void; onOpenNote: (note: StudyNote) => void;
 }> = props => {
@@ -37,6 +39,29 @@ const StudyDialog: Component<{
 		return `${method} · ${study.contextNote()?.title ?? props.t("studyGeneral")}`;
 	});
 	const generatedAt = (timestamp: number) => new Intl.DateTimeFormat(props.t("locale"), { dateStyle: "medium", timeStyle: "medium" }).format(timestamp);
+	const generationTimeText = () => {
+		const average = study.generationAverage();
+		if (!average) return "--:--";
+		const totalSeconds = Math.max(0, Math.ceil((average - study.generationElapsed()) / 1000));
+		const seconds = String(totalSeconds % 60).padStart(2, "0");
+		const minutes = String(Math.floor(totalSeconds / 60) % 60).padStart(2, "0");
+		const hours = Math.floor(totalSeconds / 3600);
+		return hours ? `${String(hours).padStart(2, "0")}:${minutes}:${seconds}` : `${String(Math.floor(totalSeconds / 60)).padStart(2, "0")}:${seconds}`;
+	};
+	const generationPercent = () => {
+		const average = study.generationAverage();
+		return average ? Math.min(99, Math.floor(study.generationElapsed() / average * 100)) : undefined;
+	};
+	const generationRingSize = 228, generationSvgViewBoxSize = 56;
+	const generationSvgScale = generationRingSize / generationSvgViewBoxSize;
+	const generationRingCenter = 28 * generationSvgScale, generationRingRadius = 25 * generationSvgScale;
+	const generationCircumference = 2 * Math.PI * generationRingRadius;
+	const generationDashArray = () => {
+		const percent = generationPercent();
+		const progress = percent === undefined ? 0.32 : percent / 100;
+		const dash = generationCircumference * progress;
+		return `${dash} ${generationCircumference - dash}`;
+	};
 	let closeButton!: HTMLButtonElement, viewport: HTMLDivElement | undefined;
 	createEffect(on(() => [study.open(), study.kind(), study.stage()] as const, ([open]) => {
 		if (!open) return;
@@ -65,6 +90,7 @@ const StudyDialog: Component<{
 			ref={element => registerVisibilityAnimation(element, presence.exiting, "fade")}>
 			<section class={cx(styles.dialog, (study.kind() === "flashcards" || study.kind() === "cloze" || study.kind() === "correction") && styles.flashcardDialog)} role="dialog" aria-modal="true" aria-labelledby={headingId}
 				ref={element => registerVisibilityAnimation(element, presence.exiting, "dialog")}>
+				<AsciiBackdrop placement="modal" />
 				<header class={styles.header}>
 					<h2 class={styles.title} id={headingId}>{heading()}</h2>
 					<div class={styles.headerActions}>
@@ -138,7 +164,20 @@ const StudyDialog: Component<{
 						</div></Show>
 					</Match>
 					<Match when={study.stage() === "generating"}>
-						<p class={cx(styles.muted, styles.generationStatus)} role="status">{props.t("studyGenerating")}</p>
+						<Show when={props.normalAiMode}>
+							<div class={styles.generationRingCenter}>
+							<svg class={cx(styles.generationRing, generationPercent() === undefined && styles.generationRingIndeterminate)} viewBox={`0 0 ${generationRingSize} ${generationRingSize}`}
+								role="progressbar" aria-label={props.t("studyGenerating")} aria-valuemin="0" aria-valuemax="100"
+								aria-valuenow={generationPercent()} aria-valuetext={generationPercent() === undefined ? props.t("studyGenerationFirst") : props.t("studyGenerationProgress").replace("{percent}", String(generationPercent()))}>
+								<circle class={styles.generationRingTrack} cx={generationRingCenter} cy={generationRingCenter} r={generationRingRadius} />
+								<circle class={styles.generationRingProgress} cx={generationRingCenter} cy={generationRingCenter} r={generationRingRadius} transform={`rotate(-90 ${generationRingCenter} ${generationRingCenter})`}
+									stroke-dasharray={generationDashArray()} />
+								<circle class={styles.generationRingEdge} cx={generationRingCenter} cy={generationRingCenter} r={26 * generationSvgScale} />
+								<circle class={styles.generationRingEdge} cx={generationRingCenter} cy={generationRingCenter} r={24 * generationSvgScale} />
+							</svg>
+							<span class={styles.generationRingTime} aria-hidden="true">{generationTimeText()}</span>
+							</div>
+						</Show>
 					</Match>
 					<Match when={study.stage() === "running"}>
 						<div class={styles.status} aria-live="polite"><span>{study.index() + 1} / {study.sessionIndices().length}</span>

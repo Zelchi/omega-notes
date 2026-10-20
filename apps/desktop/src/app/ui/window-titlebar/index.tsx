@@ -4,6 +4,8 @@ import Icon from "@/shared/ui/icon";
 import { isTauriRuntime } from "@/shared/lib/tauri";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { cx } from "@/shared/lib/classes";
+import type { BackgroundTheme } from "@/features/change-preferences";
+import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import { styles } from "./style.css.ts";
 
 const iconUrl = "/icon.png";
@@ -15,6 +17,8 @@ const runAppAction = (action: () => void) => {
 
 type Props = {
 	maximized: boolean;
+	backgroundTheme: BackgroundTheme;
+	settingsOpen: boolean;
 	vaultName?: string;
 	t: (key: TranslationKey) => string;
 	onVaultClick: () => void;
@@ -29,7 +33,9 @@ type Props = {
 };
 
 const WindowTitlebar: Component<Props> = (props) => (
-	<header class={styles.bar} data-omega-titlebar>
+	<header class={styles.bar} data-omega-titlebar
+		style={{ "background-color": props.backgroundTheme === "default" ? undefined : "transparent" }}>
+		<AsciiBackdrop theme={props.backgroundTheme} />
 		<div class={styles.brand} data-tauri-drag-region>
 			<img class={styles.mark} data-tauri-drag-region src={iconUrl} alt="" />
 			<span data-tauri-drag-region>{props.t("windowName")}</span>
@@ -48,7 +54,8 @@ const WindowTitlebar: Component<Props> = (props) => (
 						<Icon name="chat" size={15} />
 					</Button>
 				</Show>
-				<Button class={styles.button} type="button" aria-label={props.t("settings")} onClick={() => runAppAction(props.onSettings)}>
+				<Button class={styles.button} type="button" aria-label={props.t("settings")} aria-expanded={props.settingsOpen}
+					onClick={() => props.settingsOpen ? props.onSettings() : runAppAction(props.onSettings)}>
 					<Icon name="settings" size={15} />
 				</Button>
 				<Button class={styles.button} type="button" aria-label={props.t("minimize")} onClick={props.onMinimize}>

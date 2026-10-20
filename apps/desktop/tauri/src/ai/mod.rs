@@ -15,6 +15,7 @@ pub(crate) use tools::invalidate_cache as invalidate_tool_cache;
 pub(crate) use mcp::run_if_requested;
 pub(crate) use providers::antigravity_profile_directory;
 pub(crate) use providers::terminal_command;
+pub(crate) use providers::terminal_opencode_session_id;
 
 pub(crate) use state::AiState;
 

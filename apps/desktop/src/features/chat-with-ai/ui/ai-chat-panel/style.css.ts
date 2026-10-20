@@ -13,7 +13,7 @@ const button = style({
 export const styles = {
     button,
     closeButton: style([button, { boxSizing: "border-box", width: 32, height: 32, minWidth: 32, padding: 0, flexShrink: 0 }]),
-    panel: style({ position: "fixed", top: 39, right: 1, bottom: 1, zIndex: 8,
+    panel: style({ position: "fixed", isolation: "isolate", top: 39, right: 1, bottom: 1, zIndex: 8,
         width: "min(420px, calc(100% - 24px))", background: "var(--surface-panel)",
         borderLeft: "1px solid var(--border-strong)", overflow: "hidden",
     }),

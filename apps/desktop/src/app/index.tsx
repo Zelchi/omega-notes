@@ -16,6 +16,7 @@ import { CheckForUpdatesButton } from "@/features/check-for-updates";
 import { StudyToolbar, StudyDialog } from "@/features/study-notes";
 import { DeleteNoteDialog } from "@/features/delete-note";
 import { AiChatPanel } from "@/features/chat-with-ai";
+import { BackgroundThemeProvider } from "@/shared/ui/ascii-backdrop";
 
 const GambiarraPanel = lazy(() => import("@/features/gambiarra-terminal/ui/terminal-panel"));
 
@@ -23,14 +24,17 @@ const App: Component = () => {
 	const app = useAppController();
 
 	return (
+		<BackgroundThemeProvider value={app.preferences.backgroundTheme}>
 		<>
 		<div class={styles.shell} inert={app.updates.installing()} onContextMenu={(event) => event.preventDefault()} data-omega-app-shell>
 			<WindowTitlebar
 				maximized={app.windowControls.maximized()}
+				backgroundTheme={app.preferences.backgroundTheme()}
 				vaultName={app.vaults.activeVault()?.name}
 				t={app.t}
 				onVaultClick={app.vaults.openDialog}
-				onSettings={() => app.setSettingsOpen(true)}
+				onSettings={() => app.setSettingsOpen((open) => !open)}
+				settingsOpen={app.settingsOpen()}
 				onAiChat={() => app.setChatOpen((open) => !open)}
 				aiChatOpen={app.chatOpen()}
 				aiChatShortcut={formatAiChatShortcut(app.preferences.aiChatShortcut(), true)}
@@ -132,6 +136,7 @@ const App: Component = () => {
 			</main>
 			<StudyDialog study={app.studies} t={app.t} notes={app.notes.notes()} referenceTitles={app.notes.referenceTitles()}
 				canGenerate={app.canGenerateStudy()} connected={app.studyConnected()}
+				normalAiMode={!app.preferences.gambiarraEnabled()}
 				aiBusy={app.studyAiBusy()} cliRequest={app.cliStudies.request()}
 				onOpenCli={() => { app.studies.close(); app.setChatOpen(true); }}
 				chatBusy={app.aiChat.sending() || app.aiChat.chat().busy}
@@ -158,6 +163,7 @@ const App: Component = () => {
 				hideCanvasControls={app.preferences.hideCanvasControls()}
 				language={app.preferences.language()}
 				theme={app.preferences.theme()}
+				backgroundTheme={app.preferences.backgroundTheme()}
 				textCursor={app.preferences.textCursor()}
 				t={app.t}
 				onClose={() => app.setSettingsOpen(false)}
@@ -165,6 +171,7 @@ const App: Component = () => {
 				onHideCanvasControlsChange={app.preferences.setHideCanvasControls}
 				onLanguageChange={app.preferences.setLanguage}
 				onThemeChange={app.preferences.setTheme}
+				onBackgroundThemeChange={app.preferences.setBackgroundTheme}
 				onTextCursorChange={app.preferences.setTextCursor}
 			/>
 			<NoteNameDialog
@@ -208,6 +215,7 @@ const App: Component = () => {
 			<div class={styles.updateOverlay} role="alert" aria-live="assertive">{app.t("installingUpdate")}</div>
 		</Show>
 		</>
+		</BackgroundThemeProvider>
 	);
 };
 

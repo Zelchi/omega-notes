@@ -16,6 +16,7 @@ export const styles = {
 	dialog: style({
 		...motion.dialog,
 		position: "relative",
+		isolation: "isolate",
 		display: "grid",
 		width: "min(360px, 100%)",
 		gap: 17,

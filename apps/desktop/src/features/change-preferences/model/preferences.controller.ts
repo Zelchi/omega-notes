@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js";
 import { setSoundVolume as applySoundVolume } from "@/shared/ui/sound";
 import type { Language } from "@/shared/lib/i18n";
-import type { CanvasLayout, TextCursor, Theme } from "./preferences";
+import type { BackgroundTheme, CanvasLayout, TextCursor, Theme } from "./preferences";
 import { isAiChatShortcut, type AiChatShortcut } from "./ai-chat-shortcut";
 import {
 	readAiFeaturesEnabled,
@@ -13,12 +13,14 @@ import {
 	saveAiChatShortcut,
 	saveAiFeaturesEnabled,
 	readCanvasLayout,
+	readBackgroundTheme,
 	readCenterCanvasOnLaunch,
 	readHideCanvasControls,
 	readLanguage,
 	readTheme,
 	readTextCursor,
 	saveCanvasLayout,
+	saveBackgroundTheme,
 	saveCenterCanvasOnLaunch,
 	saveHideCanvasControls,
 	saveLanguage,
@@ -37,6 +39,7 @@ export const usePreferences = () => {
 	const [hideCanvasControls, setHideCanvasControls] = createSignal(readHideCanvasControls());
 	const [language, setLanguage] = createSignal<Language>(readLanguage());
 	const [theme, setTheme] = createSignal<Theme>(readTheme());
+	const [backgroundTheme, setBackgroundTheme] = createSignal<BackgroundTheme>(readBackgroundTheme());
 	const [textCursor, setTextCursor] = createSignal<TextCursor>(readTextCursor());
 
 	document.documentElement.dataset.theme = theme();
@@ -81,6 +84,11 @@ export const usePreferences = () => {
 			setGambiarraEnabled(value); saveGambiarraEnabled(value);
 		},
 		canvasLayout,
+		backgroundTheme,
+		setBackgroundTheme: (value: BackgroundTheme) => {
+			setBackgroundTheme(value);
+			saveBackgroundTheme(value);
+		},
 		setCanvasLayout: (value: CanvasLayout) => { setCanvasLayout(value); saveCanvasLayout(value); },
 		centerCanvasOnLaunch,
 		hideCanvasControls,

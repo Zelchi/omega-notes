@@ -13,6 +13,7 @@ import StudyRequestNotice from "./study-request-notice";
 import type { CliStudyRequest } from "../model/study-bridge";
 import { terminalStyles } from "./style.css.ts";
 import { cx } from "@/shared/lib/classes";
+import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 
 const providers: { id: AiProviderId; name: string }[] = [
     { id: "codex", name: "Codex" }, { id: "claude", name: "Claude" },
@@ -52,6 +53,7 @@ const TerminalPanel: Component<{ open: boolean; vaultId: string | undefined; onC
     return <aside id="ai-chat-panel" class={styles.panel} aria-labelledby="gambiarra-chat-heading"
         style={{ display: presence.present() ? undefined : "none" }} inert={!props.open} aria-hidden={!props.open}
         ref={element => registerVisibilityAnimation(element, presence.exiting, "panel")}>
+        <AsciiBackdrop placement="modal" />
         <div class={cx(styles.body, terminalStyles.body)}>
             <header class={styles.header}>
                 <h2 id="gambiarra-chat-heading" class={styles.title}>{props.t("aiChat")}</h2>

@@ -54,8 +54,7 @@ Modelos gratuitos do catálogo OpenCode podem retornar uma recusa de acesso
 ao plano gratuito. Há relatos desse erro no próprio OpenCode v2 ao usar agentes
 com ferramentas bloqueadas ([relato no repositório oficial](https://github.com/anomalyco/opencode/issues/50081)).
 O Ômega Notes mantém essas restrições para limitar as consultas ao vault ativo.
-Por isso, o seletor da integração OpenCode mostra modelos OpenCode Go e pagos
-do Zen (Console), sem os modelos gratuitos da categoria OpenCode ou de outros
+Por isso, o seletor da integração OpenCode mostra modelos OpenCode Go e do Zen (Console), sem os modelos gratuitos da categoria OpenCode ou de outros
 provedores. A presença de um modelo no catálogo não garante acesso pela conta.
 Sem modelos elegíveis disponíveis, o envio é
 bloqueado com um aviso para conferir a conexão no CLI.

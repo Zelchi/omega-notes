@@ -1,5 +1,11 @@
 # Histórico de atualizações
 
+## v0.4.4
+
+### Estudos com IA
+
+- Cada método de estudo guarda o tempo das últimas dez gerações concluídas no modo normal e usa a média para estimar a duração da próxima geração. O indicador mostra uma contagem regressiva dentro do anel e continua em 00:00 caso a geração ultrapasse a média; sem histórico, o anel gira e o relógio mostra `--:--`.
+
 ## v0.4.3
 
 ### Confiabilidade e armazenamento
@@ -210,7 +216,7 @@
 ### Chat com IA
 
 - Integração com OpenCode atualizada para a CLI v2, corrigindo falhas no envio e o aviso incorreto que pedia atualizar uma CLI já compatível.
-- Seletor de modelos do OpenCode mostra Go e os modelos pagos do Zen, ocultando os modelos gratuitos da categoria OpenCode e a opção Default artificial.
+- Seletor de modelos do OpenCode mostra Go e os modelos do Zen, ocultando os modelos gratuitos da categoria OpenCode e a opção Default artificial.
 - No OpenCode, o topo do Chat mostra apenas o modelo, com CustomScrollbar no dropdown e altura ajustada ao espaço disponível.
 - A tela Conectar IA verifica os CLIs instalados e desativa os provedores não encontrados. No Linux, também confere permissão de execução.
 - Erros distinguem falhas do CLI, autenticação, acesso ao modelo, assinatura Go exigida, saldo, cobrança, limites de uso e problemas de rede ou do serviço. O motivo original é mostrado com credenciais comuns ocultadas, sem ser salvo no histórico. Erros genéricos de acesso não são tratados como prova de assinatura ausente.

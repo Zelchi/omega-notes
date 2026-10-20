@@ -106,7 +106,6 @@ impl Library {
             return Ok(library);
         }
 
-        // Publish only a snapshot whose files stayed unchanged while they were read.
         if current_note_file_signature(directory).as_ref() == Some(&signature) {
             if let Ok(mut cache) = CACHE.lock() {
                 *cache = Some(Cache {

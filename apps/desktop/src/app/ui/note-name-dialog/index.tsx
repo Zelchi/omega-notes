@@ -7,6 +7,7 @@ import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { cx } from "@/shared/lib/classes";
+import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import { styles } from "./style.css.ts";
 
 type Props = {
@@ -54,6 +55,7 @@ const NoteNameDialog: Component<Props> = (props) => {
 					aria-labelledby="note-name-heading"
 					onSubmit={(event) => void props.onSubmit(event)}
 				>
+					<AsciiBackdrop placement="modal" />
 					<ModalError id={errorId} message={displayed().error} />
 					<h2 class={styles.title} id="note-name-heading">
 						{props.t(displayed().mode === "create" ? "newNote" : "renameNote")}

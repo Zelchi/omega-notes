@@ -195,7 +195,14 @@ pub(super) fn stop(child: &mut Child) {
     let _ = child.wait();
 }
 
-pub(super) fn output(mut command: Command) -> Result<(bool, String), String> {
+pub(super) fn output(command: Command) -> Result<(bool, String), String> {
+    output_with_timeout(command, Duration::from_secs(30))
+}
+
+pub(super) fn output_with_timeout(
+    mut command: Command,
+    timeout: Duration,
+) -> Result<(bool, String), String> {
     let mut child = command.spawn().map_err(|_| "AI_START_FAILED")?;
     let stdout = child.stdout.take().ok_or("AI_START_FAILED")?;
     let (send, receive) = mpsc::channel();
@@ -221,7 +228,7 @@ pub(super) fn output(mut command: Command) -> Result<(bool, String), String> {
                 stop(&mut child);
                 return Err("AI_REQUEST_FAILED".into());
             }
-            Ok(None) if started.elapsed() > Duration::from_secs(30) => {
+            Ok(None) if started.elapsed() > timeout => {
                 stop(&mut child);
                 return Err("AI_TIMEOUT".into());
             }

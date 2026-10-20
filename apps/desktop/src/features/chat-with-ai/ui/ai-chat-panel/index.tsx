@@ -14,6 +14,7 @@ import ChatMessageText from "./chat-message-text";
 import TextCaret from "@/shared/ui/text-caret";
 import { useTextareaCaret } from "@/shared/ui/text-caret/use-textarea-caret";
 import CustomScrollArea, { CustomScrollbars, useCustomScrollArea } from "@/shared/ui/custom-scroll-area";
+import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 
 type Props = {
     aiChat: AiChatController;
@@ -198,6 +199,7 @@ const AiChatPanel: Component<Props> = (props) => {
             inert={presence.exiting()} aria-hidden={presence.exiting() ? "true" : undefined}
             ref={(element) => registerVisibilityAnimation(element, presence.exiting, "panel")}
             onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); props.aiChat.setOpen(false); } }}>
+            <AsciiBackdrop placement="modal" />
             <ChatBody {...props} />
         </aside>
     </Show>;

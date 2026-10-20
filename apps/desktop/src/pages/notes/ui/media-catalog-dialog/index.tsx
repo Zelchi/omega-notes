@@ -6,6 +6,7 @@ import { For, mergeProps, Show, type Component } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import { isTauriRuntime } from "@/shared/lib/tauri";
+import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import { useMediaCatalogDialogController, type MediaCatalogDialogProps } from "./controller";
 import { styles } from "./style.css.ts";
 
@@ -39,6 +40,7 @@ const MediaCatalogDialog: Component<MediaCatalogDialogProps> = (props) => {
 						}
 					}}
 				>
+						<AsciiBackdrop placement="modal" />
 					<header class={styles.header}>
 						<h2 class={styles.title} id="media-catalog-title">
 							{props.t("mediaCatalog")}
