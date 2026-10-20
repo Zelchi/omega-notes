@@ -5,7 +5,7 @@ use std::{
     fs,
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{atomic::AtomicU64, atomic::Ordering, Mutex},
     time::SystemTime,
 };
 
@@ -17,6 +17,8 @@ struct Saved {
     id: String,
     #[serde(default)]
     rollout: Option<PathBuf>,
+    #[serde(default)]
+    native_session: bool,
 }
 
 pub(super) struct Conversation {
@@ -30,6 +32,7 @@ pub(super) struct Launch {
     pub arguments: Vec<String>,
     pub conversation: Conversation,
     pub originator: Option<String>,
+    pub record_opencode_fallback: bool,
 }
 
 fn home() -> Option<PathBuf> {
@@ -88,6 +91,30 @@ fn valid_id(provider: TerminalProvider, id: &str) -> bool {
     }
 }
 
+fn read_saved(
+    path: &Path,
+    provider: TerminalProvider,
+    root: &Path,
+) -> Result<Option<Saved>, String> {
+    let saved = match fs::symlink_metadata(path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Ok(_) => {
+            let bytes = small_file(path).ok_or("TERMINAL_FAILED")?;
+            let saved: Saved = serde_json::from_slice(&bytes).map_err(|_| "TERMINAL_FAILED")?;
+            let valid_saved = valid_id(provider, &saved.id)
+                || (provider == TerminalProvider::Opencode
+                    && saved.id.is_empty()
+                    && !saved.native_session);
+            if !valid_saved || (saved.native_session && provider != TerminalProvider::Opencode) {
+                return Err("TERMINAL_FAILED".into());
+            }
+            saved
+        }
+        Err(_) => return Err("TERMINAL_FAILED".into()),
+    };
+    Ok((saved.directory == root).then_some(saved))
+}
+
 fn files(root: &Path, depth: usize, budget: &mut usize, visit: &mut impl FnMut(&Path)) {
     if *budget == 0 || fs::symlink_metadata(root).is_ok_and(|meta| meta.file_type().is_symlink()) {
         return;
@@ -140,6 +167,25 @@ fn recorded_uuid(provider: TerminalProvider, id: &str) -> bool {
 }
 
 impl Conversation {
+    fn forgotten_path(&self) -> PathBuf {
+        self.path.with_extension("forgotten")
+    }
+    fn was_forgotten(&self) -> Result<bool, String> {
+        match fs::symlink_metadata(self.forgotten_path()) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => Ok(true),
+            _ => Err("TERMINAL_FAILED".into()),
+        }
+    }
+    fn clear_forgotten_marker(&self) -> Result<(), String> {
+        match fs::symlink_metadata(self.forgotten_path()) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {
+                fs::remove_file(self.forgotten_path()).map_err(|_| "TERMINAL_FAILED".into())
+            }
+            _ => Err("TERMINAL_FAILED".into()),
+        }
+    }
     fn save(&self, id: &str, rollout: Option<PathBuf>) -> Result<(), String> {
         if !valid_id(self.provider, id) {
             return Err("TERMINAL_FAILED".into());
@@ -153,6 +199,18 @@ impl Conversation {
             directory: self.root.clone(),
             id: id.into(),
             rollout,
+            native_session: self.provider == TerminalProvider::Opencode,
+        })
+        .map_err(|_| "TERMINAL_FAILED")?;
+        crate::storage::atomic_write(&self.path, &data, None).map_err(|_| "TERMINAL_FAILED")?;
+        self.clear_forgotten_marker()
+    }
+    pub(super) fn save_opencode_fallback(&self) -> Result<(), String> {
+        let data = serde_json::to_vec(&Saved {
+            directory: self.root.clone(),
+            id: String::new(),
+            rollout: None,
+            native_session: false,
         })
         .map_err(|_| "TERMINAL_FAILED")?;
         crate::storage::atomic_write(&self.path, &data, None).map_err(|_| "TERMINAL_FAILED".into())
@@ -180,11 +238,25 @@ impl Conversation {
         }
         Some((id.into(), fs::metadata(canonical).ok()?.modified().ok()?))
     }
-    pub fn capture(&self) -> Result<(), String> {
+    pub fn capture_if_current(
+        &self,
+        session_epoch: u64,
+        current_epoch: &AtomicU64,
+    ) -> Result<(), String> {
         let _guard = STORAGE.lock().map_err(|_| "TERMINAL_FAILED")?;
-        self.capture_unlocked()
+        if current_epoch.load(Ordering::SeqCst) == session_epoch {
+            self.capture_unlocked()
+        } else {
+            Ok(())
+        }
     }
     fn capture_unlocked(&self) -> Result<(), String> {
+        if self.provider == TerminalProvider::Opencode {
+            if let Some(id) = crate::ai::terminal_opencode_session_id(&self.root) {
+                self.save(&id, None)?;
+            }
+            return Ok(());
+        }
         if self.provider != TerminalProvider::Codex {
             return Ok(());
         }
@@ -215,6 +287,79 @@ impl Conversation {
         }
         Ok(())
     }
+}
+
+pub(super) fn clear_all(directory_root: &Path, vault_ids: &[String]) -> Result<(), String> {
+    crate::storage::ensure_key_directory(directory_root)?;
+    let key_directory = directory_root.join(".key");
+    match fs::symlink_metadata(&key_directory) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
+        _ => return Err("TERMINAL_FAILED".into()),
+    }
+    let base = key_directory.join("terminal-sessions");
+    let _guard = STORAGE.lock().map_err(|_| "TERMINAL_FAILED")?;
+    match fs::symlink_metadata(&base) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => directory(&base)?,
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
+        _ => return Err("TERMINAL_FAILED".into()),
+    }
+    const SESSION_FILES: [&str; 10] = [
+        "codex.json",
+        "claude.json",
+        "opencode.json",
+        "antigravity.json",
+        "antigravity-run.json",
+        "antigravity.lock",
+        "codex.forgotten",
+        "claude.forgotten",
+        "opencode.forgotten",
+        "antigravity.forgotten",
+    ];
+    let mut vaults: std::collections::BTreeSet<String> = vault_ids
+        .iter()
+        .filter_map(|id| {
+            uuid::Uuid::parse_str(id)
+                .ok()
+                .filter(|uuid| uuid.to_string() == *id)
+                .map(|_| id.clone())
+        })
+        .collect();
+    for entry in fs::read_dir(&base).map_err(|_| "TERMINAL_FAILED")? {
+        let entry = entry.map_err(|_| "TERMINAL_FAILED")?;
+        let path = entry.path();
+        if fs::symlink_metadata(&path)
+            .is_ok_and(|metadata| metadata.is_dir() && !metadata.file_type().is_symlink())
+        {
+            if let Some(id) = entry.file_name().to_str() {
+                if uuid::Uuid::parse_str(id).is_ok_and(|uuid| uuid.to_string() == id) {
+                    vaults.insert(id.to_string());
+                }
+            }
+        }
+    }
+    for vault_id in vaults {
+        let folder = base.join(&vault_id);
+        directory(&folder)?;
+        let entries = fs::read_dir(&folder).map_err(|_| "TERMINAL_FAILED")?;
+        for entry in entries {
+            let entry = entry.map_err(|_| "TERMINAL_FAILED")?;
+            let path = entry.path();
+            if !SESSION_FILES.contains(&entry.file_name().to_string_lossy().as_ref()) {
+                continue;
+            }
+            let metadata = fs::symlink_metadata(&path).map_err(|_| "TERMINAL_FAILED")?;
+            if metadata.is_file() && !metadata.file_type().is_symlink() {
+                fs::remove_file(path).map_err(|_| "TERMINAL_FAILED")?;
+            } else {
+                return Err("TERMINAL_FAILED".into());
+            }
+        }
+        for provider in ["codex", "claude", "opencode", "antigravity"] {
+            let marker = folder.join(format!("{provider}.forgotten"));
+            crate::storage::atomic_write(&marker, b"1", None).map_err(|_| "TERMINAL_FAILED")?;
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn prepare(
@@ -259,21 +404,23 @@ pub(super) fn prepare(
             .map(PathBuf::from)
             .or_else(|| home().map(|home| home.join(".codex"))),
     };
-    conversation.capture_unlocked()?;
-    let saved = match fs::symlink_metadata(&conversation.path) {
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-        Ok(_) => {
-            let bytes = small_file(&conversation.path).ok_or("TERMINAL_FAILED")?;
-            let saved: Saved = serde_json::from_slice(&bytes).map_err(|_| "TERMINAL_FAILED")?;
-            if !valid_id(provider, &saved.id) {
-                return Err("TERMINAL_FAILED".into());
-            }
-            (saved.directory == conversation.root).then_some(saved)
-        }
-        Err(_) => return Err("TERMINAL_FAILED".into()),
+    let forgotten = conversation.was_forgotten()?;
+    let mut saved = if forgotten {
+        None
+    } else {
+        read_saved(&conversation.path, provider, &conversation.root)?
     };
+    if !forgotten
+        && !saved
+            .as_ref()
+            .is_some_and(|saved| provider == TerminalProvider::Opencode && saved.native_session)
+    {
+        conversation.capture_unlocked()?;
+        saved = read_saved(&conversation.path, provider, &conversation.root)?;
+    }
     let mut arguments = vec![provider.command().to_string()];
     let originator = (provider == TerminalProvider::Codex).then(|| conversation.originator.clone());
+    let record_opencode_fallback = provider == TerminalProvider::Opencode && saved.is_none();
     match provider {
         TerminalProvider::Codex => {
             if let Some(saved) = saved.filter(|saved| {
@@ -317,17 +464,20 @@ pub(super) fn prepare(
             )?;
         }
         TerminalProvider::Opencode => {
-            let id = saved
-                .map(|saved| saved.id)
-                .unwrap_or_else(|| format!("ses_{}", uuid::Uuid::new_v4().simple()));
-            conversation.save(&id, None)?;
-            arguments.extend(["--session".into(), id]);
+            if let Some(saved) = saved.as_ref() {
+                if saved.native_session {
+                    arguments.extend(["--session".into(), saved.id.clone()]);
+                } else {
+                    arguments.push("--continue".into());
+                }
+            }
         }
     }
     Ok(Launch {
         arguments,
         conversation,
         originator,
+        record_opencode_fallback,
     })
 }
 

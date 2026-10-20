@@ -31,8 +31,6 @@ impl MediaStream {
         let (sender, receiver) = mpsc::sync_channel::<TcpStream>(MAX_QUEUED_REQUESTS);
         let receiver = Arc::new(Mutex::new(receiver));
 
-        // One thread waits on std's single-consumer receiver; the extra thread keeps
-        // all four request workers available to serve connections concurrently.
         for worker_id in 0..(REQUEST_WORKERS + 1) {
             let receiver = Arc::clone(&receiver);
             let resolve_media_path = Arc::clone(&resolve_media_path);

@@ -6,6 +6,7 @@ import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import Button from "@/shared/ui/button";
 import { cx } from "@/shared/lib/classes";
+import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import { styles } from "./style.css.ts";
 
 type Props = {
@@ -34,6 +35,7 @@ const DeleteNoteDialog: Component<Props> = (props) => {
 			ref={element => registerVisibilityAnimation(element, presence.exiting, "fade")} {...backdrop}>
 			<section class={styles.dialog} role="alertdialog" aria-modal="true" aria-labelledby={headingId} aria-describedby={messageId}
 				ref={element => registerVisibilityAnimation(element, presence.exiting, "dialog")}>
+				<AsciiBackdrop placement="modal" />
 				<h2 class={styles.title} id={headingId}>{props.t("deleteNote")}</h2>
 				<strong class={styles.name}>{title()}</strong>
 				<p class={styles.message} id={messageId}>{props.t("deleteNoteConfirmation")}</p>

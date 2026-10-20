@@ -9,7 +9,7 @@ import { useCloze } from "./cloze.controller";
 import { useAnswerReview } from "./answer-review.controller";
 import { writtenAnswerPrompt } from "./written-feedback";
 import { clozeAnswerPrompt } from "./cloze-feedback";
-import { readStudyPreferences, saveStudyPreferences } from "../api/preferences.repository";
+import { readStudyGenerationTimes, readStudyPreferences, saveStudyGenerationTime, saveStudyPreferences } from "../api/preferences.repository";
 import { useStudyRequestQueue } from "./request-queue";
 
 type PendingProgress = { vaultId: string; deckId: string; kind: StudyKind; progress: StudyProgress };
@@ -23,6 +23,8 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	const [removing, setRemoving] = createSignal(false), [opening, setOpening] = createSignal(false);
 	const [committing, setCommitting] = createSignal(false);
 	const [generationSource, setGenerationSource] = createSignal<{ id: string; title: string }>();
+	const [generationElapsed, setGenerationElapsed] = createSignal(0), [generationAverage, setGenerationAverage] = createSignal<number>();
+	let generationClock: ReturnType<typeof setInterval> | undefined, generationClockOwner: AbortController | undefined, generationClockStartedAt = 0;
 	const loading = () => libraryLoading() || removing() || opening();
 	const [scrollTop, setScrollTop] = createSignal(0);
 	const [error, setError] = createSignal<string>(), [deck, setDeck] = createSignal<StudyDeck>();
@@ -42,7 +44,28 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	onCleanup(() => clearInterval(clockTimer));
 	let revision = 0, disposed = false, pausedTime = seconds() * 1000;
 	const stopTimer = () => { clearInterval(timer); timer = undefined; };
-	const cancelGeneration = () => { abort?.abort(); abort = undefined; };
+	const stopGenerationClock = (owner?: AbortController, reset = false) => {
+		if (owner && owner !== generationClockOwner) return;
+		if (!reset && generationClockOwner) setGenerationElapsed(performance.now() - generationClockStartedAt);
+		clearInterval(generationClock); generationClock = undefined; generationClockOwner = undefined;
+		generationClockStartedAt = 0;
+		if (reset) { setGenerationElapsed(0); setGenerationAverage(undefined); }
+	};
+	const startGenerationClock = (owner: AbortController, startedAt: number, times: number[]) => {
+		stopGenerationClock(undefined, true);
+		generationClockOwner = owner;
+		generationClockStartedAt = startedAt;
+		setGenerationAverage(times.length ? times.reduce((sum, time) => sum + time, 0) / times.length : undefined);
+		setGenerationElapsed(0);
+		generationClock = setInterval(() => {
+			if (generationClockOwner === owner) setGenerationElapsed(performance.now() - startedAt);
+		}, 250);
+	};
+	const cancelGeneration = () => {
+		const owner = abort;
+		owner?.abort(); abort = undefined;
+		stopGenerationClock(owner, true);
+	};
 	const current = createMemo(() => deck()?.items[sessionIndices()[index()]]);
 	const [outcome, setOutcome] = createSignal<StudyOutcome>();
 	const advanceReviewed = () => {
@@ -212,14 +235,19 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		if (!plan.length) { setError(options.t("studyNoContent")); return; }
 		const token = new AbortController(); abort = token;
 		const requestRevision = revision, requestedKind = kind();
+		const normalAiMode = options.normalAiMode();
+		const generationStartedAt = performance.now();
+		if (normalAiMode) startGenerationClock(token, generationStartedAt, readStudyGenerationTimes(requestedKind));
+		else stopGenerationClock(undefined, true);
 		setGenerationSource(source ? { id: source.id, title: source.title } : undefined);
-		setError(undefined); setStage("generating");
+		setError(undefined); setScrollTop(0); setStage("generating");
 		try {
 			const parsed = await generateStudyMaterial(options, {
 				plan, kind: requestedKind, focused: !!source, signal: token.signal,
 				active: () => !disposed && requestRevision === revision && vaultId === options.vaultId(),
 			});
 			if (disposed || token.signal.aborted || requestRevision !== revision || vaultId !== options.vaultId()) return;
+			if (normalAiMode && options.normalAiMode()) saveStudyGenerationTime(requestedKind, performance.now() - generationStartedAt);
 			const value: StudyDeck = { ...parsed, id: crypto.randomUUID(), kind: requestedKind, createdAt: Date.now(), sourceNoteId: source?.id };
 			setCommitting(true);
 			if (!(await library.save(vaultId, value, token.signal))) return;
@@ -234,10 +262,14 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 					: code === "STUDY_LIMIT_REACHED" ? options.t("studyLimitReached") : code === "STUDY_STORAGE_FAILED" ? options.t("studyStorageFailed") : code === "STUDY_INVALID_RESPONSE" || failure instanceof SyntaxError
 						? options.t("studyInvalidResponse") : options.describeAiError(failure));
 			setStage("setup");
-		} finally { if (abort === token) { abort = undefined; setCommitting(false); } }
+		} finally {
+			stopGenerationClock(token);
+			if (abort === token) { abort = undefined; setCommitting(false); }
+		}
 	};
 	return {
-		open, review, cloze, correction, outcome, contextNote, kind, stage, deck, current, saved, count, seconds, lives, loading, storageFailed, error: () => error() ?? library.error(),
+		open, review, cloze, correction, outcome, contextNote, kind, stage, deck, current, saved, count, seconds, lives, loading, storageFailed,
+		generationElapsed, generationAverage, error: () => error() ?? library.error(),
 		index, revealed, answered, choice, correct, remainingLives, remainingTime, endReason, scrollTop, setScrollTop,
 		close, generate, start, answer, next, sessionIndices, dueCount, errorCount, savingProgress, progressFailed,
 		flushSave: library.flushSave,
@@ -346,6 +378,8 @@ export const useStudies = (options: StudyEnvironment): StudiesController => {
 		lives: () => current().lives(),
 		loading: () => current().loading(),
 		storageFailed: () => current().storageFailed(),
+		generationElapsed: () => current().generationElapsed(),
+		generationAverage: () => current().generationAverage(),
 		error: () => current().error(),
 		index: () => current().index(),
 		revealed: () => current().revealed(),

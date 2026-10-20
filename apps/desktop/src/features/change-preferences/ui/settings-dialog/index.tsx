@@ -4,7 +4,7 @@ import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { Show, type Component, type JSX } from "solid-js";
 import type { Language, TranslationKey } from "@/shared/lib/i18n";
-import type { CanvasLayout, TextCursor, Theme } from "../../model/preferences";
+import type { BackgroundTheme, CanvasLayout, TextCursor, Theme } from "../../model/preferences";
 import Icon from "@/shared/ui/icon";
 import Dropdown from "@/shared/ui/dropdown";
 import AiChatShortcutInput from "./ai-chat-shortcut-input";
@@ -12,6 +12,7 @@ import AiFeaturesToggle from "./ai-features-toggle";
 import type { AiChatShortcut } from "../../model/ai-chat-shortcut";
 import { styles } from "./style.css.ts";
 import BlockSlider from "@/shared/ui/block-slider";
+import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 
 type Props = {
 	open: boolean;
@@ -29,6 +30,7 @@ type Props = {
 	hideCanvasControls: boolean;
 	language: Language;
 	theme: Theme;
+	backgroundTheme: BackgroundTheme;
 	textCursor: TextCursor;
 	soundVolume: number;
 	onSoundVolumeChange: (value: number) => void;
@@ -39,6 +41,7 @@ type Props = {
 	onHideCanvasControlsChange: (value: boolean) => void;
 	onLanguageChange: (value: Language) => void;
 	onThemeChange: (value: Theme) => void;
+	onBackgroundThemeChange: (value: BackgroundTheme) => void;
 	onTextCursorChange: (value: TextCursor) => void;
 };
 
@@ -52,6 +55,7 @@ const SettingsDialog: Component<Props> = (props) => {
 			{...backdropDismiss}
 		>
 			<section class={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="settings-heading">
+				<AsciiBackdrop placement="modal" />
 				<header class={styles.header}>
 					<h2 class={styles.title} id="settings-heading">
 						{props.t("settings")}
@@ -108,6 +112,17 @@ const SettingsDialog: Component<Props> = (props) => {
 						style={{ width: "160px", "max-width": "55%", "flex-shrink": 0 }} value={props.theme}
 						options={[{ value: "dark", label: props.t("themeDark") }, { value: "light", label: props.t("themeLight") }]}
 						onChange={(value) => props.onThemeChange(value as Theme)} />
+				</div>
+				<div class={styles.option}>
+					<label for="settings-backgroundTheme">{props.t("backgroundStyle")}</label>
+					<Dropdown id="settings-backgroundTheme" ariaLabel={props.t("backgroundStyle")}
+						style={{ width: "160px", "max-width": "55%", "flex-shrink": 0 }} value={props.backgroundTheme}
+						options={[
+							{ value: "default", label: props.t("backgroundStyleDefault") },
+							{ value: "constellation", label: props.t("backgroundStyleConstellation") },
+							{ value: "matrix", label: props.t("backgroundStyleMatrix") },
+						]}
+						onChange={(value) => props.onBackgroundThemeChange(value as BackgroundTheme)} />
 				</div>
 				<div class={styles.option}>
 					<label for="settings-textCursor">{props.t("textCursor")}</label>

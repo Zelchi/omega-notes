@@ -14,7 +14,7 @@ export const styles = {
 		height: "100%",
 		minHeight: 0,
 		overflow: "hidden",
-		backgroundColor: "var(--canvas)",
+		backgroundColor: "transparent",
 		borderWidth: 1,
 		borderStyle: "solid",
 		borderColor: "var(--line)",
@@ -22,6 +22,7 @@ export const styles = {
 	main: style({
 		flex: "1 1 0",
 		position: "relative",
+		zIndex: 1,
 		display: "flex",
 		flexDirection: "column",
 		width: "100%",

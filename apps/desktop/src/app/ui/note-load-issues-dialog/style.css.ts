@@ -15,6 +15,8 @@ export const styles = {
 	}),
 	dialog: style({
 		...motion.dialog,
+		position: "relative",
+		isolation: "isolate",
 		width: "min(520px, 100%)",
 		maxHeight: "min(76vh, 680px)",
 		overflowY: "auto",

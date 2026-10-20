@@ -126,6 +126,7 @@ struct Session {
     id: String,
     vault_id: String,
     notes_directory: PathBuf,
+    forget_epoch: u64,
     master: Mutex<Option<Box<dyn MasterPty + Send>>>,
     writer: Mutex<Option<Box<dyn Write + Send>>>,
     killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
@@ -174,6 +175,7 @@ pub(crate) struct TerminalState {
     session: Mutex<Option<Arc<Session>>>,
     operation: Mutex<()>,
     revision: AtomicU64,
+    forget_epoch: AtomicU64,
     instructions: Mutex<Option<PathBuf>>,
     study_request: Mutex<Option<studies::Request>>,
 }
@@ -199,7 +201,19 @@ pub(crate) async fn terminal_sync_instructions(
             .transpose()?;
         let mut previous = state.instructions.lock().map_err(|_| "TERMINAL_FAILED")?;
         if !enabled || previous.as_ref() != root.as_ref() {
-            state.shutdown();
+            if enabled {
+                state.shutdown();
+            } else {
+                state.shutdown_and_forget_conversations();
+                let app_directory = crate::app::runtime::app_directory(&app)?;
+                let registry = crate::vaults::read_vault_registry(&app_directory)?;
+                let vault_ids = registry
+                    .vaults
+                    .iter()
+                    .map(|vault| vault.id.clone())
+                    .collect::<Vec<_>>();
+                conversations::clear_all(&app_directory, &vault_ids)?;
+            }
             studies::clear(&state)?;
         }
         if previous.as_ref() != root.as_ref() || !enabled {
@@ -221,6 +235,13 @@ pub(crate) async fn terminal_sync_instructions(
 }
 impl TerminalState {
     pub(crate) fn shutdown(&self) {
+        self.stop();
+    }
+    fn shutdown_and_forget_conversations(&self) {
+        self.forget_epoch.fetch_add(1, Ordering::SeqCst);
+        self.stop();
+    }
+    fn stop(&self) {
         self.revision.fetch_add(1, Ordering::SeqCst);
         if let Ok(mut slot) = self.session.lock() {
             if let Some(session) = slot.take() {
@@ -350,11 +371,19 @@ pub(crate) async fn terminal_open(
             .slave
             .spawn_command(command)
             .map_err(|_| "TERMINAL_START_FAILED")?;
+        if launch.record_opencode_fallback {
+            if let Err(error) = launch.conversation.save_opencode_fallback() {
+                let _ = child.clone_killer().kill();
+                let _ = child.wait();
+                return Err(error);
+            }
+        }
         drop(pair.slave);
         let current = Arc::new(Session {
             id: session_id,
             vault_id,
             notes_directory: directory,
+            forget_epoch: state.forget_epoch.load(Ordering::SeqCst),
             master: Mutex::new(Some(pair.master)),
             writer: Mutex::new(Some(writer)),
             killer: Mutex::new(child.clone_killer()),
@@ -376,12 +405,18 @@ pub(crate) async fn terminal_open(
         }
         let (exit_send, exit_receive) = std::sync::mpsc::channel();
         let reaped = current.clone();
+        let capture_app = app.clone();
         let lifecycle_output = output.clone();
         std::thread::spawn(move || {
             let code = child.wait().ok().map(|status| status.exit_code());
             reaped.child_exited.store(true, Ordering::SeqCst);
             let interrupted = reaped.stopped.load(Ordering::SeqCst);
-            if launch.conversation.capture().is_err() {
+            let state = capture_app.state::<TerminalState>();
+            if launch
+                .conversation
+                .capture_if_current(reaped.forget_epoch, &state.forget_epoch)
+                .is_err()
+            {
                 let _ = lifecycle_output.send(TerminalEvent::Error);
             }
             if !interrupted {

@@ -6,6 +6,7 @@ import { For, Show, type Component } from "solid-js";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { NoteLoadIssue } from "@/entities/note";
 import Icon from "@/shared/ui/icon";
+import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import { useNoteLoadIssuesDialogController } from "./controller";
 import { styles } from "./style.css.ts";
 
@@ -27,6 +28,7 @@ const NoteLoadIssuesDialog: Component<Props> = (props) => {
 				{...backdropDismiss}
 			>
 				<section class={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="load-issues-heading">
+					<AsciiBackdrop placement="modal" />
 					<header class={styles.header}>
 						<h2 class={styles.title} id="load-issues-heading">
 							{props.t("noteLoadIssues")}

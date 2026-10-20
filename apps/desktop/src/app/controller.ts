@@ -74,7 +74,7 @@ export const useAppController = () => {
 	const studies = useStudies({
 		vaultId: vaults.activeVaultId, notes: notes.notes,
 		currentNote: () => navigation.route() === "note" ? navigation.selectedNote() : undefined,
-		aiEnabled: chatAvailable, canGenerate: canGenerateStudy,
+		aiEnabled: chatAvailable, normalAiMode: () => !preferences.gambiarraEnabled(), canGenerate: canGenerateStudy,
 		aiConnected: studyConnected,
 		onConnect: () => aiChat.setOpen(true),
 		requestText: (...args) => preferences.gambiarraEnabled() ? cliStudies.requestText(...args) : aiChat.requestText(...args),

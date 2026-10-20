@@ -6,6 +6,7 @@ import { For, Show, createEffect, createSignal, type Component } from "solid-js"
 import Icon from "@/shared/ui/icon";
 import ModalError from "@/shared/ui/modal-error";
 import { cx } from "@/shared/lib/classes";
+import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { Vault, VaultDetails } from "@/entities/vault";
 import type { VaultErrorAction } from "../../model/vault-error";
@@ -137,6 +138,7 @@ const VaultDialog: Component<Props> = (props) => {
 					aria-modal="true"
 					aria-label={props.t("vault")}
 				>
+					<AsciiBackdrop placement="modal" />
 					<Show when={props.errorAction === "create" || props.errorAction === "rename" || props.errorAction === "load"}>
 						<ModalError message={props.error ? props.t(props.error) : undefined}
 							alignTo={() => props.errorAction === "rename" ? renameInput() : createInputRow()} />
@@ -432,6 +434,7 @@ const VaultDialog: Component<Props> = (props) => {
 						{...deleteBackdropDismiss}
 					>
 						<section class={styles.confirmDialog} role="alertdialog" aria-modal="true">
+							<AsciiBackdrop placement="modal" />
 							<h3 class={styles.title}>{props.t("delete")}</h3>
 							<strong class={styles.deleteName}>{vault().name}</strong>
 							<p class={styles.confirmText}>{props.t("deleteVaultConfirmation")}</p>

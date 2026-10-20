@@ -16,6 +16,7 @@ export const styles = {
 	dialog: style({
 		...motion.dialog,
 		position: "relative",
+		isolation: "isolate",
 		display: "grid",
 		width: "min(360px, 100%)",
 		gap: 15,
@@ -29,6 +30,7 @@ export const styles = {
 	dialogWithVaults: style({
 		...motion.dialog,
 		position: "relative",
+		isolation: "isolate",
 		display: "grid",
 		width: "min(720px, 100%)",
 		height: "min(580px, calc(100dvh - 80px))",
@@ -270,6 +272,8 @@ export const styles = {
 	}),
 	confirmDialog: style({
 		...motion.dialog,
+		position: "relative",
+		isolation: "isolate",
 		display: "grid",
 		width: "min(360px, 100%)",
 		gap: 11,

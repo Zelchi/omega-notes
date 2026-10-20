@@ -1,10 +1,11 @@
-import type { CanvasLayout, NoteMode, TextCursor, Theme } from "../model/preferences";
+import type { BackgroundTheme, CanvasLayout, NoteMode, TextCursor, Theme } from "../model/preferences";
 import type { Language } from "@/shared/lib/i18n";
 import { DEFAULT_AI_CHAT_SHORTCUT, isAiChatShortcut, type AiChatShortcut } from "../model/ai-chat-shortcut";
 
 const CENTER_CANVAS_KEY = "omega-notes.settings.center-canvas-on-launch";
 const HIDE_CANVAS_CONTROLS_KEY = "omega-notes.settings.hide-zoom-controls";
 const THEME_KEY = "omega-notes.settings.theme";
+const BACKGROUND_THEME_KEY = "omega-notes.settings.background-theme";
 const LANGUAGE_KEY = "omega-notes.settings.language";
 const TEXT_CURSOR_KEY = "omega-notes.settings.text-cursor";
 const AI_FEATURES_KEY = "omega-notes.settings.ai-features-enabled";
@@ -106,6 +107,23 @@ export const readTheme = (): Theme => {
 export const saveTheme = (value: Theme): void => {
 	try {
 		localStorage.setItem(THEME_KEY, value);
+	} catch (error) {
+		console.error(error);
+	}
+};
+
+export const readBackgroundTheme = (): BackgroundTheme => {
+	try {
+		const value = localStorage.getItem(BACKGROUND_THEME_KEY);
+		return value === "constellation" || value === "matrix" ? value : "default";
+	} catch {
+		return "default";
+	}
+};
+
+export const saveBackgroundTheme = (value: BackgroundTheme): void => {
+	try {
+		localStorage.setItem(BACKGROUND_THEME_KEY, value);
 	} catch (error) {
 		console.error(error);
 	}

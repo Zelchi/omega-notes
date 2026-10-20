@@ -1,6 +1,10 @@
 import { windowLayout } from "@/shared/ui/window-layout";
-import { style } from "@vanilla-extract/css";
+import { keyframes, style } from "@vanilla-extract/css";
 import { motion } from "@/shared/ui/motion.css";
+const generationRingSpin = keyframes({
+	"0%": { transform: "rotate(0deg)" },
+	"100%": { transform: "rotate(360deg)" },
+});
 export const styles = {
 	studySubbar: style({ ...motion.bar, position: "absolute", bottom: "calc(100% + 6px)", left: "50%", width: "max-content", maxWidth: "calc(100vw - 32px)", transform: "translateX(-50%)" }),
 	writtenBackdrop: style({ backgroundColor: "var(--surface-panel)" }),
@@ -15,7 +19,7 @@ export const styles = {
 	reportDivider: style({ width: "100%", margin: "8px 0", border: 0, borderTop: "1px dashed var(--border-strong)" }),
 	writtenFinding: style({ display: "grid", gap: 6 }),
 	backdrop: style({ ...motion.fade, position: "fixed", inset: windowLayout.contentInset, overflow: "hidden", zIndex: 24, display: "grid", placeItems: "center", backgroundColor: "var(--overlay)", padding: 20 }),
-	dialog: style({ ...motion.dialog, width: "min(620px, 100%)", maxHeight: windowLayout.modalMaxHeight, display: "flex", flexDirection: "column", gap: 18, padding: 20, border: "1px solid var(--border-strong)", borderRadius: 7, backgroundColor: "var(--surface-panel)", color: "var(--ink)" }),
+	dialog: style({ ...motion.dialog, position: "relative", isolation: "isolate", width: "min(620px, 100%)", maxHeight: windowLayout.modalMaxHeight, display: "flex", flexDirection: "column", gap: 18, padding: 20, border: "1px solid var(--border-strong)", borderRadius: 7, backgroundColor: "var(--surface-panel)", color: "var(--ink)" }),
 	flashcardDialog: style({ boxSizing: "border-box", height: `min(800px, ${windowLayout.modalMaxHeight})`, minHeight: 0, overflow: "hidden" }),
 	headerActions: style({ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }),
 	header: style({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderBottom: "1px solid var(--border-soft)", paddingBottom: 14 }),
@@ -26,7 +30,13 @@ export const styles = {
 	flashcardNavigation: style({ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, borderTop: "1px solid var(--border-soft)", paddingTop: 14 }),
 	body: style({ display: "grid", gap: 18, paddingRight: 12 }),
 	muted: style({ margin: 0, color: "var(--text-control)", fontSize: 13, lineHeight: 1.6, overflowWrap: "anywhere" }),
-	generationStatus: style({ textAlign: "center" }),
+	generationRingCenter: style({ position: "absolute", inset: 0, zIndex: 1, display: "grid", placeItems: "center", pointerEvents: "none" }),
+	generationRing: style({ width: 228, height: 228, overflow: "visible" }),
+	generationRingIndeterminate: style({ transformOrigin: "center", animation: `${generationRingSpin} 1.2s linear infinite` }),
+	generationRingTrack: style({ fill: "none", stroke: "var(--surface-controls)", strokeWidth: 8 }),
+	generationRingProgress: style({ fill: "none", stroke: "var(--ink)", strokeWidth: 8, strokeLinecap: "round", transition: "stroke-dasharray 250ms linear" }),
+	generationRingEdge: style({ fill: "none", stroke: "var(--border-strong)", strokeWidth: 1 }),
+	generationRingTime: style({ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "var(--ink)", fontFamily: "monospace", fontSize: 24, fontVariantNumeric: "tabular-nums", pointerEvents: "none" }),
 	settings: style({ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }),
 	label: style({ display: "grid", alignContent: "start", gap: 8, fontSize: 12, color: "var(--text-control)" }),
 	button: style({ minHeight: 36, border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-controls)", color: "var(--ink)", padding: "8px 12px", fontSize: 13, cursor: "pointer", selectors: { "&:disabled": { opacity: 0.45, cursor: "default" }, "&:hover:not(:disabled)": { backgroundColor: "var(--surface-hover)" } } }),

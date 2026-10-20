@@ -8,6 +8,7 @@ export type StudyEnvironment = {
 	notes: Accessor<StudyNote[]>;
 	currentNote: Accessor<StudyNote | undefined>;
 	aiEnabled: Accessor<boolean>;
+	normalAiMode: Accessor<boolean>;
 	aiConnected: Accessor<boolean>;
 	onConnect: () => void;
 	canGenerate: Accessor<boolean>;

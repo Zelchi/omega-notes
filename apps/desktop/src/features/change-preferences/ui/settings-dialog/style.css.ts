@@ -28,6 +28,8 @@ export const styles = {
 	}),
 	dialog: style({
 		...motion.dialog,
+		position: "relative",
+		isolation: "isolate",
 		maxHeight: windowLayout.modalMaxHeight,
 		overflowY: "auto",
 		width: "min(400px, 100%)",
@@ -42,7 +44,9 @@ export const styles = {
 		display: "flex",
 		alignItems: "center",
 		justifyContent: "space-between",
-		marginBottom: 20,
+		marginBottom: 12,
+		paddingBottom: 12,
+		borderBottom: "1px solid var(--border-soft)",
 	}),
 	title: style({ margin: 0, fontSize: 15, fontWeight: 600 }),
 	close: style({

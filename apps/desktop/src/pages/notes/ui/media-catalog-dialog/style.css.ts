@@ -15,6 +15,8 @@ export const styles = {
 	}),
 	dialog: style({
 		...motion.dialog,
+		position: "relative",
+		isolation: "isolate",
 		display: "flex",
 		flexDirection: "column",
 		width: "min(760px, 100%)",
