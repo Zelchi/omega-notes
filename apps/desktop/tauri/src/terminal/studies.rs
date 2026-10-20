@@ -93,7 +93,7 @@ pub(crate) async fn terminal_create_study_request(
         let state = app.state::<TerminalState>();
         let _operation = state.operation.lock().map_err(|_| "AI_REQUEST_FAILED")?;
         let notes = crate::ai::terminal_vault_directory(&app, &vault_id)?;
-        let root = notes.parent().ok_or("AI_VAULT_CHANGED")?;
+        let root = notes.parent().ok_or("AI_VAULT_PATH_UNAVAILABLE")?;
         if state.instructions.lock().map_err(|_| "AI_REQUEST_FAILED")?.as_deref() != Some(root) {
             return Err("AI_DISCONNECTED".into());
         }
@@ -159,7 +159,7 @@ pub(crate) async fn terminal_read_study_response(
             .filter(|value| value.id == request_id && value.vault_id == vault_id)
             .ok_or("AI_CANCELLED")?;
         if crate::ai::terminal_vault_directory(&app, &vault_id)? != request.notes {
-            return Err("AI_VAULT_CHANGED".into());
+            return Err("AI_STUDY_VAULT_MISMATCH".into());
         }
         if request.created.elapsed() > Duration::from_secs(540) {
             return Err("AI_TIMEOUT".into());

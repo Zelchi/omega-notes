@@ -199,7 +199,7 @@ pub(crate) async fn prepare_study_context(
             }
         }
         if tools::resolve_vault(&app, &vault_id)? != directory {
-            return Err("AI_VAULT_CHANGED".into());
+            return Err("AI_STUDY_PREPARATION_VAULT_CHANGED".into());
         }
         let mut registry = REGISTRY.lock().map_err(|_| "AI_REQUEST_FAILED")?;
         if registry.generation != generation {
@@ -243,7 +243,7 @@ pub(crate) async fn validate_study_context(
             (context, registry.generation)
         };
         if context.directory != directory {
-            return Err("AI_VAULT_CHANGED".into());
+            return Err("AI_STUDY_VAULT_MISMATCH".into());
         }
         for note in &context.notes {
             let current = source(&directory, &note.id, generation).map_err(|error| {
@@ -258,7 +258,7 @@ pub(crate) async fn validate_study_context(
             }
         }
         if tools::resolve_vault(&app, &vault_id)? != directory {
-            return Err("AI_VAULT_CHANGED".into());
+            return Err("AI_STUDY_VALIDATION_VAULT_CHANGED".into());
         }
         let registry = REGISTRY.lock().map_err(|_| "AI_REQUEST_FAILED")?;
         if registry.generation != generation
@@ -301,7 +301,7 @@ pub(super) fn read(directory: &Path, request_id: &str, args: &Value) -> Result<V
             .ok_or("AI_STUDY_CONTEXT_UNAVAILABLE")?
     };
     if context.directory != directory {
-        return Err("AI_VAULT_CHANGED".into());
+        return Err("AI_STUDY_VAULT_MISMATCH".into());
     }
     let offset = args["offset"].as_u64().unwrap_or(0).min(usize::MAX as u64) as usize;
     if let Some(id) = args["sourceId"].as_str() {

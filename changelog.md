@@ -1,5 +1,14 @@
 # Histórico de atualizações
 
+## v0.4.1
+
+### Correções
+
+- Normalizados os caminhos das pastas de notas e backups ao ativar o vault. No Windows, caminhos comuns e caminhos com prefixo estendido deixam de ser interpretados como vaults diferentes, corrigindo o bloqueio de carregamento e salvamento que também podia impedir apagar notas.
+- Erros de vault passam a identificar a causa e a operação: vault não ativo ou ausente, pasta inacessível, caminho inválido, carregamento, salvamento, envio de mensagens, preparação e validação de estudos, aplicação e desfazer de links.
+- Contextos de estudo e conversas vinculados a outra pasta são distinguidos de uma mudança do vault ativo ou da conexão com a IA.
+- Mensagens em português e inglês na conexão com IA, no terminal do Gambiarra e no aviso de carregamento das notas.
+
 ## v0.4.0
 
 ### Integração com IA

@@ -45,6 +45,18 @@ pub(crate) fn set_active_vault(
     directories: Option<(PathBuf, PathBuf)>,
     failure_message: &str,
 ) -> Result<(), String> {
+    let directories = directories
+        .map(|(notes, backups)| -> Result<_, String> {
+            Ok((
+                notes
+                    .canonicalize()
+                    .map_err(|_| failure_message.to_string())?,
+                backups
+                    .canonicalize()
+                    .map_err(|_| failure_message.to_string())?,
+            ))
+        })
+        .transpose()?;
     let state = app.state::<ActiveVault>();
     let mut active = state.0.lock().map_err(|_| failure_message.to_string())?;
     let changed =

@@ -456,7 +456,7 @@ impl Client {
             )
         };
         if directory != bound_directory {
-            return Err("AI_VAULT_CHANGED".into());
+            return Err("AI_CONVERSATION_VAULT_MISMATCH".into());
         }
         let result = self.request(
             "turn/steer",
@@ -559,7 +559,7 @@ impl Client {
                     }
                     let current = tools::resolve_vault(&self.app, &session.vault_id)?;
                     if current != session.directory {
-                        return Err("AI_VAULT_CHANGED".into());
+                        return Err("AI_CONVERSATION_VAULT_MISMATCH".into());
                     }
                     let vault_id = session.vault_id.clone();
                     let request_id = session.request_id.clone();
