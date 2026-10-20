@@ -81,7 +81,7 @@ export const useAiChat = (options: {
     const preparingRequests = new Set<string>();
     const describe = (failure: unknown) => {
         const { message: code, detail } = readAiFailure(failure);
-        const message = options.t(code === "AI_SAVE_FAILED" ? "saveFailed" : code === "AI_STORAGE_FAILED" ? "aiHistorySaveFailed" : code === "AI_HISTORY_READ_FAILED" ? "aiHistoryReadFailed" : code === "AI_VAULT_CHANGED" ? "aiVaultChanged" : provider.errorKey(code));
+        const message = options.t(code === "AI_SAVE_FAILED" ? "saveFailed" : code === "AI_STORAGE_FAILED" ? "aiHistorySaveFailed" : code === "AI_HISTORY_READ_FAILED" ? "aiHistoryReadFailed" : provider.errorKey(code));
         return [message, detail].filter(Boolean).join(" ");
     };
     const loaded = new Set<string>();
@@ -289,7 +289,7 @@ export const useAiChat = (options: {
                     });
                 } catch (failure) {
                     error = String(failure);
-                    if (!disposed && request.vaultId === options.vaultId() && error !== "AI_CANCELLED") setError(options.t(error === "AI_NOTE_CHANGED" ? "aiNoteChanged" : "saveFailed"));
+                    if (!disposed && request.vaultId === options.vaultId() && error !== "AI_CANCELLED") setError(error === "AI_NOTE_CHANGED" ? options.t("aiNoteChanged") : describe(error));
                 }
                 await completeLinkRequest(request.ticket, error).catch(console.error);
             })();
@@ -377,7 +377,7 @@ export const useAiChat = (options: {
         const previous = previousVault;
         previousVault = id;
         if (previous && previous !== id) {
-            textRequest?.cancel("AI_VAULT_CHANGED");
+            textRequest?.cancel("AI_STUDY_VAULT_CHANGED");
             const requestId = untrack(() => chats()[previous]?.requestId);
             if (requestId) {
                 if (preparingRequests.has(requestId)) cancelledRequests.add(requestId);
@@ -480,7 +480,7 @@ export const useAiChat = (options: {
             if (!(await options.beforeSend())) throw "AI_SAVE_FAILED";
             if (disposed || revision !== connectionRevision) return;
             if (cancelledRequests.has(activeRequestId ?? requestId)) return;
-            if (options.vaultId() !== id) throw "AI_VAULT_CHANGED";
+            if (options.vaultId() !== id) throw "AI_CHAT_PREPARATION_VAULT_CHANGED";
             const sourceNote = sourceNoteId ? options.notes().find((note) => note.id === sourceNoteId) : undefined;
             const title = sourceNote ? [...sourceNote.title] : [];
             const noteContext: AiNoteContext = sourceNote
@@ -506,7 +506,7 @@ export const useAiChat = (options: {
                 }
                 if (disposed || revision !== connectionRevision) return;
                 if (cancelledRequests.has(activeRequestId)) return;
-                if (options.vaultId() !== id) throw "AI_VAULT_CHANGED";
+                if (options.vaultId() !== id) throw "AI_CHAT_STEER_VAULT_CHANGED";
                 preparingRequests.add(requestId);
             }
             patchChat(id, (value) => ({
@@ -516,7 +516,7 @@ export const useAiChat = (options: {
             posted = true;
             await saveChat(id);
             if (disposed || revision !== connectionRevision) return;
-            if (options.vaultId() !== id) throw "AI_VAULT_CHANGED";
+            if (options.vaultId() !== id) throw "AI_CHAT_SEND_VAULT_CHANGED";
             if (cancelledRequests.has(requestId)) {
                 patchChat(id, (value) => value.requestId === requestId ? { ...value, busy: false } : value);
                 return;
@@ -617,7 +617,8 @@ export const useAiChat = (options: {
             void (async () => {
                 if (!(await options.beforeSend())) throw Error("AI_SAVE_FAILED");
                 if (done) return;
-                if (disposed || revision !== connectionRevision || options.vaultId() !== vaultId) throw Error("AI_VAULT_CHANGED");
+                if (options.vaultId() !== vaultId) throw Error("AI_STUDY_PREPARATION_VAULT_CHANGED");
+                if (disposed || revision !== connectionRevision) throw Error("AI_CONNECTION_CHANGED");
                 if (context) {
                     await prepareStudyContext(vaultId, requestId, context);
                     if (done || signal.aborted || disposed || revision !== connectionRevision || options.vaultId() !== vaultId) {
@@ -643,7 +644,7 @@ export const useAiChat = (options: {
                 try { await entry.undo(); }
                 catch (failure) {
                     if (String(failure) === "AI_NOTE_CHANGED") { askAi = true; return; }
-                    setError(options.t(String(failure) === "AI_VAULT_CHANGED" ? "aiVaultChanged" : "saveFailed")); return;
+                    setError(describe(failure)); return;
                 }
                 setLinkUndos((current) => { const next = { ...current }; delete next[id]; return next; });
             });

@@ -1,3 +1,4 @@
+import { vaultErrorKey } from "@/shared/lib/vault-errors";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { AiEvent, AiModel, AiStatus } from "@/entities/ai";
@@ -7,8 +8,8 @@ import type { AiProvider } from "../ai-provider";
 const errorKeys: Record<string, TranslationKey> = {
     AI_EMPTY_RESPONSE: "aiEmptyResponse", AI_INVALID_MESSAGE: "aiInvalidResponse",
     AI_NOT_FOUND: "aiNotFound", AI_START_FAILED: "aiStartFailed", AI_DISCONNECTED: "aiDisconnected",
-    AI_TIMEOUT: "aiTimeout", AI_SIGN_IN_REQUIRED: "aiSignInRequired", AI_VAULT_CHANGED: "aiVaultChanged",
-    AI_INVALID_VAULT: "aiVaultChanged", AI_BUSY: "aiBusy", AI_PROTOCOL_ERROR: "aiCliUpdateRequired",
+    AI_TIMEOUT: "aiTimeout", AI_SIGN_IN_REQUIRED: "aiSignInRequired",
+    AI_BUSY: "aiBusy", AI_PROTOCOL_ERROR: "aiCliUpdateRequired",
     AI_LOGIN_TERMINAL_UNAVAILABLE: "aiCliLoginRequired", AI_HISTORY_CLEAR_FAILED: "aiHistoryClearFailed",
     AI_OPENCODE_V2_REQUIRED: "aiOpenCodeV2Required",
     AI_OPENCODE_CONFIG_FAILED: "aiOpenCodeConfigFailed",
@@ -68,7 +69,7 @@ const cliProvider = (id: "claude" | "opencode" | "antigravity", name: string): A
     }),
     cancel: (vaultId, _clear, requestId) => invoke("ai_cli_cancel", { providerId: id, vaultId, requestId: requestId ?? null }),
     subscribe: (handler) => listen<AiEvent>("ai-event", (event) => handler(event.payload)),
-    errorKey: (failure) => (id === "opencode" ? openCodeErrorKeys[failure] : undefined) ?? errorKeys[failure] ?? "aiRequestFailed",
+    errorKey: (failure) => (id === "opencode" ? openCodeErrorKeys[failure] : undefined) ?? vaultErrorKey(failure) ?? errorKeys[failure] ?? "aiRequestFailed",
 });
 
 export const claudeProvider = cliProvider("claude", "Claude");

@@ -106,7 +106,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 			if (latestSaves.get(note.id) !== note) return;
 			if (resolvingConflict()) { pendingSaves.set(note.id, note); return; }
 			try {
-				if (!vaultId || vaultId !== activeVaultId()) throw Error("AI_VAULT_CHANGED");
+				if (!vaultId || vaultId !== activeVaultId()) throw Error("NOTE_SAVE_VAULT_CHANGED");
 				const expected = baselines.get(note.id);
 				if (!expected || conflicts().includes(note.id)) throw Error("NOTE_EXTERNAL_CONFLICT");
 				const result = await saveNote(note, expected, vaultId);
@@ -351,7 +351,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 	const applyLinkedMentions = async (patch: NoteLinkPatch, stillValid: () => boolean): Promise<() => Promise<void>> => {
 		const vaultId = activeVaultId();
 		if (!(await flushSave())) throw "AI_SAVE_FAILED";
-		if (!vaultId || vaultId !== activeVaultId()) throw "AI_VAULT_CHANGED";
+		if (!vaultId || vaultId !== activeVaultId()) throw "NOTE_LINK_VAULT_CHANGED";
 		if (!stillValid()) throw "AI_CANCELLED";
 		const current = notes().find((note) => note.id === patch.noteId);
 		if (!current || current.title !== patch.title || documentSignature(current.document) !== documentSignature(patch.expectedDocument)) throw "AI_NOTE_CHANGED";
@@ -361,9 +361,9 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		updateDocument(current.id, { ...current.document, elements: current.document.elements.map((element) => element.type === "text" && after.has(element.id) ? { ...element, text: after.get(element.id)! } : element) });
 		if (!(await flushSave())) throw "AI_SAVE_FAILED";
 		return async () => {
-			if (vaultId !== activeVaultId()) throw "AI_VAULT_CHANGED";
+			if (vaultId !== activeVaultId()) throw "NOTE_UNDO_LINKS_VAULT_CHANGED";
 			if (!(await flushSave())) throw "AI_SAVE_FAILED";
-			if (vaultId !== activeVaultId()) throw "AI_VAULT_CHANGED";
+			if (vaultId !== activeVaultId()) throw "NOTE_UNDO_LINKS_VAULT_CHANGED";
 			const latest = notes().find((note) => note.id === patch.noteId);
 			if (!latest || [...after].some(([id, text]) => !latest.document.elements.some((element) => element.id === id && element.type === "text" && element.text === text))) throw "AI_NOTE_CHANGED";
 			updateDocument(latest.id, { ...latest.document, elements: latest.document.elements.map((element) => element.type === "text" && after.has(element.id) ? { ...element, text: before.get(element.id)! } : element) });

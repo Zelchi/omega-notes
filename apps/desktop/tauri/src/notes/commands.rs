@@ -13,8 +13,11 @@ pub(crate) async fn list_notes(
     tauri::async_runtime::spawn_blocking(move || {
         let directories = runtime::notes_and_backups_dirs(&app)?;
         if let Some(id) = vault_id.as_deref() {
-            if crate::ai::terminal_vault_directory(&app, id)? != directories.0 {
-                return Err("AI_VAULT_CHANGED".into());
+            if crate::ai::terminal_vault_directory(&app, id)
+                .map_err(|error| vault_operation_error(error, "NOTE_LOAD_VAULT_CHANGED"))?
+                != directories.0
+            {
+                return Err("NOTE_LOAD_VAULT_MISMATCH".into());
             }
         }
         let library = if external == Some(true) {
@@ -44,7 +47,7 @@ pub(crate) async fn list_notes(
             library::list_notes(&|| Ok(directories.clone()))?
         };
         if runtime::notes_dir(&app)? != directories.0 {
-            return Err("AI_VAULT_CHANGED".into());
+            return Err("NOTE_LOAD_VAULT_CHANGED".into());
         }
         Ok(library)
     })
@@ -62,7 +65,8 @@ pub(crate) struct ExpectedNote {
 pub(crate) async fn notes_revision(app: AppHandle, vault_id: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         use std::hash::{Hash, Hasher};
-        let directory = crate::ai::terminal_vault_directory(&app, &vault_id)?;
+        let directory = crate::ai::terminal_vault_directory(&app, &vault_id)
+            .map_err(|error| vault_operation_error(error, "NOTE_SCAN_VAULT_CHANGED"))?;
         let mut entries = Vec::new();
         for entry in std::fs::read_dir(&directory).map_err(|_| "NOTE_READ_FAILED")? {
             let entry = entry.map_err(|_| "NOTE_READ_FAILED")?;
@@ -79,8 +83,11 @@ pub(crate) async fn notes_revision(app: AppHandle, vault_id: String) -> Result<S
         entries.sort_by(|a, b| a.0.cmp(&b.0));
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         entries.hash(&mut hash);
-        if crate::ai::terminal_vault_directory(&app, &vault_id)? != directory {
-            return Err("AI_VAULT_CHANGED".into());
+        if crate::ai::terminal_vault_directory(&app, &vault_id)
+            .map_err(|error| vault_operation_error(error, "NOTE_SCAN_VAULT_CHANGED"))?
+            != directory
+        {
+            return Err("NOTE_SCAN_VAULT_CHANGED".into());
         }
         Ok(format!("{:x}", hash.finish()))
     })
@@ -103,7 +110,8 @@ pub(crate) async fn save_note(
     expected_note: ExpectedNote,
 ) -> Result<NoteSaveResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let directory = crate::ai::terminal_vault_directory(&app, &vault_id)?;
+        let directory = crate::ai::terminal_vault_directory(&app, &vault_id)
+            .map_err(|error| vault_operation_error(error, "NOTE_SAVE_VAULT_CHANGED"))?;
         super::validate_note_id(&note_id)?;
         let path = super::note_path(&directory, &note_id);
         if std::fs::symlink_metadata(&path).is_ok_and(|meta| meta.file_type().is_symlink()) {
@@ -123,7 +131,7 @@ pub(crate) async fn save_note(
             &|| {
                 let directories = runtime::notes_and_backups_dirs(&app)?;
                 if directories.0 != directory {
-                    return Err("AI_VAULT_CHANGED".into());
+                    return Err("NOTE_SAVE_VAULT_CHANGED".into());
                 }
                 Ok(directories)
             },
@@ -185,5 +193,13 @@ fn rename_error_message(error: library::RenameNoteError) -> String {
         } => format!(
             "RENAME_ROLLBACK_FAILED: {write_error} A restauração também falhou: {rollback_error}"
         ),
+    }
+}
+
+fn vault_operation_error(error: String, changed: &str) -> String {
+    if error == "AI_VAULT_NOT_ACTIVE" {
+        changed.to_string()
+    } else {
+        error
     }
 }

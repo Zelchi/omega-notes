@@ -1,3 +1,4 @@
+import { vaultErrorKey } from "@/shared/lib/vault-errors";
 import Button from "@/shared/ui/button";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -11,7 +12,7 @@ import { terminalStyles } from "./style.css.ts";
 
 const TerminalView: Component<{ vaultId: string; providerId: AiProviderId; visible: boolean; onRestart: () => void; onCliExit: () => void; t: (key: TranslationKey) => string }> = props => {
     const vaultId = props.vaultId, providerId = props.providerId, sessionId = crypto.randomUUID();
-    const [error, setError] = createSignal(false), [exited, setExited] = createSignal(false), [connecting, setConnecting] = createSignal(true);
+    const [error, setError] = createSignal<TranslationKey>(), [exited, setExited] = createSignal(false), [connecting, setConnecting] = createSignal(true);
     let host!: HTMLDivElement, terminal: Terminal | undefined, fit: FitAddon | undefined;
     let disposed = false, ready = false, requested = false, frame = 0;
     let input: Uint8Array[] = [], inputBytes = 0, sending = false;
@@ -26,10 +27,14 @@ const TerminalView: Component<{ vaultId: string; providerId: AiProviderId; visib
                 const size = pendingSize; pendingSize = undefined;
                 await resizeTerminal(vaultId, sessionId, size.cols, size.rows);
             }
-        } catch { report(); }
+        } catch (failure) { report(failure); }
         finally { resizing = false; }
     };
-    const report = () => { if (!disposed) setError(true); };
+    const report = (failure?: unknown) => {
+        if (disposed) return;
+        const code = failure instanceof Error ? failure.message : String(failure ?? "");
+        setError(vaultErrorKey(code) ?? "gambiarraTerminalFailed");
+    };
     const fitToHost = (focus = false) => {
         pendingFocus ||= focus;
         cancelAnimationFrame(frame);
@@ -47,11 +52,11 @@ const TerminalView: Component<{ vaultId: string; providerId: AiProviderId; visib
                 const data = input.shift()!; inputBytes -= data.byteLength;
                 await writeTerminal(vaultId, sessionId, Array.from(data));
             }
-        } catch { report(); input = []; inputBytes = 0; }
+        } catch (failure) { report(failure); input = []; inputBytes = 0; }
         finally { sending = false; }
     };
     onMount(() => {
-        if (!isTauriRuntime()) { setConnecting(false); setError(true); return; }
+        if (!isTauriRuntime()) { setConnecting(false); report(); return; }
         const colors = () => {
             const style = getComputedStyle(host);
             const color = (key: string, fallback: string) => style.getPropertyValue(key).trim() || fallback;
@@ -109,7 +114,7 @@ const TerminalView: Component<{ vaultId: string; providerId: AiProviderId; visib
                 void sendResize(); void sendInput();
             }
             setConnecting(false); fitToHost(true);
-        })().catch(() => { if (!disposed) { setConnecting(false); report(); } });
+        })().catch(failure => { if (!disposed) { setConnecting(false); report(failure); } });
         onCleanup(() => { data.dispose(); binary.dispose(); resized.dispose(); observer.disconnect(); theme.disconnect(); });
     });
     createEffect(() => { if (props.visible) fitToHost(true); });
@@ -122,7 +127,7 @@ const TerminalView: Component<{ vaultId: string; providerId: AiProviderId; visib
         <div ref={host} class={terminalStyles.host} data-omega-terminal role="region" aria-label={props.t("gambiarraTerminal")}
             onKeyDown={event => event.stopPropagation()} onKeyUp={event => event.stopPropagation()} />
         <Show when={connecting()}><p class={terminalStyles.status} role="status">{props.t("gambiarraTerminalStarting")}</p></Show>
-        <Show when={error()}><p class={terminalStyles.status} role="alert">{props.t("gambiarraTerminalFailed")}</p></Show>
+        <Show when={error()}>{key => <p class={terminalStyles.status} role="alert">{props.t(key())}</p>}</Show>
         <Show when={exited()}><p class={terminalStyles.status} role="status">{props.t("gambiarraTerminalExited")}</p></Show>
         <Show when={error() || exited()}><Button class={terminalStyles.restart} type="button" onClick={props.onRestart}>{props.t("gambiarraTerminalRestart")}</Button></Show>
     </>;

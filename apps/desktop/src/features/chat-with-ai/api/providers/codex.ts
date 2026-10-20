@@ -1,3 +1,4 @@
+import { vaultErrorKey } from "@/shared/lib/vault-errors";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { AiProvider } from "../ai-provider";
 import { invoke } from "@tauri-apps/api/core";
@@ -28,8 +29,8 @@ const errorKeys: Record<string, TranslationKey> = {
     AI_CODEX_SERVICE_FAILED: "aiCodexServiceFailed",
     AI_NOT_FOUND: "aiNotFound", AI_START_FAILED: "aiStartFailed",
     AI_DISCONNECTED: "aiDisconnected", AI_TIMEOUT: "aiTimeout",
-    AI_SIGN_IN_REQUIRED: "aiSignInRequired", AI_VAULT_CHANGED: "aiVaultChanged",
-    AI_INVALID_VAULT: "aiVaultChanged", AI_BUSY: "aiBusy",
+    AI_SIGN_IN_REQUIRED: "aiSignInRequired",
+    AI_BUSY: "aiBusy",
 };
 
 export const codexProvider: AiProvider = {
@@ -38,5 +39,5 @@ export const codexProvider: AiProvider = {
     connect: connectCodex, status: readCodexStatus, disconnect: disconnectCodex,
     models: listCodexModels, signIn: signInCodex, send: sendCodexMessage, steer: steerCodexTurn,
     cancel: cancelCodexTurn, subscribe: subscribeCodex,
-    errorKey: (failure) => errorKeys[failure] ?? "aiRequestFailed",
+    errorKey: (failure) => vaultErrorKey(failure) ?? errorKeys[failure] ?? "aiRequestFailed",
 };

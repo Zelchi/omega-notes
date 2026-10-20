@@ -20,24 +20,29 @@ pub(crate) fn resolve_vault(app: &tauri::AppHandle, id: &str) -> Result<PathBuf,
 pub(super) fn resolve_vault_in(directory: &Path, id: &str) -> Result<PathBuf, String> {
     uuid::Uuid::parse_str(id).map_err(|_| "AI_INVALID_VAULT".to_string())?;
     let registry = vaults::read_vault_registry(directory)?;
+    if registry.active_vault_id.is_none() {
+        return Err("AI_NO_ACTIVE_VAULT".into());
+    }
     if registry.active_vault_id.as_deref() != Some(id) {
-        return Err("AI_VAULT_CHANGED".into());
+        return Err("AI_VAULT_NOT_ACTIVE".into());
     }
     let vault = registry
         .vaults
         .iter()
         .find(|vault| vault.id == id)
-        .ok_or("AI_INVALID_VAULT")?;
+        .ok_or("AI_VAULT_NOT_FOUND")?;
     let root = vaults::vault_directory(directory, vault)?;
     let path = root.join("notes");
     let base = directory.join("vaults");
     for folder in [&base, &root, &path] {
-        let metadata = std::fs::symlink_metadata(folder).map_err(|_| "AI_INVALID_VAULT")?;
+        let metadata =
+            std::fs::symlink_metadata(folder).map_err(|_| "AI_VAULT_PATH_UNAVAILABLE")?;
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
-            return Err("AI_INVALID_VAULT".into());
+            return Err("AI_VAULT_PATH_UNSAFE".into());
         }
     }
-    path.canonicalize().map_err(|_| "AI_INVALID_VAULT".into())
+    path.canonicalize()
+        .map_err(|_| "AI_VAULT_PATH_UNAVAILABLE".into())
 }
 
 pub(super) use catalog::definitions;

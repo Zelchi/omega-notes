@@ -1,3 +1,4 @@
+import { vaultErrorKey } from "@/shared/lib/vault-errors";
 import Button from "@/shared/ui/button";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
@@ -46,7 +47,7 @@ const NoteLoadIssuesDialog: Component<Props> = (props) => {
 								<Show when={issue.recovered}>
 									<p class={styles.recovery}>{props.t("noteRecovered")}</p>
 								</Show>
-								<p class={styles.message}>{issue.message}</p>
+								<p class={styles.message}>{vaultErrorKey(issue.message) ? props.t(vaultErrorKey(issue.message)!) : issue.message}</p>
 								<Show when={issue.recoveryPath}>
 									{(path) => (
 										<div class={styles.recovery}>
