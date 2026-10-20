@@ -72,15 +72,17 @@ pub(super) struct Bridge {
     port: u16,
     token: String,
     stopped: Arc<AtomicBool>,
+    active: Arc<Mutex<Option<BridgeContext>>>,
+}
+#[derive(Clone)]
+struct BridgeContext {
+    vault: String,
+    connection: String,
+    request: String,
+    purpose: super::task::Purpose,
 }
 impl Bridge {
-    pub(super) fn start(
-        app: AppHandle,
-        vault: String,
-        connection: String,
-        request: String,
-        purpose: super::task::Purpose,
-    ) -> Result<Self, String> {
+    pub(super) fn start(app: AppHandle) -> Result<Self, String> {
         let listener =
             TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|_| "AI_START_FAILED")?;
         let port = listener.local_addr().map_err(|_| "AI_START_FAILED")?.port();
@@ -88,6 +90,8 @@ impl Bridge {
         let secret = token.clone();
         let stopped = Arc::new(AtomicBool::new(false));
         let stop = stopped.clone();
+        let active = Arc::new(Mutex::new(None::<BridgeContext>));
+        let current = active.clone();
         std::thread::spawn(move || {
             for socket in listener.incoming() {
                 if stop.load(Ordering::SeqCst) {
@@ -112,23 +116,32 @@ impl Bridge {
                     if message["token"].as_str() != Some(&secret) || stop.load(Ordering::SeqCst) {
                         return Err("AI_CANCELLED".into());
                     }
+                    let context = current
+                        .lock()
+                        .map_err(|_| "AI_REQUEST_FAILED")?
+                        .clone()
+                        .ok_or("AI_TURN_FINISHED")?;
                     let tool = message["tool"].as_str().unwrap_or("link_note_mentions");
-                    if !tools::allowed_for(purpose, tool) {
+                    if !tools::allowed_for(context.purpose, tool) {
                         return Err("AI_UNKNOWN_TOOL".into());
                     }
                     match tool {
                         "read_study_context" => {
-                            let directory = tools::resolve_vault(&app, &vault)?;
+                            let directory = tools::resolve_vault(&app, &context.vault)?;
                             tools::call_for_request(
                                 &directory,
-                                &request,
+                                &context.request,
                                 "read_study_context",
                                 &message["arguments"],
                             )
                         }
-                        "link_note_mentions" => {
-                            apply(&app, &vault, &connection, &request, &message["arguments"])
-                        }
+                        "link_note_mentions" => apply(
+                            &app,
+                            &context.vault,
+                            &context.connection,
+                            &context.request,
+                            &message["arguments"],
+                        ),
                         _ => Err("AI_UNKNOWN_TOOL".into()),
                     }
                 })();
@@ -143,13 +156,46 @@ impl Bridge {
             port,
             token,
             stopped,
+            active,
         })
+    }
+    pub(super) fn activate(
+        &self,
+        vault: String,
+        connection: String,
+        request: String,
+        purpose: super::task::Purpose,
+    ) -> Result<(), String> {
+        let mut active = self.active.lock().map_err(|_| "AI_DISCONNECTED")?;
+        if self.stopped.load(Ordering::SeqCst) || active.is_some() {
+            return Err("AI_BUSY".into());
+        }
+        *active = Some(BridgeContext {
+            vault,
+            connection,
+            request,
+            purpose,
+        });
+        Ok(())
+    }
+    pub(super) fn deactivate(&self, request: &str) {
+        if let Ok(mut active) = self.active.lock() {
+            if active
+                .as_ref()
+                .is_some_and(|context| context.request == request)
+            {
+                *active = None;
+            }
+        }
     }
     pub(super) fn arguments(&self) -> Value {
         json!([self.port.to_string(), self.token])
     }
     pub(super) fn stop(&self) {
         if !self.stopped.swap(true, Ordering::SeqCst) {
+            if let Ok(mut active) = self.active.lock() {
+                *active = None;
+            }
             let _ = TcpStream::connect((Ipv4Addr::LOCALHOST, self.port));
         }
     }

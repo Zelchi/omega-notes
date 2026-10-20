@@ -26,6 +26,7 @@ pub(super) fn configure(
     purpose: crate::ai::task::Purpose,
     model: Option<&str>,
     effort: Option<&str>,
+    persistent_input: bool,
 ) {
     let allowed = crate::ai::tools::names()
         .iter()
@@ -60,6 +61,9 @@ pub(super) fn configure(
         .env("CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1")
         .arg("--mcp-config")
         .arg(mcp.to_string());
+    if persistent_input {
+        command.args(["--input-format", "stream-json"]);
+    }
     if let Some(model) = model.filter(|model| !model.is_empty()) {
         command.arg("--model").arg(model);
     }

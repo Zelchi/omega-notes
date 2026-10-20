@@ -7,6 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[derive(Clone)]
 pub(super) struct Executable {
     pub(super) program: PathBuf,
     pub(super) arguments: Vec<OsString>,

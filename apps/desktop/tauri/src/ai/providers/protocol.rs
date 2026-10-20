@@ -139,6 +139,7 @@ impl Stream {
                     Some(json!({"blocks":blocks}))
                 }
                 "result" => {
+                    self.completed = true;
                     self.failed |= value["is_error"] == true;
                     if value["is_error"] == true {
                         if self.error_code.is_none() {

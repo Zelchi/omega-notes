@@ -27,6 +27,7 @@ const errorKeys: Record<string, TranslationKey> = {
     AI_CLAUDE_EMPTY_RESPONSE: "aiClaudeEmptyResponse",
     AI_CLAUDE_MCP_FAILED: "aiClaudeMcpFailed",
     AI_ANTIGRAVITY_VERSION_REQUIRED: "aiAntigravityVersionRequired",
+    AI_ANTIGRAVITY_ENCODING_FAILED: "aiAntigravityEncodingFailed",
     AI_ANTIGRAVITY_AUTH_FAILED: "aiAntigravityAuthFailed",
     AI_ANTIGRAVITY_LIMIT_REACHED: "aiAntigravityLimitReached",
     AI_ANTIGRAVITY_ACCESS_DENIED: "aiAntigravityAccessDenied",
@@ -67,7 +68,7 @@ const cliProvider = (id: "claude" | "opencode" | "antigravity", name: string): A
     send: (vaultId, requestId, text, model, effort, _fast, purpose = "chat") => invoke("ai_cli_send", {
         providerId: id, vaultId, requestId, text, model: model || null, effort: effort || null, purpose,
     }),
-    cancel: (vaultId, _clear, requestId) => invoke("ai_cli_cancel", { providerId: id, vaultId, requestId: requestId ?? null }),
+    cancel: (vaultId, clear = false, requestId) => invoke("ai_cli_cancel", { providerId: id, vaultId, clear, requestId: requestId ?? null }),
     subscribe: (handler) => listen<AiEvent>("ai-event", (event) => handler(event.payload)),
     errorKey: (failure) => (id === "opencode" ? openCodeErrorKeys[failure] : undefined) ?? vaultErrorKey(failure) ?? errorKeys[failure] ?? "aiRequestFailed",
 });

@@ -93,6 +93,16 @@ pub(crate) fn clean(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn ensure_directory(path: &Path) -> Result<(), String> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            fs::create_dir(path).map_err(|_| "AI_STORAGE_FAILED".into())
+        }
+        _ => Err("AI_STORAGE_FAILED".into()),
+    }
+}
+
 pub(super) fn configure(
     command: &mut Command,
     root: &Path,
@@ -105,7 +115,7 @@ pub(super) fn configure(
         let config = state.join("config");
         let cli = state.join("antigravity-cli");
         for path in [&state, &config, &cli] {
-            fs::create_dir(path).map_err(|_| "AI_STORAGE_FAILED")?;
+            ensure_directory(path)?;
         }
         let mut settings = json!({
             "enableTelemetry":false, "allowNonWorkspaceAccess":false,
@@ -163,7 +173,7 @@ pub(super) fn configure(
             None,
         )?;
         let agents = config.join("agents");
-        fs::create_dir(&agents).map_err(|_| "AI_STORAGE_FAILED")?;
+        ensure_directory(&agents)?;
         let agent = format!("---\nname: omega\ndescription: Omega Notes vault assistant\nmainAgent: true\nsubagent: false\ninheritCustomizations: true\ntools: []\nskills: []\nplugins: []\n---\n\n{}", purpose.instructions());
         crate::storage::atomic_write(&agents.join("omega.md"), agent.as_bytes(), None)?;
         let binary = std::env::current_exe().map_err(|_| "AI_START_FAILED")?;
@@ -210,7 +220,9 @@ pub(super) fn configure(
 
 pub(super) fn error_code(message: &str) -> &'static str {
     let message = message.to_ascii_lowercase();
-    if message.contains("mcp")
+    if message.contains("invalid utf-8") || message.contains("invalid utf8") {
+        "AI_ANTIGRAVITY_ENCODING_FAILED"
+    } else if message.contains("mcp")
         && (message.contains("failed")
             || message.contains("error")
             || message.contains("could not"))

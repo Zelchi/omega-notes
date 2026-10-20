@@ -1,13 +1,15 @@
-use super::{antigravity, claude, opencode, opencode_catalog, process, protocol::Stream};
+use super::{
+    antigravity, claude, opencode, opencode_catalog, opencode_error, process, protocol::Stream,
+};
 use crate::ai::{
     repository::{self, Provider},
     tools,
 };
 use serde_json::{json, Value};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io::{BufRead, BufReader, Read, Write},
-    process::{Child, Stdio},
+    process::{Child, ChildStdin, Stdio},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -17,19 +19,32 @@ use std::{
 use tauri::{AppHandle, Emitter};
 
 struct Run {
-    bridge: crate::ai::link_requests::Bridge,
+    bridge: Option<crate::ai::link_requests::Bridge>,
     request_id: String,
-    child: Mutex<Child>,
+    child: Option<Mutex<Child>>,
     cancelled: AtomicBool,
     timed_out: AtomicBool,
     worker: Mutex<Option<JoinHandle<()>>>,
+    timer_cancel: Mutex<Option<std::sync::mpsc::Sender<()>>>,
 }
 impl Run {
     fn cancel(&self) {
-        self.bridge.stop();
+        if let Some(bridge) = &self.bridge {
+            bridge.stop();
+        }
         self.cancelled.store(true, Ordering::SeqCst);
-        if let Ok(mut child) = self.child.lock() {
-            process::stop(&mut child);
+        if let Some(child) = &self.child {
+            if let Ok(mut child) = child.lock() {
+                process::stop(&mut child);
+            }
+        }
+        self.stop_timer();
+    }
+    fn stop_timer(&self) {
+        if let Ok(mut cancel) = self.timer_cancel.lock() {
+            if let Some(cancel) = cancel.take() {
+                let _ = cancel.send(());
+            }
         }
     }
     fn join(&self) -> bool {
@@ -43,6 +58,765 @@ impl Run {
     }
 }
 
+struct OpenCodeSession {
+    app: AppHandle,
+    vault_id: String,
+    connection_id: String,
+    root: std::path::PathBuf,
+    url: String,
+    username: String,
+    password: String,
+    http: reqwest::Client,
+    bridge: crate::ai::link_requests::Bridge,
+    child: Mutex<Child>,
+    session_id: Mutex<String>,
+    model: Mutex<Option<String>>,
+    has_conversation: AtomicBool,
+    alive: AtomicBool,
+    active: Mutex<Option<OpenCodeTurn>>,
+    event_worker: Mutex<Option<JoinHandle<()>>>,
+}
+
+struct OpenCodeTurn {
+    request_id: String,
+    user_message_id: String,
+    model_is_go: bool,
+    answered: bool,
+    error_code: Option<&'static str>,
+    error_detail: Option<String>,
+    assistant_messages: HashSet<String>,
+    parts: HashMap<String, OpenCodePart>,
+}
+
+struct OpenCodePart {
+    message_id: String,
+    kind: Option<String>,
+    pending: String,
+    emitted: String,
+    snapshot: Option<String>,
+}
+
+impl Drop for OpenCodeSession {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+impl OpenCodeSession {
+    fn start(
+        app: &AppHandle,
+        vault_id: &str,
+        connection_id: &str,
+        root: std::path::PathBuf,
+        binary: process::Executable,
+    ) -> Result<Arc<Self>, String> {
+        let app_directory = crate::app::runtime::app_directory(app)?;
+        let executable = std::env::current_exe().map_err(|_| "AI_START_FAILED")?;
+        let bridge = crate::ai::link_requests::Bridge::start(app.clone())?;
+        let mut mcp_args = json!(["--ai-mcp", app_directory, vault_id]);
+        mcp_args.as_array_mut().ok_or("AI_PROTOCOL_ERROR")?.extend(
+            bridge
+                .arguments()
+                .as_array()
+                .ok_or("AI_PROTOCOL_ERROR")?
+                .iter()
+                .cloned(),
+        );
+        mcp_args
+            .as_array_mut()
+            .ok_or("AI_PROTOCOL_ERROR")?
+            .push(json!(crate::ai::task::Purpose::Chat.name()));
+        let mut mcp_command = vec![json!(executable)];
+        mcp_command.extend(
+            mcp_args
+                .as_array()
+                .ok_or("AI_PROTOCOL_ERROR")?
+                .iter()
+                .cloned(),
+        );
+        let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+            .map_err(|_| "AI_START_FAILED")?;
+        let port = listener.local_addr().map_err(|_| "AI_START_FAILED")?.port();
+        drop(listener);
+        let username = "omega-notes".to_string();
+        let password = format!("{}{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+        let mut command = process::command(&binary);
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .env("OPENCODE_SERVER_USERNAME", &username)
+            .env("OPENCODE_SERVER_PASSWORD", &password);
+        opencode::configure_server(
+            &mut command,
+            &binary,
+            &root,
+            mcp_command,
+            crate::ai::task::Purpose::Chat.instructions(),
+            port,
+        )?;
+        let child = command.spawn().map_err(|_| "AI_START_FAILED")?;
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let http = reqwest::Client::builder()
+            .no_proxy()
+            .connect_timeout(std::time::Duration::from_secs(4))
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .build()
+            .map_err(|_| "AI_START_FAILED")?;
+        let session = Arc::new(Self {
+            app: app.clone(),
+            vault_id: vault_id.into(),
+            connection_id: connection_id.into(),
+            root,
+            url: format!("http://127.0.0.1:{port}"),
+            username,
+            password,
+            http,
+            bridge,
+            child: Mutex::new(child),
+            session_id: Mutex::new(String::new()),
+            model: Mutex::new(None),
+            has_conversation: AtomicBool::new(false),
+            alive: AtomicBool::new(true),
+            active: Mutex::new(None),
+            event_worker: Mutex::new(None),
+        });
+        let started = std::time::Instant::now();
+        loop {
+            if !session.is_alive() {
+                return Err("AI_START_FAILED".into());
+            }
+            if session.api_sync("GET", "/api/info", None, false).is_ok() {
+                break;
+            }
+            if started.elapsed() > std::time::Duration::from_secs(20) {
+                session.stop();
+                return Err("AI_START_FAILED".into());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        let saved = read_opencode_session(&session.root)?;
+        let existing = saved.filter(|id| validate_opencode_session_id(id));
+        let session_id = if let Some(id) = existing.as_deref() {
+            if session
+                .api_sync("GET", &format!("/api/session/{id}"), None, false)
+                .is_ok()
+            {
+                session.has_conversation.store(true, Ordering::SeqCst);
+                id.to_string()
+            } else {
+                create_opencode_session(&session)?
+            }
+        } else {
+            create_opencode_session(&session)?
+        };
+        crate::storage::atomic_write(
+            &session.root.join("session.json"),
+            json!(session_id).to_string().as_bytes(),
+            None,
+        )?;
+        *session.session_id.lock().map_err(|_| "AI_STORAGE_FAILED")? = session_id;
+        Ok(session)
+    }
+
+    fn api_sync(
+        &self,
+        method: &str,
+        path: &str,
+        data: Option<Value>,
+        model_is_go: bool,
+    ) -> Result<Value, String> {
+        tauri::async_runtime::block_on(self.api(method, path, data, model_is_go))
+    }
+
+    async fn api(
+        &self,
+        method: &str,
+        path: &str,
+        data: Option<Value>,
+        model_is_go: bool,
+    ) -> Result<Value, String> {
+        let method =
+            reqwest::Method::from_bytes(method.as_bytes()).map_err(|_| "AI_PROTOCOL_ERROR")?;
+        let mut request = self
+            .http
+            .request(method, format!("{}{}", self.url, path))
+            .basic_auth(&self.username, Some(&self.password))
+            .timeout(std::time::Duration::from_secs(30));
+        if let Some(data) = data {
+            request = request.json(&data);
+        }
+        let response = request
+            .send()
+            .await
+            .map_err(|_| "AI_OPENCODE_CONNECTION_FAILED")?;
+        let status = response.status();
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|_| "AI_OPENCODE_CONNECTION_FAILED")?;
+        if !status.is_success() {
+            let mut detail = serde_json::from_slice::<Value>(&bytes).unwrap_or_else(|_| {
+                json!({"message":String::from_utf8_lossy(&bytes).chars().take(2000).collect::<String>()})
+            });
+            detail["status"] = json!(status.as_u16());
+            return Err(opencode_error::classify(&detail, model_is_go).into());
+        }
+        if bytes.is_empty() {
+            return Ok(Value::Null);
+        }
+        serde_json::from_slice(&bytes).map_err(|_| "AI_PROTOCOL_ERROR".into())
+    }
+
+    fn is_alive(&self) -> bool {
+        self.alive.load(Ordering::SeqCst)
+            && self
+                .child
+                .lock()
+                .ok()
+                .is_some_and(|mut child| matches!(child.try_wait(), Ok(None)))
+    }
+
+    fn clear(&self) -> Result<(), String> {
+        let session_id = self
+            .session_id
+            .lock()
+            .map_err(|_| "AI_STORAGE_FAILED")?
+            .clone();
+        let path = format!("/api/session/{session_id}");
+        self.api_sync("DELETE", &path, None, false)
+            .map_err(|_| "AI_HISTORY_CLEAR_FAILED")?;
+        let path = self.root.join("session.json");
+        match std::fs::remove_file(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err("AI_STORAGE_FAILED".into()),
+        }
+        let fresh_session_id = create_opencode_session(self)?;
+        crate::storage::atomic_write(
+            &self.root.join("session.json"),
+            json!(fresh_session_id).to_string().as_bytes(),
+            None,
+        )?;
+        *self.session_id.lock().map_err(|_| "AI_STORAGE_FAILED")? = fresh_session_id;
+        self.has_conversation.store(false, Ordering::SeqCst);
+        *self.model.lock().map_err(|_| "AI_STORAGE_FAILED")? = None;
+        Ok(())
+    }
+
+    fn stop(&self) {
+        if self.alive.swap(false, Ordering::SeqCst) {
+            self.bridge.stop();
+            if let Ok(mut child) = self.child.lock() {
+                process::stop(&mut child);
+            }
+        }
+        let worker = self
+            .event_worker
+            .lock()
+            .ok()
+            .and_then(|mut worker| worker.take());
+        if let Some(worker) = worker {
+            if worker.thread().id() != std::thread::current().id() {
+                let _ = worker.join();
+            }
+        }
+    }
+
+    fn emit(&self, request_id: &str, event: Value) {
+        let mut event = event;
+        event["connectionId"] = json!(self.connection_id);
+        event["vaultId"] = json!(self.vault_id);
+        event["requestId"] = json!(request_id);
+        let _ = self.app.emit("ai-event", event);
+    }
+
+    fn begin_turn(
+        &self,
+        request_id: &str,
+        user_message_id: &str,
+        model_is_go: bool,
+    ) -> Result<(), String> {
+        self.bridge.activate(
+            self.vault_id.clone(),
+            self.connection_id.clone(),
+            request_id.into(),
+            crate::ai::task::Purpose::Chat,
+        )?;
+        let mut active = self.active.lock().map_err(|_| "AI_DISCONNECTED")?;
+        if active.is_some() {
+            self.bridge.deactivate(request_id);
+            return Err("AI_BUSY".into());
+        }
+        *active = Some(OpenCodeTurn {
+            request_id: request_id.into(),
+            user_message_id: user_message_id.into(),
+            model_is_go,
+            answered: false,
+            error_code: None,
+            error_detail: None,
+            assistant_messages: HashSet::new(),
+            parts: HashMap::new(),
+        });
+        Ok(())
+    }
+
+    fn abort_turn(&self, request_id: &str) {
+        let turn = self.active.lock().ok().and_then(|mut active| {
+            active
+                .as_ref()
+                .is_some_and(|turn| turn.request_id == request_id)
+                .then(|| active.take())
+                .flatten()
+        });
+        if turn.is_some() {
+            self.bridge.deactivate(request_id);
+        }
+    }
+
+    fn active_request(&self) -> Option<String> {
+        self.active
+            .lock()
+            .ok()
+            .and_then(|active| active.as_ref().map(|turn| turn.request_id.clone()))
+    }
+
+    fn receive_event(&self, value: Value) -> Option<(String, Option<&'static str>)> {
+        let (kind, properties) = opencode_event(&value);
+        let event_session = properties["sessionID"]
+            .as_str()
+            .or_else(|| properties["info"]["sessionID"].as_str())
+            .or_else(|| properties["part"]["sessionID"].as_str());
+        let session_id = self.session_id.lock().ok()?.clone();
+        if event_session != Some(session_id.as_str()) {
+            return None;
+        }
+        let mut deltas = Vec::<(String, String, String)>::new();
+        let mut completed = None;
+        {
+            let mut active = self.active.lock().ok()?;
+            let turn = active.as_mut()?;
+            match kind {
+                "message.updated" | "session.message.updated" => {
+                    let info = properties.get("info").unwrap_or(properties);
+                    let role = info["role"].as_str().or_else(|| info["type"].as_str());
+                    let Some(message_id) = info["id"].as_str() else {
+                        return None;
+                    };
+                    if message_id == turn.user_message_id || role != Some("assistant") {
+                        return None;
+                    }
+                    turn.assistant_messages.insert(message_id.into());
+                    for (part_id, part) in turn
+                        .parts
+                        .iter_mut()
+                        .filter(|(_, part)| part.message_id == message_id)
+                    {
+                        let pending = if let Some(snapshot) = part.snapshot.take() {
+                            let delta = snapshot
+                                .strip_prefix(&part.emitted)
+                                .map(str::to_owned)
+                                .or_else(|| part.emitted.is_empty().then(|| snapshot.clone()))
+                                .unwrap_or_default();
+                            part.pending.clear();
+                            delta
+                        } else {
+                            std::mem::take(&mut part.pending)
+                        };
+                        if !pending.is_empty() {
+                            part.emitted.push_str(&pending);
+                            turn.answered = true;
+                            deltas.push((turn.request_id.clone(), part_id.clone(), pending));
+                        }
+                    }
+                }
+                "message.part.updated" | "session.message.part.updated" => {
+                    let Some(part) = properties.get("part") else {
+                        return None;
+                    };
+                    let Some(message_id) = part["messageID"].as_str() else {
+                        return None;
+                    };
+                    if message_id == turn.user_message_id {
+                        return None;
+                    }
+                    let Some(part_id) = part["id"].as_str() else {
+                        return None;
+                    };
+                    let current =
+                        turn.parts
+                            .entry(part_id.into())
+                            .or_insert_with(|| OpenCodePart {
+                                message_id: message_id.into(),
+                                kind: None,
+                                pending: String::new(),
+                                emitted: String::new(),
+                                snapshot: None,
+                            });
+                    current.message_id = message_id.into();
+                    current.kind = part["type"].as_str().map(str::to_owned);
+                    current.snapshot = part["text"].as_str().map(str::to_owned);
+                    if turn.assistant_messages.contains(message_id)
+                        && current.kind.as_deref().is_none_or(|kind| kind == "text")
+                    {
+                        if let Some(snapshot) = current.snapshot.take() {
+                            let delta = snapshot
+                                .strip_prefix(&current.emitted)
+                                .map(str::to_owned)
+                                .or_else(|| current.emitted.is_empty().then(|| snapshot.clone()))
+                                .unwrap_or_default();
+                            current.pending.clear();
+                            if !delta.is_empty() {
+                                current.emitted = snapshot;
+                                turn.answered = true;
+                                deltas.push((turn.request_id.clone(), part_id.into(), delta));
+                            }
+                        }
+                    }
+                }
+                "message.part.delta" | "session.message.part.delta" => {
+                    if properties["field"].as_str() != Some("text") {
+                        return None;
+                    }
+                    let Some(message_id) = properties["messageID"].as_str() else {
+                        return None;
+                    };
+                    let Some(part_id) = properties["partID"].as_str() else {
+                        return None;
+                    };
+                    if message_id == turn.user_message_id {
+                        return None;
+                    }
+                    let Some(delta) = properties["delta"]
+                        .as_str()
+                        .filter(|delta| !delta.is_empty())
+                    else {
+                        return None;
+                    };
+                    let current =
+                        turn.parts
+                            .entry(part_id.into())
+                            .or_insert_with(|| OpenCodePart {
+                                message_id: message_id.into(),
+                                kind: Some("text".into()),
+                                pending: String::new(),
+                                emitted: String::new(),
+                                snapshot: None,
+                            });
+                    current.message_id = message_id.into();
+                    if turn.assistant_messages.contains(message_id)
+                        && current.kind.as_deref().is_none_or(|kind| kind == "text")
+                    {
+                        current.kind = Some("text".into());
+                        current.emitted.push_str(delta);
+                        turn.answered = true;
+                        deltas.push((turn.request_id.clone(), part_id.into(), delta.into()));
+                    } else if current.kind.as_deref().is_none_or(|kind| kind == "text") {
+                        current.pending.push_str(delta);
+                    }
+                }
+                "session.idle" => completed = Some((turn.request_id.clone(), None)),
+                "session.error" => {
+                    let error = properties.get("error").unwrap_or(properties);
+                    let code = opencode_error::classify(error, turn.model_is_go);
+                    turn.error_code = Some(code);
+                    turn.error_detail = error["message"]
+                        .as_str()
+                        .or_else(|| error["error"].as_str())
+                        .map(str::to_owned);
+                    completed = Some((turn.request_id.clone(), Some(code)));
+                }
+                _ => {}
+            }
+        }
+        for (request_id, part_id, text) in deltas {
+            self.emit(
+                &request_id,
+                json!({"kind":"delta","itemId":part_id,"text":text}),
+            );
+        }
+        completed
+    }
+
+    fn start_events(self: &Arc<Self>, client: std::sync::Weak<Client>) -> Result<(), String> {
+        if self
+            .event_worker
+            .lock()
+            .map_err(|_| "AI_DISCONNECTED")?
+            .as_ref()
+            .is_some_and(|worker| !worker.is_finished())
+        {
+            return Ok(());
+        }
+        let (ready_send, ready_receive) = std::sync::mpsc::channel();
+        let session = Arc::downgrade(self);
+        let worker = std::thread::Builder::new()
+            .name("omega-opencode-events".into())
+            .spawn(move || opencode_event_worker(session, client, Some(ready_send)))
+            .map_err(|_| "AI_START_FAILED")?;
+        match ready_receive.recv_timeout(std::time::Duration::from_secs(12)) {
+            Ok(Ok(())) => {
+                *self.event_worker.lock().map_err(|_| "AI_DISCONNECTED")? = Some(worker);
+                Ok(())
+            }
+            Ok(Err(error)) => {
+                let _ = worker.join();
+                Err(error)
+            }
+            Err(_) => {
+                self.stop();
+                let _ = worker.join();
+                Err("AI_OPENCODE_CONNECTION_FAILED".into())
+            }
+        }
+    }
+
+    fn session_path(&self, suffix: &str) -> Result<String, String> {
+        let id = self
+            .session_id
+            .lock()
+            .map_err(|_| "AI_STORAGE_FAILED")?
+            .clone();
+        Ok(format!("/api/session/{id}{suffix}"))
+    }
+
+    fn select_model(&self, model: &str) -> Result<(), String> {
+        let (provider, id) = model.split_once('/').ok_or("AI_PROTOCOL_ERROR")?;
+        let path = self.session_path("/model")?;
+        self.api_sync(
+            "POST",
+            &path,
+            Some(json!({"model":{"providerID":provider,"id":id}})),
+            provider == "opencode-go",
+        )?;
+        Ok(())
+    }
+
+    fn interrupt(&self) {
+        if let Ok(path) = self.session_path("/interrupt") {
+            let _ = self.api_sync("POST", &path, None, false);
+        }
+    }
+}
+
+struct ActiveTurn {
+    request_id: String,
+    stream: Stream,
+    timer_cancel: Option<std::sync::mpsc::Sender<()>>,
+}
+
+struct PersistentSession {
+    provider: Provider,
+    vault_id: String,
+    model: Option<String>,
+    effort: Option<String>,
+    app: AppHandle,
+    connection_id: String,
+    bridge: crate::ai::link_requests::Bridge,
+    child: Mutex<Child>,
+    stdin: Mutex<ChildStdin>,
+    active: Mutex<Option<ActiveTurn>>,
+    alive: AtomicBool,
+}
+
+impl Drop for PersistentSession {
+    fn drop(&mut self) {
+        self.alive.store(false, Ordering::SeqCst);
+        self.bridge.stop();
+        if let Ok(child) = self.child.get_mut() {
+            process::stop(child);
+        }
+    }
+}
+
+impl PersistentSession {
+    fn emit(&self, request_id: &str, mut event: Value) {
+        event["connectionId"] = json!(self.connection_id);
+        event["vaultId"] = json!(self.vault_id);
+        event["requestId"] = json!(request_id);
+        let _ = self.app.emit("ai-event", event);
+    }
+
+    fn submit(self: &Arc<Self>, request_id: &str, text: &str) -> Result<(), String> {
+        self.begin_turn(request_id)?;
+        self.write_turn(request_id, text)
+    }
+
+    fn begin_turn(&self, request_id: &str) -> Result<(), String> {
+        if !self.alive.load(Ordering::SeqCst) {
+            return Err("AI_DISCONNECTED".into());
+        }
+        self.bridge.activate(
+            self.vault_id.clone(),
+            self.connection_id.clone(),
+            request_id.into(),
+            crate::ai::task::Purpose::Chat,
+        )?;
+        {
+            let mut active = self.active.lock().map_err(|_| "AI_DISCONNECTED")?;
+            if active.is_some() {
+                self.bridge.deactivate(request_id);
+                return Err("AI_BUSY".into());
+            }
+            *active = Some(ActiveTurn {
+                request_id: request_id.into(),
+                stream: Stream::for_model(self.model.as_deref()),
+                timer_cancel: None,
+            });
+        }
+        Ok(())
+    }
+
+    fn write_turn(self: &Arc<Self>, request_id: &str, text: &str) -> Result<(), String> {
+        let input = match self.provider {
+            Provider::Antigravity => json!({
+                "event":"user",
+                "message":{"content":text}
+            }),
+            Provider::Claude => json!({
+                "type":"user",
+                "message":{"role":"user","content":[{"type":"text","text":text}]}
+            }),
+            _ => {
+                self.bridge.deactivate(request_id);
+                if let Ok(mut active) = self.active.lock() {
+                    *active = None;
+                }
+                return Err("AI_INVALID_PROVIDER".into());
+            }
+        };
+        let write: Result<(), String> = (|| {
+            let mut stdin = self
+                .stdin
+                .lock()
+                .map_err(|_| "AI_DISCONNECTED".to_string())?;
+            serde_json::to_writer(&mut *stdin, &input)
+                .map_err(|_| "AI_PROTOCOL_ERROR".to_string())?;
+            stdin
+                .write_all(b"\n")
+                .and_then(|_| stdin.flush())
+                .map_err(|_| "AI_SEND_FAILED".to_string())
+        })();
+        if let Err(error) = write {
+            self.finish(request_id, Some(&error), false);
+            self.terminate();
+            return Err(error);
+        }
+        let (timer_cancel, timer) = std::sync::mpsc::channel();
+        if let Ok(mut active) = self.active.lock() {
+            if let Some(turn) = active.as_mut().filter(|turn| turn.request_id == request_id) {
+                turn.timer_cancel = Some(timer_cancel);
+            }
+        }
+        let session = Arc::downgrade(self);
+        let request = request_id.to_string();
+        std::thread::spawn(move || {
+            if matches!(
+                timer.recv_timeout(std::time::Duration::from_secs(900)),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            ) {
+                if let Some(session) = session.upgrade() {
+                    session.finish(&request, Some("AI_TIMEOUT"), false);
+                    session.terminate();
+                }
+            }
+        });
+        Ok(())
+    }
+
+    fn receive_line(&self, value: Value) -> bool {
+        let mut active = match self.active.lock() {
+            Ok(active) => active,
+            Err(_) => return false,
+        };
+        let Some(turn) = active.as_mut() else {
+            return false;
+        };
+        if let Some(event) = turn.stream.receive(self.provider, &value) {
+            if let Some(blocks) = event["blocks"].as_array() {
+                for event in blocks {
+                    self.emit(&turn.request_id, event.clone());
+                }
+            } else {
+                self.emit(&turn.request_id, event);
+            }
+        }
+        turn.stream.completed
+            || matches!(
+                turn.stream.error_code,
+                Some("AI_CLAUDE_MCP_FAILED" | "AI_ANTIGRAVITY_MCP_FAILED")
+            )
+    }
+
+    fn finish(&self, request_id: &str, forced_error: Option<&str>, interrupted: bool) {
+        let turn = {
+            let Ok(mut active) = self.active.lock() else {
+                return;
+            };
+            if active
+                .as_ref()
+                .is_none_or(|turn| turn.request_id != request_id)
+            {
+                return;
+            }
+            active.take()
+        };
+        let Some(mut turn) = turn else { return };
+        if let Some(cancel) = turn.timer_cancel.take() {
+            let _ = cancel.send(());
+        }
+        self.bridge.deactivate(request_id);
+        let error = if interrupted {
+            None
+        } else {
+            forced_error
+                .or(turn.stream.error_code)
+                .or_else(|| {
+                    (turn.stream.failed && !turn.stream.answered).then_some("AI_REQUEST_FAILED")
+                })
+                .or_else(|| {
+                    (!turn.stream.answered).then_some(match self.provider {
+                        Provider::Claude => "AI_CLAUDE_EMPTY_RESPONSE",
+                        Provider::Antigravity => "AI_ANTIGRAVITY_EMPTY_RESPONSE",
+                        _ => "AI_REQUEST_FAILED",
+                    })
+                })
+        };
+        let failed = error.is_some() || (!interrupted && turn.stream.failed);
+        self.emit(
+            request_id,
+            json!({
+                "kind":"completed",
+                "failed":failed,
+                "status":if interrupted { "interrupted" } else if failed { "failed" } else { "completed" },
+                "errorCode":error,
+                "errorDetail":turn.stream.error_detail
+            }),
+        );
+    }
+
+    fn terminate(&self) {
+        if self.alive.swap(false, Ordering::SeqCst) {
+            self.bridge.stop();
+            if let Ok(mut child) = self.child.lock() {
+                process::stop(&mut child);
+            }
+        }
+    }
+
+    fn cancel(&self, request_id: Option<&str>) {
+        let active = self
+            .active
+            .lock()
+            .ok()
+            .and_then(|active| active.as_ref().map(|turn| turn.request_id.clone()));
+        if let Some(active) = active.filter(|active| request_id.is_none_or(|id| id == active)) {
+            self.finish(&active, None, true);
+            self.terminate();
+        }
+    }
+}
+
 pub(crate) struct Client {
     pub(crate) provider: Provider,
     binary: process::Executable,
@@ -50,6 +824,9 @@ pub(crate) struct Client {
     connection_id: String,
     alive: AtomicBool,
     runs: Mutex<HashMap<String, Arc<Run>>>,
+    sessions: Mutex<HashMap<String, Arc<PersistentSession>>>,
+    open_sessions: Mutex<HashMap<String, Arc<OpenCodeSession>>>,
+    authenticated: Mutex<Option<bool>>,
     pub(crate) operation: Mutex<()>,
 }
 
@@ -84,6 +861,9 @@ impl Client {
             connection_id: uuid::Uuid::now_v7().to_string(),
             alive: AtomicBool::new(true),
             runs: Mutex::new(HashMap::new()),
+            sessions: Mutex::new(HashMap::new()),
+            open_sessions: Mutex::new(HashMap::new()),
+            authenticated: Mutex::new(None),
             operation: Mutex::new(()),
         }))
     }
@@ -95,10 +875,23 @@ impl Client {
             return Err("AI_DISCONNECTED".into());
         }
         let authenticated = if self.provider == Provider::Claude {
-            let mut command = process::command(&self.binary);
-            command.args(["auth", "status"]);
-            let (success, output) = process::output(command)?;
-            claude::authenticated(success, &output)?
+            if self
+                .authenticated
+                .lock()
+                .map_err(|_| "AI_DISCONNECTED")?
+                .is_some_and(|authenticated| authenticated)
+            {
+                true
+            } else {
+                let mut command = process::command(&self.binary);
+                command.args(["auth", "status"]);
+                let (success, output) = process::output(command)?;
+                let authenticated = claude::authenticated(success, &output)?;
+                if authenticated {
+                    *self.authenticated.lock().map_err(|_| "AI_DISCONNECTED")? = Some(true);
+                }
+                authenticated
+            }
         } else {
             true
         };
@@ -132,6 +925,9 @@ impl Client {
         opencode_catalog::models(&output)
     }
     pub(crate) fn login(&self) -> Result<(), String> {
+        if let Ok(mut authenticated) = self.authenticated.lock() {
+            *authenticated = None;
+        }
         let login = if self.provider == Provider::Antigravity {
             ""
         } else {
@@ -189,6 +985,25 @@ impl Client {
         effort: Option<&str>,
         purpose: crate::ai::task::Purpose,
     ) -> Result<Value, String> {
+        if purpose == crate::ai::task::Purpose::Chat {
+            if matches!(self.provider, Provider::Claude | Provider::Antigravity) {
+                return self.send_persistent_chat(vault_id, request_id, text, model, effort);
+            }
+            if self.provider == Provider::Opencode {
+                return self.send_persistent_opencode(vault_id, request_id, text, model);
+            }
+        }
+        self.send_oneshot(vault_id, request_id, text, model, effort, purpose)
+    }
+
+    fn send_persistent_chat(
+        self: &Arc<Self>,
+        vault_id: &str,
+        request_id: &str,
+        text: &str,
+        model: Option<&str>,
+        effort: Option<&str>,
+    ) -> Result<Value, String> {
         if !self.is_alive() {
             return Err("AI_DISCONNECTED".into());
         }
@@ -204,12 +1019,304 @@ impl Client {
         if self.status()?["authenticated"] != true {
             return Err("AI_SIGN_IN_REQUIRED".into());
         }
+        let model_key = model.filter(|model| !model.is_empty()).map(str::to_owned);
+        let effort_key = effort
+            .filter(|effort| !effort.is_empty())
+            .map(str::to_owned);
+        let existing = self
+            .sessions
+            .lock()
+            .map_err(|_| "AI_DISCONNECTED")?
+            .get(vault_id)
+            .cloned();
+        if let Some(session) = existing {
+            let busy = session
+                .active
+                .lock()
+                .map_err(|_| "AI_DISCONNECTED")?
+                .is_some();
+            if busy {
+                return Err("AI_BUSY".into());
+            }
+            if session.alive.load(Ordering::SeqCst)
+                && session.model == model_key
+                && session.effort == effort_key
+            {
+                session.submit(request_id, text)?;
+                return Ok(json!({"threadId":request_id}));
+            }
+            if let Ok(mut sessions) = self.sessions.lock() {
+                sessions.remove(vault_id);
+            }
+            session.terminate();
+        }
+
         let root = repository::workspace(&self.app, vault_id, self.provider)?;
+        let prompt = chat_prompt(&self.app, vault_id, self.provider, request_id, text)?;
+        let directory = crate::app::runtime::app_directory(&self.app)?;
+        let binary = std::env::current_exe().map_err(|_| "AI_START_FAILED")?;
+        let bridge = crate::ai::link_requests::Bridge::start(self.app.clone())?;
+        let mut mcp_args = json!(["--ai-mcp", directory, vault_id]);
+        mcp_args.as_array_mut().ok_or("AI_PROTOCOL_ERROR")?.extend(
+            bridge
+                .arguments()
+                .as_array()
+                .ok_or("AI_PROTOCOL_ERROR")?
+                .iter()
+                .cloned(),
+        );
+        mcp_args
+            .as_array_mut()
+            .ok_or("AI_PROTOCOL_ERROR")?
+            .push(json!(crate::ai::task::Purpose::Chat.name()));
+        let mut command = process::command(&self.binary);
+        command
+            .current_dir(&root)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        match self.provider {
+            Provider::Claude => {
+                let mcp = json!({"mcpServers":{"omega":{"command":binary,"args":mcp_args}}});
+                claude::configure(
+                    &mut command,
+                    mcp,
+                    crate::ai::task::Purpose::Chat,
+                    model_key.as_deref(),
+                    effort_key.as_deref(),
+                    true,
+                );
+            }
+            Provider::Antigravity => {
+                let mcp = json!({"mcpServers":{"omega":{"command":binary,"args":mcp_args}}});
+                antigravity::configure(
+                    &mut command,
+                    &root,
+                    mcp,
+                    crate::ai::task::Purpose::Chat,
+                    model_key.as_deref(),
+                )?;
+            }
+            _ => return Err("AI_INVALID_PROVIDER".into()),
+        }
+        let mut child = match command.spawn() {
+            Ok(child) => child,
+            Err(_) => return Err("AI_START_FAILED".into()),
+        };
+        let stdin = child.stdin.take().ok_or("AI_START_FAILED")?;
+        let stdout = child.stdout.take().ok_or("AI_START_FAILED")?;
+        let stderr = child.stderr.take().ok_or("AI_START_FAILED")?;
+        let session = Arc::new(PersistentSession {
+            provider: self.provider,
+            vault_id: vault_id.into(),
+            model: model_key,
+            effort: effort_key,
+            app: self.app.clone(),
+            connection_id: self.connection_id.clone(),
+            bridge,
+            child: Mutex::new(child),
+            stdin: Mutex::new(stdin),
+            active: Mutex::new(None),
+            alive: AtomicBool::new(true),
+        });
+        session.begin_turn(request_id)?;
+        self.sessions
+            .lock()
+            .map_err(|_| "AI_DISCONNECTED")?
+            .insert(vault_id.into(), session.clone());
+        self.prune_persistent_vaults(vault_id);
+        let weak = Arc::downgrade(&session);
+        std::thread::spawn(move || stream_reader(weak, stdout, stderr));
+        if let Err(error) = session.write_turn(request_id, &prompt) {
+            if let Ok(mut sessions) = self.sessions.lock() {
+                sessions.remove(vault_id);
+            }
+            session.terminate();
+            return Err(error);
+        }
+        Ok(json!({"threadId":request_id}))
+    }
+
+    fn send_persistent_opencode(
+        self: &Arc<Self>,
+        vault_id: &str,
+        request_id: &str,
+        text: &str,
+        model: Option<&str>,
+    ) -> Result<Value, String> {
+        if model.is_none_or(|model| !opencode_catalog::supported_model(model)) {
+            return Err("AI_OPENCODE_MODELS_UNAVAILABLE".into());
+        }
+        if !self.is_alive() {
+            return Err("AI_DISCONNECTED".into());
+        }
+        tools::resolve_vault(&self.app, vault_id)?;
+        if self
+            .runs
+            .lock()
+            .map_err(|_| "AI_DISCONNECTED")?
+            .contains_key(vault_id)
+        {
+            return Err("AI_BUSY".into());
+        }
+        let root = repository::workspace(&self.app, vault_id, self.provider)?;
+        let existing = self
+            .open_sessions
+            .lock()
+            .map_err(|_| "AI_DISCONNECTED")?
+            .get(vault_id)
+            .cloned();
+        let session = if let Some(session) = existing.filter(|session| session.is_alive()) {
+            session
+        } else {
+            if let Ok(mut sessions) = self.open_sessions.lock() {
+                if let Some(old) = sessions.remove(vault_id) {
+                    old.stop();
+                }
+            }
+            let session = OpenCodeSession::start(
+                &self.app,
+                vault_id,
+                &self.connection_id,
+                root,
+                self.binary.clone(),
+            )?;
+            self.open_sessions
+                .lock()
+                .map_err(|_| "AI_DISCONNECTED")?
+                .insert(vault_id.into(), session.clone());
+            self.prune_persistent_vaults(vault_id);
+            session
+        };
+        if !session.is_alive() {
+            return Err("AI_DISCONNECTED".into());
+        }
+        session.start_events(Arc::downgrade(self))?;
+        let first_turn = !session.has_conversation.load(Ordering::SeqCst);
+        let prompt = if !first_turn {
+            text.to_string()
+        } else {
+            chat_prompt(&self.app, vault_id, self.provider, request_id, text)?
+        };
+        let model = model.expect("validated OpenCode model");
+        let model_is_go = model.starts_with("opencode-go/");
+        let user_message_id = format!("msg_{}", uuid::Uuid::now_v7().simple());
+        session.begin_turn(request_id, &user_message_id, model_is_go)?;
+        let run = Arc::new(Run {
+            bridge: None,
+            request_id: request_id.into(),
+            child: None,
+            cancelled: AtomicBool::new(false),
+            timed_out: AtomicBool::new(false),
+            worker: Mutex::new(None),
+            timer_cancel: Mutex::new(None),
+        });
+        let mut runs = self.runs.lock().map_err(|_| "AI_DISCONNECTED")?;
+        if runs.contains_key(vault_id) {
+            session.abort_turn(request_id);
+            return Err("AI_BUSY".into());
+        }
+        runs.insert(vault_id.into(), run.clone());
+        drop(runs);
+
+        let (cancel_timer, timer_worker) = std::sync::mpsc::channel();
+        *run.timer_cancel.lock().map_err(|_| "AI_DISCONNECTED")? = Some(cancel_timer);
+        let client = Arc::downgrade(self);
+        let session_for_timer = Arc::downgrade(&session);
+        let request_for_timer = request_id.to_string();
+        let run_for_timer = Arc::downgrade(&run);
+        let timer_worker = std::thread::spawn(move || {
+            if matches!(
+                timer_worker.recv_timeout(std::time::Duration::from_secs(900)),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            ) {
+                if let (Some(client), Some(session), Some(run)) = (
+                    client.upgrade(),
+                    session_for_timer.upgrade(),
+                    run_for_timer.upgrade(),
+                ) {
+                    run.timed_out.store(true, Ordering::SeqCst);
+                    client.finish_opencode_turn(
+                        &session,
+                        &request_for_timer,
+                        Some("AI_TIMEOUT"),
+                        false,
+                    );
+                    session.interrupt();
+                }
+            }
+        });
+        *run.worker.lock().map_err(|_| "AI_DISCONNECTED")? = Some(timer_worker);
+
+        let result = (|| {
+            let selected_model = session.model.lock().map_err(|_| "AI_DISCONNECTED")?.clone();
+            if selected_model.as_deref() != Some(model) {
+                session.select_model(model)?;
+                *session.model.lock().map_err(|_| "AI_DISCONNECTED")? = Some(model.into());
+            }
+            let path = session.session_path("/prompt")?;
+            session.api_sync(
+                "POST",
+                &path,
+                Some(json!({"id":user_message_id,"text":prompt,"resume":true})),
+                model_is_go,
+            )?;
+            Ok::<(), String>(())
+        })();
+        if let Err(error) = result {
+            session.abort_turn(request_id);
+            session.interrupt();
+            if let Ok(mut runs) = self.runs.lock() {
+                if runs
+                    .get(vault_id)
+                    .is_some_and(|current| Arc::ptr_eq(current, &run))
+                {
+                    runs.remove(vault_id);
+                }
+            }
+            run.stop_timer();
+            return Err(error);
+        }
+        session.has_conversation.store(true, Ordering::SeqCst);
+        Ok(json!({"threadId":request_id}))
+    }
+
+    fn send_oneshot(
+        self: &Arc<Self>,
+        vault_id: &str,
+        request_id: &str,
+        text: &str,
+        model: Option<&str>,
+        effort: Option<&str>,
+        purpose: crate::ai::task::Purpose,
+    ) -> Result<Value, String> {
+        if !self.is_alive() {
+            return Err("AI_DISCONNECTED".into());
+        }
+        tools::resolve_vault(&self.app, vault_id)?;
+        if self
+            .runs
+            .lock()
+            .map_err(|_| "AI_DISCONNECTED")?
+            .contains_key(vault_id)
+        {
+            return Err("AI_BUSY".into());
+        }
+        if self.status()?["authenticated"] != true {
+            return Err("AI_SIGN_IN_REQUIRED".into());
+        }
+        let root = repository::workspace_for_request(
+            &self.app,
+            vault_id,
+            self.provider,
+            purpose,
+            request_id,
+        )?;
         self.clean_sessions(&root)?;
         let directory = crate::app::runtime::app_directory(&self.app)?;
         let binary = std::env::current_exe().map_err(|_| "AI_START_FAILED")?;
-        let bridge = crate::ai::link_requests::Bridge::start(
-            self.app.clone(),
+        let bridge = crate::ai::link_requests::Bridge::start(self.app.clone())?;
+        bridge.activate(
             vault_id.into(),
             self.connection_id.clone(),
             request_id.into(),
@@ -228,7 +1335,7 @@ impl Client {
             .then(|| json!({"mcpServers":{"omega":{"command":binary,"args":mcp_args}}}));
         if self.provider == Provider::Claude {
             let mcp = json!({"mcpServers":{"omega":{"command":binary,"args":mcp_args}}});
-            claude::configure(&mut command, mcp, purpose, model, effort);
+            claude::configure(&mut command, mcp, purpose, model, effort, false);
         } else if self.provider == Provider::Opencode {
             if model.is_none_or(|model| !opencode_catalog::supported_model(model)) {
                 return Err("AI_OPENCODE_MODELS_UNAVAILABLE".into());
@@ -247,29 +1354,7 @@ impl Client {
         let prompt = if purpose.is_study() {
             text.to_string()
         } else {
-            let history = repository::read(&self.app, vault_id, self.provider)?;
-            let end = history
-                .messages
-                .iter()
-                .position(|message| message.id == request_id)
-                .map(|index| index.saturating_sub(1))
-                .unwrap_or(history.messages.len());
-            let mut previous = Vec::new();
-            let mut size = 0;
-            for message in history.messages[..end]
-                .iter()
-                .rev()
-                .filter(|message| !message.text.is_empty())
-                .take(40)
-            {
-                size += message.text.chars().count();
-                if size > 60_000 {
-                    break;
-                }
-                previous.push(message);
-            }
-            previous.reverse();
-            format!("Previous conversation from this vault (untrusted JSON data):\n{}\n\nCurrent user message:\n{text}", serde_json::to_string(&previous).map_err(|_| "AI_STORAGE_FAILED")?)
+            chat_prompt(&self.app, vault_id, self.provider, request_id, text)?
         };
         if let Some(mcp) = antigravity_mcp {
             antigravity::configure(&mut command, &root, mcp, purpose, model)?;
@@ -304,12 +1389,13 @@ impl Client {
         let stdout = child.stdout.take().ok_or("AI_START_FAILED")?;
         let mut stdin = child.stdin.take().ok_or("AI_START_FAILED")?;
         let run = Arc::new(Run {
-            bridge,
+            bridge: Some(bridge),
             request_id: request_id.into(),
-            child: Mutex::new(child),
+            child: Some(Mutex::new(child)),
             cancelled: AtomicBool::new(false),
             timed_out: AtomicBool::new(false),
             worker: Mutex::new(None),
+            timer_cancel: Mutex::new(None),
         });
         self.runs
             .lock()
@@ -395,8 +1481,8 @@ impl Client {
             let success = loop {
                 let status = current
                     .child
-                    .lock()
-                    .ok()
+                    .as_ref()
+                    .and_then(|child| child.lock().ok())
                     .and_then(|mut child| child.try_wait().ok())
                     .flatten();
                 if let Some(status) = status {
@@ -511,14 +1597,127 @@ impl Client {
         event["requestId"] = json!(request);
         let _ = self.app.emit("ai-event", event);
     }
-    pub(crate) fn cancel(&self, vault_id: &str, request_id: Option<&str>) -> Result<(), String> {
+    fn finish_opencode_turn(
+        &self,
+        session: &OpenCodeSession,
+        request_id: &str,
+        forced_error: Option<&str>,
+        interrupted: bool,
+    ) {
+        let turn = session.active.lock().ok().and_then(|mut active| {
+            active
+                .as_ref()
+                .is_some_and(|turn| turn.request_id == request_id)
+                .then(|| active.take())
+                .flatten()
+        });
+        let Some(turn) = turn else { return };
+        session.bridge.deactivate(request_id);
+        let error = if interrupted {
+            None
+        } else {
+            forced_error
+                .or(turn.error_code)
+                .or_else(|| (!turn.answered).then_some("AI_OPENCODE_EMPTY_RESPONSE"))
+        };
+        let failed = error.is_some();
+        self.emit(
+            &session.vault_id,
+            request_id,
+            json!({
+                "kind":"completed",
+                "failed":failed,
+                "status":if interrupted { "interrupted" } else if failed { "failed" } else { "completed" },
+                "errorCode":error,
+                "errorDetail":if error.is_some_and(|code| code.starts_with("AI_OPENCODE_")) { turn.error_detail } else { None }
+            }),
+        );
+        if let Ok(mut runs) = self.runs.lock() {
+            let run = runs
+                .get(&session.vault_id)
+                .filter(|run| run.request_id == request_id)
+                .cloned();
+            if run.is_some() {
+                runs.remove(&session.vault_id);
+            }
+            drop(runs);
+            if let Some(run) = run {
+                run.stop_timer();
+            }
+        }
+    }
+    fn prune_persistent_vaults(&self, keep: &str) {
+        const MAX_IDLE_VAULT_SESSIONS: usize = 2;
+        if self.provider == Provider::Opencode {
+            loop {
+                let removed = {
+                    let Ok(mut sessions) = self.open_sessions.lock() else {
+                        return;
+                    };
+                    if sessions.len() <= MAX_IDLE_VAULT_SESSIONS {
+                        return;
+                    }
+                    let busy = self.runs.lock().ok();
+                    let candidate = sessions
+                        .keys()
+                        .find(|vault| {
+                            vault.as_str() != keep
+                                && !busy.as_ref().is_some_and(|runs| runs.contains_key(*vault))
+                        })
+                        .cloned();
+                    candidate.and_then(|vault| sessions.remove(&vault))
+                };
+                let Some(removed) = removed else { return };
+                removed.stop();
+            }
+        }
+        loop {
+            let removed = {
+                let Ok(mut sessions) = self.sessions.lock() else {
+                    return;
+                };
+                if sessions.len() <= MAX_IDLE_VAULT_SESSIONS {
+                    return;
+                }
+                let candidate = sessions
+                    .iter()
+                    .find(|(vault, session)| {
+                        vault.as_str() != keep
+                            && session.active.lock().is_ok_and(|active| active.is_none())
+                    })
+                    .map(|(vault, _)| vault.clone());
+                candidate.and_then(|vault| sessions.remove(&vault))
+            };
+            let Some(removed) = removed else { return };
+            removed.terminate();
+        }
+    }
+    pub(crate) fn cancel(
+        &self,
+        vault_id: &str,
+        clear: bool,
+        request_id: Option<&str>,
+    ) -> Result<(), String> {
         let run = self
             .runs
             .lock()
             .map_err(|_| "AI_DISCONNECTED")?
             .get(vault_id)
             .cloned();
-        if let Some(run) = run.filter(|run| request_id.is_none_or(|id| id == run.request_id)) {
+        let matched_run = run.filter(|run| request_id.is_none_or(|id| id == run.request_id));
+        let cancelled_run = matched_run.is_some();
+        if let Some(run) = matched_run {
+            if self.provider == Provider::Opencode {
+                if let Some(session) = self
+                    .open_sessions
+                    .lock()
+                    .ok()
+                    .and_then(|sessions| sessions.get(vault_id).cloned())
+                {
+                    self.finish_opencode_turn(&session, &run.request_id, None, true);
+                    session.interrupt();
+                }
+            }
             run.cancel();
             let completed = run.join();
             if let Ok(mut runs) = self.runs.lock() {
@@ -535,6 +1734,57 @@ impl Client {
                     &run.request_id,
                     json!({"kind":"completed","status":"interrupted"}),
                 );
+            }
+        }
+        let session = self
+            .sessions
+            .lock()
+            .map_err(|_| "AI_DISCONNECTED")?
+            .get(vault_id)
+            .cloned();
+        if let Some(session) = session {
+            let active_request = session
+                .active
+                .lock()
+                .map_err(|_| "AI_DISCONNECTED")?
+                .as_ref()
+                .map(|turn| turn.request_id.clone());
+            if active_request
+                .as_deref()
+                .is_some_and(|active| request_id.is_none_or(|requested| requested == active))
+            {
+                session.cancel(request_id);
+                if let Ok(mut sessions) = self.sessions.lock() {
+                    if sessions
+                        .get(vault_id)
+                        .is_some_and(|current| Arc::ptr_eq(current, &session))
+                    {
+                        sessions.remove(vault_id);
+                    }
+                }
+            } else if clear && active_request.is_none() {
+                session.terminate();
+                if let Ok(mut sessions) = self.sessions.lock() {
+                    if sessions
+                        .get(vault_id)
+                        .is_some_and(|current| Arc::ptr_eq(current, &session))
+                    {
+                        sessions.remove(vault_id);
+                    }
+                }
+            }
+        }
+        if self.provider == Provider::Opencode {
+            let session = self
+                .open_sessions
+                .lock()
+                .map_err(|_| "AI_DISCONNECTED")?
+                .get(vault_id)
+                .cloned();
+            if let Some(session) = session {
+                if clear && (cancelled_run || request_id.is_none()) {
+                    session.clear()?;
+                }
             }
         }
         Ok(())
@@ -555,6 +1805,23 @@ impl Client {
         for run in runs {
             run.join();
         }
+        let sessions: Vec<_> = self
+            .sessions
+            .lock()
+            .map(|mut sessions| sessions.drain().map(|(_, session)| session).collect())
+            .unwrap_or_default();
+        for session in sessions {
+            session.cancel(None);
+            session.terminate();
+        }
+        let open_sessions: Vec<_> = self
+            .open_sessions
+            .lock()
+            .map(|mut sessions| sessions.drain().map(|(_, session)| session).collect())
+            .unwrap_or_default();
+        for session in open_sessions {
+            session.stop();
+        }
     }
     fn clean_sessions(&self, root: &std::path::Path) -> Result<(), String> {
         if self.provider == Provider::Antigravity {
@@ -564,6 +1831,368 @@ impl Client {
             return Ok(());
         }
         clean_sessions(root)
+    }
+}
+
+fn validate_opencode_session_id(id: &str) -> bool {
+    id.starts_with("ses_")
+        && id
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_')
+}
+
+fn read_opencode_session(root: &std::path::Path) -> Result<Option<String>, String> {
+    let path = root.join("session.json");
+    match std::fs::symlink_metadata(&path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Ok(metadata)
+            if metadata.is_file()
+                && !metadata.file_type().is_symlink()
+                && metadata.len() <= 1024 => {}
+        _ => return Err("AI_STORAGE_FAILED".into()),
+    }
+    let id: String = serde_json::from_slice(&std::fs::read(path).map_err(|_| "AI_STORAGE_FAILED")?)
+        .map_err(|_| "AI_STORAGE_FAILED")?;
+    if !validate_opencode_session_id(&id) {
+        return Err("AI_STORAGE_FAILED".into());
+    }
+    Ok(Some(id))
+}
+
+fn create_opencode_session(session: &OpenCodeSession) -> Result<String, String> {
+    let response = session.api_sync(
+        "POST",
+        "/api/session",
+        Some(json!({
+            "title":"Ômega Notes",
+            "agent":"omega",
+            "location":{"directory":session.root}
+        })),
+        false,
+    )?;
+    let id = response["data"]["id"]
+        .as_str()
+        .or_else(|| response["id"].as_str())
+        .filter(|id| validate_opencode_session_id(id))
+        .ok_or("AI_PROTOCOL_ERROR")?;
+    Ok(id.to_string())
+}
+
+fn opencode_event_worker(
+    session: std::sync::Weak<OpenCodeSession>,
+    client: std::sync::Weak<Client>,
+    mut ready: Option<std::sync::mpsc::Sender<Result<(), String>>>,
+) {
+    loop {
+        let Some(session) = session.upgrade() else {
+            if let Some(ready) = ready.take() {
+                let _ = ready.send(Err("AI_DISCONNECTED".into()));
+            }
+            return;
+        };
+        if !session.is_alive() {
+            if let Some(ready) = ready.take() {
+                let _ = ready.send(Err("AI_DISCONNECTED".into()));
+            }
+            return;
+        }
+        let response = tauri::async_runtime::block_on(async {
+            let response = session
+                .http
+                .get(format!("{}/api/event", session.url))
+                .basic_auth(&session.username, Some(&session.password))
+                .header(reqwest::header::ACCEPT, "text/event-stream")
+                .send()
+                .await
+                .map_err(|_| "AI_OPENCODE_CONNECTION_FAILED")?;
+            if !response.status().is_success() {
+                let status = response.status();
+                let bytes = response
+                    .bytes()
+                    .await
+                    .map_err(|_| "AI_OPENCODE_CONNECTION_FAILED")?;
+                let mut detail = serde_json::from_slice::<Value>(&bytes)
+                    .unwrap_or_else(|_| json!({"message":String::from_utf8_lossy(&bytes)}));
+                detail["status"] = json!(status.as_u16());
+                return Err(opencode_error::classify(&detail, false));
+            }
+            Ok(response)
+        });
+        let response = match response {
+            Ok(response) => {
+                if let Some(ready) = ready.take() {
+                    let _ = ready.send(Ok(()));
+                }
+                response
+            }
+            Err(error) => {
+                if let Some(ready) = ready.take() {
+                    let _ = ready.send(Err(error.into()));
+                    return;
+                }
+                if let Some(request_id) = session.active_request() {
+                    session.interrupt();
+                    if let Some(client) = client.upgrade() {
+                        client.finish_opencode_turn(&session, &request_id, Some(error), false);
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                continue;
+            }
+        };
+        let result = tauri::async_runtime::block_on(read_opencode_events(
+            session.clone(),
+            client.clone(),
+            response,
+        ));
+        if !session.is_alive() {
+            return;
+        }
+        if result.is_err() {
+            if let Some(request_id) = session.active_request() {
+                session.interrupt();
+                if let Some(client) = client.upgrade() {
+                    client.finish_opencode_turn(
+                        &session,
+                        &request_id,
+                        Some("AI_OPENCODE_CONNECTION_FAILED"),
+                        false,
+                    );
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+    }
+}
+
+async fn read_opencode_events(
+    session: Arc<OpenCodeSession>,
+    client: std::sync::Weak<Client>,
+    mut response: reqwest::Response,
+) -> Result<(), String> {
+    const MAX_SSE_LINE: usize = 4 * 1024 * 1024;
+    let mut line = Vec::new();
+    let mut data = Vec::<String>::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|_| "AI_OPENCODE_CONNECTION_FAILED")?
+    {
+        for byte in chunk {
+            if byte != b'\n' {
+                line.push(byte);
+                if line.len() > MAX_SSE_LINE {
+                    return Err("AI_PROTOCOL_ERROR".into());
+                }
+                continue;
+            }
+            if line.last() == Some(&b'\r') {
+                line.pop();
+            }
+            let value = String::from_utf8_lossy(&line).into_owned();
+            line.clear();
+            if value.is_empty() {
+                if !data.is_empty() {
+                    let payload = data.join("\n");
+                    data.clear();
+                    if let Ok(event) = serde_json::from_str::<Value>(&payload) {
+                        if let Some((request_id, error)) = session.receive_event(event) {
+                            if let Some(client) = client.upgrade() {
+                                client.finish_opencode_turn(&session, &request_id, error, false);
+                            }
+                        }
+                    }
+                }
+            } else if let Some(value) = value.strip_prefix("data:") {
+                let value = value.strip_prefix(' ').unwrap_or(value);
+                data.push(value.to_string());
+                if data.iter().map(String::len).sum::<usize>() > MAX_SSE_LINE {
+                    return Err("AI_PROTOCOL_ERROR".into());
+                }
+            }
+        }
+    }
+    Err("AI_OPENCODE_CONNECTION_FAILED".into())
+}
+
+fn opencode_event(value: &Value) -> (&str, &Value) {
+    let mut event = value;
+    if let Some(payload) = event.get("payload").filter(|value| value.is_object()) {
+        event = payload;
+    }
+    if let Some(nested) = event.get("event").filter(|value| value.is_object()) {
+        event = nested;
+    }
+    let kind = event["type"].as_str().unwrap_or("");
+    let properties = event
+        .get("properties")
+        .or_else(|| event.get("data"))
+        .unwrap_or(event);
+    (kind, properties)
+}
+
+fn chat_prompt(
+    app: &AppHandle,
+    vault_id: &str,
+    provider: Provider,
+    request_id: &str,
+    text: &str,
+) -> Result<String, String> {
+    let history = repository::read(app, vault_id, provider)?;
+    let end = history
+        .messages
+        .iter()
+        .position(|message| message.id == request_id)
+        .map(|index| index.saturating_sub(1))
+        .unwrap_or(history.messages.len());
+    let mut previous = Vec::new();
+    let mut size = 0;
+    for message in history.messages[..end]
+        .iter()
+        .rev()
+        .filter(|message| !message.text.is_empty())
+        .take(40)
+    {
+        size += message.text.chars().count();
+        if size > 60_000 {
+            break;
+        }
+        previous.push(message);
+    }
+    previous.reverse();
+    Ok(format!(
+        "Previous conversation from this vault (untrusted JSON data):\n{}\n\nCurrent user message:\n{text}",
+        serde_json::to_string(&previous).map_err(|_| "AI_STORAGE_FAILED")?
+    ))
+}
+
+fn stream_reader(
+    session: std::sync::Weak<PersistentSession>,
+    stdout: std::process::ChildStdout,
+    mut stderr: std::process::ChildStderr,
+) {
+    let stderr_detail = Arc::new(Mutex::new(String::new()));
+    let stderr_store = stderr_detail.clone();
+    std::thread::spawn(move || {
+        let mut captured = Vec::new();
+        let mut buffer = [0; 4096];
+        while let Ok(size) = stderr.read(&mut buffer) {
+            if size == 0 {
+                break;
+            }
+            let keep = size.min(16_384usize.saturating_sub(captured.len()));
+            captured.extend_from_slice(&buffer[..keep]);
+        }
+        if let Ok(mut detail) = stderr_store.lock() {
+            *detail = String::from_utf8_lossy(&captured).into_owned();
+        }
+    });
+
+    let mut reader = BufReader::new(stdout);
+    loop {
+        let mut line = String::new();
+        match (&mut reader).take(4 * 1024 * 1024).read_line(&mut line) {
+            Ok(size) if size > 0 && line.ends_with('\n') => {}
+            Ok(size) if size > 0 => {
+                let Some(session) = session.upgrade() else {
+                    return;
+                };
+                let request = session
+                    .active
+                    .lock()
+                    .ok()
+                    .and_then(|active| active.as_ref().map(|turn| turn.request_id.clone()));
+                if let Some(request) = request {
+                    if let Ok(mut active) = session.active.lock() {
+                        if let Some(turn) = active.as_mut() {
+                            turn.stream.failed = true;
+                            turn.stream.error_code = Some("AI_PROTOCOL_ERROR");
+                        }
+                    }
+                    session.finish(&request, Some("AI_PROTOCOL_ERROR"), false);
+                    session.terminate();
+                }
+                return;
+            }
+            _ => break,
+        }
+        let Some(current) = session.upgrade() else {
+            return;
+        };
+        let value = match serde_json::from_str::<Value>(&line) {
+            Ok(value) => value,
+            Err(_) => {
+                let request = current
+                    .active
+                    .lock()
+                    .ok()
+                    .and_then(|active| active.as_ref().map(|turn| turn.request_id.clone()));
+                if let Some(request) = request {
+                    if let Ok(mut active) = current.active.lock() {
+                        if let Some(turn) = active.as_mut() {
+                            turn.stream.failed = true;
+                            turn.stream.error_code = Some("AI_PROTOCOL_ERROR");
+                        }
+                    }
+                    current.finish(&request, Some("AI_PROTOCOL_ERROR"), false);
+                    current.terminate();
+                    return;
+                }
+                continue;
+            }
+        };
+        if current.receive_line(value) {
+            let (request, stop_after_turn) = current
+                .active
+                .lock()
+                .ok()
+                .and_then(|active| {
+                    active.as_ref().map(|turn| {
+                        (
+                            turn.request_id.clone(),
+                            matches!(
+                                turn.stream.error_code,
+                                Some("AI_CLAUDE_MCP_FAILED" | "AI_ANTIGRAVITY_MCP_FAILED")
+                            ),
+                        )
+                    })
+                })
+                .unwrap_or_default();
+            if !request.is_empty() {
+                current.finish(&request, None, false);
+            }
+            if stop_after_turn {
+                current.terminate();
+                return;
+            }
+        }
+    }
+
+    if let Some(current) = session.upgrade() {
+        let detail = stderr_detail
+            .lock()
+            .ok()
+            .map(|detail| detail.clone())
+            .filter(|detail| !detail.trim().is_empty());
+        let request = current
+            .active
+            .lock()
+            .ok()
+            .and_then(|active| active.as_ref().map(|turn| turn.request_id.clone()));
+        if let Some(request) = request {
+            if let (Some(detail), Ok(mut active)) = (detail.as_ref(), current.active.lock()) {
+                if let Some(turn) = active.as_mut() {
+                    turn.stream.error_detail = Some(detail.chars().take(2000).collect());
+                }
+            }
+            let code = if current.provider == Provider::Antigravity {
+                antigravity::error_code(detail.as_deref().unwrap_or(""))
+            } else {
+                "AI_CLAUDE_CLI_FAILED"
+            };
+            current.finish(&request, Some(code), false);
+        }
+        current.terminate();
     }
 }
 
