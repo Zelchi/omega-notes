@@ -1,8 +1,7 @@
+use std::collections::HashSet;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-
-use uuid::Uuid;
 
 use crate::storage::{atomic_copy, atomic_write};
 
@@ -13,6 +12,67 @@ fn image_store_dir(notes_directory: &Path) -> Result<PathBuf, String> {
         .parent()
         .ok_or_else(|| "Pasta de notas sem um Vault válido.".to_string())?;
     Ok(vault_directory.join("images"))
+}
+
+fn image_entries(folder: &Path) -> Result<Vec<fs::DirEntry>, String> {
+    match fs::symlink_metadata(folder) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            Err("A pasta de imagens não é um diretório seguro.".to_string())
+        }
+        Ok(_) => fs::read_dir(folder)
+            .map_err(|error| format!("Não foi possível ler a pasta de imagens: {error}"))?
+            .map(|entry| {
+                entry.map_err(|error| format!("Não foi possível ler a pasta de imagens: {error}"))
+            })
+            .collect(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(error) => Err(format!(
+            "Não foi possível verificar a pasta de imagens: {error}"
+        )),
+    }
+}
+
+fn verify_image_directory(folder: &Path) -> Result<bool, String> {
+    match fs::symlink_metadata(folder) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            Err("A pasta de imagens não é um diretório seguro.".to_string())
+        }
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!(
+            "Não foi possível verificar a pasta de imagens: {error}"
+        )),
+    }
+}
+
+pub(super) fn existing_image_ids(directory: &Path) -> Result<HashSet<String>, String> {
+    let images = image_store_dir(directory)?;
+    let mut ids = HashSet::new();
+    for entry in image_entries(&images)? {
+        if !entry
+            .file_type()
+            .map_err(|error| format!("Não foi possível verificar um arquivo de imagem: {error}"))?
+            .is_file()
+        {
+            continue;
+        }
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        let Some((id, extension)) = name.rsplit_once('.') else {
+            continue;
+        };
+        if !IMAGE_EXTENSIONS.contains(&extension) {
+            continue;
+        }
+        let Ok(uuid) = uuid::Uuid::parse_str(id) else {
+            continue;
+        };
+        if uuid.to_string() == id {
+            ids.insert(id.to_string());
+        }
+    }
+    Ok(ids)
 }
 
 pub(super) fn extension_from_bytes(bytes: &[u8]) -> Result<&'static str, String> {
@@ -82,42 +142,28 @@ pub(super) fn read_image(directory: &Path, image_id: &str) -> Result<Vec<u8>, St
     fs::read(path).map_err(|error| format!("Não foi possível ler a imagem: {error}"))
 }
 
-pub(super) fn remove_image(directory: &Path, image_id: &str) -> Result<(), String> {
+pub(super) fn remove_image(directory: &Path, image_id: &str) -> Result<usize, String> {
+    uuid::Uuid::parse_str(image_id).map_err(|_| "Identificador de imagem inválido.".to_string())?;
     let images = image_store_dir(directory)?;
+    if !verify_image_directory(&images)? {
+        return Ok(0);
+    }
+    let mut removed = 0;
     for extension in IMAGE_EXTENSIONS {
         let path = images.join(format!("{image_id}.{extension}"));
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(format!("Não foi possível verificar a imagem: {error}")),
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            continue;
+        }
         match fs::remove_file(path) {
-            Ok(()) => {}
+            Ok(()) => removed += 1,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(format!("Não foi possível apagar a imagem: {error}")),
         }
     }
-    Ok(())
-}
-
-pub(crate) fn stored_image_ids(directory: &Path) -> Result<Vec<String>, String> {
-    let images = image_store_dir(directory)?;
-    if !images.exists() {
-        return Ok(Vec::new());
-    }
-    let entries = fs::read_dir(images)
-        .map_err(|error| format!("Não foi possível abrir a biblioteca de imagens: {error}"))?;
-    let mut image_ids = Vec::new();
-    for entry in entries {
-        let entry = entry.map_err(|error| format!("Não foi possível ler uma imagem: {error}"))?;
-        let path = entry.path();
-        let Some(extension) = path.extension().and_then(|value| value.to_str()) else {
-            continue;
-        };
-        if !IMAGE_EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str()) || !path.is_file() {
-            continue;
-        }
-        let Some(image_id) = path.file_stem().and_then(|value| value.to_str()) else {
-            continue;
-        };
-        if Uuid::parse_str(image_id).is_ok() {
-            image_ids.push(image_id.to_string());
-        }
-    }
-    Ok(image_ids)
+    Ok(removed)
 }

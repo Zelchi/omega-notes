@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use crate::names::normalize_name;
 use crate::notes::{
-    ensure_unique_note_title, note_title_indexes, rename_resolved_note_links, restore_note_files,
-    snapshot_note_files, validate_note_id, validate_note_title, write_note, NoteDocument,
-    StudyNote,
+    begin_note_rename_journal, commit_note_rename_journal, ensure_unique_note_title,
+    note_title_indexes, rename_resolved_note_links, rollback_note_rename_journal, validate_note_id,
+    validate_note_title, write_note, NoteDocument, StudyNote,
 };
 
 use super::loading::list_notes;
@@ -28,6 +28,7 @@ pub(crate) fn rename_note(
     note_id: String,
     note_title: String,
 ) -> Result<Vec<StudyNote>, RenameNoteError> {
+    let _title_lock = super::lock_title_mutations().map_err(RenameNoteError::Context)?;
     validate_note_id(&note_id).map_err(RenameNoteError::Validation)?;
     validate_note_title(&note_title).map_err(RenameNoteError::Validation)?;
     let (directory, backups_directory) = resolve_directories().map_err(RenameNoteError::Context)?;
@@ -74,41 +75,49 @@ pub(crate) fn rename_note(
     }
     updates.sort_by(|first, second| first.0.cmp(&second.0));
 
-    save_renamed_notes(
-        updates,
-        &|ids| snapshot_note_files(&directory, &backups_directory, ids),
-        &|id, title, document| write_note(&directory, &backups_directory, id, title, document),
-        &|snapshots| restore_note_files(snapshots),
-    )
-}
-
-fn save_renamed_notes<Snapshot>(
-    updates: Vec<(String, String, NoteDocument)>,
-    snapshot: &impl Fn(&[String]) -> Result<Snapshot, String>,
-    write: &impl Fn(&str, &str, &NoteDocument) -> Result<StudyNote, String>,
-    restore: &impl Fn(&Snapshot) -> Result<(), String>,
-) -> Result<Vec<StudyNote>, RenameNoteError> {
     let changed_ids = updates
         .iter()
         .map(|update| update.0.clone())
         .collect::<Vec<_>>();
-    let snapshots = snapshot(&changed_ids).map_err(RenameNoteError::Snapshot)?;
+    let journal = begin_note_rename_journal(&directory, &backups_directory, &changed_ids)
+        .map_err(RenameNoteError::Snapshot)?;
+    let saved = match save_renamed_notes(updates, &|id, title, document| {
+        write_note(&directory, &backups_directory, id, title, document)
+    }) {
+        Ok(saved) => saved,
+        Err(write_error) => return rollback_rename(journal, write_error),
+    };
+    if let Err(commit_error) = commit_note_rename_journal(&journal) {
+        return rollback_rename(journal, commit_error);
+    }
+    Ok(saved)
+}
+
+fn save_renamed_notes(
+    updates: Vec<(String, String, NoteDocument)>,
+    write: &impl Fn(&str, &str, &NoteDocument) -> Result<StudyNote, String>,
+) -> Result<Vec<StudyNote>, String> {
     let mut saved_notes = Vec::with_capacity(updates.len());
 
     for (id, title, document) in updates {
         match write(&id, &title, &document) {
             Ok(saved) => saved_notes.push(saved),
-            Err(write_error) => {
-                return match restore(&snapshots) {
-                    Ok(()) => Err(RenameNoteError::Write(write_error)),
-                    Err(rollback_error) => Err(RenameNoteError::Rollback {
-                        write_error,
-                        rollback_error,
-                    }),
-                };
-            }
+            Err(write_error) => return Err(write_error),
         }
     }
 
     Ok(saved_notes)
+}
+
+fn rollback_rename(
+    journal: crate::notes::NoteRenameJournal,
+    write_error: String,
+) -> Result<Vec<StudyNote>, RenameNoteError> {
+    match rollback_note_rename_journal(&journal) {
+        Ok(()) => Err(RenameNoteError::Write(write_error)),
+        Err(rollback_error) => Err(RenameNoteError::Rollback {
+            write_error,
+            rollback_error,
+        }),
+    }
 }

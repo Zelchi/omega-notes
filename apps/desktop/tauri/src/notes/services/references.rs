@@ -27,6 +27,21 @@ pub(crate) fn referenced_audio_and_video_ids(
     Ok((audio_ids, video_ids))
 }
 
+pub(crate) fn referenced_media_ids(
+    notes_directory: &Path,
+    backups_directory: &Path,
+) -> Result<(HashSet<String>, HashSet<String>, HashSet<String>), String> {
+    let mut image_ids = HashSet::new();
+    let mut audio_ids = HashSet::new();
+    let mut video_ids = HashSet::new();
+    visit_note_versions(notes_directory, backups_directory, |document| {
+        image_ids.extend(image_ids_in_document(document));
+        audio_ids.extend(audio_ids_in_document(document));
+        video_ids.extend(video_ids_in_document(document));
+    })?;
+    Ok((image_ids, audio_ids, video_ids))
+}
+
 fn collect_references(
     notes_directory: &Path,
     backups_directory: &Path,

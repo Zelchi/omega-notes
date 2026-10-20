@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::storage::atomic_copy;
 
-use super::formats::{is_supported_extension, media_extensions};
+use super::formats::media_extensions;
 
 fn media_directory(notes_directory: &Path, media_type: &str) -> Result<PathBuf, String> {
     let directory = notes_directory
@@ -17,6 +17,71 @@ fn media_directory(notes_directory: &Path, media_type: &str) -> Result<PathBuf, 
         "video" => Ok(directory.join("videos")),
         _ => Err("Tipo de mídia inválido.".to_string()),
     }
+}
+
+fn media_entries(folder: &Path) -> Result<Vec<fs::DirEntry>, String> {
+    match fs::symlink_metadata(folder) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            Err("A pasta de mídia não é um diretório seguro.".to_string())
+        }
+        Ok(_) => fs::read_dir(folder)
+            .map_err(|error| format!("Não foi possível ler a pasta de mídia: {error}"))?
+            .map(|entry| {
+                entry.map_err(|error| format!("Não foi possível ler a pasta de mídia: {error}"))
+            })
+            .collect(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(error) => Err(format!(
+            "Não foi possível verificar a pasta de mídia: {error}"
+        )),
+    }
+}
+
+fn verify_media_directory(folder: &Path) -> Result<bool, String> {
+    match fs::symlink_metadata(folder) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            Err("A pasta de mídia não é um diretório seguro.".to_string())
+        }
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!(
+            "Não foi possível verificar a pasta de mídia: {error}"
+        )),
+    }
+}
+
+pub(super) fn existing_media_ids(
+    directory: &Path,
+    media_type: &str,
+) -> Result<HashSet<String>, String> {
+    let folder = media_directory(directory, media_type)?;
+    let extensions = media_extensions(media_type)?;
+    let mut ids = HashSet::new();
+    for entry in media_entries(&folder)? {
+        if !entry
+            .file_type()
+            .map_err(|error| format!("Não foi possível verificar um arquivo de mídia: {error}"))?
+            .is_file()
+        {
+            continue;
+        }
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        let Some((id, extension)) = name.rsplit_once('.') else {
+            continue;
+        };
+        if !extensions.contains(&extension) {
+            continue;
+        }
+        let Ok(uuid) = Uuid::parse_str(id) else {
+            continue;
+        };
+        if uuid.to_string() == id {
+            ids.insert(id.to_string());
+        }
+    }
+    Ok(ids)
 }
 
 pub(super) fn extension_from_path(source: &Path, media_type: &str) -> Result<&'static str, String> {
@@ -70,46 +135,28 @@ pub(super) fn remove_media(
     directory: &Path,
     media_id: &str,
     media_type: &str,
-) -> Result<(), String> {
+) -> Result<usize, String> {
+    Uuid::parse_str(media_id).map_err(|_| "Identificador de mídia inválido.".to_string())?;
     let folder = media_directory(directory, media_type)?;
+    if !verify_media_directory(&folder)? {
+        return Ok(0);
+    }
+    let mut removed = 0;
     for extension in media_extensions(media_type)? {
         let path = folder.join(format!("{media_id}.{extension}"));
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(format!("Não foi possível verificar a mídia: {error}")),
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            continue;
+        }
         match fs::remove_file(path) {
-            Ok(()) => {}
+            Ok(()) => removed += 1,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(format!("Não foi possível apagar a mídia: {error}")),
         }
     }
-    Ok(())
-}
-
-pub(crate) fn stored_media_ids(
-    directory: &Path,
-    media_type: &str,
-) -> Result<HashSet<String>, String> {
-    let folder = media_directory(directory, media_type)?;
-    if !folder.exists() {
-        return Ok(HashSet::new());
-    }
-    let entries = fs::read_dir(folder)
-        .map_err(|error| format!("Não foi possível abrir os arquivos de mídia: {error}"))?;
-    let mut media_ids = HashSet::new();
-    for entry in entries {
-        let path = entry
-            .map_err(|error| format!("Não foi possível ler um arquivo de mídia: {error}"))?
-            .path();
-        let Some(extension) = path.extension().and_then(|value| value.to_str()) else {
-            continue;
-        };
-        if !is_supported_extension(media_type, extension) || !path.is_file() {
-            continue;
-        }
-        let Some(media_id) = path.file_stem().and_then(|value| value.to_str()) else {
-            continue;
-        };
-        if Uuid::parse_str(media_id).is_ok() {
-            media_ids.insert(media_id.to_string());
-        }
-    }
-    Ok(media_ids)
+    Ok(removed)
 }

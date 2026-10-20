@@ -2,8 +2,10 @@ import { createEffect, createMemo, createSignal, onCleanup, untrack } from "soli
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { NotePositionedElement, StudyNote } from "@/entities/note";
 import { isTauriRuntime } from "@/shared/lib/tauri";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import type { ImportedMedia } from "../../model/media";
 import { readImageSource, selectMediaFiles } from "../../model/media-import";
+import { cleanupOrphanedMedia } from "../../api/media.repository";
 
 type CatalogMedia = { id: string; source: ImportedMedia; noteTitles: string[] };
 const IMAGE_LOAD_CONCURRENCY = 4;
@@ -51,6 +53,8 @@ const sourceKey = (source: ImportedMedia, elementId: string): string => {
 export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) => {
 	const [query, setQuery] = createSignal("");
 	const [sources, setSources] = createSignal<Record<string, string>>({});
+	const [cleaning, setCleaning] = createSignal(false);
+	const [cleanupStatus, setCleanupStatus] = createSignal<{ message: string; failed: boolean }>();
 	let fileInput!: HTMLInputElement;
 	let requestId = 0;
 	const objectUrls = new Set<string>();
@@ -167,6 +171,32 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 			.catch(console.error);
 	};
 
+	const cleanOrphanedMedia = async (): Promise<void> => {
+		if (cleaning()) return;
+		setCleaning(true);
+		setCleanupStatus(undefined);
+		try {
+			const accepted = await confirm(props.t("cleanupMediaConfirmation"), {
+				title: props.t("cleanupMedia"),
+				kind: "warning",
+				okLabel: props.t("cleanupMediaConfirm"),
+				cancelLabel: props.t("cancel"),
+			});
+			if (!accepted) return;
+			const result = await cleanupOrphanedMedia();
+			const message = props.t("cleanupMediaDone")
+				.replace("{images}", String(result.images))
+				.replace("{audio}", String(result.audio))
+				.replace("{video}", String(result.video));
+			setCleanupStatus({ message, failed: false });
+		} catch (error) {
+			console.error(error);
+			setCleanupStatus({ message: props.t("cleanupMediaFailed"), failed: true });
+		} finally {
+			setCleaning(false);
+		}
+	};
+
 	return {
 		query,
 		setQuery,
@@ -176,6 +206,9 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 		selectMedia,
 		importFiles,
 		openFilePicker,
+		cleanOrphanedMedia,
+		cleaning,
+		cleanupStatus,
 		setFileInput: (element: HTMLInputElement) => (fileInput = element),
 	};
 };

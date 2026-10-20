@@ -12,31 +12,50 @@ pub(crate) fn list_vaults(app: AppHandle) -> Result<VaultLibrary, String> {
 }
 
 #[tauri::command]
-pub(crate) fn get_vault_details(app: AppHandle, vault_id: String) -> Result<VaultDetails, String> {
-    vault_details::get_vault_details(&|| runtime::app_directory(&app), vault_id)
+pub(crate) async fn get_vault_details(
+    app: AppHandle,
+    vault_id: String,
+) -> Result<VaultDetails, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        vault_details::get_vault_details(&|| runtime::app_directory(&app), vault_id)
+    })
+    .await
+    .map_err(|_| "VAULT_DETAILS_FAILED".to_string())?
 }
 
 #[tauri::command]
-pub(crate) fn create_vault(app: AppHandle, name: String) -> Result<VaultLibrary, String> {
-    service::create_vault(&|| runtime::app_directory(&app), name)
+pub(crate) async fn create_vault(app: AppHandle, name: String) -> Result<VaultLibrary, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        service::create_vault(&|| runtime::app_directory(&app), name)
+    })
+    .await
+    .map_err(|_| "VAULT_CREATE_FAILED".to_string())?
 }
 
 #[tauri::command]
-pub(crate) fn switch_vault(app: AppHandle, vault_id: String) -> Result<VaultLibrary, String> {
-    service::switch_vault(
-        &|| runtime::app_directory(&app),
-        &|directory, message| runtime::set_active_vault(&app, directory, message),
-        vault_id,
-    )
+pub(crate) async fn switch_vault(app: AppHandle, vault_id: String) -> Result<VaultLibrary, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        service::switch_vault(
+            &|| runtime::app_directory(&app),
+            &|directory, message| runtime::set_active_vault(&app, directory, message),
+            vault_id,
+        )
+    })
+    .await
+    .map_err(|_| "VAULT_SWITCH_FAILED".to_string())?
 }
 
 #[tauri::command]
-pub(crate) fn rename_vault(
+pub(crate) async fn rename_vault(
     app: AppHandle,
     vault_id: String,
     vault_name: String,
 ) -> Result<VaultLibrary, String> {
-    service::rename_vault(&|| runtime::app_directory(&app), vault_id, vault_name)
+    tauri::async_runtime::spawn_blocking(move || {
+        service::rename_vault(&|| runtime::app_directory(&app), vault_id, vault_name)
+    })
+    .await
+    .map_err(|_| "VAULT_RENAME_FAILED".to_string())?
 }
 
 #[tauri::command]
@@ -58,9 +77,13 @@ pub(crate) async fn delete_vault(
 }
 
 #[tauri::command]
-pub(crate) fn reorder_vaults(
+pub(crate) async fn reorder_vaults(
     app: AppHandle,
     vault_ids: Vec<String>,
 ) -> Result<VaultLibrary, String> {
-    service::reorder_vaults(&|| runtime::app_directory(&app), vault_ids)
+    tauri::async_runtime::spawn_blocking(move || {
+        service::reorder_vaults(&|| runtime::app_directory(&app), vault_ids)
+    })
+    .await
+    .map_err(|_| "VAULT_ORDER_FAILED".to_string())?
 }

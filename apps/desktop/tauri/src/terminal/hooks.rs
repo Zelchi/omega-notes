@@ -9,7 +9,7 @@ const KEY: &str = "omega-notes-session";
 pub(crate) fn hook_command(arguments: &[String]) -> Result<String, String> {
     let invocation = shell_invocation(arguments)?;
     #[cfg(windows)]
-    let invocation = format!("chcp 65001 >nul 2>nul & {invocation}");
+    let invocation = format!("chcp 65001 >nul 2>nul & {invocation} 2>nul");
     Ok(invocation)
 }
 
@@ -140,7 +140,7 @@ pub(crate) fn run_if_requested() -> bool {
     let Some(mode) = args.get(1).and_then(|value| value.to_str()) else {
         return false;
     };
-    if !matches!(mode, "--omega-agy-guard" | "--omega-agy-record") {
+    if mode != "--omega-agy-record" {
         return false;
     }
     let input = (|| -> Option<Value> {
@@ -151,52 +151,26 @@ pub(crate) fn run_if_requested() -> bool {
         }
         serde_json::from_slice(&data).ok()
     })();
-    let output = if mode == "--omega-agy-guard" {
-        let purpose = args
-            .get(2)
-            .and_then(|value| value.to_str())
-            .and_then(|value| {
-                serde_json::from_value::<crate::ai::task::Purpose>(json!(value)).ok()
-            });
-        let name = input
-            .as_ref()
-            .and_then(|value| value["toolCall"]["name"].as_str())
-            .unwrap_or("");
-        let name = name
-            .strip_prefix("mcp__omega__")
-            .or_else(|| name.strip_prefix("mcp_omega_"))
-            .or_else(|| name.strip_prefix("omega/"))
-            .unwrap_or(name);
-        let allowed = purpose.is_some_and(|purpose| {
-            crate::ai::antigravity_tool_names()
-                .iter()
-                .any(|tool| tool == name)
-                && crate::ai::antigravity_tool_allowed(purpose, name)
+    let result = args
+        .get(2)
+        .zip(args.get(3))
+        .zip(args.get(4))
+        .zip(input.as_ref())
+        .ok_or_else(|| "TERMINAL_FAILED".to_string())
+        .and_then(|(((directory, vault), run_id), input)| {
+            record(
+                &PathBuf::from(directory),
+                vault.to_str().ok_or("TERMINAL_FAILED")?,
+                run_id.to_str().ok_or("TERMINAL_FAILED")?,
+                input,
+            )
         });
-        json!({"decision":if allowed {"auto_approve"} else {"deny"},"reason":if allowed {"Omega Notes scoped MCP tool"} else {"Only the Omega Notes MCP tools for this task are enabled."}})
-    } else {
-        let result = args
-            .get(2)
-            .zip(args.get(3))
-            .zip(args.get(4))
-            .zip(input.as_ref())
-            .ok_or_else(|| "TERMINAL_FAILED".to_string())
-            .and_then(|(((directory, vault), run_id), input)| {
-                record(
-                    &PathBuf::from(directory),
-                    vault.to_str().ok_or("TERMINAL_FAILED")?,
-                    run_id.to_str().ok_or("TERMINAL_FAILED")?,
-                    input,
-                )
-            });
-        if result.is_err() {
-            let _ = writeln!(
-                std::io::stderr(),
-                "Could not record the Omega Notes CLI session."
-            );
-        }
-        json!({})
-    };
-    let _ = writeln!(std::io::stdout(), "{output}");
+    if result.is_err() {
+        let _ = writeln!(
+            std::io::stderr(),
+            "Could not record the Omega Notes CLI session."
+        );
+    }
+    let _ = writeln!(std::io::stdout(), "{{}}");
     true
 }

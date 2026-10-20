@@ -67,6 +67,16 @@ export const styles = {
 			"&::placeholder": { color: "var(--subtle)" },
 		},
 	}),
+	cleanupStatus: style({
+		margin: "8px 0 2px",
+		color: "var(--text-control)",
+		fontSize: 11,
+	}),
+	cleanupError: style({
+		margin: "8px 0 2px",
+		color: "var(--danger)",
+		fontSize: 11,
+	}),
 	grid: style({
 		display: "grid",
 		flex: 1,

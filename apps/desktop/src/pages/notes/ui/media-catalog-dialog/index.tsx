@@ -5,6 +5,7 @@ import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { For, mergeProps, Show, type Component } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
+import { isTauriRuntime } from "@/shared/lib/tauri";
 import { useMediaCatalogDialogController, type MediaCatalogDialogProps } from "./controller";
 import { styles } from "./style.css.ts";
 
@@ -43,6 +44,33 @@ const MediaCatalogDialog: Component<MediaCatalogDialogProps> = (props) => {
 							{props.t("mediaCatalog")}
 						</h2>
 						<div class={styles.actions}>
+							<Show when={isTauriRuntime()}>
+								<Button
+									class={styles.action}
+									type="button"
+									aria-label={props.t("cleanupMedia")}
+									title={props.t("cleanupMedia")}
+									disabled={catalog.cleaning()}
+									onClick={() => void catalog.cleanOrphanedMedia()}
+								>
+									<svg
+										aria-hidden="true"
+										width="16"
+										height="16"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.7"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									>
+										<path d="m3 21 9-9" />
+										<path d="M8 16 4 12l6-6 4 4" />
+										<path d="m14 8 2-2 4 4-2 2" />
+										<path d="m13 5 2-2 6 6-2 2" />
+									</svg>
+								</Button>
+							</Show>
 							<Button
 								class={styles.action}
 								type="button"
@@ -90,6 +118,13 @@ const MediaCatalogDialog: Component<MediaCatalogDialogProps> = (props) => {
 						aria-label={props.t("searchMedia")}
 						autofocus
 					/>
+					<Show when={catalog.cleanupStatus()}>
+						{(status) => (
+							<p class={status().failed ? styles.cleanupError : styles.cleanupStatus} role="status">
+								{status().message}
+							</p>
+						)}
+					</Show>
 					<div class={styles.grid}>
 						<For each={catalog.filtered()}>
 							{(media) => (

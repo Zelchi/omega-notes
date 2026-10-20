@@ -11,6 +11,7 @@ pub(crate) async fn list_notes(
     external: Option<bool>,
 ) -> Result<NoteLibrary, String> {
     tauri::async_runtime::spawn_blocking(move || {
+        let _title_lock = library::lock_title_mutations()?;
         let directories = runtime::notes_and_backups_dirs(&app)?;
         if let Some(id) = vault_id.as_deref() {
             if crate::ai::terminal_vault_directory(&app, id)
@@ -65,6 +66,7 @@ pub(crate) struct ExpectedNote {
 pub(crate) async fn notes_revision(app: AppHandle, vault_id: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         use std::hash::{Hash, Hasher};
+        let _title_lock = library::lock_title_mutations()?;
         let directory = crate::ai::terminal_vault_directory(&app, &vault_id)
             .map_err(|error| vault_operation_error(error, "NOTE_SCAN_VAULT_CHANGED"))?;
         let mut entries = Vec::new();
@@ -96,8 +98,14 @@ pub(crate) async fn notes_revision(app: AppHandle, vault_id: String) -> Result<S
 }
 
 #[tauri::command]
-pub(crate) fn create_note(app: AppHandle, note_title: String) -> Result<StudyNote, String> {
-    library::create_note(&|| runtime::notes_and_backups_dirs(&app), note_title)
+pub(crate) async fn create_note(app: AppHandle, note_title: String) -> Result<StudyNote, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = library::create_note(&|| runtime::notes_and_backups_dirs(&app), note_title);
+        crate::ai::invalidate_tool_cache();
+        result
+    })
+    .await
+    .map_err(|_| "NOTE_CREATE_FAILED".to_string())?
 }
 
 #[tauri::command]
@@ -127,7 +135,7 @@ pub(crate) async fn save_note(
         {
             return Err("NOTE_EXTERNAL_CONFLICT".into());
         }
-        library::save_note_checked(
+        let result = library::save_note_checked(
             &|| {
                 let directories = runtime::notes_and_backups_dirs(&app)?;
                 if directories.0 != directory {
@@ -139,42 +147,70 @@ pub(crate) async fn save_note(
             note_title,
             document,
             Some(stored.as_bytes()),
-        )
+        );
+        crate::ai::invalidate_tool_cache();
+        result
     })
     .await
     .map_err(|_| "NOTE_SAVE_FAILED".to_string())?
 }
 
 #[tauri::command]
-pub(crate) fn rename_note(
+pub(crate) async fn rename_note(
     app: AppHandle,
     note_id: String,
     note_title: String,
 ) -> Result<Vec<StudyNote>, String> {
-    library::rename_note(
-        &|| runtime::notes_and_backups_dirs(&app),
-        note_id,
-        note_title,
-    )
-    .map_err(rename_error_message)
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = library::rename_note(
+            &|| runtime::notes_and_backups_dirs(&app),
+            note_id,
+            note_title,
+        )
+        .map_err(rename_error_message);
+        crate::ai::invalidate_tool_cache();
+        result
+    })
+    .await
+    .map_err(|_| "NOTE_RENAME_FAILED".to_string())?
 }
 
 #[tauri::command]
-pub(crate) fn delete_note(app: AppHandle, note_id: String) -> Result<Vec<NoteLoadIssue>, String> {
-    library::delete_note(&|| runtime::notes_and_backups_dirs(&app), note_id)
+pub(crate) async fn delete_note(
+    app: AppHandle,
+    note_id: String,
+) -> Result<Vec<NoteLoadIssue>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = library::delete_note(&|| runtime::notes_and_backups_dirs(&app), note_id);
+        crate::ai::invalidate_tool_cache();
+        result
+    })
+    .await
+    .map_err(|_| "NOTE_DELETE_FAILED".to_string())?
 }
 
 #[tauri::command]
-pub(crate) fn list_deleted_notes(app: AppHandle) -> Result<Vec<StudyNote>, String> {
-    library::list_deleted_notes(&|| runtime::notes_and_backups_dirs(&app))
+pub(crate) async fn list_deleted_notes(app: AppHandle) -> Result<Vec<StudyNote>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        library::list_deleted_notes(&|| runtime::notes_and_backups_dirs(&app))
+    })
+    .await
+    .map_err(|_| "NOTE_TRASH_READ_FAILED".to_string())?
 }
 
 #[tauri::command]
-pub(crate) fn restore_deleted_note(
+pub(crate) async fn restore_deleted_note(
     app: AppHandle,
     note_id: String,
 ) -> Result<NoteSaveResult, String> {
-    library::restore_deleted_note(&|| runtime::notes_and_backups_dirs(&app), note_id)
+    tauri::async_runtime::spawn_blocking(move || {
+        let result =
+            library::restore_deleted_note(&|| runtime::notes_and_backups_dirs(&app), note_id);
+        crate::ai::invalidate_tool_cache();
+        result
+    })
+    .await
+    .map_err(|_| "NOTE_RESTORE_FAILED".to_string())?
 }
 
 fn rename_error_message(error: library::RenameNoteError) -> String {

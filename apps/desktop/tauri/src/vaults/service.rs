@@ -1,15 +1,24 @@
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 use uuid::Uuid;
 
 use crate::names::normalize_name;
 
 use super::models::{Vault, VaultDeleteResult, VaultLibrary};
 use super::repository::{
-    cleanup_vault_deletion, ensure_vault_directories, read_vault_registry,
+    cleanup_vault_deletion, ensure_vault_directories, read_vault_registry, recover_vault_deletions,
     remove_vault_backups_directory, remove_vault_directory, restore_vault_deletion,
     stage_vault_deletion, vault_backups_directory, vault_directory, vault_notes_dir,
     write_vault_registry,
 };
+
+static VAULT_REGISTRY_MUTATION_LOCK: Mutex<()> = Mutex::new(());
+
+fn lock_vault_registry_mutations() -> Result<MutexGuard<'static, ()>, String> {
+    VAULT_REGISTRY_MUTATION_LOCK
+        .lock()
+        .map_err(|_| "Não foi possível atualizar a lista de vaults.".to_string())
+}
 
 fn active_vault_directories(
     directory: &Path,
@@ -31,6 +40,7 @@ pub(crate) fn initialize_active_vault(
 ) -> Result<(), String> {
     let directory = resolve_app_directory()?;
     let mut registry = read_vault_registry(&directory)?;
+    recover_vault_deletions(&directory, &registry)?;
     let active_directories = registry
         .active_vault_id
         .as_ref()
@@ -63,6 +73,7 @@ pub(super) fn create_vault(
     resolve_app_directory: &impl Fn() -> Result<PathBuf, String>,
     name: String,
 ) -> Result<VaultLibrary, String> {
+    let _registry_lock = lock_vault_registry_mutations()?;
     let name = name.trim();
     if name.is_empty() {
         return Err("EMPTY_VAULT_NAME".to_string());
@@ -105,6 +116,7 @@ pub(super) fn reorder_vaults(
     resolve_app_directory: &impl Fn() -> Result<PathBuf, String>,
     vault_ids: Vec<String>,
 ) -> Result<VaultLibrary, String> {
+    let _registry_lock = lock_vault_registry_mutations()?;
     let directory = resolve_app_directory()?;
     let mut registry = read_vault_registry(&directory)?;
     let requested: std::collections::HashSet<_> = vault_ids.iter().collect();
@@ -142,9 +154,12 @@ pub(super) fn switch_vault(
     set_active_vault: &impl Fn(Option<(PathBuf, PathBuf)>, &str) -> Result<(), String>,
     vault_id: String,
 ) -> Result<VaultLibrary, String> {
+    let _registry_lock = lock_vault_registry_mutations()?;
     Uuid::parse_str(&vault_id).map_err(|_| "Identificador de vault inválido.".to_string())?;
     let directory = resolve_app_directory()?;
     let mut registry = read_vault_registry(&directory)?;
+    recover_vault_deletions(&directory, &registry)?;
+    let previous_registry = registry.clone();
     let vault = registry
         .vaults
         .iter()
@@ -154,7 +169,14 @@ pub(super) fn switch_vault(
 
     registry.active_vault_id = Some(vault_id);
     write_vault_registry(&directory, &registry)?;
-    set_active_vault(Some(directories), "Não foi possível ativar o vault.")?;
+    if let Err(error) = set_active_vault(Some(directories), "Não foi possível ativar o vault.") {
+        return match write_vault_registry(&directory, &previous_registry) {
+            Ok(()) => Err(error),
+            Err(rollback_error) => Err(format!(
+                "{error} Não foi possível restaurar o registro anterior dos vaults: {rollback_error}"
+            )),
+        };
+    }
 
     Ok(VaultLibrary {
         vaults: registry.vaults,
@@ -167,6 +189,7 @@ pub(super) fn rename_vault(
     vault_id: String,
     vault_name: String,
 ) -> Result<VaultLibrary, String> {
+    let _registry_lock = lock_vault_registry_mutations()?;
     Uuid::parse_str(&vault_id).map_err(|_| "Identificador de vault inválido.".to_string())?;
     let vault_name = vault_name.trim();
     if vault_name.is_empty() {
@@ -206,9 +229,12 @@ pub(super) fn delete_vault(
     set_active_vault: &impl Fn(Option<(PathBuf, PathBuf)>, &str) -> Result<(), String>,
     vault_id: String,
 ) -> Result<VaultDeleteResult, String> {
+    let _registry_lock = lock_vault_registry_mutations()?;
     Uuid::parse_str(&vault_id).map_err(|_| "Identificador de vault inválido.".to_string())?;
     let directory = resolve_app_directory()?;
     let mut registry = read_vault_registry(&directory)?;
+    recover_vault_deletions(&directory, &registry)?;
+    let previous_registry = registry.clone();
     let vault_index = registry
         .vaults
         .iter()
@@ -223,14 +249,40 @@ pub(super) fn delete_vault(
         registry.active_vault_id = None;
     }
     if let Err(error) = write_vault_registry(&directory, &registry) {
-        if let Some(stage) = &deletion_stage {
-            let _ = restore_vault_deletion(stage);
-        }
-        return Err(error);
+        let restore_error = deletion_stage
+            .as_ref()
+            .and_then(|stage| restore_vault_deletion(stage).err())
+            .map(|restore_error| {
+                format!(" Não foi possível restaurar a pasta original do vault: {restore_error}")
+            })
+            .unwrap_or_default();
+        return Err(format!("{error}{restore_error}"));
     }
 
     if was_active {
-        set_active_vault(None, "Não foi possível desativar o vault removido.")?;
+        if let Err(error) = set_active_vault(None, "Não foi possível desativar o vault removido.")
+        {
+            let registry_error = write_vault_registry(&directory, &previous_registry).err();
+            let restore_error = deletion_stage
+                .as_ref()
+                .and_then(|stage| restore_vault_deletion(stage).err());
+            let mut rollback_errors = Vec::new();
+            if let Some(registry_error) = registry_error {
+                rollback_errors.push(format!(
+                    "Não foi possível restaurar o registro dos vaults: {registry_error}"
+                ));
+            }
+            if let Some(restore_error) = restore_error {
+                rollback_errors.push(format!(
+                    "Não foi possível restaurar a pasta original do vault: {restore_error}"
+                ));
+            }
+            return if rollback_errors.is_empty() {
+                Err(error)
+            } else {
+                Err(format!("{error} {}", rollback_errors.join(" ")))
+            };
+        }
     }
 
     let vault_cleanup_error = if let Some(stage) = deletion_stage {

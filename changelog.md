@@ -1,5 +1,20 @@
 # Histórico de atualizações
 
+## v0.4.3
+
+### Confiabilidade e armazenamento
+
+- Criação, renomeação e exclusão de notas e vaults agora coordenam operações concorrentes e recuperam operações interrompidas.
+- Leituras e alterações pesadas de arquivos saíram da thread assíncrona do Tauri; detecção de alterações externas compara também o conteúdo das notas.
+- O catálogo de mídias permite remover arquivos órfãos com confirmação, verificando notas, backups e itens na lixeira.
+- O servidor local de mídia limita conexões, tempo de leitura e tamanho de cabeçalhos.
+
+### Ferramentas de IA
+
+- Chamadas MCP reutilizam a biblioteca e o grafo de conexões em cache, com invalidação após mudanças locais ou externas.
+- Estudos serializam o acesso aos arquivos e executam operações de armazenamento fora da thread principal.
+- O Antigravity deixa de receber o hook de execução do Omega; configurações antigas de hooks são removidas ao conectar, evitando a falha de codificação associada ao hook no Windows.
+
 ## v0.4.2
 
 ### Integrações com IA

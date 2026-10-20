@@ -75,7 +75,25 @@ fn valid(rule: &Value, value: &Value) -> bool {
         _ => false,
     };
     valid_type
+        && rule["pattern"].as_str().is_none_or(|pattern| {
+            value
+                .as_str()
+                .is_some_and(|text| matches_pattern(pattern, text))
+        })
         && rule["enum"]
             .as_array()
             .is_none_or(|allowed| allowed.contains(value))
+}
+
+fn matches_pattern(pattern: &str, text: &str) -> bool {
+    match pattern {
+        "^N[1-9][0-9]*$" => {
+            let bytes = text.as_bytes();
+            bytes.len() >= 2
+                && bytes[0] == b'N'
+                && (b'1'..=b'9').contains(&bytes[1])
+                && bytes[2..].iter().all(u8::is_ascii_digit)
+        }
+        _ => false,
+    }
 }

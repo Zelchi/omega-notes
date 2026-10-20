@@ -6,23 +6,22 @@ use uuid::Uuid;
 use crate::names::normalize_name;
 use crate::notes::{
     archive_deleted_note, audio_ids_in_document, delete_note_files, deleted_notes,
-    deleted_notes_directory, empty_document, ensure_unique_note_title, existing_note,
+    deleted_notes_directory, empty_document, ensure_unique_note_title_in_directory, existing_note,
     image_ids_in_document, note_backup_exists, note_backup_path, note_from_path_with_id, note_path,
     prune_deleted_notes, remove_deleted_note, validate_note_id, validate_note_title,
     video_ids_in_document, write_note, NoteDocument, NoteLoadIssue, NoteSaveResult, StudyNote,
 };
 
 use super::cleanup::{cleanup_issue, collect_unreferenced_images, collect_unreferenced_media};
-use super::loading::list_notes;
 
 pub(crate) fn create_note(
     resolve_directories: &impl Fn() -> Result<(PathBuf, PathBuf), String>,
     note_title: String,
 ) -> Result<StudyNote, String> {
+    let _title_lock = super::lock_title_mutations()?;
     let (directory, backups_directory) = resolve_directories()?;
     validate_note_title(&note_title)?;
-    let notes = list_notes(&|| Ok((directory.clone(), backups_directory.clone())))?.notes;
-    ensure_unique_note_title(&notes, &note_title, None)?;
+    ensure_unique_note_title_in_directory(&directory, &note_title, None)?;
     let note_id = Uuid::now_v7().to_string();
     write_note(
         &directory,
@@ -49,6 +48,7 @@ pub(crate) fn save_note_checked(
     document: NoteDocument,
     expected: Option<&[u8]>,
 ) -> Result<NoteSaveResult, String> {
+    let _title_lock = super::lock_title_mutations()?;
     validate_note_id(&note_id)?;
     let (directory, backups_directory) = resolve_directories()?;
     validate_note_title(&note_title)?;
@@ -57,8 +57,7 @@ pub(crate) fn save_note_checked(
         .as_ref()
         .is_none_or(|note| normalize_name(&note.title) != normalize_name(&note_title))
     {
-        let notes = list_notes(&|| Ok((directory.clone(), backups_directory.clone())))?.notes;
-        ensure_unique_note_title(&notes, &note_title, Some(&note_id))?;
+        ensure_unique_note_title_in_directory(&directory, &note_title, Some(&note_id))?;
     }
     let previous_document = existing
         .as_ref()
@@ -131,6 +130,7 @@ pub(crate) fn delete_note(
     resolve_directories: &impl Fn() -> Result<(PathBuf, PathBuf), String>,
     note_id: String,
 ) -> Result<Vec<NoteLoadIssue>, String> {
+    let _title_lock = super::lock_title_mutations()?;
     validate_note_id(&note_id)?;
     let (directory, backups_directory) = resolve_directories()?;
     let note = existing_note(&directory, &note_id)?.ok_or("Nota não encontrada.")?;
