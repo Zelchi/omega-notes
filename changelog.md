@@ -1,5 +1,35 @@
 # Histórico de atualizações
 
+## v0.4.0
+
+### Integração com IA
+
+- Antigravity CLI disponível como provedor, com detecção da instalação, autenticação existente, seleção de modelos, Chat em streaming e ferramentas MCP do vault. Os cinco métodos de estudo também usam esse provedor.
+- Controles de modelo, raciocínio e velocidade posicionados acima do campo de mensagem, conforme os recursos de cada provedor.
+
+### Modo Gambiarra — experimental e não confiável
+
+- Com Recursos de IA desativados, segurar o controle por cinco segundos ativa o modo Gambiarra. A preferência permanece salva ao reabrir o aplicativo.
+- O Chat passa a abrir um terminal interativo na raiz do vault. Na primeira abertura, escolha Codex, Claude, OpenCode ou Antigravity; opções sem CLI instalado ficam desativadas.
+- Fechar a lateral preserva o terminal. Sair normalmente do CLI fecha a lateral; reabrir retoma a conversa vinculada ao vault e ao provedor. Falhas permitem reiniciar o terminal.
+- Conversas vinculadas por ID, mantendo o histórico no armazenamento do próprio CLI. Trocar de vault, desligar o modo ou sair do aplicativo encerra o terminal.
+- Manual AGENTS.md gerenciado na raiz do vault, com procedimentos para localizar, criar, editar, conectar e arquivar notas, além dos formatos e limites dos estudos. Desativar o modo remove as instruções gerenciadas e preserva instruções próprias do usuário.
+- Os cinco métodos de estudo usam pedidos em arquivos: copie o pedido para o CLI, aguarde a resposta e confirme para voltar ao estudo. O aplicativo valida o material e mantém as sessões, avaliações em fila e relatórios.
+- Terminal com redimensionamento sincronizado, controle do fluxo de saída, foco automático e atalhos próprios preservados. Botão de copiar acima e Confirmar no rodapé.
+
+### Notas e confiabilidade
+
+- Alterações externas nas notas são sincronizadas no Gambiarra. Trocar de vault relê os arquivos.
+- Salvamentos com versão desatualizada são bloqueados, com opções para carregar a versão do arquivo ou guardar a edição local como nova nota.
+- Corrigidas leituras externas atrasadas que podiam reaplicar uma versão anterior após salvar. Resolver conflitos preserva as edições feitas durante a operação.
+- Aberturas e fechamentos do terminal são executados em sequência. Desligar o modo invalida aberturas pendentes também no backend.
+- Respostas de estudo no Gambiarra aceitam o JSON da tarefa ou o envelope do pedido, mantendo a validação de IDs e conteúdo. O último retorno é preservado para diagnóstico.
+- Links das fontes de estudo funcionam também no Gambiarra.
+
+### Site
+
+- Guia de ativação do modo Gambiarra, identificado como experimental e não confiável, com requisitos de instalação e autenticação dos CLIs.
+
 ## v0.3.9
 
 ### Estudos com IA

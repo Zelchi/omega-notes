@@ -76,7 +76,6 @@ export const useCanvasHistory = (options: {
 			current.past = [...recovered.filter((action) => action.kind !== "move" && !known.has(action.noteId)), ...current.past].slice(-100);
 		}).catch(cause => {
 			if (disposed) return;
-			// Retry loading on a later visit; a failed request is not an initialized history.
 			if (histories.get(id) === current) histories.delete(id);
 			reportError(cause, id);
 		}).finally(() => {

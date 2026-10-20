@@ -5,6 +5,8 @@ import type { CanvasLayout, TextCursor, Theme } from "./preferences";
 import { isAiChatShortcut, type AiChatShortcut } from "./ai-chat-shortcut";
 import {
 	readAiFeaturesEnabled,
+	readGambiarraEnabled,
+	saveGambiarraEnabled,
 	readSoundVolume,
 	saveSoundVolume,
 	readAiChatShortcut,
@@ -28,6 +30,7 @@ export const usePreferences = () => {
 	const [soundVolume, setSoundVolume] = createSignal(readSoundVolume());
 	applySoundVolume(soundVolume());
 	const [aiFeaturesEnabled, setAiFeaturesEnabled] = createSignal(readAiFeaturesEnabled());
+	const [gambiarraEnabled, setGambiarraEnabled] = createSignal(!aiFeaturesEnabled() && readGambiarraEnabled());
 	const [aiChatShortcut, setAiChatShortcut] = createSignal(readAiChatShortcut());
 	const [canvasLayout, setCanvasLayout] = createSignal<CanvasLayout>(readCanvasLayout());
 	const [centerCanvasOnLaunch, setCenterCanvasOnLaunch] = createSignal(readCenterCanvasOnLaunch());
@@ -62,13 +65,21 @@ export const usePreferences = () => {
 			saveSoundVolume(volume);
 		},
 		aiFeaturesEnabled,
+		gambiarraEnabled,
 		aiChatShortcut,
 		setAiChatShortcut: (value: AiChatShortcut) => {
 			if (!isAiChatShortcut(value)) return;
 			setAiChatShortcut(value);
 			saveAiChatShortcut(value);
 		},
-		setAiFeaturesEnabled: (value: boolean) => { setAiFeaturesEnabled(value); saveAiFeaturesEnabled(value); },
+		setAiFeaturesEnabled: (value: boolean) => {
+			if (value) { setGambiarraEnabled(false); saveGambiarraEnabled(false); }
+			setAiFeaturesEnabled(value); saveAiFeaturesEnabled(value);
+		},
+		setGambiarraEnabled: (value: boolean) => {
+			if (value && aiFeaturesEnabled()) return;
+			setGambiarraEnabled(value); saveGambiarraEnabled(value);
+		},
 		canvasLayout,
 		setCanvasLayout: (value: CanvasLayout) => { setCanvasLayout(value); saveCanvasLayout(value); },
 		centerCanvasOnLaunch,

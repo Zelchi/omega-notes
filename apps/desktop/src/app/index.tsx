@@ -1,5 +1,5 @@
 import Button from "@/shared/ui/button";
-import { Show, type Component } from "solid-js";
+import { lazy, Show, type Component } from "solid-js";
 
 import { Canvas } from "@/pages/canvas";
 import { Note } from "@/pages/notes";
@@ -17,6 +17,8 @@ import { StudyToolbar, StudyDialog } from "@/features/study-notes";
 import { DeleteNoteDialog } from "@/features/delete-note";
 import { AiChatPanel } from "@/features/chat-with-ai";
 
+const GambiarraPanel = lazy(() => import("@/features/gambiarra-terminal/ui/terminal-panel"));
+
 const App: Component = () => {
 	const app = useAppController();
 
@@ -29,10 +31,10 @@ const App: Component = () => {
 				t={app.t}
 				onVaultClick={app.vaults.openDialog}
 				onSettings={() => app.setSettingsOpen(true)}
-				onAiChat={() => app.aiChat.setOpen((open) => !open)}
-				aiChatOpen={app.aiChat.open()}
+				onAiChat={() => app.setChatOpen((open) => !open)}
+				aiChatOpen={app.chatOpen()}
 				aiChatShortcut={formatAiChatShortcut(app.preferences.aiChatShortcut(), true)}
-				aiFeaturesEnabled={app.preferences.aiFeaturesEnabled()}
+				aiFeaturesEnabled={app.chatAvailable()}
 				onMinimize={app.windowControls.minimize}
 				onToggleMaximize={() => void app.windowControls.toggleMaximize()}
 				onClose={app.windowControls.close}
@@ -111,7 +113,13 @@ const App: Component = () => {
 				<Show when={app.canvasHistory.error() && !app.noteDeletion.error()}>
 					<div class={styles.saveNotice} role="alert">{app.t("canvasHistoryFailed")}</div>
 				</Show>
-				<Show when={app.notes.saveError()}>
+				<Show when={app.notes.conflicts()[0]} keyed>{id => <div class={styles.saveNotice} style={{ "flex-wrap": "wrap" }} role="alert">
+					<span>{app.t("noteExternalConflict").replace("{title}", app.notes.notes().find(note => note.id === id)?.title ?? "")}</span>
+					<Button class={styles.retryButton} disabled={app.notes.resolvingConflict()} onClick={() => void app.notes.resolveConflict(id, true, app.t("noteLocalCopySuffix"))}>{app.t("noteKeepLocalCopy")}</Button>
+					<Button class={styles.retryButton} disabled={app.notes.resolvingConflict()} onClick={() => void app.notes.resolveConflict(id, false, app.t("noteLocalCopySuffix"))}>{app.t("noteLoadExternal")}</Button>
+				</div>}</Show>
+
+				<Show when={app.notes.saveError() && !app.notes.conflicts().length}>
 					<div class={styles.saveNotice} role="alert">
 						<span>{app.t("saveFailed")}</span>
 						<Button class={styles.retryButton} type="button" onClick={() => void app.notes.flushSave()}>
@@ -119,12 +127,13 @@ const App: Component = () => {
 						</Button>
 					</div>
 				</Show>
-				<StudyToolbar study={app.studies} t={app.t} aiEnabled={app.preferences.aiFeaturesEnabled()}
+				<StudyToolbar study={app.studies} t={app.t} aiEnabled={app.chatAvailable()}
 					visible={Boolean(app.vaults.activeVaultId()) && !app.notes.loading() && app.navigation.mode() === "view" && !app.navigation.navigating()} />
 			</main>
 			<StudyDialog study={app.studies} t={app.t} notes={app.notes.notes()} referenceTitles={app.notes.referenceTitles()}
-				canGenerate={app.canGenerateStudy()} connected={app.aiChat.status().connected && app.aiChat.status().authenticated}
-				aiBusy={app.aiChat.pending() || app.aiChat.sending() || app.aiChat.chat().busy}
+				canGenerate={app.canGenerateStudy()} connected={app.studyConnected()}
+				aiBusy={app.studyAiBusy()} cliRequest={app.cliStudies.request()}
+				onOpenCli={() => { app.studies.close(); app.setChatOpen(true); }}
 				chatBusy={app.aiChat.sending() || app.aiChat.chat().busy}
 				onConnect={() => app.aiChat.setOpen(true)} onOpenNote={app.openStudyNote} />
 
@@ -141,6 +150,8 @@ const App: Component = () => {
 				aiChatShortcut={app.preferences.aiChatShortcut()}
 				onAiChatShortcutChange={app.preferences.setAiChatShortcut}
 				onAiFeaturesEnabledChange={app.preferences.setAiFeaturesEnabled}
+				gambiarraEnabled={app.preferences.gambiarraEnabled()}
+				onGambiarraEnabledChange={app.preferences.setGambiarraEnabled}
 				footer={<CheckForUpdatesButton t={app.t} updates={app.updates} />}
 				open={app.settingsOpen()}
 				centerCanvasOnLaunch={app.preferences.centerCanvasOnLaunch()}
@@ -186,8 +197,12 @@ const App: Component = () => {
 				onReorder={app.vaults.reorder}
 			/>
 			<NoteLoadIssuesDialog issues={app.notes.loadIssues()} t={app.t} onClose={app.notes.dismissLoadIssues} />
-			<AiChatPanel aiChat={app.aiChat} notes={app.notes.notes()}
-				onOpenNote={(note) => void app.openAiNote(note)} t={app.t} />
+			<Show when={app.preferences.gambiarraEnabled()} fallback={<AiChatPanel aiChat={app.aiChat} notes={app.notes.notes()}
+				onOpenNote={(note) => void app.openAiNote(note)} t={app.t} />}>
+				<GambiarraPanel open={app.chatOpen()} vaultId={app.vaults.activeVaultId()}
+					onClose={() => app.setChatOpen(false)} t={app.t} studyRequest={app.cliStudies.request()}
+					canConfirmStudy={!!app.cliStudyReturn()} onConfirmStudy={app.confirmCliStudy} />
+			</Show>
 		</div>
 		<Show when={app.updates.installing()}>
 			<div class={styles.updateOverlay} role="alert" aria-live="assertive">{app.t("installingUpdate")}</div>

@@ -33,7 +33,6 @@ export const createStudyPlan = (notes: StudyNote[], current: StudyNote | undefin
 	}
 	let pool: StudyNote[] = [];
 	return Array.from({ length: count }, () => {
-		// Draw separately for each item, exhausting the pool before repeating a subject.
 		if (!pool.length) pool = [...candidates];
 		const index = Math.floor(Math.random() * pool.length), note = pool[index];
 		pool[index] = pool[pool.length - 1]; pool.pop();
@@ -42,7 +41,7 @@ export const createStudyPlan = (notes: StudyNote[], current: StudyNote | undefin
 		return { itemId: crypto.randomUUID(), noteId: note.id, sourceIds };
 	});
 };
-/** Keep unaffected assignments; replace only rejected primary notes, retaining full reference resolution. */
+
 export const replaceStudyAssignments = (notes: StudyNote[], plan: StudyAssignment[], rejected: ReadonlySet<string>, pendingIds: ReadonlySet<string>): StudyAssignment[] | undefined => {
 	const positions = plan.flatMap((assignment, index) => rejected.has(assignment.noteId) && pendingIds.has(assignment.itemId) ? [index] : []);
 	if (!positions.length) return;
@@ -54,7 +53,7 @@ export const replaceStudyAssignments = (notes: StudyNote[], plan: StudyAssignmen
 	positions.forEach((position, index) => { next[position] = { ...replacements[index], itemId: plan[position].itemId }; });
 	return next;
 };
-/** Add at most two new supporting notes per retry while retaining the original focus. */
+
 export const expandFocusedStudyPlan = async (notes: StudyNote[], plan: StudyAssignment[], signal: AbortSignal): Promise<StudyAssignment[] | undefined> => {
 	if (!plan.length) return;
 	const supportingNoteIds = new Set(plan[0].supportingNoteIds ?? []);

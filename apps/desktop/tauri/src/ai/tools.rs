@@ -11,7 +11,7 @@ mod linking;
 mod reading;
 mod structure;
 
-pub(super) fn resolve_vault(app: &tauri::AppHandle, id: &str) -> Result<PathBuf, String> {
+pub(crate) fn resolve_vault(app: &tauri::AppHandle, id: &str) -> Result<PathBuf, String> {
     uuid::Uuid::parse_str(id).map_err(|_| "AI_INVALID_VAULT".to_string())?;
     let directory = runtime::app_directory(app)?;
     resolve_vault_in(&directory, id)
@@ -43,7 +43,7 @@ pub(super) fn resolve_vault_in(directory: &Path, id: &str) -> Result<PathBuf, St
 pub(super) use catalog::definitions;
 pub(crate) use catalog::names;
 
-pub(super) fn allowed_for(purpose: super::task::Purpose, tool: &str) -> bool {
+pub(crate) fn allowed_for(purpose: super::task::Purpose, tool: &str) -> bool {
     match purpose {
         super::task::Purpose::Chat => tool != "read_study_context",
         super::task::Purpose::StudyGeneration | super::task::Purpose::StudyEvaluation => {

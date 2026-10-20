@@ -107,6 +107,17 @@ pub(crate) fn write_note(
     title: &str,
     document: &NoteDocument,
 ) -> Result<StudyNote, String> {
+    write_note_checked(directory, backups_directory, note_id, title, document, None)
+}
+
+pub(crate) fn write_note_checked(
+    directory: &Path,
+    backups_directory: &Path,
+    note_id: &str,
+    title: &str,
+    document: &NoteDocument,
+    expected: Option<&[u8]>,
+) -> Result<StudyNote, String> {
     validate_note_id(note_id)?;
     validate_note_title(title)?;
     validate_document(document)?;
@@ -124,8 +135,9 @@ pub(crate) fn write_note(
         format!("Não foi possível acessar os arquivos temporários do Vault: {error}")
     })?;
     let backup = note_backup_path(backups_directory, note_id);
-    atomic_write(&path, &serialized, Some(&backup))?;
-    note_from_path(&path)
+    crate::storage::atomic_write_checked(&path, &serialized, Some(&backup), expected)?;
+    let stored = std::str::from_utf8(&serialized).map_err(|_| "NOTE_SAVE_FAILED")?;
+    note_from_contents(&path, note_id, stored)
 }
 
 pub(crate) fn existing_note(directory: &Path, note_id: &str) -> Result<Option<StudyNote>, String> {

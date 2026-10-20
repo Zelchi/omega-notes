@@ -343,10 +343,6 @@ impl Client {
                     "web_search":"disabled","model_provider":"openai"
                 });
                 if let Some(servers) = effective["config"]["mcp_servers"].as_object() {
-                    // config/read is an API representation, not reusable TOML input:
-                    // optional nulls can become empty strings when overrides are converted.
-                    // These servers stay disabled; retain only a valid transport declaration.
-                    // Structured keys also preserve names containing dots or quotes.
                     let mut disabled = serde_json::Map::new();
                     for (name, server) in servers {
                         let transport = ["command", "url"]
@@ -395,8 +391,6 @@ impl Client {
             }
         };
         if let Err(error) = tools::resolve_vault(&self.app, vault_id) {
-            // A vault can change while thread/start is in flight. No turn will
-            // complete to clean this new independent study conversation up.
             if purpose.is_study() {
                 if let Ok(mut sessions) = self.conversations.lock() {
                     sessions.remove(&thread_id);

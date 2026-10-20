@@ -3,7 +3,6 @@ use std::fs;
 
 #[test]
 fn source_cache_reuses_exact_revisions_rejects_invalid_files_and_obeys_reset() {
-    // Keep the registry lifecycle in one test: clearing it intentionally invalidates all preparations.
     let directory =
         std::env::temp_dir().join(format!("omega-study-context-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&directory).unwrap();
@@ -24,7 +23,7 @@ fn source_cache_reuses_exact_revisions_rejects_invalid_files_and_obeys_reset() {
     notes::write_note(&directory, &backups, &id, "Other", &notes::empty_document()).unwrap();
     let changed = source(&directory, &id, generation).unwrap();
     assert!(!Arc::ptr_eq(&first, &changed));
-    assert_eq!(first.title, "First"); // Existing snapshots are immutable.
+    assert_eq!(first.title, "First");
     assert_eq!(changed.title, "Other");
     fs::write(notes::note_path(&directory, &id), "invalid JSON").unwrap();
     assert!(source(&directory, &id, generation).is_err());
@@ -40,8 +39,6 @@ fn source_cache_reuses_exact_revisions_rejects_invalid_files_and_obeys_reset() {
     assert!(registry.contexts.is_empty());
 }
 
-/// Reproducible local measurement, deliberately excluded from the normal suite.
-/// It measures preparation only, with warm OS page cache, not AI latency or tokens.
 #[test]
 #[ignore = "local timing diagnostic; run explicitly with --ignored --nocapture"]
 fn measure_source_preparation_cache() {
@@ -74,10 +71,8 @@ fn measure_source_preparation_cache() {
         let generation = REGISTRY.lock().unwrap().generation;
         let mut samples = [Vec::new(), Vec::new(), Vec::new()];
         for round in 0..ROUNDS {
-            // Rotate modes to reduce systematic order/thermal bias.
             for step in 0..3 {
                 let mode = (round + step) % 3;
-                // Warm the filesystem before each sample; "cold" means application cache only.
                 let prepared = source(&directory, &id, generation).unwrap();
                 assert_eq!(prepared.text, text);
                 assert_eq!(prepared.characters, characters);
@@ -88,8 +83,6 @@ fn measure_source_preparation_cache() {
                     }
                     let started = Instant::now();
                     if mode == 0 {
-                        // Equivalent pre-cache work: authorization checks, read/decode,
-                        // validation, text assembly, and manifest character count.
                         notes::validate_note_id(&id).unwrap();
                         assert!(!fs::symlink_metadata(&path)
                             .unwrap()

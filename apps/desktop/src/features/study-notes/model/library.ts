@@ -32,14 +32,15 @@ export const useStudyLibrary = (options: StudyEnvironment) => {
 				setDecks([]); setInvalidSessions([]);
 				await serialize(async () => {
 					if (!active()) return;
-					await readStudies(vaultId, { signal: token.signal, onSession: session => {
-						if (active()) setDecks(previous => previous.some(value => value.id === session.id) ? previous : [...previous, session]);
-					}, onInvalidSession: session => {
-						if (active()) setInvalidSessions(previous => [...previous, session]);
-					} });
+					await readStudies(vaultId, {
+						signal: token.signal, onSession: session => {
+							if (active()) setDecks(previous => previous.some(value => value.id === session.id) ? previous : [...previous, session]);
+						}, onInvalidSession: session => {
+							if (active()) setInvalidSessions(previous => [...previous, session]);
+						}
+					});
 				});
 				if (!active() || observedWrites === writeRevision) break;
-				// A background result queued a write during this snapshot. Read again after that write.
 			}
 		} catch {
 			if (active()) { setDecks([]); setStorageFailed(true); setError(options.t("studyStorageFailed")); }
@@ -58,7 +59,6 @@ export const useStudyLibrary = (options: StudyEnvironment) => {
 		return request;
 	};
 	const flushSave = async (): Promise<boolean> => {
-		// Retry the latest failed snapshot only; older snapshots must never overwrite newer ones.
 		for (const value of progressWrites.values()) {
 			if (value.failed) { value.failed = false; void persistProgress(value).catch(() => undefined); }
 		}

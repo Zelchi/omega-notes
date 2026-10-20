@@ -45,10 +45,14 @@ pub(crate) fn set_active_vault(
     directories: Option<(PathBuf, PathBuf)>,
     failure_message: &str,
 ) -> Result<(), String> {
-    *app.state::<ActiveVault>()
-        .0
-        .lock()
-        .map_err(|_| failure_message.to_string())? =
-        directories.map(|(notes, backups)| ActiveVaultDirectories { notes, backups });
+    let state = app.state::<ActiveVault>();
+    let mut active = state.0.lock().map_err(|_| failure_message.to_string())?;
+    let changed =
+        active.as_ref().map(|value| &value.notes) != directories.as_ref().map(|(notes, _)| notes);
+    *active = directories.map(|(notes, backups)| ActiveVaultDirectories { notes, backups });
+    drop(active);
+    if changed {
+        app.state::<crate::terminal::TerminalState>().shutdown();
+    }
     Ok(())
 }

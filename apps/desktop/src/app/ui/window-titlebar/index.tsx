@@ -8,7 +8,6 @@ import { styles } from "./style.css.ts";
 
 const iconUrl = "/icon.png";
 
-// Window controls remain available; app actions wait until the current modal closes.
 const runAppAction = (action: () => void) => {
 	if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
 	action();

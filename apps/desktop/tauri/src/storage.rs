@@ -68,6 +68,15 @@ fn replace_file(temporary: &Path, destination: &Path) -> std::io::Result<()> {
 }
 
 pub(crate) fn atomic_write(path: &Path, bytes: &[u8], backup: Option<&Path>) -> Result<(), String> {
+    atomic_write_checked(path, bytes, backup, None)
+}
+
+pub(crate) fn atomic_write_checked(
+    path: &Path,
+    bytes: &[u8],
+    backup: Option<&Path>,
+    expected: Option<&[u8]>,
+) -> Result<(), String> {
     let parent = path
         .parent()
         .ok_or_else(|| "Pasta de destino inválida.".to_string())?;
@@ -86,6 +95,11 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8], backup: Option<&Path>) -> 
         file.sync_all()?;
         drop(file);
 
+        if let Some(expected) = expected {
+            if fs::read(path).ok().as_deref() != Some(expected) {
+                return Err(std::io::Error::other("NOTE_EXTERNAL_CONFLICT"));
+            }
+        }
         if path.is_file() {
             if let Some(backup) = backup {
                 fs::copy(path, backup)?;
@@ -93,6 +107,11 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8], backup: Option<&Path>) -> 
             }
         }
 
+        if let Some(expected) = expected {
+            if fs::read(path).ok().as_deref() != Some(expected) {
+                return Err(std::io::Error::other("NOTE_EXTERNAL_CONFLICT"));
+            }
+        }
         replace_file(&temporary, path)?;
 
         #[cfg(unix)]
@@ -167,4 +186,46 @@ pub(crate) fn preserve_recovery_copy(path: &Path, directory: &Path) -> Result<Pa
 
     atomic_write(&target, &bytes, None)?;
     Ok(target)
+}
+
+#[cfg(test)]
+mod checked_write_tests {
+    use super::*;
+
+    #[test]
+    fn changed_or_deleted_file_is_not_replaced_and_temporary_is_removed() {
+        let root = std::env::temp_dir().join(format!("omega-checked-{}", Uuid::new_v4()));
+        fs::create_dir(&root).unwrap();
+        let path = root.join("note.omega");
+        fs::write(&path, b"external").unwrap();
+        assert!(
+            atomic_write_checked(&path, b"local", None, Some(b"original"))
+                .unwrap_err()
+                .contains("NOTE_EXTERNAL_CONFLICT")
+        );
+        assert_eq!(fs::read(&path).unwrap(), b"external");
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+        fs::remove_file(&path).unwrap();
+        assert!(
+            atomic_write_checked(&path, b"local", None, Some(b"original"))
+                .unwrap_err()
+                .contains("NOTE_EXTERNAL_CONFLICT")
+        );
+        assert!(!path.exists());
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 0);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn matching_revision_is_saved_and_previous_bytes_are_backed_up() {
+        let root = std::env::temp_dir().join(format!("omega-checked-{}", Uuid::new_v4()));
+        fs::create_dir(&root).unwrap();
+        let path = root.join("note.omega");
+        let backup = root.join("backup");
+        fs::write(&path, b"original").unwrap();
+        atomic_write_checked(&path, b"local", Some(&backup), Some(b"original")).unwrap();
+        assert_eq!(fs::read(path).unwrap(), b"local");
+        assert_eq!(fs::read(backup).unwrap(), b"original");
+        fs::remove_dir_all(root).unwrap();
+    }
 }

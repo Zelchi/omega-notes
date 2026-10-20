@@ -67,7 +67,6 @@ export const useVaultReorder = (options: {
 		if (!moved) return;
 		suppressClick = true;
 		if (!ids || ids.join("\0") === original.join("\0") || !options.enabled()) { setOrder(undefined); return; }
-		// Keep the preview until persistence completes; failure restores the server's order.
 		void options.onReorder(ids).catch(cause => console.error("Could not reorder vaults", cause))
 			.finally(() => { if (!disposed) setOrder(undefined); });
 	};
@@ -95,8 +94,10 @@ export const useVaultReorder = (options: {
 		begin: (event: PointerEvent, id: string) => {
 			if (event.button !== 0 || !event.isPrimary || !options.enabled() || gesture) return;
 			suppressClick = false;
-			gesture = { id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, currentY: event.clientY,
-				original: options.vaults().map(vault => vault.id), moved: false };
+			gesture = {
+				id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, currentY: event.clientY,
+				original: options.vaults().map(vault => vault.id), moved: false
+			};
 		},
 		consumeClick: (event: MouseEvent): boolean => {
 			if (!suppressClick || event.detail === 0) return false;

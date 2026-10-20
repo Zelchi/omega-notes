@@ -117,7 +117,6 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		const pending = pendingProgress;
 		if (!pending) return;
 		setSavingProgress(true); setProgressFailed(false); setError(undefined);
-		// Queue immediately: resetting a session must not discard a newer, unsaved snapshot.
 		const request = library.saveProgress(pending.vaultId, pending.deckId, pending.kind, pending.progress);
 		progressSave = request;
 		try {
@@ -222,7 +221,6 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 			});
 			if (disposed || token.signal.aborted || requestRevision !== revision || vaultId !== options.vaultId()) return;
 			const value: StudyDeck = { ...parsed, id: crypto.randomUUID(), kind: requestedKind, createdAt: Date.now(), sourceNoteId: source?.id };
-			// Once the atomic save starts, Home/Cancel waits for it instead of confirming a late cancellation.
 			setCommitting(true);
 			if (!(await library.save(vaultId, value, token.signal))) return;
 			if (disposed || vaultId !== options.vaultId() || requestRevision !== revision || token.signal.aborted) return;
@@ -233,8 +231,8 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 			const code = failure instanceof Error ? failure.message : String(failure);
 			setError(failure instanceof StudyItemCountError ? options.t("studyItemCountMismatch").replace("{expected}", String(failure.expected)).replace("{received}", String(failure.received))
 				: code === "STUDY_INSUFFICIENT_CONTENT" ? options.t("studyInsufficientContent")
-				: code === "STUDY_LIMIT_REACHED" ? options.t("studyLimitReached") : code === "STUDY_STORAGE_FAILED" ? options.t("studyStorageFailed") : code === "STUDY_INVALID_RESPONSE" || failure instanceof SyntaxError
-				? options.t("studyInvalidResponse") : options.describeAiError(failure));
+					: code === "STUDY_LIMIT_REACHED" ? options.t("studyLimitReached") : code === "STUDY_STORAGE_FAILED" ? options.t("studyStorageFailed") : code === "STUDY_INVALID_RESPONSE" || failure instanceof SyntaxError
+						? options.t("studyInvalidResponse") : options.describeAiError(failure));
 			setStage("setup");
 		} finally { if (abort === token) { abort = undefined; setCommitting(false); } }
 	};
@@ -311,7 +309,6 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 };
 type StudySession = ReturnType<typeof useStudySession>;
 
-/** Each method retains its own screen, answers, timer and AI queue while hidden. */
 export const useStudies = (options: StudyEnvironment): StudiesController => {
 	const library = useStudyLibrary(options);
 	const requests = useStudyRequestQueue(options);
@@ -325,7 +322,6 @@ export const useStudies = (options: StudyEnvironment): StudiesController => {
 	};
 	const [selected, setSelected] = createSignal<StudyKind>("flashcards");
 	const current = () => sessions[selected()];
-	// Explicit forwarding keeps callbacks stable and lets TypeScript check every method.
 	const close = () => Object.values(sessions).forEach(session => session.close());
 	return {
 		activeRequestKind: requests.activeKind,

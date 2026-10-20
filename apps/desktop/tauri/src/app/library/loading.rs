@@ -131,7 +131,10 @@ pub(crate) fn list_notes(
             continue;
         };
         let note_path = note_path(&directory, note_id);
-        if note_file_exists(&directory, note_id) {
+        if note_file_exists(&directory, note_id)
+            || crate::notes::note_path(&crate::notes::deleted_notes_directory(&directory), note_id)
+                .is_file()
+        {
             continue;
         }
 

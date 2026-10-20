@@ -8,6 +8,7 @@ const THEME_KEY = "omega-notes.settings.theme";
 const LANGUAGE_KEY = "omega-notes.settings.language";
 const TEXT_CURSOR_KEY = "omega-notes.settings.text-cursor";
 const AI_FEATURES_KEY = "omega-notes.settings.ai-features-enabled";
+const GAMBIARRA_KEY = "omega-notes.settings.gambiarra-enabled";
 const AI_CHAT_SHORTCUT_KEY = "omega-notes.settings.ai-chat-shortcut";
 const SOUND_VOLUME_KEY = "omega-notes.settings.sound-volume";
 const NOTE_MODE_KEY = "omega-notes.settings.note-mode";
@@ -72,6 +73,8 @@ export const readCenterCanvasOnLaunch = (): boolean => readBoolean(CENTER_CANVAS
 export const readHideCanvasControls = (): boolean => readBoolean(HIDE_CANVAS_CONTROLS_KEY, false);
 export const readAiFeaturesEnabled = (): boolean => readBoolean(AI_FEATURES_KEY, false);
 export const saveAiFeaturesEnabled = (value: boolean): void => writeBoolean(AI_FEATURES_KEY, value);
+export const readGambiarraEnabled = (): boolean => readBoolean(GAMBIARRA_KEY, false);
+export const saveGambiarraEnabled = (value: boolean): void => writeBoolean(GAMBIARRA_KEY, value);
 
 export const readLanguage = (): Language => {
 	try {

@@ -107,6 +107,14 @@ fn native_executable(name: &str) -> Option<PathBuf> {
             home.join(".bun/bin"),
         ]);
     }
+    if name == "agy" {
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            directories.push(PathBuf::from(local).join("agy/bin"));
+        }
+        if let Some(programs) = std::env::var_os("ProgramFiles") {
+            directories.push(PathBuf::from(programs).join("Google/antigravity-cli"));
+        }
+    }
     if let Some(directory) = std::env::var_os("OPENCODE_INSTALL_DIR") {
         directories.push(directory.into());
     }

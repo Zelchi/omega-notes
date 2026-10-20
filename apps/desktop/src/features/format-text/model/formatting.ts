@@ -5,8 +5,8 @@ export type TextSelection = { start: number; end: number };
 export type TextFormatHandler = (format: TextFormat) => void;
 
 export const formatSelection = (text: string, selection: TextSelection, format: TextFormat, options: { tableColumnLabel?: string } = {}): { text: string; selection: TextSelection } => {
-	const start = Math.max(0, Math.min(selection.start, text.length));
-	const end = Math.max(start, Math.min(selection.end, text.length));
+    const start = Math.max(0, Math.min(selection.start, text.length));
+    const end = Math.max(start, Math.min(selection.end, text.length));
     if (format === "note-link") {
         const selected = text.slice(start, end);
         const references = [...text.matchAll(/\[\[([^\[\]\r\n]*)\]\]/g)];
@@ -35,7 +35,6 @@ export const formatSelection = (text: string, selection: TextSelection, format: 
             const content = selected.replace(/\[\[([^\[\]\r\n]*)\]\]/g, (_reference, body: string) => visibleText(body));
             return { text: text.slice(0, start) + content + text.slice(end), selection: { start, end: start + content.length } };
         }
-        // A selection crossing a reference boundary must not create nested links.
         if (references.some((match) => start < match.index! + match[0].length && end > match.index!)) return { text, selection: { start, end } };
         const caret = start + 2 + selected.length;
         return {
@@ -94,83 +93,83 @@ export const formatSelection = (text: string, selection: TextSelection, format: 
         const caret = start + prefix.length;
         return { text: before + prefix + selected + suffix + after, selection: { start: caret, end: caret + selected.length } };
     }
-	if (format === "table") {
-		const before = text.slice(0, start);
-		const prefix = before && !before.endsWith("\n") ? "\n" : "";
-		const label = options.tableColumnLabel ?? "Column";
-		const headers = [1, 2, 3].map((column) => `${label} ${column}`);
-		const table = `| ${headers.join(" | ")} |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |\n\n`;
-		const caret = before.length + prefix.length + 2;
-		return { text: before + prefix + table + text.slice(end), selection: { start: caret, end: caret + headers[0]!.length } };
-	}
-	if (format === "bold" || format === "italic" || format === "strike" || format === "highlight" || format === "code") {
-		const selected = text.slice(start, end);
-		if (format === "code") {
-			const wrapped = selected.match(/^(`+)([\s\S]+?)\1$/);
-			if (wrapped) return { text: text.slice(0, start) + wrapped[2] + text.slice(end), selection: { start, end: start + wrapped[2]!.length } };
-		}
-		const beforeTicks = text.slice(0, start).match(/`+$/)?.[0] ?? "";
-		const afterTicks = text.slice(end).match(/^`+/)?.[0] ?? "";
-		const longest = (selected.match(/`+/g) ?? []).reduce((length, run) => Math.max(length, run.length), 0);
-		const codeMarker = beforeTicks && beforeTicks === afterTicks ? beforeTicks : "`".repeat(longest + 1);
-		const marker = format === "bold" ? "**" : format === "italic" ? "*" : format === "strike" ? "~~" : format === "highlight" ? "==" : codeMarker;
-		if (selected.includes("\n")) {
-			const replacement = selected.split("\n").map((line) => line ? formatSelection(line, { start: 0, end: line.length }, format).text : line).join("\n");
-			return { text: text.slice(0, start) + replacement + text.slice(end), selection: { start, end: start + replacement.length } };
-		}
-		const beforeStars = text.slice(0, start).match(/\*+$/)?.[0].length ?? 0;
-		const afterStars = text.slice(end).match(/^\*+/)?.[0].length ?? 0;
-		const surrounding = Math.min(beforeStars, afterStars);
-		const removeMarkers = format === "bold" ? surrounding >= 2 : format === "italic" ? surrounding === 1 || surrounding === 3 :
-			text.slice(start - marker.length, start) === marker && text.slice(end, end + marker.length) === marker;
-		if (removeMarkers) {
-			return {
-				text: text.slice(0, start - marker.length) + selected + text.slice(end + marker.length),
-				selection: { start: start - marker.length, end: end - marker.length },
-			};
-		}
-		if (selected.startsWith(marker) && selected.endsWith(marker) && selected.length > marker.length * 2 &&
-			(format !== "italic" || !selected.startsWith("**"))) {
-			const content = selected.slice(marker.length, -marker.length);
-			return { text: text.slice(0, start) + content + text.slice(end), selection: { start, end: start + content.length } };
-		}
-		return {
-			text: text.slice(0, start) + marker + selected + marker + text.slice(end),
-			selection: { start: start + marker.length, end: end + marker.length },
-		};
-	}
-	if (format === "separator") {
-		const before = text.slice(0, start);
-		const after = text.slice(end);
-		const insertion = `${before && !before.endsWith("\n") ? "\n" : ""}---\n`;
-		const caret = before.length + insertion.length;
-		return { text: before + insertion + after, selection: { start: caret, end: caret } };
-	}
-	const lineStart = start === 0 ? 0 : text.lastIndexOf("\n", start - 1) + 1;
-	const lastSelected = end > start && text[end - 1] === "\n" ? end - 1 : end;
-	const newline = text.indexOf("\n", lastSelected);
-	const lineEnd = newline < 0 ? text.length : newline;
-	const prefix = `${"#".repeat(Number(format.slice(1)))} `;
-	const lines = text.slice(lineStart, lineEnd).split("\n");
-	const remove = lines.every((line) => line.startsWith(prefix));
-	const replacement = lines.map((line) => {
-		const content = line.replace(/^#{1,6}[ \t]+/, "");
-		return remove ? content : prefix + content;
-	}).join("\n");
-	const mapOffset = (offset: number): number => {
-		let oldCursor = lineStart;
-		let newCursor = lineStart;
-		for (const line of lines) {
-			const oldPrefix = line.match(/^#{1,6}[ \t]+/)?.[0].length ?? 0;
-			const newPrefix = remove ? 0 : prefix.length;
-			if (offset <= oldCursor + line.length) return newCursor + newPrefix + Math.max(0, offset - oldCursor - oldPrefix);
-			oldCursor += line.length + 1;
-			newCursor += line.length - oldPrefix + newPrefix + 1;
-		}
-		return lineStart + replacement.length;
-	};
-	return {
-		text: text.slice(0, lineStart) + replacement + text.slice(lineEnd),
-		selection: { start: mapOffset(start), end: mapOffset(end) },
-	};
+    if (format === "table") {
+        const before = text.slice(0, start);
+        const prefix = before && !before.endsWith("\n") ? "\n" : "";
+        const label = options.tableColumnLabel ?? "Column";
+        const headers = [1, 2, 3].map((column) => `${label} ${column}`);
+        const table = `| ${headers.join(" | ")} |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |\n\n`;
+        const caret = before.length + prefix.length + 2;
+        return { text: before + prefix + table + text.slice(end), selection: { start: caret, end: caret + headers[0]!.length } };
+    }
+    if (format === "bold" || format === "italic" || format === "strike" || format === "highlight" || format === "code") {
+        const selected = text.slice(start, end);
+        if (format === "code") {
+            const wrapped = selected.match(/^(`+)([\s\S]+?)\1$/);
+            if (wrapped) return { text: text.slice(0, start) + wrapped[2] + text.slice(end), selection: { start, end: start + wrapped[2]!.length } };
+        }
+        const beforeTicks = text.slice(0, start).match(/`+$/)?.[0] ?? "";
+        const afterTicks = text.slice(end).match(/^`+/)?.[0] ?? "";
+        const longest = (selected.match(/`+/g) ?? []).reduce((length, run) => Math.max(length, run.length), 0);
+        const codeMarker = beforeTicks && beforeTicks === afterTicks ? beforeTicks : "`".repeat(longest + 1);
+        const marker = format === "bold" ? "**" : format === "italic" ? "*" : format === "strike" ? "~~" : format === "highlight" ? "==" : codeMarker;
+        if (selected.includes("\n")) {
+            const replacement = selected.split("\n").map((line) => line ? formatSelection(line, { start: 0, end: line.length }, format).text : line).join("\n");
+            return { text: text.slice(0, start) + replacement + text.slice(end), selection: { start, end: start + replacement.length } };
+        }
+        const beforeStars = text.slice(0, start).match(/\*+$/)?.[0].length ?? 0;
+        const afterStars = text.slice(end).match(/^\*+/)?.[0].length ?? 0;
+        const surrounding = Math.min(beforeStars, afterStars);
+        const removeMarkers = format === "bold" ? surrounding >= 2 : format === "italic" ? surrounding === 1 || surrounding === 3 :
+            text.slice(start - marker.length, start) === marker && text.slice(end, end + marker.length) === marker;
+        if (removeMarkers) {
+            return {
+                text: text.slice(0, start - marker.length) + selected + text.slice(end + marker.length),
+                selection: { start: start - marker.length, end: end - marker.length },
+            };
+        }
+        if (selected.startsWith(marker) && selected.endsWith(marker) && selected.length > marker.length * 2 &&
+            (format !== "italic" || !selected.startsWith("**"))) {
+            const content = selected.slice(marker.length, -marker.length);
+            return { text: text.slice(0, start) + content + text.slice(end), selection: { start, end: start + content.length } };
+        }
+        return {
+            text: text.slice(0, start) + marker + selected + marker + text.slice(end),
+            selection: { start: start + marker.length, end: end + marker.length },
+        };
+    }
+    if (format === "separator") {
+        const before = text.slice(0, start);
+        const after = text.slice(end);
+        const insertion = `${before && !before.endsWith("\n") ? "\n" : ""}---\n`;
+        const caret = before.length + insertion.length;
+        return { text: before + insertion + after, selection: { start: caret, end: caret } };
+    }
+    const lineStart = start === 0 ? 0 : text.lastIndexOf("\n", start - 1) + 1;
+    const lastSelected = end > start && text[end - 1] === "\n" ? end - 1 : end;
+    const newline = text.indexOf("\n", lastSelected);
+    const lineEnd = newline < 0 ? text.length : newline;
+    const prefix = `${"#".repeat(Number(format.slice(1)))} `;
+    const lines = text.slice(lineStart, lineEnd).split("\n");
+    const remove = lines.every((line) => line.startsWith(prefix));
+    const replacement = lines.map((line) => {
+        const content = line.replace(/^#{1,6}[ \t]+/, "");
+        return remove ? content : prefix + content;
+    }).join("\n");
+    const mapOffset = (offset: number): number => {
+        let oldCursor = lineStart;
+        let newCursor = lineStart;
+        for (const line of lines) {
+            const oldPrefix = line.match(/^#{1,6}[ \t]+/)?.[0].length ?? 0;
+            const newPrefix = remove ? 0 : prefix.length;
+            if (offset <= oldCursor + line.length) return newCursor + newPrefix + Math.max(0, offset - oldCursor - oldPrefix);
+            oldCursor += line.length + 1;
+            newCursor += line.length - oldPrefix + newPrefix + 1;
+        }
+        return lineStart + replacement.length;
+    };
+    return {
+        text: text.slice(0, lineStart) + replacement + text.slice(lineEnd),
+        selection: { start: mapOffset(start), end: mapOffset(end) },
+    };
 };

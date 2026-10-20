@@ -3,7 +3,6 @@ import type { StudyItem } from "@/entities/study";
 import { createStudySourceResolver } from "./context";
 import { createSourceReferences } from "./ai-response";
 
-/** Notes are immutable application state. A new array invalidates indexes and scopes. */
 export const createEvaluationContextCache = () => {
 	let previous: StudyNote[] | undefined;
 	let index = new Map<string, StudyNote>();
@@ -24,7 +23,6 @@ export const createEvaluationContextCache = () => {
 			noteId: primary.id, sourceIds,
 			supportingNoteIds: item.sources.filter(id => id !== primary.id),
 			references: createSourceReferences(sourceIds),
-			// Include titles: renaming a source also changes evidence seen by the evaluator.
 			revisions: [...sources.values()].map(note => {
 				let snapshot = revisions.get(note.id);
 				if (!snapshot) {
@@ -47,11 +45,13 @@ export const createEvaluationContextCache = () => {
 		if (!context) { context = prepare(item); scopes.set(key, context); }
 		return context;
 	};
-	return { clear, get, unchanged: (before: ReturnType<typeof prepare>, notes: StudyNote[], item: StudyItem) => {
-		const current = get(notes, item);
-		return before === current || (before.revisions.length === current.revisions.length && before.revisions.every((source, i) => {
-			const next = current.revisions[i];
-			return source.id === next.id && source.title === next.title && source.text === next.text;
-		}));
-	} };
+	return {
+		clear, get, unchanged: (before: ReturnType<typeof prepare>, notes: StudyNote[], item: StudyItem) => {
+			const current = get(notes, item);
+			return before === current || (before.revisions.length === current.revisions.length && before.revisions.every((source, i) => {
+				const next = current.revisions[i];
+				return source.id === next.id && source.title === next.title && source.text === next.text;
+			}));
+		}
+	};
 };

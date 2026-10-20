@@ -1,3 +1,4 @@
+import { isTerminalTarget } from "@/shared/lib/terminal-focus";
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
@@ -50,7 +51,7 @@ export const useFloatingSearchController = (props: FloatingSearchProps) => {
 		setQuery("");
 	};
 	const onSearchShortcut = (event: KeyboardEvent): void => {
-		if (event.defaultPrevented || event.isComposing || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "p") return;
+		if (isTerminalTarget(event.target) || event.defaultPrevented || event.isComposing || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "p") return;
 		event.preventDefault();
 		event.stopImmediatePropagation();
 		if (event.repeat || !root.isConnected || root.closest("[inert]") || document.querySelector("[aria-modal='true']:not([inert])")) return;

@@ -29,8 +29,10 @@ export class ForceLayout {
 			const saved = this.initialPositions[id];
 			const radius = 75 * Math.sqrt(index);
 			const angle = index * 2.399963229728653;
-			this.bodies.set(id, { id, x: saved?.x ?? Math.cos(angle) * radius,
-				y: saved?.y ?? Math.sin(angle) * radius, vx: 0, vy: 0 });
+			this.bodies.set(id, {
+				id, x: saved?.x ?? Math.cos(angle) * radius,
+				y: saved?.y ?? Math.sin(angle) * radius, vx: 0, vy: 0
+			});
 		});
 		this.initialPositions = {};
 		this.links = links.flatMap((link) => {
@@ -47,7 +49,6 @@ export class ForceLayout {
 			const body = this.bodies.get(id);
 			if (body) Object.assign(body, point, { vx: 0, vy: 0, fixed: undefined });
 		}
-		// History restoration must remain stable until the next graph edit or drag.
 		this.alpha = 0;
 	}
 

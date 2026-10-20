@@ -1,4 +1,4 @@
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use crate::app::{runtime, vault_details};
 
@@ -40,12 +40,21 @@ pub(crate) fn rename_vault(
 }
 
 #[tauri::command]
-pub(crate) fn delete_vault(app: AppHandle, vault_id: String) -> Result<VaultDeleteResult, String> {
-    service::delete_vault(
-        &|| runtime::app_directory(&app),
-        &|directory, message| runtime::set_active_vault(&app, directory, message),
-        vault_id,
-    )
+pub(crate) async fn delete_vault(
+    app: AppHandle,
+    vault_id: String,
+) -> Result<VaultDeleteResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<crate::terminal::TerminalState>()
+            .close_vault(&vault_id)?;
+        service::delete_vault(
+            &|| runtime::app_directory(&app),
+            &|directory, message| runtime::set_active_vault(&app, directory, message),
+            vault_id,
+        )
+    })
+    .await
+    .map_err(|_| "TERMINAL_FAILED".to_string())?
 }
 
 #[tauri::command]

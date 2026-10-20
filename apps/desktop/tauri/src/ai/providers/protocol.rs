@@ -1,5 +1,5 @@
 use super::super::repository::Provider;
-use super::{claude, opencode_error};
+use super::{antigravity, claude, opencode_error};
 use serde_json::{json, Value};
 
 #[derive(Default)]
@@ -8,6 +8,7 @@ pub(super) struct Stream {
     pub session_id: Option<String>,
     pub failed: bool,
     pub answered: bool,
+    pub completed: bool,
     pub error_code: Option<&'static str>,
     pub error_detail: Option<String>,
     model_is_go: bool,
@@ -21,7 +22,37 @@ impl Stream {
         }
     }
     pub(super) fn receive(&mut self, provider: Provider, value: &Value) -> Option<Value> {
-        if provider == Provider::Opencode {
+        if provider == Provider::Antigravity {
+            match value["event"].as_str()? {
+                "init" => {
+                    self.session_id = value["conversation_id"].as_str().map(str::to_string);
+                    None
+                }
+                "step_update" if value["step_update"]["step_type"] == "agent_response" => {
+                    let text = value["step_update"]["text_delta"].as_str()?;
+                    self.answered |= !text.trim().is_empty();
+                    Some(json!({"kind":"delta","itemId":"answer","text":text}))
+                }
+                "result" => {
+                    self.completed = true;
+                    let result = &value["result"];
+                    if result["status"] != "SUCCESS" {
+                        self.failed = true;
+                        let message = result["error"]
+                            .as_str()
+                            .filter(|message| !message.trim().is_empty())
+                            .unwrap_or("Antigravity request failed");
+                        self.error_code = Some(antigravity::error_code(message));
+                        self.error_detail = Some(message.chars().take(2000).collect());
+                        return None;
+                    }
+                    let text = result["response"].as_str().unwrap_or("");
+                    self.answered = !text.trim().is_empty();
+                    Some(json!({"kind":"message","itemId":"answer","text":text}))
+                }
+                _ => None,
+            }
+        } else if provider == Provider::Opencode {
             if let Some(id) = value["sessionID"].as_str() {
                 self.session_id = Some(id.into());
             }

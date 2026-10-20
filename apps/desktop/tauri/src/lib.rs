@@ -7,6 +7,7 @@ mod names;
 mod notes;
 mod storage;
 mod stream;
+mod terminal;
 mod vaults;
 mod web;
 
@@ -14,7 +15,7 @@ use std::sync::Mutex;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    if ai::run_if_requested() {
+    if ai::run_if_requested() || terminal::run_if_requested() {
         return;
     }
     tauri::Builder::default()
@@ -24,12 +25,22 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(app::runtime::ActiveVault(Mutex::new(None)))
         .manage(ai::AiState::default())
+        .manage(terminal::TerminalState::default())
         .manage(ai::link_requests::LinkRequests::default())
         .setup(|app| {
             app::setup::initialize(app.handle().clone())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            terminal::terminal_open,
+            terminal::terminal_sync_instructions,
+            terminal::studies::terminal_create_study_request,
+            terminal::studies::terminal_read_study_response,
+            terminal::studies::terminal_close_study_request,
+            terminal::terminal_write,
+            terminal::terminal_resize,
+            terminal::terminal_ack,
+            terminal::terminal_close,
             ai::commands::ai_connect,
             ai::commands::ai_status,
             ai::commands::ai_login,
@@ -69,6 +80,7 @@ pub fn run() {
             vaults::commands::reorder_vaults,
             vaults::commands::delete_vault,
             notes::commands::list_notes,
+            notes::commands::notes_revision,
             notes::commands::create_note,
             notes::commands::save_note,
             notes::commands::rename_note,
@@ -87,6 +99,7 @@ pub fn run() {
             if matches!(event, tauri::RunEvent::Exit) {
                 use tauri::Manager;
                 app.state::<ai::AiState>().shutdown();
+                app.state::<terminal::TerminalState>().shutdown();
             }
         });
 }

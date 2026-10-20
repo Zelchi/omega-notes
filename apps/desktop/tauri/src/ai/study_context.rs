@@ -38,7 +38,6 @@ impl CachedSource {
     }
 }
 
-// Called on shutdown/AI reset. In-flight preparations cannot republish older data.
 pub(super) fn clear() {
     if let Ok(mut registry) = REGISTRY.lock() {
         let generation = registry.generation.wrapping_add(1);
@@ -64,8 +63,6 @@ fn source(directory: &Path, id: &str, generation: u64) -> Result<Arc<SourceConte
     {
         return Err("AI_NOTE_NOT_FOUND".into());
     }
-    // Exact bytes are the revision: timestamps/length alone miss fast or same-size edits.
-    // Disk reads stay on spawn_blocking; only decoding and text assembly are cached.
     let stored = std::fs::read_to_string(&path).map_err(|_| "AI_NOTE_NOT_FOUND")?;
     {
         let mut registry = REGISTRY.lock().map_err(|_| "AI_REQUEST_FAILED")?;
@@ -100,7 +97,6 @@ fn source(directory: &Path, id: &str, generation: u64) -> Result<Arc<SourceConte
         return Err("AI_CANCELLED".into());
     }
     if entry.bytes() <= CACHE_BYTES {
-        // A concurrent preparation may have populated this path while parsing.
         registry.sources.remove(&path);
         let mut bytes: usize = registry.sources.values().map(CachedSource::bytes).sum();
         while registry.sources.len() >= CACHE_ENTRIES || bytes + entry.bytes() > CACHE_BYTES {
@@ -202,7 +198,6 @@ pub(crate) async fn prepare_study_context(
                 });
             }
         }
-        // Do not publish a snapshot prepared across a vault switch.
         if tools::resolve_vault(&app, &vault_id)? != directory {
             return Err("AI_VAULT_CHANGED".into());
         }
@@ -288,7 +283,6 @@ pub(crate) async fn release_study_context(request_id: String) -> Result<(), Stri
             .map_err(|_| "AI_REQUEST_FAILED")?
             .contexts
             .remove(&request_id);
-        // Large snapshots are freed outside the UI thread and outside the registry lock.
         drop(removed);
         Ok(())
     })
@@ -351,6 +345,50 @@ pub(super) fn read(directory: &Path, request_id: &str, args: &Value) -> Result<V
         json!({"items":items,"notes":notes,"totalNotes":context.notes.len(),
         "nextOffset":(end < context.notes.len()).then_some(end),"scope":"prepared-study-context"}),
     )
+}
+
+pub(crate) fn export_files(
+    directory: &Path,
+    request_id: &str,
+) -> Result<Vec<(String, Vec<u8>)>, String> {
+    let context = REGISTRY
+        .lock()
+        .map_err(|_| "AI_REQUEST_FAILED")?
+        .contexts
+        .get(request_id)
+        .cloned()
+        .ok_or("AI_STUDY_CONTEXT_UNAVAILABLE")?;
+    if context.directory != directory || context.created.elapsed() >= LIFETIME {
+        return Err("AI_STUDY_CONTEXT_UNAVAILABLE".into());
+    }
+    let mut manifest = read(directory, request_id, &json!({}))?;
+    let mut offset = manifest["nextOffset"].as_u64();
+    while let Some(next) = offset {
+        let page = read(directory, request_id, &json!({"offset":next}))?;
+        manifest["notes"]
+            .as_array_mut()
+            .ok_or("AI_REQUEST_FAILED")?
+            .extend(
+                page["notes"]
+                    .as_array()
+                    .ok_or("AI_REQUEST_FAILED")?
+                    .iter()
+                    .cloned(),
+            );
+        offset = page["nextOffset"].as_u64();
+    }
+    manifest["nextOffset"] = Value::Null;
+    let mut files = vec![(
+        "manifest.json".into(),
+        serde_json::to_vec_pretty(&manifest).map_err(|_| "AI_REQUEST_FAILED")?,
+    )];
+    for source in &context.notes {
+        files.push((
+            format!("{}.txt", source.alias),
+            source.content.text.as_bytes().to_vec(),
+        ));
+    }
+    Ok(files)
 }
 
 #[cfg(test)]

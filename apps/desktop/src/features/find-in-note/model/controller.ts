@@ -1,3 +1,4 @@
+import { isTerminalTarget } from "@/shared/lib/terminal-focus";
 import { createEffect, createSignal, onCleanup, onMount, type Accessor } from "solid-js";
 
 type Segment = { node: Text; start: number; end: number };
@@ -5,7 +6,6 @@ type Marker = { left: number; top: number; width: number; height: number; match:
 const LIMIT = 1000;
 const ignored = "[aria-hidden='true'], button, input, textarea, select, [data-note-find-ui]";
 
-// Read visible text without inserting marks into the editable DOM.
 const indexText = (root: HTMLElement) => {
     const segments: Segment[] = [];
     const chunks: string[] = [];
@@ -90,7 +90,6 @@ export const useFindInNote = (noteId: Accessor<string>) => {
             range.setStart(start.node, start.offset); range.setEnd(end.node, end.offset);
             ranges.push(range);
         }
-        // Tables are separate editable surfaces; navigate in visual page order.
         const measured = ranges.map((range) => ({ range, rects: [...range.getClientRects()] }))
             .filter((match) => match.rects.some((rect) => rect.width && rect.height))
             .sort((a, b) => a.rects[0]!.top - b.rects[0]!.top || a.rects[0]!.left - b.rects[0]!.left);
@@ -138,7 +137,7 @@ export const useFindInNote = (noteId: Accessor<string>) => {
     };
     onMount(() => {
         const keyDown = (event: KeyboardEvent) => {
-            if (event.defaultPrevented || event.isComposing || !root?.isConnected || root.closest("[inert]") || document.querySelector("[aria-modal='true']:not([inert])")) return;
+            if (isTerminalTarget(event.target) || event.defaultPrevented || event.isComposing || !root?.isConnected || root.closest("[inert]") || document.querySelector("[aria-modal='true']:not([inert])")) return;
             if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "f") {
                 event.preventDefault(); event.stopImmediatePropagation();
                 if (event.repeat) return;

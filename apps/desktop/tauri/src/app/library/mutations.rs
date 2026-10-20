@@ -39,6 +39,16 @@ pub(crate) fn save_note(
     note_title: String,
     document: NoteDocument,
 ) -> Result<NoteSaveResult, String> {
+    save_note_checked(resolve_directories, note_id, note_title, document, None)
+}
+
+pub(crate) fn save_note_checked(
+    resolve_directories: &impl Fn() -> Result<(PathBuf, PathBuf), String>,
+    note_id: String,
+    note_title: String,
+    document: NoteDocument,
+    expected: Option<&[u8]>,
+) -> Result<NoteSaveResult, String> {
     validate_note_id(&note_id)?;
     let (directory, backups_directory) = resolve_directories()?;
     validate_note_title(&note_title)?;
@@ -68,12 +78,13 @@ pub(crate) fn save_note(
     let current_images = image_ids_in_document(&document);
     let current_audio = audio_ids_in_document(&document);
     let current_video = video_ids_in_document(&document);
-    let saved = write_note(
+    let saved = crate::notes::write_note_checked(
         &directory,
         &backups_directory,
         &note_id,
         note_title.trim(),
         &document,
+        expected,
     )?;
 
     let removed_images = previous_images
