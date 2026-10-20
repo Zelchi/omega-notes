@@ -5,7 +5,7 @@ const CONNECTED_PROVIDER_KEY = "omega-notes.ai.connected-provider";
 export const readConnectedProvider = (): AiProviderId | undefined => {
     try {
         const value = localStorage.getItem(CONNECTED_PROVIDER_KEY);
-        return value === "codex" || value === "claude" || value === "opencode" ? value : undefined;
+        return value === "codex" || value === "claude" || value === "opencode" || value === "antigravity" ? value : undefined;
     } catch {
         return undefined;
     }

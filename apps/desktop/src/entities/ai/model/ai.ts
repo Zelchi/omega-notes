@@ -1,4 +1,4 @@
-export type AiProviderId = "codex" | "claude" | "opencode";
+export type AiProviderId = "codex" | "claude" | "opencode" | "antigravity";
 export const MAX_CHAT_MESSAGES = 50;
 export type AiStatus = { connected: boolean; authenticated: boolean; connectionId?: string; email?: string | null; plan?: string | null };
 export type AiModel = {

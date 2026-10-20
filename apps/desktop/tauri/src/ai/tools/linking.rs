@@ -41,7 +41,6 @@ struct Mention {
     target_id: String,
 }
 
-// Conservatively protect code, existing links, URLs, HTML and escaped characters.
 fn protected(text: &str) -> (Vec<bool>, Vec<(usize, usize)>) {
     let mut mask = vec![false; text.len()];
     let mut wiki_links = Vec::new();
@@ -90,7 +89,6 @@ fn protected(text: &str) -> (Vec<bool>, Vec<(usize, usize)>) {
                             line.len()
                         }
                     } else {
-                        // Protect the complete Markdown link, including nested URL parentheses.
                         let mut end = tail.find(']').map_or(line.len(), |end| i + end + 1);
                         if bytes.get(end) == Some(&b'(') {
                             let mut depth = 0;

@@ -5,8 +5,87 @@ use super::models::{NoteDocument, NoteLibrary, NoteLoadIssue, NoteSaveResult, St
 use crate::app::{library, runtime};
 
 #[tauri::command]
-pub(crate) fn list_notes(app: AppHandle) -> Result<NoteLibrary, String> {
-    library::list_notes(&|| runtime::notes_and_backups_dirs(&app))
+pub(crate) async fn list_notes(
+    app: AppHandle,
+    vault_id: Option<String>,
+    external: Option<bool>,
+) -> Result<NoteLibrary, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let directories = runtime::notes_and_backups_dirs(&app)?;
+        if let Some(id) = vault_id.as_deref() {
+            if crate::ai::terminal_vault_directory(&app, id)? != directories.0 {
+                return Err("AI_VAULT_CHANGED".into());
+            }
+        }
+        let library = if external == Some(true) {
+            let directory = &directories.0;
+            let mut notes = Vec::new();
+            for entry in std::fs::read_dir(directory).map_err(|_| "NOTE_READ_FAILED")? {
+                let entry = entry.map_err(|_| "NOTE_READ_FAILED")?;
+                if entry.path().extension().is_none_or(|ext| ext != "omega") {
+                    continue;
+                }
+                if entry
+                    .file_type()
+                    .map_err(|_| "NOTE_READ_FAILED")?
+                    .is_symlink()
+                {
+                    return Err("NOTE_READ_FAILED".into());
+                }
+                notes.push(super::note_from_path(&entry.path()).map_err(|_| "NOTE_READ_FAILED")?);
+            }
+            let (reference_titles, issues) = super::load_reference_titles(directory);
+            NoteLibrary {
+                notes,
+                issues,
+                reference_titles,
+            }
+        } else {
+            library::list_notes(&|| Ok(directories.clone()))?
+        };
+        if runtime::notes_dir(&app)? != directories.0 {
+            return Err("AI_VAULT_CHANGED".into());
+        }
+        Ok(library)
+    })
+    .await
+    .map_err(|_| "NOTE_READ_FAILED".to_string())?
+}
+
+#[derive(serde::Deserialize)]
+pub(crate) struct ExpectedNote {
+    title: String,
+    document: NoteDocument,
+}
+
+#[tauri::command]
+pub(crate) async fn notes_revision(app: AppHandle, vault_id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::hash::{Hash, Hasher};
+        let directory = crate::ai::terminal_vault_directory(&app, &vault_id)?;
+        let mut entries = Vec::new();
+        for entry in std::fs::read_dir(&directory).map_err(|_| "NOTE_READ_FAILED")? {
+            let entry = entry.map_err(|_| "NOTE_READ_FAILED")?;
+            if entry.path().extension().is_none_or(|ext| ext != "omega") {
+                continue;
+            }
+            let meta = entry.metadata().map_err(|_| "NOTE_READ_FAILED")?;
+            entries.push((
+                entry.file_name(),
+                meta.len(),
+                meta.modified().map_err(|_| "NOTE_READ_FAILED")?,
+            ));
+        }
+        entries.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        entries.hash(&mut hash);
+        if crate::ai::terminal_vault_directory(&app, &vault_id)? != directory {
+            return Err("AI_VAULT_CHANGED".into());
+        }
+        Ok(format!("{:x}", hash.finish()))
+    })
+    .await
+    .map_err(|_| "NOTE_READ_FAILED".to_string())?
 }
 
 #[tauri::command]
@@ -15,18 +94,47 @@ pub(crate) fn create_note(app: AppHandle, note_title: String) -> Result<StudyNot
 }
 
 #[tauri::command]
-pub(crate) fn save_note(
+pub(crate) async fn save_note(
     app: AppHandle,
+    vault_id: String,
     note_id: String,
     note_title: String,
     document: NoteDocument,
+    expected_note: ExpectedNote,
 ) -> Result<NoteSaveResult, String> {
-    library::save_note(
-        &|| runtime::notes_and_backups_dirs(&app),
-        note_id,
-        note_title,
-        document,
-    )
+    tauri::async_runtime::spawn_blocking(move || {
+        let directory = crate::ai::terminal_vault_directory(&app, &vault_id)?;
+        super::validate_note_id(&note_id)?;
+        let path = super::note_path(&directory, &note_id);
+        if std::fs::symlink_metadata(&path).is_ok_and(|meta| meta.file_type().is_symlink()) {
+            return Err("NOTE_EXTERNAL_CONFLICT".into());
+        }
+        let stored = std::fs::read_to_string(&path).map_err(|_| "NOTE_EXTERNAL_CONFLICT")?;
+        let current = super::note_from_contents(&path, &note_id, &stored)
+            .map_err(|_| "NOTE_EXTERNAL_CONFLICT")?;
+        if current.title != expected_note.title
+            || serde_json::to_value(&current.document).map_err(|_| "NOTE_EXTERNAL_CONFLICT")?
+                != serde_json::to_value(&expected_note.document)
+                    .map_err(|_| "NOTE_EXTERNAL_CONFLICT")?
+        {
+            return Err("NOTE_EXTERNAL_CONFLICT".into());
+        }
+        library::save_note_checked(
+            &|| {
+                let directories = runtime::notes_and_backups_dirs(&app)?;
+                if directories.0 != directory {
+                    return Err("AI_VAULT_CHANGED".into());
+                }
+                Ok(directories)
+            },
+            note_id,
+            note_title,
+            document,
+            Some(stored.as_bytes()),
+        )
+    })
+    .await
+    .map_err(|_| "NOTE_SAVE_FAILED".to_string())?
 }
 
 #[tauri::command]

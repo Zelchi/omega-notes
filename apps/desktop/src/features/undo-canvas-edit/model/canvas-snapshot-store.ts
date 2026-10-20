@@ -34,7 +34,6 @@ export class CanvasSnapshotStore {
 		this.readers.set(vaultId, reader);
 		this.read(vaultId);
 		return () => {
-			// A delayed cleanup must not unregister a newer canvas for the same vault.
 			if (this.readers.get(vaultId) !== reader) return;
 			this.remember(vaultId, reader());
 			this.readers.delete(vaultId);

@@ -135,7 +135,7 @@ conversacional de transformar menções a notas em links dentro dos campos de ID
 No Codex, cada tarefa de estudo inicia uma thread temporária independente, sem
 restaurar o histórico do vault ou reutilizar a thread do Chat. Seu registro é
 removido do host ao concluir, falhar no envio ou cancelar; uma conversa de estudo
-nunca é escolhida como thread do Chat. Nos adaptadores de Claude e OpenCode,
+nunca é escolhida como thread do Chat. Nos adaptadores de Claude, OpenCode e Antigravity,
 as sessões continuam sendo novas por envio e pedidos de estudo não recebem o
 histórico recente da conversa. Exercícios e avaliações não são acrescentados às
 mensagens persistidas do Chat.
@@ -706,7 +706,7 @@ uma vazia, referências compartilhadas e uma nota cujo conteúdo seja insuficien
 5. Fechar/reabrir durante geração e estudo; verificar estado e pausa do cronômetro.
    Separadamente, cancelar, voltar à Home, trocar de vault e desligar IA, conferindo
    que resultados antigos não reaparecem e arquivos ficam no vault correto.
-6. Repetir os fluxos com Codex, Claude e OpenCode disponíveis/autenticados, sem
+6. Repetir os fluxos com Codex, Claude, OpenCode e Antigravity disponíveis/autenticados, sem
    herdar conversa do Chat nem acessar ferramentas externas ao contexto.
 
 Para comparar desempenho, usar cópias do mesmo vault, mesmo provedor/modelo,

@@ -45,8 +45,6 @@ const Dropdown: Component<Props> = (props) => {
     const position = () => {
         if (!root?.isConnected || !trigger?.isConnected) return;
         const bounds = trigger.getBoundingClientRect();
-        // The menu is portaled to the document, so scroll containers and modal
-        // transforms must not clip it or change its coordinate system.
         const limits = { left: 8, top: windowLayout.titlebarHeight + 9, right: innerWidth - 8, bottom: innerHeight - 8 };
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d");

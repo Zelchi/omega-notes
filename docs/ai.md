@@ -2,16 +2,18 @@
 
 ## Usar o chat
 
-O Chat oferece integração com Codex, Claude Code e OpenCode, usando os CLIs
+O Chat oferece integração com Codex, Claude Code, OpenCode e Antigravity CLI, usando os CLIs
 instalados na máquina. Cada provedor mantém seu próprio histórico em cada vault.
 
 1. Instale uma versão recente do CLI escolhido e configure a conta ou o modelo nele.
    Para Claude, é necessário Claude Code 2.1.248 ou mais recente; use
    `claude auth login`. Para provedores online do OpenCode, use
    `opencode auth login` e conecte sua conta OpenCode Go ou Zen (Console).
+   Para Antigravity, instale Antigravity CLI 1.4.2 ou mais recente, execute `agy` e
+   entre na sua conta Google antes de conectar pelo aplicativo.
 2. Abra um vault no Ômega Notes.
 3. Ative **IA Features** nas configurações (vem desativado por padrão) e use o ícone de conversa na barra superior.
-4. Clique em **Codex**, **Claude** ou **OpenCode**. A autenticação existente no CLI é reaproveitada.
+4. Clique em **Codex**, **Claude**, **OpenCode** ou **Antigravity**. A autenticação existente no CLI é reaproveitada.
 5. Se necessário, use **Entrar**. No Codex, o login abre no navegador; no Claude,
    abre em um terminal. Depois do login do Claude, clique em atualizar a conta.
 6. Escolha o modelo e as opções disponíveis no provedor. Envie sua mensagem.
@@ -60,7 +62,7 @@ bloqueado com um aviso para conferir a conexão no CLI.
 
 Enter envia a mensagem; Shift+Enter insere uma linha. Você pode continuar
 escrevendo enquanto a IA responde. No Codex, enviar durante uma resposta acrescenta uma
-orientação ao trabalho em andamento, usando `turn/steer`. Claude e OpenCode permitem
+orientação ao trabalho em andamento, usando `turn/steer`. Claude, OpenCode e Antigravity permitem
 preparar o rascunho; o envio fica disponível quando a resposta termina. O botão de parar
 permanece separado e cancela a resposta. Se a resposta já tiver terminado,
 a mensagem inicia uma nova resposta. No cabeçalho, o X oculta o painel.
@@ -116,8 +118,8 @@ balão, e permitem interpretar mensagens anteriores sem confundir com a nota atu
 
 ## Contexto separado por vault
 
-- No Codex, cada ID de vault possui uma thread própria no App Server. Claude e
-  OpenCode iniciam uma sessão nova em cada envio do Chat, com o histórico recente do
+- No Codex, cada ID de vault possui uma thread própria no App Server. Claude,
+  OpenCode e Antigravity iniciam uma sessão nova em cada envio do Chat, com o histórico recente do
   respectivo provedor e vault. Renomear o vault preserva essa associação.
 - Trocar de vault solicita a interrupção da resposta anterior. Eventos atrasados
   continuam associados ao vault, à conexão e à solicitação de origem.
@@ -126,7 +128,7 @@ balão, e permitem interpretar mensagens anteriores sem confundir com a nota atu
 - Antes de cada leitura, o Rust verifica se o vault continua registrado e ativo.
 - O host oferece dez ferramentas de consulta e uma ferramenta restrita de vinculação, com
   paginação e limites de leitura.
-  Claude e OpenCode recebem essas ferramentas por um endpoint MCP via stdio
+  Claude, OpenCode e Antigravity recebem essas ferramentas por um endpoint MCP via stdio
   do próprio executável do Ômega Notes. Cada consulta verifica novamente o vault ativo.
   As consultas não executam recuperação, limpeza ou gravação de notas.
 - O acesso a ambientes do Codex é desativado (`environments: []`). Shell,
@@ -136,7 +138,7 @@ balão, e permitem interpretar mensagens anteriores sem confundir com a nota atu
 O histórico, o rascunho e as escolhas de modelo, pensamento e velocidade são
 salvos em `vaults/<ID>/ia/<provedor>.json` (por exemplo, `codex.json`). Ocultar o painel ou fechar o aplicativo
 preserva esse arquivo. Desativar Recursos de IA remove os arquivos de histórico
-`codex.json`, `claude.json` e `opencode.json` de todos os vaults registrados.
+`codex.json`, `claude.json`, `opencode.json` e `antigravity.json` de todos os vaults registrados.
 Os diretórios de trabalho `claude-workspace` e `opencode-workspace`, dentro de
 `ia`, também são removidos ao desativar Recursos de IA. A pasta `ia`, as notas e
 as credenciais da `.key` são mantidas.
@@ -182,7 +184,7 @@ O MCP anuncia essa ferramenta com `readOnlyHint: false`.
 A aplicação acontece pela biblioteca de notas no frontend, usando a fila normal
 de salvamento. O documento em memória também precisa corresponder ao que foi
 analisado: uma revisão antiga ou edição concorrente exige nova leitura e análise.
-Codex encaminha a chamada diretamente ao aplicativo. Claude e OpenCode usam uma
+Codex encaminha a chamada diretamente ao aplicativo. Claude, OpenCode e Antigravity usam uma
 ponte temporária em loopback, com porta aleatória e capacidade por solicitação,
 apenas em memória. A ponte não grava notas nem aceita caminhos de arquivo.
 Pedidos de outra conexão, solicitação cancelada ou vault inativo são recusados.
@@ -205,7 +207,7 @@ Desativar Recursos de IA remove esse estado de desfazer, mas mantém os links j�
 ## Ferramentas de consulta
 
 O catálogo e as descrições ficam em `apps/desktop/tauri/src/ai/tools/catalog.rs`.
-Codex recebe esse catálogo como ferramentas dinâmicas; Claude e OpenCode o consultam
+Codex recebe esse catálogo como ferramentas dinâmicas; Claude, OpenCode e Antigravity o consultam
 pelo MCP. As permissões desses dois provedores são geradas a partir do catálogo.
 Todas as consultas são de leitura e usam somente o vault autorizado.
 Resultados que identificam notas também incluem `reference`, com o link `[[ID]]`
@@ -257,13 +259,13 @@ do aplicativo, ao lado de `vaults` e `vaults.json`, fica reservada a credenciais
 que o próprio aplicativo venha a administrar. No Linux, seu acesso é restrito
 ao usuário proprietário (`0700`). O nome oculto da pasta não implica criptografia.
 
-Cada CLI administra sua autenticação. O Ômega Notes não copia os tokens nem
-armazena chaves de API. O Codex usa a conta ChatGPT, o Claude usa a conta
+Cada CLI administra sua autenticação. O Ômega Notes não pede chaves de API na
+interface. O Codex usa a conta ChatGPT, o Claude usa a conta
 configurada no Claude Code e o OpenCode usa o provedor/modelo configurado nele.
-Na integração OpenCode, os modelos apresentados são do Go e do Zen (Console),
-com processamento online.
-Mensagens e textos consultados são enviados ao serviço; mídia não é enviada por
-essas ferramentas. As notas são salvas antes de enviar uma pergunta.
+O Antigravity usa a autenticação existente do `agy`, normalmente pelo keyring
+seguro do sistema. Seu runtime temporário fica protegido fora do vault; caches
+legados conhecidos, quando presentes, são copiados apenas para esse runtime e
+removidos após a solicitação.
 
 Esta integração consulta textos e produz respostas. Criar ou editar notas por IA
 exigirá um fluxo próprio de revisão e confirmação das alterações.
@@ -279,7 +281,8 @@ exigirá um fluxo próprio de revisão e confirmação das alterações.
 - `apps/desktop/tauri/src/ai/commands.rs`: comandos IPC; trabalho bloqueante fora da interface.
 - `apps/desktop/tauri/src/ai/state.rs`: estado e encerramento da conexão de IA.
 - `apps/desktop/tauri/src/ai/providers/codex.rs`: processo `codex app-server`, JSON-RPC, threads e eventos.
-- `apps/desktop/tauri/src/ai/providers/cli.rs`: conexões Claude/OpenCode, sessões, respostas e cancelamento.
+- `apps/desktop/tauri/src/ai/providers/cli.rs`: conexões Claude/OpenCode/Antigravity, sessões, respostas e cancelamento.
+- `apps/desktop/tauri/src/ai/providers/antigravity.rs`: autenticação existente, modelos, configuração isolada, MCP e erros do Antigravity CLI.
 - `apps/desktop/tauri/src/ai/providers/claude.rs`: validação de versão, autenticação, comando restrito e identificação dos erros do Claude.
 - `apps/desktop/tauri/src/ai/providers/process.rs`: descoberta dos CLIs e controle dos processos.
 - `apps/desktop/tauri/src/ai/providers/protocol.rs`: normalização dos eventos dos provedores.
@@ -335,3 +338,223 @@ instruções, agentes, plugins e outros servidores MCP globais ficam fora da con
 Referências: [CLI Claude Code](https://code.claude.com/docs/en/cli-reference),
 [CLI OpenCode v2](https://opencode.ai/v2/docs/cli/commands/) e
 [MCP no OpenCode v2](https://opencode.ai/v2/docs/mcp-servers).
+
+
+### Antigravity CLI
+
+O provedor usa o executável nativo `agy` (mínimo 1.4.2). Instale o CLI oficial,
+abra `agy` no terminal e autentique sua conta antes de conectar no Omega.
+A instalação é detectada pelo PATH e pelos diretórios usuais, incluindo
+`~/.local/bin` no Linux e `%LOCALAPPDATA%/agy/bin` no Windows.
+
+O Chat lista os modelos retornados por `agy models`. O item Default deixa o CLI
+resolver seu modelo padrão. Se a consulta não estiver disponível, Default continua
+selecionável e a solicitação real apresenta o erro de autenticação, cota ou rede.
+Assim como no OpenCode, a conexão local não prova a validade da conta: ela é
+verificada pelo CLI ao enviar a solicitação. Não é feita uma pergunta de teste.
+O modelo escolhido no Chat também vale para gerar e avaliar os cinco estudos.
+
+Cada pedido inicia um processo novo com entrada e saída `stream-json`. O prompt
+é enviado como um evento `user` por stdin; `step_update` fornece fragmentos e
+`result` fornece a resposta final autoritativa. Status diferentes de SUCCESS,
+respostas vazias e streams incompletos não são aceitos como respostas concluídas.
+O Chat inclui apenas o histórico recente do próprio provedor/vault; estudos
+recebem seus snapshots sem o histórico do Chat.
+
+O runtime fica em `.key/antigravity/<vaultId>/`, com um diretório de estado
+exclusivo passado ao CLI pelo argumento nativo de diretório de estado.
+Somente o MCP omega é configurado ali. Um agente omega contém as instruções da
+finalidade do pedido e não recebe ferramentas nativas; permissões bloqueiam
+arquivos, comandos e navegação. Um hook PreToolUse valida o nome de cada ferramenta
+e permite apenas o catálogo MCP dessa finalidade. O servidor Rust também valida
+vault, solicitação e autorização em cada chamada. Configurações, MCPs, hooks e
+históricos pessoais não são importados. A autenticação usa o keyring do sistema;
+um cache legado específico do CLI, quando presente, é copiado apenas para o
+runtime protegido. Os dados temporários são limpos ao concluir ou cancelar.
+O histórico do Chat fica em `ia/antigravity.json` no vault.
+
+Pensamento e velocidade não aparecem no seletor desse provedor.
+
+Referências oficiais: [headless e streaming](https://www.antigravity.google/docs/cli/headless/),
+[MCP](https://www.antigravity.google/docs/mcp?tab=cli),
+[agentes](https://www.antigravity.google/docs/subagents/) e
+[hooks](https://www.antigravity.google/docs/hooks/). Flags e versão também foram
+conferidas no binário oficial 1.4.2, baixado apenas para `/tmp`, com SHA-512
+verificado pelo manifesto do instalador. Não foi feita uma solicitação de IA
+nem um login neste ambiente. A comunicação local do CLI usa sockets, bloqueados
+pelo sandbox deste ambiente, portanto o fluxo completo requer validação no app.
+
+## Modo Gambiarra: terminal no vault
+
+Ao habilitar o modo, o aplicativo instala um manual `AGENTS.md` na raiz do vault
+ativo, com os formatos de notas, links por ID, mídia e sessões dos cinco métodos
+de estudo. Esse é o único manual instalado pelo aplicativo para os quatro CLIs.
+Para leitura automática pelo Claude Code, use a versão 2.1.277 ou mais recente,
+com suporte a AGENTS.md habilitado e sem instruções de projeto que tenham precedência.
+A instalação ocorre
+mesmo sem abrir o Chat, e o terminal aguarda sua conclusão antes de iniciar.
+Trocar de vault remove as instruções gerenciadas do anterior e instala as do novo;
+desabilitar Gambiarra remove as instruções. Fechar apenas o Chat não as remove.
+Arquivos existentes recebem uma seção delimitada: ao desativar, o texto do usuário
+é preservado e arquivos contendo somente a seção gerenciada são apagados.
+O trabalho de disco ocorre em `spawn_blocking`, com atualizações serializadas.
+
+O manual orienta a edição direta dos arquivos e o protocolo de estudos por arquivos.
+O terminal não recebe continuamente qual nota está aberta na interface; os pedidos
+de estudo incluem apenas as fontes selecionadas para aquela tarefa.
+
+### Sincronização de arquivos e retomada
+
+Com Gambiarra habilitado, a interface verifica as revisões dos arquivos a cada
+2 segundos e ao recuperar o foco. Uma revisão estável em duas verificações permite
+reler o vault sem restaurar backups ou limpar mídias durante a sincronização.
+Notas sem alterações locais são atualizadas, e criações/exclusões externas são
+refletidas na biblioteca. Ao trocar de vault, o app relê os arquivos em vez de
+reaproveitar o cache antigo.
+
+O editor conserva a versão carregada de cada nota. Antes de salvar, o backend
+confere o vault, o título e o documento dessa versão contra o arquivo atual.
+Quando divergem, bloqueia o salvamento e mantém a edição local: o usuário pode
+carregar a versão do arquivo ou guardar a edição como nova nota. Essa é uma
+checagem otimista de conteúdo; um CLI que escreve diretamente não participa de
+uma transação de salvamento com o app.
+
+Os callbacks de retomada do Antigravity usam um bloqueio de arquivo do sistema
+operacional, compartilhado pela preparação do terminal e pelos processos helpers.
+O bloqueio é liberado ao encerrar o processo, inclusive em falhas. SessionStart e
+PreInvocation atualizam a conversa principal; parentConversationId e
+rootConversationId identificam callbacks delegados, que são ignorados. O runId
+impede que callbacks de uma execução antiga substituam a execução seguinte.
+Não são copiados históricos nem armazenadas as mensagens dos callbacks.
+
+O modo continua experimental. O fluxo autenticado e o comportamento de processos
+no Windows requerem validação manual nas plataformas de destino.
+
+Há testes de regressão da biblioteca de notas em `test/notes-external.test.mjs`
+(frontend), incluindo leitura atrasada após salvar, cópia de conflito, descarte
+de rascunho, mudanças externas e retorno ao vault. Testes Rust verificam gravação
+com revisão esperada, preservação de backup, troca da conversa principal e rejeição
+de callbacks antigos. O bloqueio de sessão também é exercitado com dois processos
+separados. Esses testes não iniciam uma conversa autenticada com o provedor.
+
+Com Recursos de IA desativados, segurar o controle por cinco segundos ativa o
+modo Gambiarra. A preferência é salva nesta instalação e o controle passa a
+mostrar Gambiarra. Desligá-lo retorna a Recursos de IA desativados; o clique curto
+no controle original continua habilitando a integração normal.
+
+Neste modo, o botão e o atalho do Chat abrem um terminal interativo na lateral.
+Ele inicia o shell padrão do sistema na raiz do vault ativo, acima da pasta
+`notes`. Na primeira abertura após ativar o modo, escolha Codex, Claude, OpenCode
+ou Antigravity. Só depois da escolha a sessão é criada, e o shell inicia o
+comando correspondente (`codex`, `claude`, `opencode` ou `agy`). A escolha vale
+enquanto o modo estiver ativo, inclusive ao trocar de vault; desligar e ativar
+novamente ou reiniciar o aplicativo permite escolher outro CLI.
+A tela consulta a mesma detecção de instalação da integração normal e deixa
+desativados os botões dos CLIs não encontrados. A consulta é refeita ao reabrir
+o Chat enquanto nenhum CLI foi escolhido; durante a consulta, os botões ficam
+desativados. Se a consulta falhar, um aviso informa o problema.
+O terminal inicia o executável ou ponto de entrada npm encontrado por essa
+detecção, com os argumentos escapados para o shell. Assim, instalações localizadas
+fora do PATH também podem iniciar. Aberturas e fechamentos compartilham uma fila,
+incluindo o período de espera pela instalação do manual do vault.
+O backend também exige instruções ativas nesse vault antes de abrir o terminal;
+desativar o modo invalida preparações pendentes. Redimensionamentos usam uma fila
+com a dimensão mais recente, para que respostas fora de ordem não desajustem o CLI.
+Fechar e reabrir a lateral preserva a sessão, sem iniciar o comando novamente.
+Ao sair normalmente do CLI, a lateral fecha automaticamente. Reabri-la retoma a
+conversa do mesmo CLI escolhido. Falhas de inicialização e encerramentos
+com erro permanecem visíveis com a opção de reiniciar.
+No Unix, `exec` substitui o shell inicial pelo CLI após carregar seu ambiente;
+no Windows, `cmd /S /C call` aguarda inclusive os executáveis instalados via npm.
+O aplicativo acompanha o término do processo, sem procurar textos na saída.
+A seleção inicia o aplicativo de terminal; a autenticação continua sendo a do
+próprio CLI, sem passar pelos adaptadores da integração normal.
+
+O vínculo da conversa fica em `.key/terminal-sessions/<vaultId>/<provedor>.json`
+na pasta de dados do aplicativo. São salvos o ID e o diretório do vault, sem copiar
+o histórico ou as credenciais do CLI. Esse vínculo permanece ao reiniciar o app
+ou alternar o modo Gambiarra. Conversas de provedores ou vaults diferentes usam
+arquivos separados; o Chat da integração normal não usa esses arquivos.
+
+Claude inicia uma conversa com `--session-id` e usa `--resume <id>` quando ela
+já existe. OpenCode v2 usa `--session <id>`, que também cria a conversa quando
+necessário. O Antigravity usa seus eventos SessionStart e PreInvocation para informar o ID real ao
+Omega. Um hook gerenciado em `.agents/hooks.json` conserva outros hooks do usuário;
+a entrada do Omega é removida ao desligar o modo ou trocar de vault. A retomada
+usa `agy --conversation <id>` quando a conversa ainda existe no CLI. O hook
+valida o UUID e o diretório do vault antes de persistir o vínculo; não lê a
+transcrição da conversa.
+
+Codex recebe um originator próprio do vault. Ao encerrar e antes de reabrir,
+uma leitura limitada dos metadados locais identifica o rollout desse originator
+e diretório e guarda seu ID. A retomada usa `codex resume <id>`, sem selecionar
+a última conversa global. O rollout previamente vinculado também é considerado
+quando estiver fora da janela da busca limitada. Se o arquivo deixou de existir,
+o terminal inicia uma conversa nova. As operações de disco ficam em workers;
+a inicialização valida novamente a revisão do vault antes de abrir a PTY.
+
+O terminal usa xterm.js e uma PTY nativa via `portable-pty` (Unix/ConPTY).
+O redimensionamento do painel atualiza as linhas e colunas da PTY. Tab, Ctrl+C,
+Escape, Ctrl+F e Ctrl+P permanecem disponíveis para o shell/CLI; o atalho configurado
+do Chat continua abrindo e fechando a lateral. Ao abrir, o foco vai ao terminal.
+
+Fechar apenas a lateral preserva a sessão e a saída em memória. Trocar de vault,
+desabilitar o modo ou encerrar o aplicativo encerra a sessão; a próxima abre na
+pasta do novo vault. Excluir o vault também libera o terminal antes da remoção
+do diretório. Se o shell encerrar ou ocorrer falha, o painel oferece reinício.
+
+Esse é um terminal local normal: permissões, autenticação, histórico e regras de
+contexto do programa executado seguem o próprio CLI. O diretório inicial e a
+separação de sessões são definidos pelo aplicativo; isso não cria um sandbox de
+arquivos. O terminal não recebe automaticamente as ferramentas MCP da integração
+normal. Os estudos usam a ponte por arquivos descrita abaixo, sem adaptador de
+provedor ou interpretação da saída visual do terminal.
+
+### Estudos usando o CLI
+
+Os cinco métodos ficam disponíveis também em Gambiarra. Ao iniciar uma geração,
+o app salva as edições, prepara o mesmo snapshot de fontes da integração normal e
+cria `ia/gambiarra/requests/<requestId>/` com `request.md`, `manifest.json` e
+fontes completas `N1.txt`, `N2.txt` etc. O botão **Copiar pedido para o CLI** copia
+uma instrução para a IA ler esses arquivos. No modal, esse botão também abre a
+lateral; o usuário cola o pedido no CLI de IA iniciado ali, não no shell.
+No terminal, apenas o botão de copiar fica acima da área de texto. O botão
+**Confirmar** no rodapé fecha o Chat e reabre o método de estudo responsável pelo
+pedido, preservando seu estado. Ele continua disponível após receber a resposta
+ou uma falha; confirmar antes da conclusão apenas retorna à tela ainda em espera.
+
+O CLI grava `response.json` com `{requestId, result}` (ou `{requestId, error}`),
+usando temporário e renomeação para publicar o arquivo completo. O app consulta
+também respostas no formato JSON direto da tarefa, desde que gravadas no diretório
+do pedido ativo; um `requestId` explícito diferente é recusado. O último arquivo
+recebido fica em `ia/gambiarra/last-response.json`, limitado ao mesmo tamanho, para
+diagnosticar respostas rejeitadas depois da limpeza do pedido. O app consulta
+a resposta a cada 800 ms, sem sobrepor leituras, por até nove minutos. Cada leitura
+e gravação de disco usa `spawn_blocking`; não existe uma thread ocupada esperando
+o usuário ou interpretando a tela da PTY. A resposta inteira é limitada a 1.024.000
+bytes, precisa corresponder ao pedido e passa pelos validadores atuais do estudo.
+Na avaliação, as fontes em disco também são conferidas antes de aceitar o parecer.
+
+A seleção Geral/Nicho, as referências, os lotes de até cinco itens, as três
+tentativas e a quantidade exata continuam iguais. Um lote seguinte ou uma nova
+avaliação produz outro pedido para copiar; não há envio automático ao CLI aberto.
+Redação/Lacunas mantêm a fila de correções e deixam responder às próximas questões;
+ao final, aguardam os pareceres e exibem o relatório. Sessões e progresso continuam
+no armazenamento normal em `ia/studies/`, gravados pelo app.
+
+Fechar apenas o modal ou o Chat mantém o pedido pendente. Cancelar/Home, mudar de
+vault ou desabilitar Gambiarra cancela a espera e remove o pedido temporário. O
+cancelamento do pedido não interrompe por si só uma IA que já esteja processando
+no CLI; ela deve ignorar um diretório de pedido removido. Os arquivos são excluídos
+também ao consumir uma resposta ou expirar a espera. Encerramento forçado do processo
+pode deixar arquivos temporários de pedidos antigos; eles não são retomados.
+
+O aplicativo não salva uma transcrição desse terminal; seu buffer visual conserva
+até três mil linhas. Arquivos e sessões que o CLI salvar seguem o armazenamento
+do próprio programa. A saída usa confirmação de consumo e uma janela de fluxo
+limitada para conter o volume de mensagens em espera no WebView. Entrada, leitura,
+redimensionamento e liberação de handles de PTY são processados fora da thread da
+interface; operações curtas de estado e confirmação de consumo permanecem síncronas.
+
+Referências da implementação: [xterm.js](https://xtermjs.org/docs/guides/using-addons/)
+e [portable-pty](https://docs.rs/portable-pty/0.9.0/portable_pty/).

@@ -68,8 +68,6 @@ pub(crate) fn complete_ai_link_request(
         .map_err(|_| "AI_LINK_REQUEST_EXPIRED".into())
 }
 
-// Ephemeral loopback bridge for MCP subprocesses. It never writes note files.
-// Each instance is bound to one provider turn and a random in-memory capability.
 pub(super) struct Bridge {
     port: u16,
     token: String,

@@ -1,4 +1,4 @@
-use super::{claude, opencode, opencode_catalog, process, protocol::Stream};
+use super::{antigravity, claude, opencode, opencode_catalog, process, protocol::Stream};
 use crate::ai::{
     repository::{self, Provider},
     tools,
@@ -58,6 +58,7 @@ impl Client {
         let name = match provider {
             Provider::Claude => "claude",
             Provider::Opencode => "opencode",
+            Provider::Antigravity => "agy",
             _ => return Err("AI_INVALID_PROVIDER".into()),
         };
         let binary = process::executable(name)?;
@@ -72,6 +73,9 @@ impl Client {
         }
         if provider == Provider::Claude && !claude::supported_version(&version) {
             return Err("AI_CLAUDE_VERSION_REQUIRED".into());
+        }
+        if provider == Provider::Antigravity && !antigravity::supported_version(&version) {
+            return Err("AI_ANTIGRAVITY_VERSION_REQUIRED".into());
         }
         Ok(Arc::new(Self {
             provider,
@@ -103,6 +107,9 @@ impl Client {
         )
     }
     pub(crate) fn models(&self) -> Result<Value, String> {
+        if self.provider == Provider::Antigravity {
+            return antigravity::models(&self.binary);
+        }
         if self.provider == Provider::Claude {
             let default = json!({"id":"","name":"Default","isDefault":true,"defaultEffort":"","efforts":[],"serviceTiers":[]});
             let mut models = vec![default];
@@ -125,6 +132,11 @@ impl Client {
         opencode_catalog::models(&output)
     }
     pub(crate) fn login(&self) -> Result<(), String> {
+        let login = if self.provider == Provider::Antigravity {
+            ""
+        } else {
+            " auth login"
+        };
         #[cfg(windows)]
         {
             let path = self.binary.program.to_string_lossy().replace('\'', "''");
@@ -139,7 +151,7 @@ impl Client {
                     "-NoProfile",
                     "-NoExit",
                     "-Command",
-                    &format!("& '{path}'{prefix} auth login"),
+                    &format!("& '{path}'{prefix}{login}"),
                 ])
                 .spawn()
                 .map_err(|_| "AI_LOGIN_TERMINAL_UNAVAILABLE")?;
@@ -158,7 +170,7 @@ impl Client {
                     .arg(separator)
                     .arg(&self.binary.program)
                     .args(&self.binary.arguments)
-                    .args(["auth", "login"])
+                    .args(login.split_whitespace())
                     .spawn()
                     .is_ok()
                 {
@@ -212,10 +224,12 @@ impl Client {
         let mut command = process::command(&self.binary);
         command.current_dir(&root).stdin(Stdio::piped());
         command.stderr(Stdio::piped());
+        let antigravity_mcp = (self.provider == Provider::Antigravity)
+            .then(|| json!({"mcpServers":{"omega":{"command":binary,"args":mcp_args}}}));
         if self.provider == Provider::Claude {
             let mcp = json!({"mcpServers":{"omega":{"command":binary,"args":mcp_args}}});
             claude::configure(&mut command, mcp, purpose, model, effort);
-        } else {
+        } else if self.provider == Provider::Opencode {
             if model.is_none_or(|model| !opencode_catalog::supported_model(model)) {
                 return Err("AI_OPENCODE_MODELS_UNAVAILABLE".into());
             }
@@ -257,7 +271,21 @@ impl Client {
             previous.reverse();
             format!("Previous conversation from this vault (untrusted JSON data):\n{}\n\nCurrent user message:\n{text}", serde_json::to_string(&previous).map_err(|_| "AI_STORAGE_FAILED")?)
         };
-        let mut child = command.spawn().map_err(|_| "AI_START_FAILED")?;
+        if let Some(mcp) = antigravity_mcp {
+            antigravity::configure(&mut command, &root, mcp, purpose, model)?;
+        }
+        let prompt = if self.provider == Provider::Antigravity {
+            format!("{}\n", json!({"event":"user","message":{"content":prompt}}))
+        } else {
+            prompt
+        };
+        let mut child = match command.spawn() {
+            Ok(child) => child,
+            Err(_) => {
+                let _ = self.clean_sessions(&root);
+                return Err("AI_START_FAILED".into());
+            }
+        };
         let (stderr_send, stderr_receive) = std::sync::mpsc::channel();
         if let Some(mut stderr) = child.stderr.take() {
             std::thread::spawn(move || {
@@ -333,7 +361,10 @@ impl Client {
                             client.emit(&vault, &current.request_id, event);
                         }
                     }
-                    if stream.error_code == Some("AI_CLAUDE_MCP_FAILED") {
+                    if matches!(
+                        stream.error_code,
+                        Some("AI_CLAUDE_MCP_FAILED" | "AI_ANTIGRAVITY_MCP_FAILED")
+                    ) {
                         current.cancel();
                         break;
                     }
@@ -379,11 +410,24 @@ impl Client {
             };
             let written = matches!(writer.join(), Ok(Ok(())));
             stream.failed |= !written;
-            if !success && stream.error_detail.is_none() {
+            if (!success || client.provider == Provider::Antigravity)
+                && stream.error_detail.is_none()
+            {
                 stream.error_detail = stderr_receive
                     .recv_timeout(std::time::Duration::from_millis(100))
                     .ok()
                     .filter(|message| !message.trim().is_empty());
+            }
+            if client.provider == Provider::Antigravity
+                && stream.error_code.is_none()
+                && !current.cancelled.load(Ordering::SeqCst)
+                && stream.error_detail.as_deref().is_some_and(|detail| {
+                    detail
+                        .lines()
+                        .any(|line| antigravity::error_code(line) == "AI_ANTIGRAVITY_MCP_FAILED")
+                })
+            {
+                stream.error_code = Some("AI_ANTIGRAVITY_MCP_FAILED");
             }
             if client.provider == Provider::Opencode
                 && stream.error_code.is_none()
@@ -413,6 +457,24 @@ impl Client {
                     None
                 };
             }
+            if client.provider == Provider::Antigravity
+                && stream.error_code.is_none()
+                && !current.cancelled.load(Ordering::SeqCst)
+            {
+                stream.error_code = if !written {
+                    Some("AI_ANTIGRAVITY_SEND_FAILED")
+                } else if !success {
+                    Some(antigravity::error_code(
+                        stream.error_detail.as_deref().unwrap_or(""),
+                    ))
+                } else if !stream.completed {
+                    Some("AI_PROTOCOL_ERROR")
+                } else if !stream.answered {
+                    Some("AI_ANTIGRAVITY_EMPTY_RESPONSE")
+                } else {
+                    None
+                };
+            }
             let cleanup = client.clean_sessions(&root);
             if let Ok(mut runs) = client.runs.lock() {
                 if runs
@@ -438,7 +500,7 @@ impl Client {
             client.emit(&vault, &current.request_id, json!({"kind":"completed","failed":failed,
                 "status":if failed { "failed" } else if current.cancelled.load(Ordering::SeqCst) { "interrupted" } else { "completed" },
                 "cleanupFailed":cleanup.is_err(),
-                "errorCode":error,"errorDetail":if error.is_some_and(|code| code.starts_with("AI_OPENCODE_") || code.starts_with("AI_CLAUDE_")) { stream.error_detail } else { None }}));
+                "errorCode":error,"errorDetail":if error.is_some_and(|code| code.starts_with("AI_OPENCODE_") || code.starts_with("AI_CLAUDE_") || code.starts_with("AI_ANTIGRAVITY_")) { stream.error_detail } else { None }}));
         });
         *run.worker.lock().map_err(|_| "AI_DISCONNECTED")? = Some(worker);
         Ok(json!({"threadId":request_id}))
@@ -495,6 +557,9 @@ impl Client {
         }
     }
     fn clean_sessions(&self, root: &std::path::Path) -> Result<(), String> {
+        if self.provider == Provider::Antigravity {
+            return antigravity::clean(root);
+        }
         if self.provider != Provider::Opencode {
             return Ok(());
         }

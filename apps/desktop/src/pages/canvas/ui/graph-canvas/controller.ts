@@ -1,3 +1,4 @@
+import { isTerminalTarget } from "@/shared/lib/terminal-focus";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import type { StudyNote } from "@/entities/note";
 import type { ContextMenu, Gesture, PendingMove, Point, NodeSize, SelectionBox, View } from "./types";
@@ -181,7 +182,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 				setContextMenu(undefined);
 		};
 		const closeOnEscape = (event: KeyboardEvent) => {
-			if (event.key !== "Escape" || (!contextMenu() && !selectedIds().size && !gesture)) return;
+			if (isTerminalTarget(event.target) || event.key !== "Escape" || (!contextMenu() && !selectedIds().size && !gesture)) return;
 			if (Array.from(document.querySelectorAll('[aria-modal="true"]')).some((dialog) => !dialog.closest("[inert]"))) return;
 			event.preventDefault();
 			event.stopImmediatePropagation();

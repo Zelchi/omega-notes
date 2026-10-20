@@ -46,7 +46,6 @@ export const useAnswerReview = (options: StudyEnvironment, session: {
 			if (!valid()) return;
 			if (!contexts.unchanged(context, options.notes(), value.item)) throw Error("STUDY_SOURCES_CHANGED");
 			const feedback = parseGeneratedFeedback(response, context.references, value.item.blanks?.length), outcome = feedback.correct ? "correct" : "wrong";
-			// Apply the captured question's score before publishing a drained queue.
 			batch(() => {
 				session.onResult(value.itemIndex, outcome, { answer: value.answer, blankAnswers: value.blankAnswers, feedback });
 				update(value.itemIndex, { status: "done", feedback, outcome });

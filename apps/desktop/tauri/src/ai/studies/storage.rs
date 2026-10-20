@@ -46,7 +46,6 @@ fn session_path(
     id: &str,
     create: bool,
 ) -> Result<PathBuf, String> {
-    // Canonical UUIDs make identifiers safe filenames and avoid duplicate aliases.
     if uuid::Uuid::parse_str(id)
         .map_err(|_| "STUDY_STORAGE_FAILED")?
         .to_string()

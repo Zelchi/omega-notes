@@ -35,7 +35,7 @@ export const useAiChat = (options: {
     });
     const [open, setOpen] = createSignal(false);
     const [linkUndos, setLinkUndos] = createSignal<Record<string, { requestId: string; undo: () => Promise<void>; patch: NoteLinkPatch }>>({});
-    const [installedProviders, setInstalledProviders] = createSignal<InstalledAiProviders>({ codex: false, claude: false, opencode: false });
+    const [installedProviders, setInstalledProviders] = createSignal<InstalledAiProviders>({ codex: false, claude: false, opencode: false, antigravity: false });
     const [checkingProviders, setCheckingProviders] = createSignal(false);
     const [status, setStatus] = createSignal<AiStatus>({ connected: false, authenticated: false });
     const [models, setModels] = createSignal<AiModel[]>([]);
@@ -312,7 +312,7 @@ export const useAiChat = (options: {
         }
         let cancelled = false;
         onCleanup(() => { cancelled = true; });
-        setInstalledProviders({ codex: false, claude: false, opencode: false });
+        setInstalledProviders({ codex: false, claude: false, opencode: false, antigravity: false });
         setCheckingProviders(true);
         void readInstalledAiProviders().then((available) => {
             if (!cancelled && !disposed) setInstalledProviders(available);
@@ -462,7 +462,6 @@ export const useAiChat = (options: {
             return;
         }
         if (current.busy && (!provider.steer || !current.requestId)) return;
-        // Capture the note at submission, even if navigation changes during saving.
         const sourceNoteId = options.currentNote()?.id;
         const requestId = crypto.randomUUID();
         const activeRequestId = current.busy ? current.requestId : undefined;
@@ -595,24 +594,25 @@ export const useAiChat = (options: {
             };
             const abort = () => cancel("AI_CANCELLED");
             const timeout = setTimeout(() => cancel("AI_TIMEOUT"), 300_000);
-            textRequest = { id: requestId, vaultId, cancel, receive: event => {
-                if (event.kind === "completed") {
-                    if (validating || done) return;
-                    const failure = event.failed || event.status === "failed" || event.status === "cancelled" || event.status === "interrupted"
-                        ? new AiRequestError(event.errorCode ?? "AI_REQUEST_FAILED", event.errorDetail) : undefined;
-                    if (!failure && context && purpose === "study-evaluation") {
-                        validating = true;
-                        // Keep the request busy/cancellable until disk revisions are checked.
-                        void validateStudyContext(vaultId, requestId).then(() => finish(), failure => finish(readAiFailure(failure)));
-                    } else finish(failure);
-                } else if (event.kind === "error" && !event.retrying) cancel(event.errorCode ?? "AI_REQUEST_FAILED", event.errorDetail);
-                else if (event.kind === "delta" || event.kind === "message") {
-                    const id = event.itemId ?? "response";
-                    lastItemId = id;
-                    items.set(id, event.kind === "message" ? event.text ?? "" : (items.get(id) ?? "") + (event.text ?? ""));
-                    if ([...items.values()].reduce((size, value) => size + value.length, 0) > 512_000) cancel("AI_INVALID_MESSAGE");
+            textRequest = {
+                id: requestId, vaultId, cancel, receive: event => {
+                    if (event.kind === "completed") {
+                        if (validating || done) return;
+                        const failure = event.failed || event.status === "failed" || event.status === "cancelled" || event.status === "interrupted"
+                            ? new AiRequestError(event.errorCode ?? "AI_REQUEST_FAILED", event.errorDetail) : undefined;
+                        if (!failure && context && purpose === "study-evaluation") {
+                            validating = true;
+                            void validateStudyContext(vaultId, requestId).then(() => finish(), failure => finish(readAiFailure(failure)));
+                        } else finish(failure);
+                    } else if (event.kind === "error" && !event.retrying) cancel(event.errorCode ?? "AI_REQUEST_FAILED", event.errorDetail);
+                    else if (event.kind === "delta" || event.kind === "message") {
+                        const id = event.itemId ?? "response";
+                        lastItemId = id;
+                        items.set(id, event.kind === "message" ? event.text ?? "" : (items.get(id) ?? "") + (event.text ?? ""));
+                        if ([...items.values()].reduce((size, value) => size + value.length, 0) > 512_000) cancel("AI_INVALID_MESSAGE");
+                    }
                 }
-            } };
+            };
             signal.addEventListener("abort", abort, { once: true });
             void (async () => {
                 if (!(await options.beforeSend())) throw Error("AI_SAVE_FAILED");
@@ -620,7 +620,6 @@ export const useAiChat = (options: {
                 if (disposed || revision !== connectionRevision || options.vaultId() !== vaultId) throw Error("AI_VAULT_CHANGED");
                 if (context) {
                     await prepareStudyContext(vaultId, requestId, context);
-                    // Cancellation may finish while the host is still preparing the snapshot.
                     if (done || signal.aborted || disposed || revision !== connectionRevision || options.vaultId() !== vaultId) {
                         await releaseStudyContext(requestId);
                         if (!done) throw Error("AI_CANCELLED");

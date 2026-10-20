@@ -1,8 +1,10 @@
-import { createEffect, createMemo, createSignal, onCleanup, type Accessor } from "solid-js";
+import { isTauriRuntime } from "@/shared/lib/tauri";
+import { createEffect, createMemo, createSignal, onCleanup, untrack, type Accessor } from "solid-js";
 import {
 	createNote as createNoteRecord,
 	deleteNote as deleteNoteRecord,
 	listNotes,
+	notesRevision,
 	listDeletedNotes,
 	restoreDeletedNote,
 	renameNote as renameNoteRecord,
@@ -19,7 +21,7 @@ const documentSignature = (document: NoteDocument): string => JSON.stringify(doc
 	return value;
 });
 
-export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
+export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExternal: Accessor<boolean> = () => false) => {
 	const [notes, setNotes] = createSignal<StudyNote[]>([]);
 	const [loading, setLoading] = createSignal(true);
 	const [hasLoadedVault, setHasLoadedVault] = createSignal(false);
@@ -29,26 +31,25 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 	const sortedNotes = createMemo(() => [...notes()].sort((a, b) => b.updatedAt - a.updatedAt));
 
 	const pendingSaves = new Map<string, StudyNote>();
-	// Retain the newest revision even after it has left pendingSaves for the write queue.
 	const latestSaves = new Map<string, StudyNote>();
-	const notesByVault = new Map<string, { notes: StudyNote[]; issues: NoteLoadIssue[]; referenceTitles: Record<string, string> }>();
+	const baselines = new Map<string, StudyNote>();
+	const [conflicts, setConflicts] = createSignal<string[]>([]);
+	const [resolvingConflict, setResolvingConflict] = createSignal(false);
+	const sameNote = (a: StudyNote | undefined, b: StudyNote | undefined) => a === b || !!a && !!b && a.title === b.title && documentSignature(a.document) === documentSignature(b.document);
+	const conflict = (id: string) => setConflicts(ids => ids.includes(id) ? ids : [...ids, id]);
 	let saveTimer: ReturnType<typeof setTimeout> | undefined;
 	let saveQueue: Promise<void> = Promise.resolve();
 	let activeFlush: Promise<boolean> | undefined;
 	let loadedVaultId: string | undefined;
 
-	createEffect(() => {
-		const currentNotes = notes();
-		const currentIssues = loadIssues();
-		const titles = referenceTitles();
-		if (loadedVaultId) notesByVault.set(loadedVaultId, { notes: currentNotes, issues: currentIssues, referenceTitles: titles });
-	});
 
+	let changeRevision = 0;
 	let loadRevision = 0;
 	createEffect(() => {
 		const vaultId = activeVaultId();
 		setNotesVaultId(vaultId);
 		const revision = ++loadRevision;
+		baselines.clear(); setConflicts([]);
 		setSaveError(false);
 		setHasLoadedVault(false);
 		if (!vaultId) {
@@ -60,30 +61,19 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 			return;
 		}
 
-		const cached = notesByVault.get(vaultId);
-		if (cached) {
-			loadedVaultId = vaultId;
-			setNotes(cached.notes);
-			setLoadIssues(cached.issues);
-			setReferenceTitles(cached.referenceTitles);
-			setLoading(false);
-			setHasLoadedVault(true);
-			return;
-		}
-
 		loadedVaultId = undefined;
 		setNotes([]);
 		setLoadIssues([]);
 		setReferenceTitles({});
 		setLoading(true);
-		void listNotes()
+		void listNotes(vaultId, untrack(observeExternal))
 			.then((library) => {
 				if (revision !== loadRevision) return;
 				loadedVaultId = vaultId;
 				setNotes(library.notes);
 				setLoadIssues(library.issues);
 				setReferenceTitles(library.referenceTitles);
-				notesByVault.set(vaultId, { notes: library.notes, issues: library.issues, referenceTitles: library.referenceTitles });
+				library.notes.forEach(note => baselines.set(note.id, note));
 				setHasLoadedVault(true);
 			})
 			.catch((error) => {
@@ -111,10 +101,18 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 	});
 
 	const persist = (note: StudyNote): Promise<void> => {
+		const vaultId = activeVaultId();
 		const operation = saveQueue.then(async () => {
+			if (latestSaves.get(note.id) !== note) return;
+			if (resolvingConflict()) { pendingSaves.set(note.id, note); return; }
 			try {
-				const result = await saveNote(note);
+				if (!vaultId || vaultId !== activeVaultId()) throw Error("AI_VAULT_CHANGED");
+				const expected = baselines.get(note.id);
+				if (!expected || conflicts().includes(note.id)) throw Error("NOTE_EXTERNAL_CONFLICT");
+				const result = await saveNote(note, expected, vaultId);
 				const saved = result.note;
+				++changeRevision;
+				baselines.set(saved.id, saved);
 				setNotes((current) =>
 					current.map((item) =>
 						item.id === saved.id && item.title === note.title && item.document === note.document
@@ -126,6 +124,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 				reportCleanupIssues(result.cleanupIssues);
 				if (pendingSaves.size === 0) setSaveError(false);
 			} catch (error) {
+				if (String(error).includes("NOTE_EXTERNAL_CONFLICT")) conflict(note.id);
 				if (latestSaves.get(note.id) === note && !pendingSaves.has(note.id)) pendingSaves.set(note.id, note);
 				setSaveError(true);
 				throw error;
@@ -139,8 +138,10 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 	};
 
 	const flushPendingSaves = async (): Promise<boolean> => {
+		if (resolvingConflict()) return false;
 		try {
 			while (true) {
+				if (resolvingConflict()) return false;
 				if (saveTimer !== undefined) {
 					clearTimeout(saveTimer);
 					saveTimer = undefined;
@@ -178,6 +179,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 	};
 
 	const queueSave = (note: StudyNote): void => {
+		++changeRevision;
 		setNotes((current) => current.map((item) => (item.id === note.id ? note : item)));
 		latestSaves.set(note.id, note);
 		pendingSaves.set(note.id, note);
@@ -190,9 +192,99 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		}, 500);
 	};
 
+	let refreshing = false;
+	const mergeExternal = (library: Awaited<ReturnType<typeof listNotes>>) => {
+		const local = new Map(notes().map(note => [note.id, note]));
+		const external = new Map(library.notes.map(note => [note.id, note]));
+		const next = library.notes.map(note => {
+			const current = local.get(note.id);
+			if (latestSaves.has(note.id)) {
+				if (!sameNote(baselines.get(note.id), note)) conflict(note.id);
+				return current ?? note;
+			}
+			baselines.set(note.id, note);
+			return sameNote(current, note) ? current! : note;
+		});
+		for (const note of local.values()) {
+			if (external.has(note.id)) continue;
+			if (latestSaves.has(note.id)) { conflict(note.id); next.push(note); }
+			else baselines.delete(note.id);
+		}
+		setNotes(next); setReferenceTitles(library.referenceTitles); setLoadIssues(library.issues);
+	};
+	createEffect(() => {
+		const vaultId = activeVaultId(), enabled = observeExternal();
+		if (!enabled || !vaultId || !isTauriRuntime()) return;
+		let stopped = false, stamp: string | undefined, candidate: string | undefined;
+		const refresh = async () => {
+			if (stopped || refreshing || resolvingConflict() || loading() || loadedVaultId !== vaultId || document.hidden) return;
+			refreshing = true;
+			const revision = changeRevision;
+			try {
+				await saveQueue;
+				const current = await notesRevision(vaultId);
+				if (stopped || vaultId !== activeVaultId()) return;
+				if (current === stamp) return;
+				if (candidate !== current) { candidate = current; return; }
+				const library = await listNotes(vaultId, true);
+				if (stopped || resolvingConflict() || vaultId !== activeVaultId() || revision !== changeRevision) return;
+				mergeExternal(library); stamp = current;
+			} catch { }
+			finally { refreshing = false; }
+		};
+		const timer = setInterval(() => { void refresh(); }, 2000);
+		const focus = () => { void refresh(); };
+		window.addEventListener("focus", focus);
+		void refresh();
+		onCleanup(() => { stopped = true; clearInterval(timer); window.removeEventListener("focus", focus); });
+	});
+	const resolveConflict = async (id: string, keepLocal: boolean, suffix: string) => {
+		const vaultId = activeVaultId();
+		if (!vaultId || resolvingConflict()) return;
+		setResolvingConflict(true);
+		try {
+			await saveQueue;
+			const local = notes().find(note => note.id === id);
+			if (!local || !conflicts().includes(id)) return;
+			const external = await listNotes(vaultId, true);
+			if (vaultId !== activeVaultId()) return;
+			if (keepLocal) {
+				++changeRevision;
+				let title = `${local.title.slice(0, 60)} ${suffix}`, number = 2;
+				while (!isNoteTitleAvailable([...notes(), ...external.notes], title)) title = `${local.title.slice(0, 60)} ${suffix} ${number++}`;
+				const created = await createNoteRecord(title);
+				if (vaultId !== activeVaultId()) return;
+				const saved = await saveNote({ ...created, document: local.document }, created, vaultId);
+				++changeRevision;
+				baselines.set(saved.note.id, saved.note);
+				setNotes(notes => [saved.note, ...notes.filter(note => note.id !== saved.note.id)]);
+			}
+			const revision = changeRevision;
+			const latestExternal = await listNotes(vaultId, true);
+			if (revision !== changeRevision) return;
+			if (vaultId !== activeVaultId() || !sameNote(notes().find(note => note.id === id), local)) return;
+			++changeRevision;
+			pendingSaves.delete(id); latestSaves.delete(id);
+			setConflicts(ids => ids.filter(value => value !== id));
+			mergeExternal(latestExternal);
+			if (!pendingSaves.size) setSaveError(false);
+		} catch (error) { console.error(error); setSaveError(true); }
+		finally {
+			setResolvingConflict(false);
+			for (const note of pendingSaves.values()) {
+				if (conflicts().includes(note.id)) continue;
+				pendingSaves.delete(note.id);
+				void persist(note).catch(() => undefined);
+			}
+		}
+	};
+
 	const create = async (title: string): Promise<StudyNote> => {
 		if (!isNoteTitleAvailable(notes(), title)) throw new Error("DUPLICATE_TITLE");
+		++changeRevision;
 		const note = await createNoteRecord(title);
+		++changeRevision;
+		baselines.set(note.id, note);
 		setNotes((current) => [note, ...current]);
 		return note;
 	};
@@ -204,8 +296,11 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		if (!currentNote) return false;
 		if (!isNoteTitleAvailable(notes(), title, currentNote.id)) throw new Error("DUPLICATE_TITLE");
 
+		++changeRevision;
 		const changedNotes = await renameNoteRecord(currentNote.id, title);
+		++changeRevision;
 		if (changedNotes.length) {
+			changedNotes.forEach(note => baselines.set(note.id, note));
 			const changedById = new Map(changedNotes.map((item) => [item.id, item]));
 			setNotes((current) => current.map((item) => changedById.get(item.id) ?? item));
 		}
@@ -216,7 +311,9 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		const vaultId = activeVaultId();
 		if (!(await flushSave()) || vaultId !== activeVaultId()) return false;
 		await saveQueue;
+		++changeRevision;
 		const cleanupIssues = await deleteNoteRecord(note.id);
+		++changeRevision;
 		const deleted = notes().find((item) => item.id === note.id) ?? note;
 		setReferenceTitles((current) => ({ ...current, [note.id]: deleted.title }));
 		setNotes((current) => current.filter((item) => item.id !== note.id));
@@ -228,7 +325,10 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		const vaultId = activeVaultId();
 		if (!(await flushSave()) || vaultId !== activeVaultId()) throw new Error("SAVE_FAILED");
 		await saveQueue;
+		++changeRevision;
 		const result = await restoreDeletedNote(noteId);
+		++changeRevision;
+		baselines.set(result.note.id, result.note);
 		setNotes((current) => [result.note, ...current.filter((note) => note.id !== noteId)]);
 		reportCleanupIssues(result.cleanupIssues);
 		return result.note;
@@ -287,7 +387,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>) => {
 		restore,
 		listDeleted: listDeletedNotes,
 		updateDocument,
-		applyLinkedMentions,
+		applyLinkedMentions, conflicts, resolvingConflict, resolveConflict,
 	};
 };
 

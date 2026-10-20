@@ -17,6 +17,7 @@ pub(crate) enum Provider {
     Codex,
     Claude,
     Opencode,
+    Antigravity,
 }
 
 impl Provider {
@@ -25,6 +26,7 @@ impl Provider {
             Self::Codex => "codex.json",
             Self::Claude => "claude.json",
             Self::Opencode => "opencode.json",
+            Self::Antigravity => "antigravity.json",
         }
     }
 }
@@ -173,6 +175,21 @@ pub(super) fn workspace(
     provider: Provider,
 ) -> Result<PathBuf, String> {
     let file = path(app, id, provider)?;
+    if provider == Provider::Antigravity {
+        let base = runtime::app_directory(app)?.join(".key");
+        let mut folder = base;
+        for name in ["antigravity".to_string(), id.to_string()] {
+            folder = folder.join(name);
+            match fs::symlink_metadata(&folder) {
+                Ok(meta) if meta.is_dir() && !meta.file_type().is_symlink() => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    fs::create_dir(&folder).map_err(|_| "AI_STORAGE_FAILED")?;
+                }
+                _ => return Err("AI_STORAGE_FAILED".into()),
+            }
+        }
+        return Ok(folder);
+    }
     let folder = file
         .parent()
         .ok_or("AI_STORAGE_FAILED")?
@@ -211,6 +228,14 @@ pub(crate) fn clear_all(app: &tauri::AppHandle) -> Result<(), String> {
     let directory = runtime::app_directory(app)?;
     let registry = vaults::read_vault_registry(&directory)?;
     let base = directory.join("vaults");
+    let private = directory.join(".key").join("antigravity");
+    match fs::symlink_metadata(&private) {
+        Ok(meta) if meta.is_dir() && !meta.file_type().is_symlink() => {
+            fs::remove_dir_all(private).map_err(|_| "AI_STORAGE_FAILED")?;
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        _ => return Err("AI_STORAGE_FAILED".into()),
+    }
     match fs::symlink_metadata(&base) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
@@ -256,7 +281,12 @@ pub(crate) fn clear_all(app: &tauri::AppHandle) -> Result<(), String> {
                 _ => failed = true,
             }
         }
-        for provider in [Provider::Codex, Provider::Claude, Provider::Opencode] {
+        for provider in [
+            Provider::Codex,
+            Provider::Claude,
+            Provider::Opencode,
+            Provider::Antigravity,
+        ] {
             match fs::remove_file(folder.join(provider.filename())) {
                 Ok(()) => {}
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}

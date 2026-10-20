@@ -25,6 +25,16 @@ const errorKeys: Record<string, TranslationKey> = {
     AI_CLAUDE_SEND_FAILED: "aiClaudeSendFailed",
     AI_CLAUDE_EMPTY_RESPONSE: "aiClaudeEmptyResponse",
     AI_CLAUDE_MCP_FAILED: "aiClaudeMcpFailed",
+    AI_ANTIGRAVITY_VERSION_REQUIRED: "aiAntigravityVersionRequired",
+    AI_ANTIGRAVITY_AUTH_FAILED: "aiAntigravityAuthFailed",
+    AI_ANTIGRAVITY_LIMIT_REACHED: "aiAntigravityLimitReached",
+    AI_ANTIGRAVITY_ACCESS_DENIED: "aiAntigravityAccessDenied",
+    AI_ANTIGRAVITY_MCP_FAILED: "aiAntigravityMcpFailed",
+    AI_ANTIGRAVITY_MODEL_UNAVAILABLE: "aiAntigravityModelUnavailable",
+    AI_ANTIGRAVITY_CONNECTION_FAILED: "aiAntigravityConnectionFailed",
+    AI_ANTIGRAVITY_SEND_FAILED: "aiAntigravitySendFailed",
+    AI_ANTIGRAVITY_EMPTY_RESPONSE: "aiAntigravityEmptyResponse",
+    AI_ANTIGRAVITY_REQUEST_FAILED: "aiAntigravityRequestFailed",
 };
 
 const openCodeErrorKeys: Record<string, TranslationKey> = {
@@ -46,7 +56,7 @@ const openCodeErrorKeys: Record<string, TranslationKey> = {
     AI_OPENCODE_REQUEST_REJECTED: "aiOpenCodeRequestRejected",
 };
 
-const cliProvider = (id: "claude" | "opencode", name: string): AiProvider => ({
+const cliProvider = (id: "claude" | "opencode" | "antigravity", name: string): AiProvider => ({
     id, name, labels: { connect: "aiConnect", signInRequired: "aiSignInRequired", signIn: "aiSignIn" },
     connect: () => invoke<AiStatus>("ai_cli_connect", { providerId: id }),
     status: () => invoke<AiStatus>("ai_cli_status", { providerId: id }),
@@ -63,3 +73,4 @@ const cliProvider = (id: "claude" | "opencode", name: string): AiProvider => ({
 
 export const claudeProvider = cliProvider("claude", "Claude");
 export const opencodeProvider = cliProvider("opencode", "OpenCode");
+export const antigravityProvider = cliProvider("antigravity", "Antigravity");

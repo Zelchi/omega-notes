@@ -15,10 +15,13 @@ import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import { cx } from "@/shared/lib/classes";
 import type { StudiesController } from "../model/controller";
 import { styles } from "./style.css.ts";
+import StudyRequestNotice from "@/features/gambiarra-terminal/ui/study-request-notice";
+import type { CliStudyRequest } from "@/features/gambiarra-terminal/model/study-bridge";
 
 const StudyDialog: Component<{
 	study: StudiesController; notes: StudyNote[]; referenceTitles: Record<string, string>;
 	canGenerate: boolean; aiBusy: boolean; chatBusy: boolean; connected: boolean;
+	cliRequest?: CliStudyRequest; onOpenCli?: () => void;
 	t: (key: TranslationKey) => string; onConnect: () => void; onOpenNote: (note: StudyNote) => void;
 }> = props => {
 	const study = props.study, presence = createPresence(study.open, 210), headingId = createUniqueId();
@@ -71,6 +74,7 @@ const StudyDialog: Component<{
 				</header>
 				<div class={styles.content}>
 				<CustomScrollArea viewportRef={element => { viewport = element; }} onScroll={element => { if (study.open()) study.setScrollTop(element.scrollTop); }}><div class={styles.body}>
+				<Show when={props.cliRequest}>{request => <StudyRequestNotice request={request()} t={props.t} onOpenCli={props.onOpenCli} />}</Show>
 				<Show when={study.error()}><p class={styles.error} role="alert">{study.error()}</p></Show>
 				<Show when={study.review.failed()}>
 					<For each={study.review.responses().filter(value => value.status === "failed")}>{value => <p class={styles.error} role="alert">{value.error}</p>}</For>

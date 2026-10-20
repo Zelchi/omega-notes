@@ -31,7 +31,6 @@ export const useNoteDeletion = (options: {
 			if (disposed || vaultId !== options.vaultId()) return;
 			const current = options.notes().find(note => note.id === id);
 			if (!current || options.blocked()) return;
-			// Saving can yield to editing or an AI update. Recheck the latest document before deleting.
 			if (!confirmed && hasContent(current)) { setTarget({ id, vaultId }); return; }
 			await options.remove(current);
 			if (disposed || vaultId !== options.vaultId()) return;

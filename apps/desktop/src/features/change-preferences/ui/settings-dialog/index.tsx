@@ -8,6 +8,7 @@ import type { CanvasLayout, TextCursor, Theme } from "../../model/preferences";
 import Icon from "@/shared/ui/icon";
 import Dropdown from "@/shared/ui/dropdown";
 import AiChatShortcutInput from "./ai-chat-shortcut-input";
+import AiFeaturesToggle from "./ai-features-toggle";
 import type { AiChatShortcut } from "../../model/ai-chat-shortcut";
 import { styles } from "./style.css.ts";
 import BlockSlider from "@/shared/ui/block-slider";
@@ -15,6 +16,8 @@ import BlockSlider from "@/shared/ui/block-slider";
 type Props = {
 	open: boolean;
 	aiFeaturesEnabled: boolean;
+	gambiarraEnabled: boolean;
+	onGambiarraEnabledChange: (value: boolean) => void;
 	aiChatShortcut: AiChatShortcut;
 	onAiChatShortcutChange: (value: AiChatShortcut) => void;
 	aiResetting?: boolean;
@@ -75,12 +78,10 @@ const SettingsDialog: Component<Props> = (props) => {
 						onChange={(event) => props.onHideCanvasControlsChange(event.currentTarget.checked)}
 					/>
 				</label>
-				<label class={styles.option}>
-					<span>{props.t("aiFeatures")}</span>
-					<Input class={styles.toggle} type="checkbox" checked={props.aiFeaturesEnabled} disabled={props.aiResetting}
-						onChange={(event) => props.onAiFeaturesEnabledChange(event.currentTarget.checked)} />
-				</label>
-				<Show when={props.aiFeaturesEnabled}>
+				<AiFeaturesToggle aiEnabled={props.aiFeaturesEnabled} gambiarraEnabled={props.gambiarraEnabled}
+					disabled={props.aiResetting} onAiChange={props.onAiFeaturesEnabledChange}
+					onGambiarraChange={props.onGambiarraEnabledChange} t={props.t} />
+				<Show when={props.aiFeaturesEnabled || props.gambiarraEnabled}>
 					<div class={styles.option}>
 						<label for="settings-aiChatShortcut">{props.t("aiChatShortcut")}</label>
 						<AiChatShortcutInput value={props.aiChatShortcut} onChange={props.onAiChatShortcutChange} t={props.t} />
