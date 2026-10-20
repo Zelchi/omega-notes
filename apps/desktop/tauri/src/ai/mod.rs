@@ -10,7 +10,7 @@ pub(crate) mod studies;
 pub(crate) mod study_context;
 pub(crate) mod task;
 mod tools;
-pub(crate) use tools::{allowed_for as antigravity_tool_allowed, names as antigravity_tool_names};
+pub(crate) use tools::invalidate_cache as invalidate_tool_cache;
 
 pub(crate) use mcp::run_if_requested;
 pub(crate) use providers::antigravity_profile_directory;

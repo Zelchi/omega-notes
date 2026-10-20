@@ -7,14 +7,11 @@ use crate::notes::{
     restore_file, NoteLibrary, NoteLoadIssue,
 };
 
-use super::cleanup::{
-    cleanup_issue, collect_all_unreferenced_images, collect_all_unreferenced_media,
-};
-
 pub(crate) fn list_notes(
     resolve_directories: &impl Fn() -> Result<(PathBuf, PathBuf), String>,
 ) -> Result<NoteLibrary, String> {
     let (directory, backups_directory) = resolve_directories()?;
+    crate::notes::recover_note_rename_journal(&directory, &backups_directory)?;
     let (paths, entry_errors) = match note_paths(&directory) {
         Ok(entries) => entries,
         Err(error) => {
@@ -188,18 +185,6 @@ pub(crate) fn list_notes(
     }
 
     notes.sort_by_key(|note| Reverse(note.updated_at));
-    if let Err(error) = collect_all_unreferenced_images(&directory, &backups_directory) {
-        issues.push(cleanup_issue(
-            "images",
-            format!("Não foi possível limpar imagens sem referência: {error}"),
-        ));
-    }
-    if let Err(error) = collect_all_unreferenced_media(&directory, &backups_directory) {
-        issues.push(cleanup_issue(
-            "Mídias",
-            format!("Não foi possível limpar mídias sem referência: {error}"),
-        ));
-    }
     let (reference_titles, title_issues) = crate::notes::load_reference_titles(&directory);
     issues.extend(title_issues);
     Ok(NoteLibrary {

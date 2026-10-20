@@ -117,6 +117,14 @@ pub(super) fn configure(
         for path in [&state, &config, &cli] {
             ensure_directory(path)?;
         }
+        let hooks = config.join("hooks.json");
+        match fs::symlink_metadata(&hooks) {
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {
+                fs::remove_file(hooks).map_err(|_| "AI_STORAGE_FAILED")?;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            _ => return Err("AI_STORAGE_FAILED".into()),
+        }
         let mut settings = json!({
             "enableTelemetry":false, "allowNonWorkspaceAccess":false,
             "permissions":{
@@ -176,18 +184,6 @@ pub(super) fn configure(
         ensure_directory(&agents)?;
         let agent = format!("---\nname: omega\ndescription: Omega Notes vault assistant\nmainAgent: true\nsubagent: false\ninheritCustomizations: true\ntools: []\nskills: []\nplugins: []\n---\n\n{}", purpose.instructions());
         crate::storage::atomic_write(&agents.join("omega.md"), agent.as_bytes(), None)?;
-        let binary = std::env::current_exe().map_err(|_| "AI_START_FAILED")?;
-        let hook = crate::terminal::hook_command(&[
-            binary.to_string_lossy().into_owned(),
-            "--omega-agy-guard".into(),
-            purpose.name().into(),
-        ])?;
-        let hooks = json!({"omega-scope":{"PreToolUse":[{"matcher":".*","hooks":[{"type":"command","command":hook,"timeout":10}]}]}});
-        crate::storage::atomic_write(
-            &config.join("hooks.json"),
-            hooks.to_string().as_bytes(),
-            None,
-        )?;
         command
             .args([
                 "--input-format",

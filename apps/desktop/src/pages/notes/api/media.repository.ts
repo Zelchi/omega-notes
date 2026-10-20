@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open } from "@tauri-apps/plugin-dialog";
 
+export type MediaCleanupSummary = { images: number; audio: number; video: number };
+
 export type DroppedMediaFiles = {
 	paths: string[];
 	x: number;
@@ -33,6 +35,9 @@ export const importClipboardImage = (bytes: ArrayBuffer): Promise<string> =>
 
 export const importNoteMedia = (sourcePath: string, mediaType: "audio" | "video"): Promise<string> =>
 	invoke<string>("import_note_media", { sourcePath, mediaType });
+
+export const cleanupOrphanedMedia = (): Promise<MediaCleanupSummary> =>
+	invoke<MediaCleanupSummary>("cleanup_orphaned_media");
 
 export const readNoteImage = (imageId: string): Promise<ArrayBuffer> =>
 	invoke<ArrayBuffer>("read_note_image", { imageId });

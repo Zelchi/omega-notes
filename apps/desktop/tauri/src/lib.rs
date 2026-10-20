@@ -91,6 +91,7 @@ pub fn run() {
             images::commands::import_clipboard_image,
             images::commands::read_note_image,
             media::commands::import_note_media,
+            media::commands::cleanup_orphaned_media,
             stream::commands::note_media_stream_url
         ])
         .build(tauri::generate_context!())

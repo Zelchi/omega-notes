@@ -21,10 +21,16 @@ pub(crate) use models::{
 };
 pub(crate) use reference_titles::{load_reference_titles, remember_reference_title};
 pub(crate) use repository::{
-    delete_note_files, existing_note, note_backup_exists, note_backup_path, note_file_exists,
-    note_from_contents, note_from_path, note_from_path_with_id, note_id_from_backup, note_path,
-    note_paths, preserve_recovery_copy, read_file_bytes, restore_file, restore_note_files,
-    snapshot_note_files, write_note, write_note_checked,
+    begin_note_rename_journal, commit_note_rename_journal, delete_note_files, existing_note,
+    note_backup_exists, note_backup_path, note_file_exists, note_from_contents, note_from_path,
+    note_from_path_with_id, note_id_from_backup, note_path, note_paths, preserve_recovery_copy,
+    read_file_bytes, recover_note_rename_journal, restore_file, rollback_note_rename_journal,
+    write_note, write_note_checked, NoteRenameJournal,
 };
-pub(crate) use services::{content_stats, referenced_audio_and_video_ids, referenced_image_ids};
-pub(crate) use validation::{ensure_unique_note_title, validate_note_id, validate_note_title};
+pub(crate) use services::{
+    content_stats, referenced_audio_and_video_ids, referenced_image_ids, referenced_media_ids,
+};
+pub(crate) use validation::{
+    ensure_unique_note_title, ensure_unique_note_title_in_directory, validate_note_id,
+    validate_note_title,
+};

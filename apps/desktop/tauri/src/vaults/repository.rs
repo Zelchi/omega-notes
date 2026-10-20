@@ -9,6 +9,32 @@ use uuid::Uuid;
 pub(super) struct VaultDeletionStage {
     source_path: PathBuf,
     quarantine_path: PathBuf,
+    manifest_path: PathBuf,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+struct VaultDeletionManifest {
+    version: u8,
+    vault_id: String,
+}
+
+fn vault_deletion_manifest_path(vaults_directory: &Path, vault_id: &str) -> PathBuf {
+    vaults_directory.join(format!(".vault-delete-{vault_id}.json"))
+}
+
+fn read_vault_deletion_manifest(path: &Path, expected_id: &str) -> Result<(), String> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("Não foi possível verificar os dados de recuperação: {error}"))?;
+    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > 4096 {
+        return Err("Manifesto de recuperação de vault inválido.".into());
+    }
+    let manifest: VaultDeletionManifest =
+        serde_json::from_slice(&fs::read(path).map_err(|_| "VAULT_RECOVERY_FAILED")?)
+            .map_err(|_| "Manifesto de recuperação de vault inválido.")?;
+    if manifest.version != 1 || manifest.vault_id != expected_id {
+        return Err("Manifesto de recuperação de vault inválido.".into());
+    }
+    Ok(())
 }
 
 pub(crate) fn ensure_app_directory(app_directory: &Path) -> Result<PathBuf, String> {
@@ -97,25 +123,169 @@ pub(super) fn stage_vault_deletion(
     let vaults_directory = directory.join("vaults");
     fs::create_dir_all(&vaults_directory)
         .map_err(|error| format!("Não foi possível acessar as pastas de vaults: {error}"))?;
-    if !source_path.is_dir() {
-        return Ok(None);
+    match fs::symlink_metadata(&source_path) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        _ => return Err("A pasta do vault não é um diretório seguro.".into()),
     }
 
-    let quarantine_path = vaults_directory.join(format!(".{}.deleting", Uuid::now_v7()));
-    fs::rename(&source_path, &quarantine_path)
-        .map_err(|error| format!("Não foi possível preparar a exclusão do vault: {error}"))?;
+    let quarantine_path = vaults_directory.join(format!(".vault-delete-{}.deleting", vault.id));
+    let manifest_path = vault_deletion_manifest_path(&vaults_directory, &vault.id);
+    for path in [&quarantine_path, &manifest_path] {
+        match fs::symlink_metadata(path) {
+            Ok(_) => {
+                return Err("Já existe uma operação de exclusão pendente para este vault.".into())
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "Não foi possível verificar uma operação pendente: {error}"
+                ))
+            }
+        }
+    }
+    let manifest = VaultDeletionManifest {
+        version: 1,
+        vault_id: vault.id.clone(),
+    };
+    let manifest_bytes = serde_json::to_vec(&manifest).map_err(|_| "VAULT_RECOVERY_FAILED")?;
+    atomic_write(&manifest_path, &manifest_bytes, None)?;
+    if let Err(error) = fs::rename(&source_path, &quarantine_path) {
+        let _ = fs::remove_file(&manifest_path);
+        return Err(format!(
+            "Não foi possível preparar a exclusão do vault: {error}"
+        ));
+    }
     Ok(Some(VaultDeletionStage {
         source_path,
         quarantine_path,
+        manifest_path,
     }))
 }
 
+pub(crate) fn recover_vault_deletions(
+    directory: &Path,
+    registry: &super::models::VaultRegistry,
+) -> Result<(), String> {
+    let vaults_directory = directory.join("vaults");
+    let entries = match fs::read_dir(&vaults_directory) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => {
+            return Err(format!(
+                "Não foi possível recuperar exclusões de vault: {error}"
+            ))
+        }
+    };
+
+    for entry in entries {
+        let entry =
+            entry.map_err(|error| format!("Não foi possível ler as pastas de vault: {error}"))?;
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        let Some(vault_id) = name
+            .strip_prefix(".vault-delete-")
+            .and_then(|name| name.strip_suffix(".deleting"))
+        else {
+            continue;
+        };
+        let parsed_id = Uuid::parse_str(vault_id)
+            .map_err(|_| "Pasta de recuperação de vault inválida.".to_string())?;
+        if parsed_id.to_string() != vault_id {
+            return Err("Pasta de recuperação de vault inválida.".into());
+        }
+        let stage_path = entry.path();
+        let metadata = fs::symlink_metadata(&stage_path).map_err(|error| {
+            format!("Não foi possível verificar uma pasta de recuperação: {error}")
+        })?;
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Err("Pasta de recuperação de vault inválida.".into());
+        }
+
+        let source_path = vaults_directory.join(vault_id);
+        let manifest_path = vault_deletion_manifest_path(&vaults_directory, vault_id);
+        let has_manifest = match fs::symlink_metadata(&manifest_path) {
+            Ok(_) => {
+                read_vault_deletion_manifest(&manifest_path, vault_id)?;
+                true
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+            Err(error) => {
+                return Err(format!(
+                    "Não foi possível verificar os dados de recuperação: {error}"
+                ));
+            }
+        };
+        if registry.vaults.iter().any(|vault| vault.id == vault_id) {
+            if source_path.exists() {
+                return Err("O vault existe na pasta original e na área de recuperação.".into());
+            }
+            fs::rename(&stage_path, &source_path).map_err(|error| {
+                format!("Não foi possível restaurar o vault interrompido: {error}")
+            })?;
+            if has_manifest {
+                let _ = fs::remove_file(manifest_path);
+            }
+        } else if has_manifest {
+            fs::remove_dir_all(&stage_path).map_err(|error| {
+                format!("Não foi possível finalizar a exclusão interrompida: {error}")
+            })?;
+            let _ = fs::remove_file(manifest_path);
+        }
+    }
+
+    let entries = fs::read_dir(&vaults_directory)
+        .map_err(|error| format!("Não foi possível ler as pastas de vault: {error}"))?;
+    for entry in entries {
+        let entry =
+            entry.map_err(|error| format!("Não foi possível ler as pastas de vault: {error}"))?;
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        let Some(vault_id) = name
+            .strip_prefix(".vault-delete-")
+            .and_then(|name| name.strip_suffix(".json"))
+        else {
+            continue;
+        };
+        let parsed_id = Uuid::parse_str(vault_id)
+            .map_err(|_| "Manifesto de recuperação de vault inválido.".to_string())?;
+        if parsed_id.to_string() != vault_id {
+            return Err("Manifesto de recuperação de vault inválido.".into());
+        }
+        let manifest_path = entry.path();
+        read_vault_deletion_manifest(&manifest_path, vault_id)?;
+        let stage_path = vaults_directory.join(format!(".vault-delete-{vault_id}.deleting"));
+        match fs::symlink_metadata(&stage_path) {
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                fs::remove_file(manifest_path).map_err(|error| {
+                    format!("Não foi possível limpar os dados de recuperação: {error}")
+                })?;
+            }
+            Err(error) => {
+                return Err(format!(
+                    "Não foi possível verificar uma pasta de recuperação: {error}"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn restore_vault_deletion(stage: &VaultDeletionStage) -> Result<(), std::io::Error> {
-    fs::rename(&stage.quarantine_path, &stage.source_path)
+    fs::rename(&stage.quarantine_path, &stage.source_path)?;
+    let _ = fs::remove_file(&stage.manifest_path);
+    Ok(())
 }
 
 pub(super) fn cleanup_vault_deletion(stage: VaultDeletionStage) -> Option<String> {
-    fs::remove_dir_all(stage.quarantine_path)
+    if let Err(error) = fs::remove_dir_all(stage.quarantine_path) {
+        return Some(error.to_string());
+    }
+    fs::remove_file(stage.manifest_path)
         .err()
         .map(|error| error.to_string())
 }

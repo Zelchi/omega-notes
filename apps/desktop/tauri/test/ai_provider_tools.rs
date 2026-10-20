@@ -11,6 +11,7 @@ fn claude_allows_every_catalog_tool_and_keeps_native_tools_disabled() {
         crate::ai::task::Purpose::Chat,
         None,
         None,
+        false,
     );
     let args: Vec<_> = command
         .get_args()
@@ -56,7 +57,7 @@ fn claude_studies_allow_only_the_prepared_context() {
         crate::ai::task::Purpose::StudyEvaluation,
     ] {
         let mut command = Command::new("unused-claude-test-command");
-        super::claude::configure(&mut command, json!({}), purpose, None, None);
+        super::claude::configure(&mut command, json!({}), purpose, None, None, false);
         let args: Vec<_> = command
             .get_args()
             .map(|arg| arg.to_string_lossy().into_owned())

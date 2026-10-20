@@ -1,9 +1,18 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 
 use uuid::Uuid;
 
 use super::repository;
+
+static ASSET_MUTATION_LOCK: Mutex<()> = Mutex::new(());
+
+pub(crate) fn lock_asset_mutations() -> Result<MutexGuard<'static, ()>, String> {
+    ASSET_MUTATION_LOCK
+        .lock()
+        .map_err(|_| "Não foi possível acessar os arquivos de mídia.".to_string())
+}
 
 pub(super) fn import_note_media(
     resolve_notes_directory: &impl Fn() -> Result<PathBuf, String>,
@@ -42,4 +51,23 @@ pub(crate) fn collect_unreferenced_media(
         }
     }
     Ok(())
+}
+
+pub(crate) fn orphaned_media_candidates(
+    directory: &Path,
+    media_type: &str,
+    referenced_ids: &HashSet<String>,
+) -> Result<HashSet<String>, String> {
+    let ids = repository::existing_media_ids(directory, media_type)?;
+    Ok(ids.difference(referenced_ids).cloned().collect())
+}
+
+pub(crate) fn remove_orphaned_media_files(
+    directory: &Path,
+    media_type: &str,
+    candidates: &HashSet<String>,
+) -> Result<usize, String> {
+    candidates.iter().try_fold(0, |removed, media_id| {
+        repository::remove_media(directory, media_id, media_type).map(|count| removed + count)
+    })
 }

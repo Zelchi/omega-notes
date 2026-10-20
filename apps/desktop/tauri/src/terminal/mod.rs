@@ -11,9 +11,9 @@ use std::{
 };
 use tauri::{ipc::Channel, AppHandle, Manager};
 
-mod hooks;
 mod conversations;
-pub(crate) use hooks::{hook_command, run_if_requested};
+mod hooks;
+pub(crate) use hooks::run_if_requested;
 mod instructions;
 pub(crate) mod studies;
 

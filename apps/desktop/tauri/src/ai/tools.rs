@@ -11,6 +11,10 @@ mod linking;
 mod reading;
 mod structure;
 
+pub(crate) fn invalidate_cache() {
+    library::invalidate_cache();
+}
+
 pub(crate) fn resolve_vault(app: &tauri::AppHandle, id: &str) -> Result<PathBuf, String> {
     uuid::Uuid::parse_str(id).map_err(|_| "AI_INVALID_VAULT".to_string())?;
     let directory = runtime::app_directory(app)?;
