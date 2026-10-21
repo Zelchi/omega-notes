@@ -66,6 +66,9 @@ Veja [o guia do site](../apps/web/readme.md) para a estrutura do Astro.
 Desktop e web usam `@/` para imports a partir do `src` de cada aplicativo.
 As configurações e os componentes pertencem ao respectivo workspace.
 
+O layout aprovado do modal do Questionário e suas restrições de manutenção estão
+em [Questionário: layout aprovado](questionnaire-layout.md).
+
 ## Publicação
 
 O workflow de release usa `apps/desktop` como diretório do aplicativo. O script

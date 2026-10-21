@@ -1,5 +1,14 @@
 # Histórico de atualizações
 
+## v0.4.6
+
+### Estudos
+
+- Os limites de quantidade, vidas e tempo aceitam "Infinito"; quantidade infinita inclui todos os itens salvos na prática.
+- É possível encerrar uma prática antes de responder todos os itens. Avaliações de respostas em andamento terminam antes da exibição do resultado parcial.
+- A biblioteca de questões e cards ganhou busca sem distinção de acentos e paginação de oito itens.
+- O Questionário centraliza o conteúdo quando ele cabe e usa rolagem responsiva em janelas menores, mantendo cabeçalho e ações visíveis.
+
 ## v0.4.5
 
 ### Estudos

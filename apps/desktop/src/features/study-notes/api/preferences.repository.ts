@@ -1,6 +1,7 @@
 import type { StudyKind } from "@/entities/study";
 
-type StudyPreferences = { count: number; seconds: number; lives: number };
+export type StudyLimit = number | "infinite";
+type StudyPreferences = { count: StudyLimit; seconds: StudyLimit; lives: StudyLimit };
 const key = (kind: StudyKind) => `omega-notes.settings.studies.${kind}`;
 const generationTimesKey = "omega-notes.study-generation-times.v2";
 const studyKinds: StudyKind[] = ["flashcards", "quiz", "written", "cloze", "correction"];
@@ -8,9 +9,9 @@ const generationHistoryLimit = 10;
 const decode = (value: unknown): StudyPreferences => {
 	const data = value && typeof value === "object" && !Array.isArray(value) ? value as Partial<StudyPreferences> : {};
 	return {
-		count: [5, 10, 20, 30].includes(data.count!) ? data.count! : 10,
-		seconds: [30, 60, 300].includes(data.seconds!) ? data.seconds! : 30,
-		lives: [1, 3, 5].includes(data.lives!) ? data.lives! : 3,
+		count: data.count === "infinite" ? "infinite" : [5, 10, 20, 30].includes(data.count!) ? data.count! : 10,
+		seconds: data.seconds === "infinite" ? "infinite" : [30, 60, 300].includes(data.seconds!) ? data.seconds! : 30,
+		lives: data.lives === "infinite" ? "infinite" : [1, 3, 5].includes(data.lives!) ? data.lives! : 3,
 	};
 };
 

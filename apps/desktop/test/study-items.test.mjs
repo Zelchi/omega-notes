@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRoot, createSignal } from 'solid-js';
 import { useStudies } from '../src/features/study-notes/model/controller.ts';
+import { readStudyPreferences } from '../src/features/study-notes/api/preferences.repository.ts';
 import { note, noteSummary, deferred, settle } from './helpers.mjs';
 
 const material = call => {
@@ -140,4 +141,76 @@ test('study combines saved individual items only for the chosen practice', async
     assert.equal(f.study.deck().items.length, 2);
     assert.equal(f.study.sessionIndices().length, 2);
     assert.equal(f.study.saved().length, 2);
+});
+
+test('infinite quantity studies every saved item and infinite lives and time do not expire', async t => {
+    const f = await setup(t);
+    await f.generate('quiz');
+    await f.study.generate();
+    f.study.setCount('infinite');
+    f.study.setLives('infinite');
+    f.study.setSeconds('infinite');
+
+    assert.deepEqual(readStudyPreferences('quiz'), { count: 'infinite', seconds: 'infinite', lives: 'infinite' });
+    await f.study.studyRandom();
+    await f.waitFor(() => f.study.stage() === 'running');
+    assert.equal(f.study.sessionIndices().length, 2);
+    assert.equal(f.study.remainingLives(), 'infinite');
+    assert.equal(f.study.remainingTime(), 'infinite');
+
+    const wrongChoice = (f.study.current().correctIndex + 1) % 4;
+    f.study.answer(wrongChoice);
+    assert.equal(f.study.remainingLives(), 'infinite');
+    await f.waitFor(() => !f.study.savingProgress());
+    f.study.next();
+    await new Promise(resolve => setTimeout(resolve, 150));
+    assert.equal(f.study.index(), 1);
+    assert.equal(f.study.remainingTime(), 'infinite');
+});
+
+test('manually ending a finite practice opens results before all items are answered', async t => {
+    const f = await setup(t);
+    await f.generate('quiz');
+    await f.study.generate();
+    await f.study.studyRandom();
+    await f.waitFor(() => f.study.stage() === 'running');
+
+    assert.equal(f.study.sessionIndices().length, 2);
+    f.study.endStudy();
+
+    assert.equal(f.study.stage(), 'result');
+    assert.equal(f.study.endReason(), 'manual');
+    assert.equal(f.study.correct(), 0);
+});
+
+test('manually ending a one-item quiz opens results instead of returning to setup', async t => {
+    const f = await setup(t);
+    await f.generate('quiz');
+    await f.study.studyRandom();
+    await f.waitFor(() => f.study.stage() === 'running');
+
+    f.study.endStudy();
+
+    assert.equal(f.study.stage(), 'result');
+    assert.equal(f.study.endReason(), 'manual');
+});
+
+test('manually ending written practice waits for queued AI grading before showing results', async t => {
+    const grading = deferred();
+    const f = await setup(t, call => call.purpose === 'study-evaluation' ? grading.promise : Promise.resolve(material(call)));
+    await f.generate('written');
+    await f.study.generate();
+    await f.study.studyRandom();
+    await f.waitFor(() => f.study.stage() === 'running');
+
+    f.study.review.submit('My answer');
+    await f.waitFor(() => f.calls.some(call => call.purpose === 'study-evaluation'));
+    assert.equal(f.study.index(), 1);
+    f.study.endStudy();
+    assert.equal(f.study.stage(), 'grading');
+
+    grading.resolve(JSON.stringify({ correct: true, summary: 'Review', strengths: [], gaps: [], corrections: [] }));
+    await f.waitFor(() => f.study.stage() === 'result');
+    assert.equal(f.study.correct(), 1);
+    assert.equal(f.study.endReason(), 'manual');
 });

@@ -21,6 +21,7 @@ export const styles = {
 		width: "100%",
 		overflow: "hidden",
 	}),
+	fitContentRoot: style({ flex: "0 1 auto", height: "max-content", maxHeight: "min(580px, max(0px, calc(100dvh - 260px)))" }),
 	viewport: style({
 		width: "100%",
 		height: "100%",
@@ -32,13 +33,21 @@ export const styles = {
 			"(max-width: 1100px)": { paddingInline: 42 },
 		},
 	}),
+	zeroVerticalPadding: style({
+		selectors: {
+			"&[data-omega-scroll-viewport]": { paddingTop: 0, paddingBottom: 0 },
+		},
+	}),
+	fitContentViewport: style({ height: "auto", maxHeight: "min(580px, max(0px, calc(100dvh - 260px)))", paddingBlockEnd: 20 }),
 	content: style({ minWidth: "100%", minHeight: "100%" }),
+	centerContentVertically: style({ display: "grid", alignContent: "center" }),
+	fitContent: style({ minHeight: "auto" }),
 	verticalTrack: style({
 		position: "absolute",
 		zIndex: 5,
 		top: 8,
 		right: "var(--omega-scrollbar-right, 4px)",
-		bottom: 20,
+		bottom: 8,
 		width: 14,
 		touchAction: "none",
 	}),
