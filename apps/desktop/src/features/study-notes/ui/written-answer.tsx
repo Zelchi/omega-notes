@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createMemo, createUniqueId, onCleanup, type Component } from "solid-js";
-import { createNoteTitleIndex, normalizeNoteTitle, resolveNoteReference, type NoteSummary } from "@/entities/note";
+import { createNoteTitleIndex, displayNoteTitle, normalizeNoteTitle, resolveNoteReference, type NoteSummary } from "@/entities/note";
 import { NoteContentText } from "@/entities/note/ui";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import Button from "@/shared/ui/button";
@@ -100,7 +100,7 @@ const AnswerResult: Component<WrittenProps & {
 					<NoteContentText text={item.text} class={styles.muted} referenceTitles={props.referenceTitles} resolveNote={resolveNote} onOpenNote={openSource} t={props.t} linkClass={styles.link} />
 					<div class={styles.actions}><For each={item.sources}>{id => {
 							const note = () => props.noteIndex.get(normalizeNoteTitle(id));
-						return <Button class={styles.link} type="button" disabled={!note()} onClick={() => { const source = note(); if (source) openSource(source); }}>{note()?.title ?? props.referenceTitles[id] ?? props.t("studyDeletedSource")}</Button>;
+						return <Button class={styles.link} type="button" disabled={!note()} onClick={() => { const source = note(); if (source) openSource(source); }}>{note() ? displayNoteTitle(note()!) : props.referenceTitles[id] ?? props.t("studyDeletedSource")}</Button>;
 					}}</For></div>
 				</div>}</For>
 			</div></Show>}</For>

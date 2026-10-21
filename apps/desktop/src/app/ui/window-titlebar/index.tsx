@@ -10,8 +10,11 @@ import { styles } from "./style.css.ts";
 
 const iconUrl = "/icon.png";
 
-const runAppAction = (action: () => void) => {
-	if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+const runAppAction = (action: () => void, settingsOpen: boolean, onSettings: () => void) => {
+	if (document.querySelector('[role="dialog"][aria-modal="true"]')) {
+		if (!settingsOpen) return;
+		onSettings();
+	}
 	action();
 };
 
@@ -28,6 +31,8 @@ type Props = {
 	aiChatOpen: boolean;
 	aiChatShortcut: string;
 	aiFeaturesEnabled: boolean;
+	kanbanOpen: boolean;
+	onKanban: () => void;
 	onMinimize: () => void;
 	onToggleMaximize: () => void;
 	onClose: () => void;
@@ -39,10 +44,14 @@ const WindowTitlebar: Component<Props> = (props) => (
 		<AsciiBackdrop theme={props.backgroundTheme} />
 		<div class={styles.brand} data-tauri-drag-region>
 			<img class={styles.mark} data-tauri-drag-region src={iconUrl} alt="" />
-			<span data-tauri-drag-region>{props.t("windowName")}</span>
 		</div>
+		<Button class={cx(styles.button, styles.kanbanButton)} type="button" disabled={!props.vaultName} aria-label={props.t("kanbanOpen")}
+			aria-expanded={props.kanbanOpen} aria-controls="kanban-panel" aria-keyshortcuts="Control+Shift+B"
+			onClick={() => runAppAction(props.onKanban, props.settingsOpen, props.onSettings)}>
+			<Icon name="bulletList" size={16} />
+		</Button>
 		<Show when={props.vaultName}>
-			<Button class={styles.vaultName} type="button" onClick={() => props.vaultDialogOpen ? props.onVaultClick() : runAppAction(props.onVaultClick)}>
+			<Button class={styles.vaultName} type="button" onClick={() => props.vaultDialogOpen ? props.onVaultClick() : runAppAction(props.onVaultClick, props.settingsOpen, props.onSettings)}>
 				{props.vaultName}
 			</Button>
 		</Show>
@@ -51,12 +60,13 @@ const WindowTitlebar: Component<Props> = (props) => (
 			<div class={styles.controls} onPointerDown={(event) => event.stopPropagation()}>
 				<Show when={props.aiFeaturesEnabled}>
 					<Button class={styles.button} type="button" disabled={!props.vaultName} aria-label={props.t("aiChat")}
-						aria-expanded={props.aiChatOpen} aria-controls="ai-chat-panel" aria-keyshortcuts={props.aiChatShortcut} onClick={() => runAppAction(props.onAiChat)}>
+						aria-expanded={props.aiChatOpen} aria-controls="ai-chat-panel" aria-keyshortcuts={props.aiChatShortcut}
+						onClick={() => runAppAction(props.onAiChat, props.settingsOpen, props.onSettings)}>
 						<Icon name="chat" size={15} />
 					</Button>
 				</Show>
 				<Button class={styles.button} type="button" aria-label={props.t("settings")} aria-expanded={props.settingsOpen}
-					onClick={() => props.settingsOpen ? props.onSettings() : runAppAction(props.onSettings)}>
+					onClick={() => props.settingsOpen ? props.onSettings() : runAppAction(props.onSettings, props.settingsOpen, props.onSettings)}>
 					<Icon name="settings" size={15} />
 				</Button>
 				<Button class={styles.button} type="button" aria-label={props.t("minimize")} onClick={props.onMinimize}>

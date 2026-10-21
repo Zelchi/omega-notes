@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js";
+import { createNoteDisplayTitleIndex } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { NotePositionedElement, StudyNote } from "@/entities/note";
 import { isTauriRuntime } from "@/shared/lib/tauri";
@@ -63,14 +64,17 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 	const objectUrls = new Set<string>();
 	const media = createMemo(() => {
 		const catalog = new Map<string, CatalogMedia>();
-		for (const note of notes()) {
+		const currentNotes = notes();
+		const displayTitles = createNoteDisplayTitleIndex(currentNotes);
+		for (const note of currentNotes) {
 			for (const element of note.document.elements) {
 				if (element.type === "text") continue;
 				const source = catalogSource(element);
 				if (!source) continue;
 				const id = sourceKey(source, element.id);
 				const item = catalog.get(id) ?? { id, source, noteTitles: [] };
-				if (!item.noteTitles.includes(note.title)) item.noteTitles.push(note.title);
+				const title = displayTitles.get(note.id) ?? note.title;
+				if (!item.noteTitles.includes(title)) item.noteTitles.push(title);
 				catalog.set(id, item);
 			}
 		}

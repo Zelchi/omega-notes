@@ -5,7 +5,7 @@ import FormattedBlockView from "@/shared/ui/formatted-block";
 import ExternalLink from "@/shared/ui/external-link";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { parseFormattedText, type TextRun, type FormattedFragment } from "@/features/format-text";
-import { parseNoteTextLinks, resolveNoteReference, canCreateNoteReference, normalizeNoteTitle, type NoteTextLink, type NoteSummary } from "@/entities/note";
+import { parseNoteTextLinks, resolveNoteReference, canCreateNoteReference, displayNoteTitle, normalizeNoteTitle, type NoteTextLink, type NoteSummary } from "@/entities/note";
 
 type RenderTextOptions = {
 	notesById: Map<string, NoteSummary>;
@@ -51,7 +51,7 @@ const renderNoteLinks = (text: string, options: RenderTextOptions): JSX.Element 
                 }}>{link.label}</Link>;
             }
             return <Link href={`#${note.id}`} style={textLinkStyle}
-                onClick={(event) => { event.preventDefault(); options.onOpenNote(note); }}>{link.alias || note.title}</Link>;
+				onClick={(event) => { event.preventDefault(); options.onOpenNote(note); }}>{link.alias || displayNoteTitle(note)}</Link>;
         }
         return <ExternalLink url={link.url} style={textLinkStyle} onOpen={options.onOpenExternalUrl}>{link.label}</ExternalLink>;
     }}</For>

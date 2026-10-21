@@ -83,6 +83,8 @@ pub fn run() {
             vaults::commands::rename_vault,
             vaults::commands::reorder_vaults,
             vaults::commands::delete_vault,
+            vaults::kanban::read_kanban,
+            vaults::kanban::save_kanban,
             notes::commands::list_notes,
             notes::commands::stream_note_summaries,
             notes::commands::notes_changes,

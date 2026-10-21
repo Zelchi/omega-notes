@@ -2,6 +2,7 @@ import { createMemo, createUniqueId, onCleanup, onMount, Show, type Component } 
 import { createPresence } from "@/shared/lib/presence";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { NoteSummary } from "@/entities/note";
+import { displayNoteTitle } from "@/entities/note";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import Button from "@/shared/ui/button";
@@ -19,7 +20,7 @@ type Props = {
 };
 const DeleteNoteDialog: Component<Props> = (props) => {
 	const presence = createPresence(() => Boolean(props.note), 210);
-	const title = createMemo<string>(previous => props.note?.title ?? previous ?? "");
+	const title = createMemo<string>(previous => props.note ? displayNoteTitle(props.note) : previous ?? "");
 	const headingId = createUniqueId(), messageId = createUniqueId();
 	const backdrop = createBackdropDismiss(() => props.onClose());
 	onMount(() => {

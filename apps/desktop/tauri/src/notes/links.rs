@@ -12,7 +12,7 @@ pub(crate) fn note_title_indexes(
     }
 
     let mut stable_notes = notes.iter().collect::<Vec<_>>();
-    stable_notes.sort_by(|first, second| first.id.cmp(&second.id));
+    stable_notes.sort_by(|first, second| compare_note_creation(first, second));
     let mut by_title = HashMap::new();
     for note in stable_notes {
         let key = normalize_name(&note.title);
@@ -21,6 +21,28 @@ pub(crate) fn note_title_indexes(
         }
     }
     (by_id, by_title)
+}
+
+fn compare_note_creation(first: &NoteSummary, second: &NoteSummary) -> std::cmp::Ordering {
+    match (uuid_v7_timestamp(&first.id), uuid_v7_timestamp(&second.id)) {
+        (Some(first_time), Some(second_time)) => first_time
+            .cmp(&second_time)
+            .then_with(|| first.id.cmp(&second.id)),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => first.id.cmp(&second.id),
+    }
+}
+
+fn uuid_v7_timestamp(id: &str) -> Option<u64> {
+    let hexadecimal = id.replace('-', "");
+    if hexadecimal.len() != 32
+        || !hexadecimal.bytes().all(|byte| byte.is_ascii_hexdigit())
+        || hexadecimal.as_bytes().get(12)?.to_ascii_lowercase() != b'7'
+    {
+        return None;
+    }
+    u64::from_str_radix(&hexadecimal[..12], 16).ok()
 }
 
 fn map_text_outside_code(content: &str, mut rewrite: impl FnMut(&str) -> String) -> String {

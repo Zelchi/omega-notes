@@ -31,4 +31,4 @@ pub(crate) use repository::{
 pub(crate) use services::{
     content_stats, referenced_audio_and_video_ids, referenced_image_ids, referenced_media_ids,
 };
-pub(crate) use validation::{validate_note_id, validate_note_title};
+pub(crate) use validation::{validate_note_id, validate_note_title, validate_note_title_length};

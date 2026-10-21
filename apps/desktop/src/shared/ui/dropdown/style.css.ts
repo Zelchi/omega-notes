@@ -6,11 +6,10 @@ export const styles = {
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
         boxSizing: "border-box", minWidth: 0, width: "100%", minHeight: 34, padding: "7px 10px",
         border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-input)",
-        color: "var(--ink)", fontSize: 12, lineHeight: 1.4, cursor: "pointer", textAlign: "left",
+        color: "var(--ink)", fontSize: 12, lineHeight: 1.4, cursor: "pointer", textAlign: "left", outline: "none",
         selectors: {
             "&:hover:not(:disabled)": { background: "var(--surface-hover)" },
             "&:disabled": { opacity: .45, cursor: "default" },
-            "&:focus-visible": { outline: "2px solid var(--focus)", outlineOffset: 2 },
         },
     }),
     label: style({ flex: 1, minWidth: 0, whiteSpace: "normal", overflowWrap: "anywhere" }),

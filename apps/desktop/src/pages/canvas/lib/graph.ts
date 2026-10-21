@@ -1,5 +1,6 @@
 import {
 	createNoteTitleIndex,
+	displayNoteTitle,
 	normalizeNoteTitle,
 	resolveNoteReference,
 	type NoteSummary,
@@ -12,12 +13,13 @@ const NODE_WIDTH = 222;
 const NODE_HEIGHT = 34;
 let titleMeasurer: CanvasRenderingContext2D | null | undefined;
 
-export const nodeSize = (note: Pick<NoteSummary, "title">): NodeSize => {
+export const nodeSize = (note: Pick<NoteSummary, "title" | "displayTitle">): NodeSize => {
 	if (titleMeasurer === undefined && typeof document !== "undefined") {
 		titleMeasurer = document.createElement("canvas").getContext("2d");
 	}
 	if (titleMeasurer) titleMeasurer.font = '650 11px Inter, "Segoe UI", "Helvetica Neue", sans-serif';
-	const width = titleMeasurer?.measureText(note.title).width ?? note.title.length * 6;
+	const title = displayNoteTitle(note);
+	const width = titleMeasurer?.measureText(title).width ?? title.length * 6;
 	return { width: Math.min(NODE_WIDTH, Math.max(42, Math.ceil(width + 24))), height: NODE_HEIGHT };
 };
 

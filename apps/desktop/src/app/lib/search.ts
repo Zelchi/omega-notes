@@ -1,4 +1,4 @@
-import type { NoteSummary } from "@/entities/note";
+import { displayNoteTitle, type NoteSummary } from "@/entities/note";
 
 type IndexedNote = {
 	note: NoteSummary;
@@ -92,10 +92,10 @@ export const createSearchIndex = (notes: NoteSummary[], locale: string, previous
 		locale,
 		notes: notes.map((note) => {
 			const cached = previousNotes?.get(note.id);
-			if (cached && cached.note.title === note.title) {
+			if (cached && cached.note.title === note.title && cached.note.displayTitle === note.displayTitle) {
 				return cached.note === note ? cached : { ...cached, note };
 			}
-			const title = normalize(note.title, locale);
+			const title = normalize(displayNoteTitle(note), locale);
 			return {
 				note,
 				title,

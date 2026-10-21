@@ -1,4 +1,5 @@
 import Input from "@/shared/ui/input";
+import { NOTE_TITLE_MAX_LENGTH } from "@/entities/note";
 import Button from "@/shared/ui/button";
 import { createEffect, createMemo, createUniqueId, onCleanup, Show, type Component } from "solid-js";
 import ModalError from "@/shared/ui/modal-error";
@@ -64,6 +65,7 @@ const NoteNameDialog: Component<Props> = (props) => {
 						ref={(element) => (titleInput = element)}
 						class={styles.input}
 						value={displayed().title}
+						maxLength={NOTE_TITLE_MAX_LENGTH}
 						onInput={(event) => props.onTitleChange(event.currentTarget.value)}
 						placeholder={props.t("noteName")}
 						aria-label={props.t("noteName")}

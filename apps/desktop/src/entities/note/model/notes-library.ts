@@ -17,7 +17,7 @@ import type { NoteChangeSet, NoteLoadIssue, NoteSummary, StudyNote } from "./not
 import { summarizeNote } from "./note-summary";
 import { documentPreview, type NoteDocument } from "./note-document";
 import { withDocumentReadSlot } from "./document-read-limiter";
-import { isNoteTitleAvailable } from "./note-titles";
+import { createNoteDisplayTitleIndex, NOTE_TITLE_MAX_LENGTH } from "./note-titles";
 import type { NoteLinkPatch } from "./note-link-patch";
 
 const documentSignature = (document: NoteDocument): string => JSON.stringify(document, (_key, value: unknown) => {
@@ -28,13 +28,17 @@ const documentSignature = (document: NoteDocument): string => JSON.stringify(doc
 export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExternal: Accessor<boolean> = () => false) => {
 	const observerId = crypto.randomUUID();
 	const [notes, setNotes] = createSignal<NoteSummary[]>([], { equals: false });
+	const displayedNotes = createMemo(() => {
+		const titles = createNoteDisplayTitleIndex(notes());
+		return notes().map((note) => ({ ...note, displayTitle: titles.get(note.id) }));
+	});
 	const [loadedNotes, setLoadedNotes] = createSignal<Map<string, StudyNote>>(new Map());
 	const [loading, setLoading] = createSignal(true);
 	const [hasLoadedVault, setHasLoadedVault] = createSignal(false);
 	const [saveError, setSaveError] = createSignal(false);
 	const [loadIssues, setLoadIssues] = createSignal<NoteLoadIssue[]>([]);
 	const [referenceTitles, setReferenceTitles] = createSignal<Record<string, string>>({});
-	const sortedNotes = createMemo(() => [...notes()].sort((a, b) => b.updatedAt - a.updatedAt));
+	const sortedNotes = createMemo(() => [...displayedNotes()].sort((a, b) => b.updatedAt - a.updatedAt));
 	const fullNotes = createMemo(() => [...loadedNotes().values()]);
 
 	const pendingSaves = new Map<string, StudyNote>();
@@ -397,12 +401,11 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 			await saveQueue;
 			const local = loadedNotes().get(id);
 			if (!local || !conflicts().includes(id)) return;
-			const external = await readSummaryLibrary(vaultId, true);
 			if (vaultId !== activeVaultId()) return;
 			if (keepLocal) {
 				++changeRevision;
-				let title = `${local.title.slice(0, 60)} ${suffix}`, number = 2;
-				while (!isNoteTitleAvailable([...notes(), ...external.notes], title)) title = `${local.title.slice(0, 60)} ${suffix} ${number++}`;
+				const conflictSuffix = ` ${suffix}`.slice(-NOTE_TITLE_MAX_LENGTH);
+				const title = `${local.title.slice(0, Math.max(0, NOTE_TITLE_MAX_LENGTH - conflictSuffix.length))}${conflictSuffix}`;
 				const created = await createNoteRecord(title);
 				if (vaultId !== activeVaultId()) return;
 				const saved = await saveNote({ ...created, document: local.document }, created, vaultId);
@@ -432,7 +435,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 	};
 
 	const create = async (title: string): Promise<StudyNote> => {
-		if (!isNoteTitleAvailable(notes(), title)) throw new Error("DUPLICATE_TITLE");
+		if (title.trim().length > NOTE_TITLE_MAX_LENGTH) throw new Error("TITLE_TOO_LONG");
 		++changeRevision;
 		const note = await createNoteRecord(title);
 		++changeRevision;
@@ -446,7 +449,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		await saveQueue;
 		const currentNote = notes().find((item) => item.id === note.id);
 		if (!currentNote) return false;
-		if (!isNoteTitleAvailable(notes(), title, currentNote.id)) throw new Error("DUPLICATE_TITLE");
+		if (title.trim().length > NOTE_TITLE_MAX_LENGTH) throw new Error("TITLE_TOO_LONG");
 
 		++changeRevision;
 		const changedNotes = await renameNoteRecord(currentNote.id, title);
@@ -532,7 +535,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 	};
 
 	return {
-		notes,
+		notes: displayedNotes,
 		sortedNotes,
 		loadedNotes: fullNotes,
 		loadNote,

@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import type { NoteDocument, NoteSummary, StudyNote } from "@/entities/note";
+import { displayNoteTitle, type NoteDocument, type NoteSummary, type StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 
 export type NoteEditorProps = {
@@ -27,6 +27,11 @@ export const useNoteEditorController = (props: NoteEditorProps) => {
 	const [savingTitle, setSavingTitle] = createSignal(false);
 	const [titleFontSize, setTitleFontSize] = createSignal(46);
 	const noteTitle = createMemo(() => props.note.title);
+	const displayTitle = createMemo(() => {
+		const summary = props.notes.find((note) => note.id === props.note.id);
+		return summary ? displayNoteTitle(summary) : props.note.title;
+	});
+	const visibleTitle = createMemo(() => props.mode === "view" ? displayTitle() : noteTitle());
 	let headingElement!: HTMLDivElement;
 	let measureElement!: HTMLSpanElement;
 	let fitFrame = 0;
@@ -57,6 +62,7 @@ export const useNoteEditorController = (props: NoteEditorProps) => {
 	createEffect(() => {
 		setTitleDraft(noteTitle());
 		setTitleError(undefined);
+		visibleTitle();
 		scheduleFit();
 	});
 
@@ -84,9 +90,7 @@ export const useNoteEditorController = (props: NoteEditorProps) => {
 			const code = typeof error === "string" ? error : error instanceof Error ? error.message : "";
 			setTitleError(
 				props.t(
-					code === "DUPLICATE_TITLE"
-						? "duplicateNoteTitle"
-						: code.startsWith("RENAME_ROLLBACK_FAILED:")
+					code.startsWith("RENAME_ROLLBACK_FAILED:")
 							? "renameRecoveryFailed"
 							: "renameFailed",
 				),
@@ -172,6 +176,8 @@ export const useNoteEditorController = (props: NoteEditorProps) => {
 		visibleTitleError: () => titleErrorVisible() ? titleError() : undefined,
 		savingTitle,
 		titleFontSize,
+		displayTitle,
+		visibleTitle,
 		setHeadingElement: (element: HTMLDivElement) => (headingElement = element),
 		setMeasureElement: (element: HTMLSpanElement) => (measureElement = element),
 		onTitleInput,

@@ -1,4 +1,5 @@
 import Button from "@/shared/ui/button";
+import { displayNoteTitle } from "@/entities/note";
 import { For, Show, type Component } from "solid-js";
 import { Portal } from "solid-js/web";
 import type { NoteSummary } from "@/entities/note";
@@ -31,7 +32,7 @@ export const NoteLinkSuggestions: Component<{
 					<Button id={`${props.id}-${note.id}`} class={cx(styles.option, index() === props.selectedIndex && styles.selected)}
 						type="button" role="option" aria-selected={index() === props.selectedIndex} tabIndex={-1}
 						onClick={() => props.onSelect(note)}>
-						<Icon name="link" size={15} /><span class={styles.title}>{note.title}</span>
+						<Icon name="link" size={15} /><span class={styles.title}>{displayNoteTitle(note)}</span>
 					</Button>
 				)}</For>
 			</Show>

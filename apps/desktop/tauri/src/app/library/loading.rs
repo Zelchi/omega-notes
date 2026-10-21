@@ -1,4 +1,3 @@
-use crate::names::normalize_name;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Reverse,
@@ -360,52 +359,6 @@ fn indexed_content_stats(note: &crate::notes::StudyNote) -> IndexedContentStats 
         audio_ids,
         video_ids,
     }
-}
-
-pub(crate) fn ensure_unique_note_title(
-    directory: &Path,
-    backups_directory: &Path,
-    title: &str,
-    excluded_id: Option<&str>,
-) -> Result<(), String> {
-    let normalized = normalize_name(title);
-    let mut duplicate = false;
-    let (issues, _) = stream_note_summaries(
-        &|| Ok((directory.to_path_buf(), backups_directory.to_path_buf())),
-        |summary| {
-            if Some(summary.id.as_str()) != excluded_id
-                && normalize_name(&summary.title) == normalized
-            {
-                duplicate = true;
-            }
-            Ok(())
-        },
-    )?;
-    if issues
-        .iter()
-        .any(|issue| issue.file_name == "notes" || issue.file_name.ends_with(".omega"))
-    {
-        return Err("NOTE_TITLE_CHECK_FAILED".into());
-    }
-    if duplicate {
-        Err("DUPLICATE_TITLE".into())
-    } else {
-        Ok(())
-    }
-}
-
-pub(crate) fn ensure_unique_note_title_in_summaries(
-    summaries: &[crate::notes::NoteSummary],
-    normalized_title: &str,
-    excluded_id: Option<&str>,
-) -> Result<(), String> {
-    if summaries.iter().any(|summary| {
-        Some(summary.id.as_str()) != excluded_id
-            && normalize_name(&summary.title) == normalized_title
-    }) {
-        return Err("DUPLICATE_TITLE".into());
-    }
-    Ok(())
 }
 
 pub(crate) fn content_stats_from_index(

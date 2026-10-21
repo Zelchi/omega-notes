@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use uuid::Uuid;
 
-use crate::names::normalize_name;
 use crate::notes::{
     archive_deleted_note, audio_ids_in_document, delete_note_files, deleted_notes,
     deleted_notes_directory, empty_document, existing_note, image_ids_in_document,
@@ -21,7 +20,7 @@ pub(crate) fn create_note(
     let _title_lock = super::lock_title_mutations()?;
     let (directory, backups_directory) = resolve_directories()?;
     validate_note_title(&note_title)?;
-    super::loading::ensure_unique_note_title(&directory, &backups_directory, &note_title, None)?;
+    crate::notes::validate_note_title_length(&note_title)?;
     let note_id = Uuid::now_v7().to_string();
     let note = write_note(
         &directory,
@@ -55,17 +54,6 @@ pub(crate) fn save_note_checked(
     let (directory, backups_directory) = resolve_directories()?;
     validate_note_title(&note_title)?;
     let existing = existing_note(&directory, &note_id)?;
-    if existing
-        .as_ref()
-        .is_none_or(|note| normalize_name(&note.title) != normalize_name(&note_title))
-    {
-        super::loading::ensure_unique_note_title(
-            &directory,
-            &backups_directory,
-            &note_title,
-            Some(&note_id),
-        )?;
-    }
     let previous_document = existing
         .as_ref()
         .map(|note| note.document.clone())

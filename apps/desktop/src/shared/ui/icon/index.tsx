@@ -9,6 +9,8 @@ export type IconName =
 	| "cloze"
 	| "correction"
 	| "chevronDown"
+	| "calendar"
+	| "clock"
 	| "chat"
 	| "send"
 	| "stop"
@@ -27,6 +29,8 @@ export type IconName =
 	| "close"
 	| "edit"
 	| "delete"
+	| "folder"
+	| "file"
 	| "check"
 	| "link"
 	| "resizeDiagonal"
@@ -77,6 +81,8 @@ const paths: Record<IconName, Component> = {
 	"table-column-add": () => <><rect x="3" y="3" width="11" height="18" rx="1" /><path d="M8 3v18M3 9h11M3 15h11M20 8v8M16 12h8" /></>,
 	"table-column-remove": () => <><rect x="3" y="3" width="11" height="18" rx="1" /><path d="M8 3v18M3 9h11M3 15h11M16 12h8" /></>,
 	chevronDown: () => <path d="m6 9 6 6 6-6" />,
+	calendar: () => <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18M8 14h2m4 0h2M8 17h2" /></>,
+	clock: () => <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
 	chat: () => <path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2ZM7 9h10M7 13h7" />,
 	send: () => <path d="m3 3 19 9-19 9 4-9-4-9Zm4 9h15" />,
 	stop: () => <rect x="6" y="6" width="12" height="12" rx="1" />,
@@ -103,6 +109,8 @@ const paths: Record<IconName, Component> = {
 			<path d="M10 11v5m4-5v5" />
 		</>
 	),
+	folder: () => <path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Zm0 4h18" />,
+	file: () => <><path d="M6 3h8l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" /><path d="M14 3v5h5M8 13h8M8 17h8" /></>,
 	check: () => <path d="m5 12 4 4L19 6" />,
 	link: () => <path d="m10 13 4-4M8 15l-1 1a3.5 3.5 0 0 1-5-5l4-4a3.5 3.5 0 0 1 5 0M16 9l1-1a3.5 3.5 0 0 1 5 5l-4 4a3.5 3.5 0 0 1-5 0" />,
 	resizeDiagonal: () => <path d="M5 10V5h5M5 5l14 14M14 19h5v-5" />,

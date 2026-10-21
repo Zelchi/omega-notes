@@ -1,4 +1,5 @@
 import Button from "@/shared/ui/button";
+import { displayNoteTitle } from "@/entities/note";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { For, Show, type Component } from "solid-js";
 import { HOME_HEIGHT, HOME_WIDTH } from "../../lib/graph";
@@ -75,7 +76,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 									}}
 								>
 									<span class={styles.bubbleCopy}>
-										<strong class={styles.bubbleTitle}>{note.title}</strong>
+										<strong class={styles.bubbleTitle}>{displayNoteTitle(note)}</strong>
 									</span>
 								</Button>
 							);

@@ -99,7 +99,11 @@ export const usePreferences = () => {
 			setBackgroundTheme(value);
 			saveBackgroundTheme(value);
 		},
-		setCanvasLayout: (value: CanvasLayout) => { setCanvasLayout(value); saveCanvasLayout(value); },
+		setCanvasLayout: (value: CanvasLayout) => {
+			const layout = value === "archive" && !import.meta.env.DEV ? "dynamic" : value;
+			setCanvasLayout(layout);
+			saveCanvasLayout(layout);
+		},
 		centerCanvasOnLaunch,
 		hideCanvasControls,
 		language,

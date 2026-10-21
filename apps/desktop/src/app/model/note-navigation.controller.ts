@@ -1,7 +1,8 @@
 import { readNoteMode, saveNoteMode } from "@/features/change-preferences/api/preferences.repository";
 import type { NoteMode } from "@/features/change-preferences/model/preferences";
 import { batch, createEffect, createMemo, createSignal, onCleanup, untrack, type Accessor } from "solid-js";
-import { isNoteTitleAvailable, type NotesLibrary, type NoteDocument, type NoteSummary, type StudyNote } from "@/entities/note";
+import type { NotesLibrary, NoteDocument, NoteSummary, StudyNote } from "@/entities/note";
+import { NOTE_TITLE_MAX_LENGTH } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { playSound } from "@/shared/ui/sound";
 import { createNavigationHistory, findHistoryIndex, recordNavigation, type NavigationHistory, type NavigationLocation } from "./navigation-history";
@@ -91,12 +92,8 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		event.preventDefault();
 		const currentMode = nameDialog();
 		const title = nameDialogTitle().trim();
-		if (!currentMode || !title || savingName()) return;
+		if (!currentMode || !title || title.length > NOTE_TITLE_MAX_LENGTH || savingName()) return;
 		const targetId = currentMode === "rename" ? renameTargetId() : undefined;
-		if (!isNoteTitleAvailable(notes.notes(), title, targetId)) {
-			setNameDialogError(t("duplicateNoteTitle"));
-			return;
-		}
 
 		setSavingName(true);
 		try {
@@ -118,11 +115,9 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 			const code = typeof error === "string" ? error : error instanceof Error ? error.message : "";
 			setNameDialogError(
 				t(
-					code === "DUPLICATE_TITLE"
-						? "duplicateNoteTitle"
-						: code.startsWith("RENAME_ROLLBACK_FAILED:")
-							? "renameRecoveryFailed"
-							: "renameFailed",
+					code.startsWith("RENAME_ROLLBACK_FAILED:")
+						? "renameRecoveryFailed"
+						: "renameFailed",
 				),
 			);
 		} finally {

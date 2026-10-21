@@ -3,6 +3,7 @@ import type { NoteSummary } from "@/entities/note";
 import type { StudyKind } from "@/entities/study";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import Button from "@/shared/ui/button";
+import { displayNoteTitle } from "@/entities/note";
 import Dropdown from "@/shared/ui/dropdown";
 import Icon from "@/shared/ui/icon";
 import Input from "@/shared/ui/input";
@@ -259,7 +260,7 @@ const StudyDialog: Component<{
 								<span class={styles.muted}>{props.t("studySources")}</span>
 								<For each={item().sources}>{id => {
 									const source = () => props.notes.find(note => note.id === id);
-									return <Button class={styles.link} type="button" disabled={!source()} onClick={() => { const note = source(); if (note) { study.close(); props.onOpenNote(note); } }}>{source()?.title ?? props.referenceTitles[id] ?? props.t("studyDeletedSource")}</Button>;
+									return <Button class={styles.link} type="button" disabled={!source()} onClick={() => { const note = source(); if (note) { study.close(); props.onOpenNote(note); } }}>{source() ? displayNoteTitle(source()!) : props.referenceTitles[id] ?? props.t("studyDeletedSource")}</Button>;
 								}}</For>
 							</div></Show>
 						</>}</Show>
