@@ -57,7 +57,9 @@ export const useCustomScrollArea = (options: { compact?: boolean; accelerateScro
 		const value = metrics();
 		const client = axis === "vertical" ? value.clientHeight : value.clientWidth;
 		const scrollLength = axis === "vertical" ? value.scrollHeight : value.scrollWidth;
-		const trackLength = Math.max(0, (axis === "vertical" ? value.rootHeight : value.rootWidth) - (options.compact ? 4 : 28));
+		// Keep these insets synchronized with the matching top/bottom or left/right track styles.
+		const trackInset = options.compact ? 4 : axis === "vertical" ? 16 : 28;
+		const trackLength = Math.max(0, (axis === "vertical" ? value.rootHeight : value.rootWidth) - trackInset);
 		const maxScroll = Math.max(0, scrollLength - client);
 		const length = Math.min(trackLength, Math.max(options.compact ? 8 : 28, (trackLength * client) / Math.max(client, scrollLength)));
 		const scroll = axis === "vertical" ? value.top : value.left;

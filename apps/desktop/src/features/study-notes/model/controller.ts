@@ -9,7 +9,7 @@ import { useCloze } from "./cloze.controller";
 import { useAnswerReview } from "./answer-review.controller";
 import { writtenAnswerPrompt } from "./written-feedback";
 import { clozeAnswerPrompt } from "./cloze-feedback";
-import { readStudyGenerationTimes, readStudyPreferences, saveStudyGenerationTime, saveStudyPreferences } from "../api/preferences.repository";
+import { readStudyGenerationTimes, readStudyPreferences, saveStudyGenerationTime, saveStudyPreferences, type StudyLimit } from "../api/preferences.repository";
 import { useStudyRequestQueue } from "./request-queue";
 
 type PendingProgress = { vaultId: string; deckId: string; kind: StudyKind; progress: StudyProgress };
@@ -38,11 +38,11 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	const [error, setError] = createSignal<string>(), [deck, setDeck] = createSignal<StudyDeck>();
 	const [sessionMaterials, setSessionMaterials] = createSignal<StudyDeck[]>([]);
 	const preferences = readStudyPreferences(initialKind);
-	const [count, setCount] = createSignal(preferences.count), [seconds, setSeconds] = createSignal(preferences.seconds), [lives, setLives] = createSignal(preferences.lives);
+	const [count, setCount] = createSignal<StudyLimit>(preferences.count), [seconds, setSeconds] = createSignal<StudyLimit>(preferences.seconds), [lives, setLives] = createSignal<StudyLimit>(preferences.lives);
 	const savePreferences = () => saveStudyPreferences(initialKind, { count: count(), seconds: seconds(), lives: lives() });
 	const [index, setIndex] = createSignal(0), [revealed, setRevealed] = createSignal(false), [answered, setAnswered] = createSignal(false);
-	const [choice, setChoice] = createSignal<number>(), [correct, setCorrect] = createSignal(0), [remainingLives, setRemainingLives] = createSignal(lives());
-	const [remainingTime, setRemainingTime] = createSignal(seconds()), [endReason, setEndReason] = createSignal<"complete" | "lives">("complete");
+	const [choice, setChoice] = createSignal<number>(), [correct, setCorrect] = createSignal(0), [remainingLives, setRemainingLives] = createSignal<StudyLimit>(lives());
+	const [remainingTime, setRemainingTime] = createSignal<StudyLimit>(seconds()), [endReason, setEndReason] = createSignal<"complete" | "lives" | "manual">("complete");
 	let deadline = 0, timer: ReturnType<typeof setInterval> | undefined, abort: AbortController | undefined;
 	const [sessionIndices, setSessionIndices] = createSignal<number[]>([]);
 	const [savingProgress, setSavingProgress] = createSignal(false), [progressFailed, setProgressFailed] = createSignal(false);
@@ -51,7 +51,10 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	let progressSave: Promise<void> | undefined;
 	const clockTimer = setInterval(() => { if (open()) setClock(Date.now()); }, 60_000);
 	onCleanup(() => clearInterval(clockTimer));
-	let revision = 0, disposed = false, pausedTime = seconds() * 1000;
+	const millisecondsFor = (value: StudyLimit) => value === "infinite" ? Infinity : value * 1000;
+	const remainingSeconds = (milliseconds: number): StudyLimit => milliseconds === Infinity ? "infinite" : Math.ceil(milliseconds / 1000);
+	let revision = 0, disposed = false, pausedTime = millisecondsFor(seconds());
+	const loseLife = () => setRemainingLives(previous => previous === "infinite" ? previous : Math.max(0, previous - 1));
 	const stopTimer = () => { clearInterval(timer); timer = undefined; };
 	const stopGenerationClock = (owner?: AbortController, reset = false) => {
 		if (owner && owner !== generationClockOwner) return;
@@ -95,7 +98,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		onSubmitted: advanceReviewed,
 		onResult: (itemIndex, result, details) => {
 			if (result === "correct") setCorrect(previous => previous + 1);
-			else setRemainingLives(previous => Math.max(0, previous - 1));
+			else loseLife();
 			record(result, itemIndex, details);
 			if (remainingLives() === 0) { stopTimer(); setStage("grading"); }
 		},
@@ -112,12 +115,12 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		onResult: result => commitOutcome(result),
 	});
 	createEffect(on(() => [open(), stage(), review.pending(), savingProgress(), progressFailed()] as const, ([isOpen, stage, pending, saving, failed]) => {
-		if (isOpen && stage === "grading" && !pending && !saving && !failed) finish(remainingLives() === 0 ? "lives" : "complete");
+		if (isOpen && stage === "grading" && !pending && !saving && !failed) finish(remainingLives() === 0 ? "lives" : endReason() === "manual" ? "manual" : "complete");
 	}));
 	const close = () => {
 		if (timer !== undefined) {
 			pausedTime = Math.max(0, deadline - Date.now());
-			setRemainingTime(Math.ceil(pausedTime / 1000));
+			setRemainingTime(remainingSeconds(pausedTime));
 		}
 		stopTimer(); setOpen(false);
 	};
@@ -128,7 +131,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		pendingProgress = undefined; progressSave = undefined; setRemoving(false); setOpening(false); setScrollTop(0); setProgressFailed(false); setSavingProgress(false); setError(undefined);
 		setStage("setup"); setDeck(undefined); setSessionMaterials([]); setSessionIndices([]); setIndex(0);
 		setRevealed(false); setAnswered(false); setChoice(undefined); setOutcome(undefined); setCorrect(0);
-		setRemainingLives(lives()); setEndReason("complete"); pausedTime = seconds() * 1000;
+		setRemainingLives(lives()); setEndReason("complete"); pausedTime = millisecondsFor(seconds());
 		setRemainingTime(seconds());
 	};
 	const contextId = createMemo(() => options.currentNote()?.id);
@@ -144,12 +147,20 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		setError(undefined); setScrollTop(0); setClock(Date.now()); setStage("setup");
 		setDeck(undefined); setSessionMaterials([]); setSessionIndices([]); setIndex(0); setRevealed(false); setAnswered(false);
 		setChoice(undefined); setOutcome(undefined); setCorrect(0); setRemainingLives(lives());
-		setEndReason("complete"); pausedTime = seconds() * 1000; setRemainingTime(seconds());
+		setEndReason("complete"); pausedTime = millisecondsFor(seconds()); setRemainingTime(seconds());
 	};
-	const finish = (reason: "complete" | "lives") => {
+	const finish = (reason: "complete" | "lives" | "manual") => {
 		stopTimer();
-		if (deck()?.kind === "quiz" && sessionIndices().length === 1) { returnToSetup(); return; }
+		if (reason === "complete" && deck()?.kind === "quiz" && sessionIndices().length === 1) { returnToSetup(); return; }
 		setEndReason(reason); setStage("result");
+	};
+	const endStudy = () => {
+		if (stage() !== "running" || savingProgress() || progressFailed()) return;
+		stopTimer();
+		const reason = remainingLives() === 0 ? "lives" : "manual";
+		setEndReason(reason);
+		if (review.pending()) setStage("grading");
+		else finish(reason);
 	};
 	const persistProgress = async () => {
 		const requestRevision = revision;
@@ -191,7 +202,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		if (!open() || stage() !== "running" || answered()) return;
 		stopTimer(); setOutcome(value); setAnswered(true);
 		if (value === "correct") setCorrect(previous => previous + 1);
-		else setRemainingLives(previous => Math.max(0, previous - 1));
+		else loseLife();
 		record(value);
 	};
 	const answer = (selected?: number) => {
@@ -200,10 +211,10 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		setChoice(selected);
 		commitOutcome(selected === undefined ? "timeout" : selected === current()!.correctIndex ? "correct" : "wrong");
 	};
-	const startTimer = (milliseconds = seconds() * 1000) => {
-		stopTimer(); pausedTime = milliseconds; setRemainingTime(Math.ceil(milliseconds / 1000));
-		if (!open()) return;
-		deadline = Date.now() + milliseconds;
+	const startTimer = (milliseconds = millisecondsFor(seconds())) => {
+		stopTimer(); pausedTime = milliseconds; setRemainingTime(remainingSeconds(milliseconds));
+		deadline = milliseconds === Infinity ? Infinity : Date.now() + milliseconds;
+		if (!open() || milliseconds === Infinity) return;
 		timer = setInterval(() => {
 			if (!open() || stage() !== "running" || answered() || (deck()?.kind !== "written" && deck()?.kind !== "cloze" && progressBlocked())) return;
 			const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000)); setRemainingTime(left);
@@ -248,7 +259,8 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		if (!candidates.length) return;
 		const previouslyMissed = shuffled(candidates.filter(value => errorCount(value) > 0));
 		const otherItems = shuffled(candidates.filter(value => errorCount(value) === 0));
-		const selected = [...previouslyMissed, ...otherItems].slice(0, count());
+		const quantity = count();
+		const selected = [...previouslyMissed, ...otherItems].slice(0, quantity === "infinite" ? undefined : quantity);
 		setOpening(true); setError(undefined);
 		try {
 			const materials = await Promise.all(selected.map(value => library.read(vaultId, value.id, value.kind)));
@@ -402,7 +414,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		open, review, cloze, correction, outcome, kind, stage, deck, current, saved, count, seconds, lives, loading, storageFailed,
 		generationElapsed, generationAverage, generationLoopEnabled, error: () => error() ?? library.error(),
 		index, revealed, answered, choice, correct, remainingLives, remainingTime, endReason, scrollTop, setScrollTop,
-		close, generate, start, studyRandom, reviewMethodErrors, methodErrorCount, answer, next, sessionIndices, dueCount, errorCount, savingProgress, progressFailed,
+		close, generate, start, studyRandom, reviewMethodErrors, methodErrorCount, answer, next, endStudy, canEnd: () => stage() === "running" && !loading() && !savingProgress() && !progressFailed(), sessionIndices, dueCount, errorCount, savingProgress, progressFailed,
 		flushSave: library.flushSave,
 		invalidItems: () => library.invalidItems().filter(item => item.kind === kind()),
 		accuracy: (value: SavedStudy) => {
@@ -444,9 +456,9 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 			setAnswered(true); record(rating === "easy" ? "correct" : "wrong", sessionIndices()[index()], undefined, rating);
 			if (rating === "easy") setCorrect(value => value + 1);
 		},
-		setCount: (value: number) => { if (value === 5 || value === 10 || value === 20 || value === 30) { setCount(value); savePreferences(); } },
-		setSeconds: (value: number) => { if (value === 30 || value === 60 || value === 300) { setSeconds(value); savePreferences(); } },
-		setLives: (value: number) => { if (value === 1 || value === 3 || value === 5) { setLives(value); savePreferences(); } },
+		setCount: (value: StudyLimit) => { if (value === "infinite" || value === 5 || value === 10 || value === 20 || value === 30) { setCount(value); savePreferences(); } },
+		setSeconds: (value: StudyLimit) => { if (value === "infinite" || value === 30 || value === 60 || value === 300) { setSeconds(value); savePreferences(); } },
+		setLives: (value: StudyLimit) => { if (value === "infinite" || value === 1 || value === 3 || value === 5) { setLives(value); savePreferences(); } },
 		retry: library.load,
 		remove: async (id: string) => {
 			const vaultId = options.vaultId(), requestRevision = revision;
@@ -525,6 +537,8 @@ export const useStudies = (options: StudyEnvironment): StudiesController => {
 		methodErrorCount: () => current().methodErrorCount(),
 		answer: (...args) => current().answer(...args),
 		next: () => current().next(),
+		endStudy: () => current().endStudy(),
+		canEnd: () => current().canEnd(),
 		sessionIndices: () => current().sessionIndices(),
 		dueCount: value => current().dueCount(value),
 		errorCount: value => current().errorCount(value),

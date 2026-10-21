@@ -8,6 +8,9 @@ type Props = {
 	class?: string;
 	contentClass?: string;
 	viewportStyle?: JSX.CSSProperties;
+	zeroVerticalPadding?: boolean;
+	centerContentVertically?: boolean;
+	fitContent?: boolean;
 	ariaLabel?: string;
 	accelerateScrollWithAlt?: boolean;
 	viewportRef?: (element: HTMLDivElement) => void;
@@ -18,14 +21,14 @@ const CustomScrollArea: Component<Props> = (props) => {
 	const scroll = useCustomScrollArea({ accelerateScrollWithAlt: () => Boolean(props.accelerateScrollWithAlt) });
 
 	return (
-		<div class={`${styles.root} ${props.class ?? ""}`} ref={scroll.setRoot} data-omega-scroll-root
+		<div class={`${styles.root} ${props.class ?? ""} ${props.fitContent ? styles.fitContentRoot : ""}`} ref={scroll.setRoot} data-omega-scroll-root
 			onPointerMove={scroll.moveThumb}
 			onPointerUp={scroll.finishDrag}
 			onPointerCancel={scroll.finishDrag}
 			onLostPointerCapture={scroll.finishDrag}
 		>
 			<div
-				class={styles.viewport}
+				class={`${styles.viewport} ${props.fitContent ? styles.fitContentViewport : ""} ${props.zeroVerticalPadding ? styles.zeroVerticalPadding : ""}`}
 				ref={(element) => { scroll.setViewport(element); props.viewportRef?.(element); }}
 				style={props.viewportStyle}
 				data-omega-scroll-viewport=""
@@ -33,7 +36,7 @@ const CustomScrollArea: Component<Props> = (props) => {
 				tabIndex={0}
 				onScroll={(event) => { scroll.updateMetrics(); props.onScroll?.(event.currentTarget); }}
 			>
-				<div class={`${styles.content} ${props.contentClass ?? ""}`} ref={scroll.setContent} data-omega-scroll-content>
+				<div class={`${styles.content} ${props.contentClass ?? ""} ${props.fitContent ? styles.fitContent : ""} ${props.centerContentVertically ? styles.centerContentVertically : ""}`} ref={scroll.setContent} data-omega-scroll-content>
 					{props.children}
 				</div>
 			</div>

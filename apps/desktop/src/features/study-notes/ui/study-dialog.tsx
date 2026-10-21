@@ -5,6 +5,7 @@ import type { TranslationKey } from "@/shared/lib/i18n";
 import Button from "@/shared/ui/button";
 import Dropdown from "@/shared/ui/dropdown";
 import Icon from "@/shared/ui/icon";
+import Input from "@/shared/ui/input";
 import CustomScrollArea from "@/shared/ui/custom-scroll-area";
 import { createPresence } from "@/shared/lib/presence";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
@@ -69,6 +70,27 @@ const StudyDialog: Component<{
 		return `${dash} ${generationCircumference - dash}`;
 	};
 	const [deleteVisibleId, setDeleteVisibleId] = createSignal<string>();
+	// Layout aprovado: oito itens por página; veja docs/questionnaire-layout.md antes de alterar.
+	const libraryPageSize = 8;
+	const [librarySearch, setLibrarySearch] = createSignal("");
+	const [libraryPage, setLibraryPage] = createSignal(0);
+	const normalizeSearch = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+	const filteredSaved = createMemo(() => {
+		const query = normalizeSearch(librarySearch().trim());
+		return study.saved().filter(deck => !query || normalizeSearch(deck.title).includes(query));
+	});
+	const libraryPageCount = createMemo(() => Math.max(1, Math.ceil(filteredSaved().length / libraryPageSize)));
+	const paginatedSaved = createMemo(() => filteredSaved().slice(libraryPage() * libraryPageSize, (libraryPage() + 1) * libraryPageSize));
+	createEffect(on(() => [study.open(), study.kind()] as const, ([open]) => {
+		if (open) { setLibrarySearch(""); setLibraryPage(0); }
+	}));
+	createEffect(() => {
+		if (study.saved().length <= libraryPageSize && librarySearch()) { setLibrarySearch(""); setLibraryPage(0); }
+	});
+	createEffect(() => {
+		const lastPage = Math.max(0, libraryPageCount() - 1);
+		if (libraryPage() > lastPage) setLibraryPage(lastPage);
+	});
 	let closeButton!: HTMLButtonElement, viewport: HTMLDivElement | undefined;
 	createEffect(on(() => [study.open(), study.kind(), study.stage()] as const, ([open]) => {
 		if (!open) return;
@@ -105,8 +127,8 @@ const StudyDialog: Component<{
 						<Button ref={closeButton} class={cx(styles.button, styles.icon)} type="button" aria-label={props.t("close")} onClick={study.close}><Icon name="close" size={16} /></Button>
 					</div>
 				</header>
-				<div class={styles.content}>
-				<CustomScrollArea viewportRef={element => { viewport = element; }} onScroll={element => { if (study.open()) study.setScrollTop(element.scrollTop); }}><div class={styles.body}>
+				<div class={cx(styles.content, study.kind() === "quiz" && styles.quizContent, study.stage() === "setup" && study.kind() !== "quiz" && styles.setupContent)}>
+				<CustomScrollArea fitContent={study.stage() === "setup" && study.kind() !== "quiz"} centerContentVertically={study.stage() === "setup" && study.kind() === "quiz"} zeroVerticalPadding={study.stage() === "setup" && study.kind() === "quiz"} viewportStyle={study.kind() === "quiz" && study.stage() !== "setup" ? { "padding-top": "32px", "padding-bottom": "20px" } : undefined} viewportRef={element => { viewport = element; }} onScroll={element => { if (study.open()) study.setScrollTop(element.scrollTop); }}><div class={cx(styles.body, study.stage() === "setup" && (study.kind() === "quiz" ? styles.quizSetupBody : styles.setupBody))}>
 				<Show when={props.cliRequest}>{request => <StudyRequestNotice request={request()} t={props.t} onOpenCli={props.onOpenCli} />}</Show>
 				<Show when={study.error()}><p class={styles.error} role="alert">{study.error()}</p></Show>
 				<Show when={study.review.failed()}>
@@ -120,20 +142,23 @@ const StudyDialog: Component<{
 							<div class={styles.label}><span>{props.t("studyCount")}</span>
 								<Dropdown ariaLabel={props.t("studyCount")} value={String(study.count())} options={[
 									{ value: "5", label: "5" }, { value: "10", label: "10" }, { value: "20", label: "20" }, { value: "30", label: "30" },
-								]} onChange={value => study.setCount(Number(value))} />
+									{ value: "infinite", label: props.t("studyInfinite") },
+								]} onChange={value => study.setCount(value === "infinite" ? value : Number(value))} />
 							</div>
 							<Show when={study.kind() !== "flashcards"}>
 								<div class={styles.label}><span>{props.t("studyLives")}</span>
 									<Dropdown ariaLabel={props.t("studyLives")} value={String(study.lives())} options={[
 										{ value: "1", label: "1" }, { value: "3", label: "3" }, { value: "5", label: "5" },
-									]} onChange={value => study.setLives(Number(value))} />
+										{ value: "infinite", label: props.t("studyInfinite") },
+									]} onChange={value => study.setLives(value === "infinite" ? value : Number(value))} />
 								</div>
 								<div class={styles.label}><span>{props.t("studySeconds")}</span>
 									<Dropdown ariaLabel={props.t("studySeconds")} value={String(study.seconds())} options={[
 										{ value: "30", label: props.t("studyThirtySeconds") },
 										{ value: "60", label: props.t("studyOneMinute") },
 										{ value: "300", label: props.t("studyFiveMinutes") },
-									]} onChange={value => study.setSeconds(Number(value))} />
+										{ value: "infinite", label: props.t("studyInfinite") },
+									]} onChange={value => study.setSeconds(value === "infinite" ? value : Number(value))} />
 								</div>
 							</Show>
 						</div>
@@ -142,7 +167,6 @@ const StudyDialog: Component<{
 						<Show when={!props.connected}><p class={styles.muted}>{props.t("studyConnectFirst")}</p><Button class={styles.button} type="button" onClick={() => { study.close(); props.onConnect(); }}>{props.t("aiConnect")}</Button></Show>
 						<Show when={props.connected && props.aiBusy}><p class={styles.muted} role="status">{busyMessage()}</p></Show>
 						<Show when={study.storageFailed()}><Button class={styles.button} type="button" onClick={() => void study.retry()}>{props.t("retry")}</Button></Show>
-						<Show when={study.loading()}><p class={styles.muted} role="status">{props.t("studyLoading")}</p></Show>
 							<Show when={study.invalidItems().length}>
 								<p class={styles.error} role="alert">{props.t("studyInvalidItems")}</p>
 								<Button class={styles.button} type="button" disabled={study.loading()} onClick={() => void study.retry()}>{props.t("retry")}</Button>
@@ -151,8 +175,14 @@ const StudyDialog: Component<{
 									<Button class={cx(styles.button, styles.icon, styles.danger)} type="button" disabled={study.loading() || study.savingProgress() || study.progressFailed()} aria-label={props.t("delete")} onClick={() => void study.remove(item.id)}><Icon name="delete" size={15} /></Button>
 								</div>}</For>
 							</Show>
-						<Show when={study.saved().length}><div class={styles.library} role="region" aria-label={props.t("studySaved")}>
-							<For each={study.saved()}>{deck => {
+		<Show when={study.saved().length}><div class={cx(styles.library, study.saved().length > libraryPageSize && styles.libraryWithSearch)} role="region" aria-label={props.t("studySaved")}>
+							<Show when={study.saved().length > libraryPageSize}>
+								<div class={styles.librarySearchSticky}>
+									<Input class={styles.librarySearch} type="search" value={librarySearch()} onInput={event => { setLibrarySearch(event.currentTarget.value); setLibraryPage(0); }} placeholder={props.t("searchPlaceholder")} aria-label={props.t("searchPlaceholder")} />
+								</div>
+							</Show>
+							<Show when={paginatedSaved().length} fallback={librarySearch().trim() ? <p class={styles.noSearchResults}>{props.t("studyNoSearchResults")}</p> : null}>
+							<For each={paginatedSaved()}>{deck => {
 								const outcome = deck.progress?.items[0]?.lastOutcome;
 								const outcomeClass = outcome === undefined ? undefined : outcome === "correct" ? styles.correct : styles.wrong;
 								const actionsVisible = () => deleteVisibleId() === deck.id;
@@ -174,6 +204,14 @@ const StudyDialog: Component<{
 								</div>
 								</div>;
 							}}</For>
+							</Show>
+							<Show when={filteredSaved().length > libraryPageSize}>
+				<nav class={styles.libraryPagination} aria-label={props.t("studyPagination")}>
+									<Button class={cx(styles.button, styles.icon)} type="button" aria-label={props.t("studyPreviousPage")} disabled={libraryPage() === 0} onClick={() => setLibraryPage(page => Math.max(0, page - 1))}><Icon name="back" size={16} /></Button>
+									<span class={styles.libraryPageLabel}>{props.t("studyPageIndicator").replace("{current}", String(libraryPage() + 1)).replace("{total}", String(libraryPageCount()))}</span>
+									<Button class={cx(styles.button, styles.icon, styles.libraryNextButton)} type="button" aria-label={props.t("studyNextPage")} disabled={libraryPage() + 1 >= libraryPageCount()} onClick={() => setLibraryPage(page => Math.min(libraryPageCount() - 1, page + 1))}><span class={styles.libraryNextIcon}><Icon name="back" size={16} /></span></Button>
+								</nav>
+							</Show>
 						</div></Show>
 					</Match>
 					<Match when={study.stage() === "generating"}>
@@ -194,7 +232,7 @@ const StudyDialog: Component<{
 					</Match>
 					<Match when={study.stage() === "running"}>
 						<div class={styles.status} aria-live="polite"><span>{study.index() + 1} / {study.sessionIndices().length}</span>
-							<Show when={study.deck()?.kind !== "flashcards"}><span>{props.t("studyLives")}: {study.remainingLives()} · {study.remainingTime()}s</span></Show>
+							<Show when={study.deck()?.kind !== "flashcards"}><span>{props.t("studyLives")}: {study.remainingLives() === "infinite" ? props.t("studyInfinite") : study.remainingLives()} · {study.remainingTime() === "infinite" ? props.t("studyInfinite") : `${study.remainingTime()}s`}</span></Show>
 						</div>
 						<Show when={study.current()}>{item => <>
 							<Show when={study.deck()?.kind === "correction"}><Suspense fallback={null}><CorrectionExercise study={study} t={props.t} /></Suspense></Show>
@@ -240,7 +278,7 @@ const StudyDialog: Component<{
 					<Match when={study.stage() === "result"}>
 						<h3 class={styles.question}>{props.t("studyResults")}</h3>
 						<p class={styles.muted}>{props.t("studyScore")}: {study.correct()} / {study.sessionIndices().length ?? 0}</p>
-						<Show when={study.endReason() !== "complete"}><p class={styles.muted}>{props.t("studyNoLives")}</p></Show>
+						<Show when={study.endReason() === "lives"}><p class={styles.muted}>{props.t("studyNoLives")}</p></Show>
 						<Show when={study.deck()?.kind === "written" || study.deck()?.kind === "cloze"}><Suspense fallback={null}><AnswerResults study={study} notes={props.notes} referenceTitles={props.referenceTitles} t={props.t} onOpenNote={props.onOpenNote} /></Suspense></Show>
 						<Show when={study.kind() === "flashcards"}><div class={styles.actions}><ResultActions /></div></Show>
 					</Match>
@@ -248,9 +286,10 @@ const StudyDialog: Component<{
 				</div></CustomScrollArea></div>
 				<Show when={study.stage() === "running" && study.deck()?.kind === "quiz"}>
 					<footer class={styles.footer}>
-						<Button class={styles.button} type="button" disabled={!study.answered() || study.savingProgress() || study.progressFailed()} onClick={study.next}>
-							{props.t(quizContinueLabel())}
-						</Button>
+						<div class={styles.practiceNavigation}>
+							<Button class={styles.button} type="button" disabled={!study.canEnd()} onClick={study.endStudy}>{props.t("studyEnd")}</Button>
+							<Button class={styles.button} type="button" disabled={!study.answered() || study.savingProgress() || study.progressFailed()} onClick={study.next}>{props.t(quizContinueLabel())}</Button>
+						</div>
 					</footer>
 				</Show>
 				<Show when={study.stage() === "result" && study.kind() !== "flashcards"}>
@@ -278,13 +317,19 @@ const StudyDialog: Component<{
 				</Show>
 				<Show when={study.stage() === "grading"}>
 					<footer class={styles.footer}>
-						<Button class={styles.button} type="button" onClick={study.close}>{props.t("close")}</Button>
+						<div class={styles.gradingActions}>
+							<Show when={study.review.failed()}><Button class={styles.button} type="button" disabled={!props.canGenerate} onClick={study.review.retry}>{props.t("retry")}</Button></Show>
+							<Show when={study.progressFailed()}><Button class={styles.button} type="button" onClick={() => void study.retryProgress()}>{props.t("retry")}</Button></Show>
+							<Button class={styles.button} type="button" onClick={study.close}>{props.t("close")}</Button>
+						</div>
 					</footer>
 				</Show>
 				<Show when={study.stage() === "running" && study.deck()?.kind === "written" && !study.answered()}>
 					<footer class={styles.footer}>
-						<Button class={styles.button} type="button" disabled={!props.connected || !study.review.draft().trim()}
-							onClick={() => void study.review.submit()}>{props.t("studyWrittenSubmit")}</Button>
+						<div class={styles.practiceNavigation}>
+							<Button class={styles.button} type="button" disabled={!study.canEnd()} onClick={study.endStudy}>{props.t("studyEnd")}</Button>
+							<Button class={styles.button} type="button" disabled={!props.connected || !study.review.draft().trim()} onClick={() => void study.review.submit()}>{props.t("studyWrittenSubmit")}</Button>
+						</div>
 					</footer>
 				</Show>
 				<Show when={study.stage() === "running" && study.deck()?.kind === "flashcards"}>
@@ -295,23 +340,32 @@ const StudyDialog: Component<{
 								<span class={styles.ratingInterval}>{study.ratingInterval(rating) < 86_400_000 ? props.t("studyReviewMinutes").replace("{count}", String(study.ratingInterval(rating) / 60_000)) : props.t("studyReviewDays").replace("{count}", String(study.ratingInterval(rating) / 86_400_000))}</span>
 							</Button>}</For>
 						</div>
-						<div class={styles.flashcardNavigation}>
+						<div class={styles.flashcardActions}>
 							<Button class={styles.button} type="button" disabled={study.revealed() || study.answered() || study.savingProgress() || study.progressFailed()} onClick={study.reveal}>{props.t("studyReveal")}</Button>
-							<Button class={styles.button} type="button" disabled={!study.answered() || study.savingProgress() || study.progressFailed()} onClick={study.next}>{props.t(study.index() + 1 >= study.sessionIndices().length ? "studyResults" : "studyNext")}</Button>
+							<div class={styles.practiceNavigation}>
+								<Button class={styles.button} type="button" disabled={!study.canEnd()} onClick={study.endStudy}>{props.t("studyEnd")}</Button>
+								<Button class={styles.button} type="button" disabled={!study.answered() || study.savingProgress() || study.progressFailed()} onClick={study.next}>{props.t(study.index() + 1 >= study.sessionIndices().length ? "studyResults" : "studyNext")}</Button>
+							</div>
 						</div>
 					</footer>
 				</Show>
 				<Show when={study.stage() === "running" && study.deck()?.kind === "cloze"}>
 					<footer class={styles.footer}><div class={styles.clozeActions}>
+						<Button class={styles.button} type="button" disabled={!study.canEnd()} onClick={study.endStudy}>{props.t("studyEnd")}</Button>
 						<Button class={styles.button} type="button" disabled={study.savingProgress() || study.progressFailed()} onClick={study.cloze.skip}>{props.t("studySkip")}</Button>
 						<Button class={styles.button} type="button" disabled={!props.connected || !study.cloze.complete() || study.savingProgress() || study.progressFailed()} onClick={study.cloze.submit}>{props.t("studyWrittenSubmit")}</Button>
 					</div></footer>
 				</Show>
 				<Show when={study.stage() === "running" && study.deck()?.kind === "correction"}>
-					<footer class={styles.footer}><div class={styles.clozeNavigation}>
-						<Button class={styles.button} type="button" disabled={study.answered() || !study.correction.selected().size || study.savingProgress() || study.progressFailed()} onClick={study.correction.submit}>{props.t("studyCorrectionCheck")}</Button>
-						<Button class={styles.button} type="button" disabled={study.answered() || study.savingProgress() || study.progressFailed()} onClick={study.correction.reveal}>{props.t("studyReveal")}</Button>
-						<Button class={styles.button} type="button" disabled={!study.answered() || study.savingProgress() || study.progressFailed()} onClick={study.next}>{props.t(study.index() + 1 >= study.sessionIndices().length || study.remainingLives() === 0 ? "studyResults" : "studyNext")}</Button>
+					<footer class={styles.footer}><div class={styles.practiceActions}>
+						<div class={styles.practiceNavigation}>
+							<Button class={styles.button} type="button" disabled={study.answered() || !study.correction.selected().size || study.savingProgress() || study.progressFailed()} onClick={study.correction.submit}>{props.t("studyCorrectionCheck")}</Button>
+							<Button class={styles.button} type="button" disabled={study.answered() || study.savingProgress() || study.progressFailed()} onClick={study.correction.reveal}>{props.t("studyReveal")}</Button>
+						</div>
+						<div class={styles.practiceNavigation}>
+							<Button class={styles.button} type="button" disabled={!study.canEnd()} onClick={study.endStudy}>{props.t("studyEnd")}</Button>
+							<Button class={styles.button} type="button" disabled={!study.answered() || study.savingProgress() || study.progressFailed()} onClick={study.next}>{props.t(study.index() + 1 >= study.sessionIndices().length || study.remainingLives() === 0 ? "studyResults" : "studyNext")}</Button>
+						</div>
 					</div></footer>
 				</Show>
 				<Show when={study.stage() === "report"}>
