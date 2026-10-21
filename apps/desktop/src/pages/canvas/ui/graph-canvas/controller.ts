@@ -1,6 +1,6 @@
 import { isTerminalTarget } from "@/shared/lib/terminal-focus";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
-import type { StudyNote } from "@/entities/note";
+import type { NoteSummary } from "@/entities/note";
 import type { ContextMenu, Gesture, PendingMove, Point, NodeSize, SelectionBox, View } from "./types";
 import { defaultPosition, graphEdgePath, graphEdges, HOME_HEIGHT, HOME_WIDTH, nodeSize } from "../../lib/graph";
 import { separateStaticNodes } from "../../lib/static-layout";
@@ -238,7 +238,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		};
 	};
 
-	const beginNodeDrag = (event: PointerEvent & { currentTarget: HTMLButtonElement }, note: StudyNote): void => {
+	const beginNodeDrag = (event: PointerEvent & { currentTarget: HTMLButtonElement }, note: NoteSummary): void => {
 		if (props.busy || gesture) return;
 		if (event.button === 2 || event.button === 1) {
 			event.preventDefault();
@@ -425,7 +425,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		zoomTo(view().scale * Math.exp(-delta * 0.001), event.clientX - rect.left, event.clientY - rect.top);
 	};
 
-	const openContextMenu = (event: MouseEvent, note: StudyNote): void => {
+	const openContextMenu = (event: MouseEvent, note: NoteSummary): void => {
 		event.preventDefault();
 		event.stopPropagation();
 		if (props.busy || props.mode !== "edit") return;
@@ -455,7 +455,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		contextMenu,
 		setContextMenu,
 		edges,
-		nodePosition: (note: StudyNote, index: number) =>
+		nodePosition: (note: NoteSummary, index: number) =>
 			positions()[note.id] ?? defaultPosition(index, props.notes.length, nodeSize(note)),
 		edgePath: (edge: ReturnType<typeof edges>[number]) => graphEdgePath(edge, positions(), props.notes.length),
 		beginPan,

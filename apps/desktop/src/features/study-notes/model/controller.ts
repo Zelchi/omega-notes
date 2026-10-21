@@ -15,6 +15,14 @@ import { useStudyRequestQueue } from "./request-queue";
 type PendingProgress = { vaultId: string; deckId: string; kind: StudyKind; progress: StudyProgress };
 type SavedStudy = StudyDeck | StudySummary;
 const itemCount = (value: SavedStudy) => "items" in value ? value.items.length : value.itemCount;
+const shuffled = <T,>(items: T[]): T[] => {
+	const result = [...items];
+	for (let index = result.length - 1; index > 0; index--) {
+		const other = Math.floor(Math.random() * (index + 1));
+		[result[index], result[other]] = [result[other], result[index]];
+	}
+	return result;
+};
 type Stage = "setup" | "generating" | "running" | "grading" | "result" | "report";
 const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initialKind: StudyKind) => {
 	const [open, setOpen] = createSignal(false), [kind, setKind] = createSignal<StudyKind>(initialKind);
@@ -22,12 +30,13 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	const { decks, setDecks, loading: libraryLoading, storageFailed } = library;
 	const [removing, setRemoving] = createSignal(false), [opening, setOpening] = createSignal(false);
 	const [committing, setCommitting] = createSignal(false);
-	const [generationSource, setGenerationSource] = createSignal<{ id: string; title: string }>();
 	const [generationElapsed, setGenerationElapsed] = createSignal(0), [generationAverage, setGenerationAverage] = createSignal<number>();
+	const [generationLoopEnabled, setGenerationLoopEnabled] = createSignal(false);
 	let generationClock: ReturnType<typeof setInterval> | undefined, generationClockOwner: AbortController | undefined, generationClockStartedAt = 0;
 	const loading = () => libraryLoading() || removing() || opening();
 	const [scrollTop, setScrollTop] = createSignal(0);
 	const [error, setError] = createSignal<string>(), [deck, setDeck] = createSignal<StudyDeck>();
+	const [sessionMaterials, setSessionMaterials] = createSignal<StudyDeck[]>([]);
 	const preferences = readStudyPreferences(initialKind);
 	const [count, setCount] = createSignal(preferences.count), [seconds, setSeconds] = createSignal(preferences.seconds), [lives, setLives] = createSignal(preferences.lives);
 	const savePreferences = () => saveStudyPreferences(initialKind, { count: count(), seconds: seconds(), lives: lives() });
@@ -114,27 +123,34 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	};
 	const resetSession = () => {
 		close(); ++revision; cancelGeneration(); review.reset(); cloze.reset(); correction.reset();
-		setCommitting(false); setGenerationSource(undefined);
+		setGenerationLoopEnabled(false);
+		setCommitting(false);
 		pendingProgress = undefined; progressSave = undefined; setRemoving(false); setOpening(false); setScrollTop(0); setProgressFailed(false); setSavingProgress(false); setError(undefined);
-		setStage("setup"); setDeck(undefined); setSessionIndices([]); setIndex(0);
+		setStage("setup"); setDeck(undefined); setSessionMaterials([]); setSessionIndices([]); setIndex(0);
 		setRevealed(false); setAnswered(false); setChoice(undefined); setOutcome(undefined); setCorrect(0);
 		setRemainingLives(lives()); setEndReason("complete"); pausedTime = seconds() * 1000;
 		setRemainingTime(seconds());
 	};
-	const contextNote = () => {
-		if (stage() === "setup") return options.currentNote();
-		const id = stage() === "generating" ? generationSource()?.id : deck()?.sourceNoteId;
-		if (!id) return undefined;
-		return options.notes().find(note => note.id === id) ?? { id, title: generationSource()?.id === id ? generationSource()!.title : options.t("studyDeletedSource") };
-	};
-	const context = createMemo(() => options.currentNote());
 	const contextId = createMemo(() => options.currentNote()?.id);
-	const saved = createMemo(() => decks().filter(deck => deck.kind === kind() && (!context() || deck.sourceNoteId === context()!.id)).sort((a, b) => b.createdAt - a.createdAt));
+	const saved = createMemo(() => decks().filter(deck => deck.kind === kind()).sort((a, b) => b.createdAt - a.createdAt));
 	createEffect(on(options.vaultId, resetSession));
 	createEffect(on(contextId, close));
 	createEffect(on(options.aiEnabled, enabled => { if (!enabled) resetSession(); }));
 	onCleanup(() => { disposed = true; ++revision; cancelGeneration(); stopTimer(); });
-	const finish = (reason: "complete" | "lives") => { stopTimer(); setEndReason(reason); setStage("result"); };
+	const returnToSetup = () => {
+		if (loading() || committing() || savingProgress() || progressFailed()) return;
+		setGenerationLoopEnabled(false);
+		++revision; cancelGeneration(); stopTimer(); review.reset(); cloze.reset(); correction.reset();
+		setError(undefined); setScrollTop(0); setClock(Date.now()); setStage("setup");
+		setDeck(undefined); setSessionMaterials([]); setSessionIndices([]); setIndex(0); setRevealed(false); setAnswered(false);
+		setChoice(undefined); setOutcome(undefined); setCorrect(0); setRemainingLives(lives());
+		setEndReason("complete"); pausedTime = seconds() * 1000; setRemainingTime(seconds());
+	};
+	const finish = (reason: "complete" | "lives") => {
+		stopTimer();
+		if (deck()?.kind === "quiz" && sessionIndices().length === 1) { returnToSetup(); return; }
+		setEndReason(reason); setStage("result");
+	};
 	const persistProgress = async () => {
 		const requestRevision = revision;
 		const pending = pendingProgress;
@@ -155,16 +171,21 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	};
 	const record = (outcome: StudyOutcome, itemIndex = sessionIndices()[index()], details?: StudySubmission & { feedback?: WrittenFeedback }, rating?: FlashcardRating) => {
 		const value = deck(), vaultId = options.vaultId();
-		if (!value || !vaultId || itemIndex === undefined) return;
+		const material = itemIndex === undefined ? undefined : sessionMaterials()[itemIndex];
+		if (!value || !material || !vaultId || itemIndex === undefined) return;
 		const now = Date.now(), progress = rating ? recordFlashcardRating(value.progress, itemIndex, rating, now) : recordStudyOutcome(value.progress, itemIndex, outcome, now);
 		if (details && (value.kind === "written" || value.kind === "cloze")) progress.responses = [...(progress.responses?.filter(entry => entry.itemIndex !== itemIndex) ?? []), { itemIndex, outcome, ...details, reviewedAt: now }].sort((a, b) => a.itemIndex - b.itemIndex);
+		const materialProgress = rating ? recordFlashcardRating(material.progress, 0, rating, now) : recordStudyOutcome(material.progress, 0, outcome, now);
+		if (details && (material.kind === "written" || material.kind === "cloze")) materialProgress.responses = [...(materialProgress.responses?.filter(entry => entry.itemIndex !== 0) ?? []), { itemIndex: 0, outcome, ...details, reviewedAt: now }];
 		setDeck(previous => previous?.id === value.id ? { ...previous, progress } : previous);
-		setDecks(previous => previous.map(deck => deck.id === value.id ? { ...deck, progress: { items: progress.items }, hasReport: !!progress.responses?.length } : deck));
-		pendingProgress = { vaultId, deckId: value.id, kind: value.kind, progress };
+		setSessionMaterials(previous => previous.map((entry, index) => index === itemIndex ? { ...entry, progress: materialProgress } : entry));
+		setDecks(previous => previous.map(entry => entry.id === material.id ? { ...entry, progress: { items: materialProgress.items }, hasReport: !!materialProgress.responses?.length } : entry));
+		pendingProgress = { vaultId, deckId: material.id, kind: material.kind, progress: materialProgress };
 		void persistProgress();
 	};
 	const dueCount = (value: SavedStudy) => dueStudyIndices(itemCount(value), value.progress, clock()).length;
 	const errorCount = (value: SavedStudy) => incorrectStudyIndices(value.progress).length;
+	const methodErrorCount = () => saved().reduce((total, value) => total + errorCount(value), 0);
 	const progressBlocked = () => savingProgress() || progressFailed() || review.evaluating();
 	const commitOutcome = (value: StudyOutcome) => {
 		if (!open() || stage() !== "running" || answered()) return;
@@ -203,19 +224,86 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 			if (!disposed && requestRevision === revision) setError(options.t("studyStorageFailed"));
 		} finally { if (!disposed && requestRevision === revision) setOpening(false); }
 	};
-	const start = async (saved: SavedStudy, mode: "all" | "due" | "errors" = "all") => {
+	const start = async (saved: SavedStudy, mode: "all" | "due" | "errors" = "all", materials?: StudyDeck[]) => {
 		if (!options.aiEnabled() || progressBlocked() || loading() || storageFailed()) return;
 		const requestRevision = revision, vaultId = options.vaultId();
 		const value = await loadSession(saved);
 		if (!value || disposed || requestRevision !== revision || vaultId !== options.vaultId()) return;
+		const members = materials ?? (value.id === deck()?.id ? sessionMaterials() : [value]);
+		if (members.length !== value.items.length) return;
 		const indices = mode === "due" ? dueStudyIndices(value.items.length, value.progress, Date.now()) :
 			mode === "errors" ? incorrectStudyIndices(value.progress) : value.items.map((_, index) => index);
 		if (!indices.length) return;
 		setSessionIndices(indices); setError(undefined); setScrollTop(0);
 		review.reset(); cloze.reset(); correction.reset(); setOutcome(undefined);
-		stopTimer(); setDeck(value); setIndex(0); setCorrect(0); setRevealed(false); setAnswered(false); setChoice(undefined);
+		stopTimer(); setDeck(value); setSessionMaterials(members); setIndex(0); setCorrect(0); setRevealed(false); setAnswered(false); setChoice(undefined);
 		setRemainingLives(lives()); setEndReason("complete"); setStage("running");
 		if (value.kind !== "flashcards") startTimer();
+	};
+	const studyRandom = async () => {
+		if (!options.aiEnabled() || progressBlocked() || loading() || storageFailed()) return;
+		const vaultId = options.vaultId(), requestRevision = revision;
+		if (!vaultId) return;
+		const candidates = saved();
+		if (!candidates.length) return;
+		const previouslyMissed = shuffled(candidates.filter(value => errorCount(value) > 0));
+		const otherItems = shuffled(candidates.filter(value => errorCount(value) === 0));
+		const selected = [...previouslyMissed, ...otherItems].slice(0, count());
+		setOpening(true); setError(undefined);
+		try {
+			const materials = await Promise.all(selected.map(value => library.read(vaultId, value.id, value.kind)));
+			if (disposed || requestRevision !== revision || vaultId !== options.vaultId()) return;
+			setDecks(previous => previous.map(summary => {
+				const material = materials.find(value => value.id === summary.id);
+				return material ? studySummary(material) : summary;
+			}));
+			const progressItems = materials.flatMap((material, index) => (material.progress?.items ?? []).map(item => ({ ...item, itemIndex: index })));
+			const responses = materials.flatMap((material, index) => (material.progress?.responses ?? []).map(response => ({ ...response, itemIndex: index })));
+			const value: StudyDeck = {
+				id: crypto.randomUUID(), kind: initialKind, title: options.t("studySaved"), createdAt: Date.now(),
+				sourceNoteId: options.currentNote()?.id,
+				items: materials.flatMap(material => material.items),
+				progress: { items: progressItems, responses: responses.length ? responses : undefined },
+			};
+			setOpening(false);
+			void start(value, "all", materials);
+		} catch {
+			if (!disposed && requestRevision === revision) setError(options.t("studyStorageFailed"));
+		} finally {
+			if (!disposed && requestRevision === revision) setOpening(false);
+		}
+	};
+	const reviewMethodErrors = async () => {
+		if (!options.aiEnabled() || progressBlocked() || loading() || storageFailed()) return;
+		const vaultId = options.vaultId(), requestRevision = revision;
+		if (!vaultId) return;
+		const candidates = saved().filter(value => errorCount(value) > 0);
+		if (!candidates.length) return;
+		setOpening(true); setError(undefined);
+		try {
+			const materials = await Promise.all(candidates.map(value => library.read(vaultId, value.id, value.kind)));
+			if (disposed || requestRevision !== revision || vaultId !== options.vaultId()) return;
+			const withErrors = materials.filter(value => errorCount(value) > 0);
+			if (!withErrors.length) return;
+			setDecks(previous => previous.map(summary => {
+				const material = withErrors.find(value => value.id === summary.id);
+				return material ? studySummary(material) : summary;
+			}));
+			const progressItems = withErrors.flatMap((material, index) => (material.progress?.items ?? []).map(item => ({ ...item, itemIndex: index })));
+			const responses = withErrors.flatMap((material, index) => (material.progress?.responses ?? []).map(response => ({ ...response, itemIndex: index })));
+			const value: StudyDeck = {
+				id: crypto.randomUUID(), kind: initialKind, title: options.t("studySaved"), createdAt: Date.now(),
+				sourceNoteId: options.currentNote()?.id,
+				items: withErrors.flatMap(material => material.items),
+				progress: { items: progressItems, responses: responses.length ? responses : undefined },
+			};
+			setOpening(false);
+			void start(value, "errors", withErrors);
+		} catch {
+			if (!disposed && requestRevision === revision) setError(options.t("studyStorageFailed"));
+		} finally {
+			if (!disposed && requestRevision === revision) setOpening(false);
+		}
 	};
 	const next = () => {
 		if (progressBlocked() || stage() !== "running") return;
@@ -228,34 +316,74 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	};
 	const generate = async () => {
 		const vaultId = options.vaultId();
-		if (progressBlocked() || !vaultId || !options.canGenerate() || loading() || storageFailed() || stage() === "generating") return;
-		if (decks().length + library.invalidSessions().length >= 50) { setError(options.t("studyLimitReached")); return; }
-		const source = options.currentNote();
-		const plan = createStudyPlan(options.notes(), source, count());
-		if (!plan.length) { setError(options.t("studyNoContent")); return; }
+		if (progressBlocked() || !vaultId || !options.canGenerate() || loading() || storageFailed() || stage() === "generating") {
+			if (generationLoopEnabled()) setGenerationLoopEnabled(false);
+			return;
+		}
+		if (decks().length + library.invalidItems().length >= 1000) { setError(options.t("studyLimitReached")); setGenerationLoopEnabled(false); return; }
+		const plan = createStudyPlan(options.notes(), 1);
+		if (!plan.length) { setError(options.t("studyNoContent")); setGenerationLoopEnabled(false); return; }
 		const token = new AbortController(); abort = token;
 		const requestRevision = revision, requestedKind = kind();
 		const normalAiMode = options.normalAiMode();
-		const generationStartedAt = performance.now();
-		if (normalAiMode) startGenerationClock(token, generationStartedAt, readStudyGenerationTimes(requestedKind));
-		else stopGenerationClock(undefined, true);
-		setGenerationSource(source ? { id: source.id, title: source.title } : undefined);
+		const generationTimes = readStudyGenerationTimes(requestedKind);
+		if (normalAiMode) {
+			setGenerationElapsed(0);
+			setGenerationAverage(generationTimes.length ? generationTimes.reduce((sum, time) => sum + time, 0) / generationTimes.length : undefined);
+		} else stopGenerationClock(undefined, true);
 		setError(undefined); setScrollTop(0); setStage("generating");
+		let continueAfterGeneration = false;
+		const itemStartedAt = new Map<string, number>();
+		const uniqueTitle = (raw: string) => {
+			const normalize = (value: string) => value.normalize("NFKC").toLocaleLowerCase().trim();
+			const used = new Set(decks().filter(value => value.kind === requestedKind).map(value => normalize(value.title)));
+			if (!used.has(normalize(raw))) return raw;
+			for (let suffix = 2; suffix < 100_000; suffix++) {
+				const ending = ` #${suffix}`;
+				const candidate = `${raw.slice(0, 200 - ending.length).trimEnd()}${ending}`;
+				if (!used.has(normalize(candidate))) return candidate;
+			}
+			throw Error("STUDY_INVALID_RESPONSE");
+		};
 		try {
 			const parsed = await generateStudyMaterial(options, {
-				plan, kind: requestedKind, focused: !!source, signal: token.signal,
+				plan, kind: requestedKind, signal: token.signal,
 				active: () => !disposed && requestRevision === revision && vaultId === options.vaultId(),
+				onRequestStart: assignment => {
+					if (itemStartedAt.has(assignment.itemId)) return;
+					const startedAt = performance.now();
+					itemStartedAt.set(assignment.itemId, startedAt);
+					if (normalAiMode) startGenerationClock(token, startedAt, readStudyGenerationTimes(requestedKind));
+				},
+				onItem: async material => {
+					const value: StudyDeck = {
+						id: crypto.randomUUID(), kind: requestedKind, title: uniqueTitle(material.title), createdAt: Date.now(),
+						sourceNoteId: material.assignment.noteId, items: [material.item],
+					};
+					setCommitting(true);
+					const saved = await library.save(vaultId, value, token.signal);
+					setCommitting(false);
+					if (!saved) return;
+					if (disposed || vaultId !== options.vaultId() || requestRevision !== revision || token.signal.aborted) throw Error("AI_CANCELLED");
+					setDecks(previous => [studySummary(value), ...previous.filter(entry => entry.id !== value.id)]);
+					const startedAt = itemStartedAt.get(material.assignment.itemId);
+					if (normalAiMode && options.normalAiMode() && startedAt !== undefined) {
+						saveStudyGenerationTime(requestedKind, performance.now() - startedAt);
+						const times = readStudyGenerationTimes(requestedKind);
+						setGenerationAverage(times.reduce((sum, time) => sum + time, 0) / times.length);
+					}
+				},
 			});
 			if (disposed || token.signal.aborted || requestRevision !== revision || vaultId !== options.vaultId()) return;
-			if (normalAiMode && options.normalAiMode()) saveStudyGenerationTime(requestedKind, performance.now() - generationStartedAt);
-			const value: StudyDeck = { ...parsed, id: crypto.randomUUID(), kind: requestedKind, createdAt: Date.now(), sourceNoteId: source?.id };
-			setCommitting(true);
-			if (!(await library.save(vaultId, value, token.signal))) return;
-			if (disposed || vaultId !== options.vaultId() || requestRevision !== revision || token.signal.aborted) return;
-			setDecks(previous => [studySummary(value), ...previous.filter(summary => summary.id !== value.id)]);
-			if (requestRevision === revision && !token.signal.aborted) void start(value);
+			if (parsed.length !== 1) throw Error("STUDY_STORAGE_FAILED");
+			setCommitting(false);
+			if (requestRevision === revision && !token.signal.aborted) {
+				setStage("setup");
+				continueAfterGeneration = generationLoopEnabled();
+			}
 		} catch (failure) {
 			if (disposed || token.signal.aborted || requestRevision !== revision || vaultId !== options.vaultId()) return;
+			setGenerationLoopEnabled(false);
 			const code = failure instanceof Error ? failure.message : String(failure);
 			setError(failure instanceof StudyItemCountError ? options.t("studyItemCountMismatch").replace("{expected}", String(failure.expected)).replace("{received}", String(failure.received))
 				: code === "STUDY_INSUFFICIENT_CONTENT" ? options.t("studyInsufficientContent")
@@ -265,15 +393,18 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		} finally {
 			stopGenerationClock(token);
 			if (abort === token) { abort = undefined; setCommitting(false); }
+			if (continueAfterGeneration && generationLoopEnabled() && !disposed && requestRevision === revision) {
+				queueMicrotask(() => { if (generationLoopEnabled() && stage() === "setup") void generate(); });
+			}
 		}
 	};
 	return {
-		open, review, cloze, correction, outcome, contextNote, kind, stage, deck, current, saved, count, seconds, lives, loading, storageFailed,
-		generationElapsed, generationAverage, error: () => error() ?? library.error(),
+		open, review, cloze, correction, outcome, kind, stage, deck, current, saved, count, seconds, lives, loading, storageFailed,
+		generationElapsed, generationAverage, generationLoopEnabled, error: () => error() ?? library.error(),
 		index, revealed, answered, choice, correct, remainingLives, remainingTime, endReason, scrollTop, setScrollTop,
-		close, generate, start, answer, next, sessionIndices, dueCount, errorCount, savingProgress, progressFailed,
+		close, generate, start, studyRandom, reviewMethodErrors, methodErrorCount, answer, next, sessionIndices, dueCount, errorCount, savingProgress, progressFailed,
 		flushSave: library.flushSave,
-		invalidSessions: () => library.invalidSessions().filter(session => session.kind === kind()),
+		invalidItems: () => library.invalidItems().filter(item => item.kind === kind()),
 		accuracy: (value: SavedStudy) => {
 			const items = value.progress?.items ?? [];
 			return items.length ? Math.round(100 * items.filter(item => value.kind === "flashcards" && item.lastRating !== undefined ? item.lastRating === "easy" : item.lastOutcome === "correct").length / items.length) : undefined;
@@ -283,7 +414,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 			const requestRevision = revision, vaultId = options.vaultId();
 			const value = await loadSession(saved);
 			if (!value?.progress?.responses?.length || disposed || requestRevision !== revision || vaultId !== options.vaultId()) return;
-			stopTimer(); review.reset(); cloze.reset(); correction.reset(); setScrollTop(0); setDeck(value); setError(undefined); setStage("report");
+			stopTimer(); review.reset(); cloze.reset(); correction.reset(); setScrollTop(0); setDeck(value); setSessionMaterials([value]); setError(undefined); setStage("report");
 		},
 		retryProgress: persistProgress,
 		clearProgress: async (value: SavedStudy) => {
@@ -291,6 +422,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 			const vaultId = options.vaultId(); if (!vaultId) return;
 			const progress: StudyProgress = { items: [] };
 			setDecks(previous => previous.map(deck => deck.id === value.id ? { ...deck, progress: { items: [] }, hasReport: false } : deck));
+			setSessionMaterials(previous => previous.map(material => material.id === value.id ? { ...material, progress } : material));
 			setDeck(previous => previous?.id === value.id ? { ...previous, progress } : previous);
 			pendingProgress = { vaultId, deckId: value.id, kind: value.kind, progress };
 			await persistProgress();
@@ -303,14 +435,8 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 			if (stage() === "running" && deck()?.kind !== "flashcards" && !answered()) startTimer(pausedTime);
 		},
 		canGoHome: () => stage() !== "setup" && !loading() && !committing() && !savingProgress() && !progressFailed(),
-		setup: () => {
-			if (loading() || committing() || savingProgress() || progressFailed()) return;
-			++revision; cancelGeneration(); stopTimer(); review.reset(); cloze.reset(); correction.reset();
-			setError(undefined); setScrollTop(0); setClock(Date.now()); setStage("setup");
-			setDeck(undefined); setSessionIndices([]); setIndex(0); setRevealed(false); setAnswered(false);
-			setChoice(undefined); setOutcome(undefined); setCorrect(0); setRemainingLives(lives());
-			setEndReason("complete"); pausedTime = seconds() * 1000; setRemainingTime(seconds());
-		},
+		toggleGenerationLoop: () => { if (stage() === "generating") setGenerationLoopEnabled(value => !value); },
+		setup: returnToSetup,
 		reveal: () => setRevealed(true),
 		ratingInterval: (rating: FlashcardRating) => flashcardInterval(deck()?.progress, sessionIndices()[index()], rating),
 		mark: (rating: FlashcardRating) => {
@@ -331,12 +457,12 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 			finally { if (!disposed && revision === requestRevision) setRemoving(false); }
 		},
 		randomNote: () => {
-			const candidates = options.notes().filter(note => note.id !== options.currentNote()?.id);
+			const candidates = options.noteSummaries().filter(note => note.id !== options.currentNote()?.id);
 			if (!candidates.length) return;
 			const chosen = candidates[Math.floor(Math.random() * candidates.length)];
 			close(); void options.onOpenNote(chosen);
 		},
-		canRandom: () => options.notes().some(note => note.id !== options.currentNote()?.id),
+		canRandom: () => options.noteSummaries().some(note => note.id !== options.currentNote()?.id),
 	};
 };
 type StudySession = ReturnType<typeof useStudySession>;
@@ -367,12 +493,11 @@ export const useStudies = (options: StudyEnvironment): StudiesController => {
 			close(); setSelected(value); sessions[value].show(value);
 		},
 		outcome: () => current().outcome(),
-		contextNote: () => current().contextNote(),
 		stage: () => current().stage(),
 		deck: () => current().deck(),
 		current: () => current().current(),
 		saved: () => current().saved(),
-		invalidSessions: () => current().invalidSessions(),
+		invalidItems: () => current().invalidItems(),
 		count: () => current().count(),
 		seconds: () => current().seconds(),
 		lives: () => current().lives(),
@@ -380,6 +505,7 @@ export const useStudies = (options: StudyEnvironment): StudiesController => {
 		storageFailed: () => current().storageFailed(),
 		generationElapsed: () => current().generationElapsed(),
 		generationAverage: () => current().generationAverage(),
+		generationLoopEnabled: () => current().generationLoopEnabled(),
 		error: () => current().error(),
 		index: () => current().index(),
 		revealed: () => current().revealed(),
@@ -392,7 +518,11 @@ export const useStudies = (options: StudyEnvironment): StudiesController => {
 		scrollTop: () => current().scrollTop(),
 		setScrollTop: (...args) => current().setScrollTop(...args),
 		generate: () => current().generate(),
+		toggleGenerationLoop: () => current().toggleGenerationLoop(),
 		start: (...args) => current().start(...args),
+		studyRandom: () => current().studyRandom(),
+		reviewMethodErrors: () => current().reviewMethodErrors(),
+		methodErrorCount: () => current().methodErrorCount(),
 		answer: (...args) => current().answer(...args),
 		next: () => current().next(),
 		sessionIndices: () => current().sessionIndices(),

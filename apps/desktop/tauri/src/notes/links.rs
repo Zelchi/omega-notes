@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use super::models::{NoteDocument, NoteElement, StudyNote};
+use super::models::{NoteDocument, NoteElement, NoteSummary};
 use crate::names::normalize_name;
 
 pub(crate) fn note_title_indexes(
-    notes: &[StudyNote],
+    notes: &[NoteSummary],
 ) -> (HashMap<String, String>, HashMap<String, String>) {
     let mut by_id = HashMap::new();
     for note in notes {

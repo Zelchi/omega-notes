@@ -3,7 +3,7 @@ import type { TableBlock } from "@/features/edit-table";
 import { batch, createEffect, createMemo, createSignal, onCleanup, onMount, untrack, type Accessor, type JSX } from "solid-js";
 import {
 	paragraphStarts, paragraphIndexAt, remapParagraphAlignments,
-	type NotePositionedElement, type NoteTextElement, type NoteTextAlignment, type StudyNote
+	type NotePositionedElement, type NoteTextElement, type NoteTextAlignment, type NoteSummary
 } from "@/entities/note";
 import { alignParagraphSelection, selectionAlignment, type ParagraphAlignmentHandler } from "@/features/align-text";
 import type { TranslationKey } from "@/shared/lib/i18n";
@@ -33,9 +33,9 @@ type TextMetrics = { font: string; lineHeight: number; letterSpacing: number };
 
 export type NoteTextNodeProps = {
 	element: Accessor<NoteTextElement>;
-	notes: StudyNote[];
+	notes: NoteSummary[];
 	t: (key: TranslationKey) => string;
-	onOpenNote: (note: StudyNote) => void;
+	onOpenNote: (note: NoteSummary) => void;
 	onOpenExternalUrl: (url: string) => void;
 	wraps: Accessor<NotePositionedElement[]>;
 	onHeightChange?: (height: number) => void;

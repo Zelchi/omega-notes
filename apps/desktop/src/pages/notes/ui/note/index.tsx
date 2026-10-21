@@ -15,6 +15,8 @@ const Note: Component<NoteProps> = (props) => (
 				<NoteEditor
 					note={note()}
 					notes={props.notes}
+					loadAllNotes={props.loadAllNotes}
+					releaseLoadedNotes={props.releaseLoadedNotes}
 					referenceTitles={props.referenceTitles}
 					mode={props.mode}
 					t={props.t}

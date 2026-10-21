@@ -1,27 +1,48 @@
 import Button from "@/shared/ui/button";
-import { lazy, Show, type Component } from "solid-js";
+import { createEffect, createSignal, lazy, Show, Suspense, type Component } from "solid-js";
 
-import { Canvas } from "@/pages/canvas";
-import { Note } from "@/pages/notes";
-import { formatAiChatShortcut, SettingsDialog } from "@/features/change-preferences";
+import { formatAiChatShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
 import WindowTitlebar from "./ui/window-titlebar";
-import { VaultDialog } from "@/features/manage-vault";
 import FloatingSearch from "./ui/floating-search";
-import NoteLoadIssuesDialog from "./ui/note-load-issues-dialog";
-import NoteNameDialog from "./ui/note-name-dialog";
 
 import { useAppController } from "./controller";
 import { styles } from "./style.css.ts";
-import { CheckForUpdatesButton } from "@/features/check-for-updates";
-import { StudyToolbar, StudyDialog } from "@/features/study-notes";
-import { DeleteNoteDialog } from "@/features/delete-note";
-import { AiChatPanel } from "@/features/chat-with-ai";
 import { BackgroundThemeProvider } from "@/shared/ui/ascii-backdrop";
 
+const StudyToolbar = lazy(() => import("@/features/study-notes/ui/study-toolbar"));
+const Canvas = lazy(() => import("@/pages/canvas/ui/canvas"));
+const Note = lazy(() => import("@/pages/notes/ui/note"));
+const SettingsDialog = lazy(() => import("@/features/change-preferences/ui/settings-dialog"));
+const VaultDialog = lazy(() => import("@/features/manage-vault/ui/vault-dialog"));
+const StudyDialog = lazy(() => import("@/features/study-notes/ui/study-dialog"));
+const DeleteNoteDialog = lazy(() => import("@/features/delete-note/ui/delete-note-dialog"));
+const NoteLoadIssuesDialog = lazy(() => import("./ui/note-load-issues-dialog"));
+const NoteNameDialog = lazy(() => import("./ui/note-name-dialog"));
+const AiChatPanel = lazy(() => import("@/features/chat-with-ai/ui/ai-chat-panel"));
 const GambiarraPanel = lazy(() => import("@/features/gambiarra-terminal/ui/terminal-panel"));
+const CheckForUpdatesButton = lazy(() =>
+	import("@/features/check-for-updates/ui/check-for-updates-button").then((module) => ({ default: module.CheckForUpdatesButton })),
+);
+
+const mountOnFirstOpen = (isOpen: () => boolean) => {
+	const [mounted, setMounted] = createSignal(isOpen());
+	createEffect(() => {
+		if (isOpen()) setMounted(true);
+	});
+	return mounted;
+};
 
 const App: Component = () => {
 	const app = useAppController();
+	const settingsMounted = mountOnFirstOpen(() => app.settingsOpen());
+	const studyToolbarVisible = () => Boolean(app.vaults.activeVaultId()) && !app.notes.loading() && app.navigation.mode() === "view" && !app.navigation.navigating();
+	const studyToolbarMounted = mountOnFirstOpen(studyToolbarVisible);
+	const vaultDialogMounted = mountOnFirstOpen(() => app.vaults.dialogOpen());
+	const studyDialogMounted = mountOnFirstOpen(() => app.studies.open());
+	const deleteDialogMounted = mountOnFirstOpen(() => Boolean(app.noteDeletion.target()));
+	const noteIssuesDialogMounted = mountOnFirstOpen(() => app.notes.loadIssues().length > 0);
+	const noteNameDialogMounted = mountOnFirstOpen(() => Boolean(app.navigation.nameDialog()));
+	const chatMounted = mountOnFirstOpen(() => app.chatOpen() || app.aiChat.open());
 
 	return (
 		<BackgroundThemeProvider value={app.preferences.backgroundTheme}>
@@ -31,8 +52,9 @@ const App: Component = () => {
 				maximized={app.windowControls.maximized()}
 				backgroundTheme={app.preferences.backgroundTheme()}
 				vaultName={app.vaults.activeVault()?.name}
+				vaultDialogOpen={app.vaults.dialogOpen()}
 				t={app.t}
-				onVaultClick={app.vaults.openDialog}
+				onVaultClick={() => app.vaults.dialogOpen() ? app.vaults.closeDialog() : app.vaults.openDialog()}
 				onSettings={() => app.setSettingsOpen((open) => !open)}
 				settingsOpen={app.settingsOpen()}
 				onAiChat={() => app.setChatOpen((open) => !open)}
@@ -48,12 +70,13 @@ const App: Component = () => {
 					notes={app.notes.sortedNotes()}
 					mode={app.temporaryReading.mode()}
 					showBackButton={true}
-					backButtonDisabled={app.navigation.navigating() || app.notes.loading() || app.navigation.route() === "canvas" && !app.navigation.selectedNote()}
+					backButtonDisabled={app.navigation.navigating() || app.notes.loading() || app.navigation.route() === "canvas" && !app.navigation.hasLastNote()}
 					canGoBack={app.navigation.canGoBack()}
 					canGoForward={app.navigation.canGoForward()}
 					onHistoryBack={() => void app.navigation.goBack()}
 					onHistoryForward={() => void app.navigation.goForward()}
 					isOnCanvas={app.navigation.route() === "canvas"}
+					searchShortcut={app.preferences.searchShortcut()}
 					t={app.t}
 					onBack={() => {
 						if (app.navigation.route() === "note") app.navigation.backToCanvas();
@@ -64,48 +87,52 @@ const App: Component = () => {
 				/>
 				<div class={styles.pageViewport} style={{ "pointer-events": app.navigation.navigating() ? "none" : undefined }} aria-busy={app.navigation.navigating()}>
 					<div class={styles.pageSurface}>
-						<Show
-							when={app.navigation.route() === "canvas"}
-							fallback={
-								<Note
-									note={app.navigation.selectedNote()}
-									notes={app.notes.notes()}
-									referenceTitles={app.notes.referenceTitles()}
-									mode={app.temporaryReading.mode()}
-									t={app.t}
-									onDelete={() => { const note = app.navigation.selectedNote(); if (note) void app.noteDeletion.request(note); }}
-									deleteDisabled={app.noteDeletion.pending() || app.canvasHistory.pending() || app.notes.loading()}
-									onTitleChange={app.navigation.updateTitle}
-									onDocumentChange={app.navigation.updateDocument}
-									onOpenMissingNote={(target) => void app.noteReferences.open(target)}
+						<Suspense fallback={null}>
+							<Show
+								when={app.navigation.route() === "canvas"}
+								fallback={
+									<Note
+										note={app.navigation.selectedNote()}
+										notes={app.notes.notes()}
+										loadAllNotes={app.notes.loadAllNotes}
+										releaseLoadedNotes={() => app.notes.releaseLoadedNotes(app.navigation.selectedNote()?.id)}
+										referenceTitles={app.notes.referenceTitles()}
+										mode={app.temporaryReading.mode()}
+										t={app.t}
+										onDelete={() => { const note = app.navigation.selectedNote(); const summary = note && app.notes.notes().find(item => item.id === note.id); if (summary) void app.noteDeletion.request(summary); }}
+										deleteDisabled={app.noteDeletion.pending() || app.canvasHistory.pending() || app.notes.loading()}
+										onTitleChange={app.navigation.updateTitle}
+										onDocumentChange={app.navigation.updateDocument}
+										onOpenMissingNote={(target) => void app.noteReferences.open(target)}
+										onOpenNote={app.navigation.openNote}
+										onRegisterBeforeShutdown={app.registerBeforeShutdown}
+									/>
+								}
+							>
+								<Canvas
+									vaultId={app.vaults.activeVaultId() ?? ""}
+									layout={app.preferences.canvasLayout()}
+									ready={!app.notes.loading() || app.notes.hasLoadedVault()}
+									notes={app.notes.sortedNotes()}
+									onCreateNote={app.navigation.createNoteAtCanvas}
 									onOpenNote={app.navigation.openNote}
-									onRegisterBeforeShutdown={app.registerBeforeShutdown}
+									onRequestRename={(note) => void app.navigation.requestRenameNote(note)}
+									onDeleteNote={app.noteDeletion.request}
+									busy={app.canvasHistory.pending() || app.vaultActionPending() || app.navigation.navigating()}
+									suspended={app.navigation.navigating()}
+									restoration={app.canvasHistory.restoration()?.vaultId === app.vaults.activeVaultId() ? app.canvasHistory.restoration() : undefined}
+									onRegisterHistory={app.canvasHistory.register}
+									onHistoryRestored={app.canvasHistory.restored}
+									onNoteCreated={app.canvasHistory.created}
+									onNotesMoved={app.canvasHistory.moved}
+									mode={app.navigation.mode()}
+									t={app.t}
+									centerOnMount={app.navigation.canvasCenterOnMount()}
+									onCanvasMount={() => app.navigation.setCenteredAtLaunch(true)}
+									hideCanvasControls={app.preferences.hideCanvasControls()}
 								/>
-							}
-						>
-							<Canvas
-								vaultId={app.vaults.activeVaultId() ?? ""}
-								layout={app.preferences.canvasLayout()}
-								ready={!app.notes.loading() || app.notes.hasLoadedVault()}
-								notes={app.notes.sortedNotes()}
-								onCreateNote={app.navigation.createNoteAtCanvas}
-								onOpenNote={app.navigation.openNote}
-								onRequestRename={(note) => void app.navigation.requestRenameNote(note)}
-								onDeleteNote={app.noteDeletion.request}
-								busy={app.canvasHistory.pending() || app.vaultActionPending() || app.navigation.navigating()}
-								suspended={app.navigation.navigating()}
-								restoration={app.canvasHistory.restoration()?.vaultId === app.vaults.activeVaultId() ? app.canvasHistory.restoration() : undefined}
-								onRegisterHistory={app.canvasHistory.register}
-								onHistoryRestored={app.canvasHistory.restored}
-								onNoteCreated={app.canvasHistory.created}
-								onNotesMoved={app.canvasHistory.moved}
-								mode={app.navigation.mode()}
-								t={app.t}
-								centerOnMount={app.navigation.canvasCenterOnMount()}
-								onCanvasMount={() => app.navigation.setCenteredAtLaunch(true)}
-								hideCanvasControls={app.preferences.hideCanvasControls()}
-							/>
-						</Show>
+							</Show>
+						</Suspense>
 					</div>
 				</div>
 				<Show when={app.noteReferences.error()}>
@@ -131,84 +158,118 @@ const App: Component = () => {
 						</Button>
 					</div>
 				</Show>
-				<StudyToolbar study={app.studies} t={app.t} aiEnabled={app.chatAvailable()}
-					visible={Boolean(app.vaults.activeVaultId()) && !app.notes.loading() && app.navigation.mode() === "view" && !app.navigation.navigating()} />
+				<Show when={studyToolbarMounted()}>
+					<Suspense fallback={null}>
+						<StudyToolbar study={app.studies} t={app.t} aiEnabled={app.chatAvailable()} visible={studyToolbarVisible()} />
+					</Suspense>
+				</Show>
 			</main>
-			<StudyDialog study={app.studies} t={app.t} notes={app.notes.notes()} referenceTitles={app.notes.referenceTitles()}
-				canGenerate={app.canGenerateStudy()} connected={app.studyConnected()}
-				normalAiMode={!app.preferences.gambiarraEnabled()}
-				aiBusy={app.studyAiBusy()} cliRequest={app.cliStudies.request()}
-				onOpenCli={() => { app.studies.close(); app.setChatOpen(true); }}
-				chatBusy={app.aiChat.sending() || app.aiChat.chat().busy}
-				onConnect={() => app.aiChat.setOpen(true)} onOpenNote={app.openStudyNote} />
+			<Show when={studyDialogMounted()}>
+				<Suspense fallback={null}>
+					<StudyDialog study={app.studies} t={app.t} notes={app.notes.notes()} referenceTitles={app.notes.referenceTitles()}
+						canGenerate={app.canGenerateStudy()} connected={app.studyConnected()}
+						normalAiMode={!app.preferences.gambiarraEnabled()}
+						aiBusy={app.studyAiBusy()} cliRequest={app.cliStudies.request()}
+						onOpenCli={() => { app.studies.close(); app.setChatOpen(true); }}
+						chatBusy={app.aiChat.sending() || app.aiChat.chat().busy}
+						onConnect={() => app.aiChat.setOpen(true)} onOpenNote={app.openStudyNote} />
+				</Suspense>
+			</Show>
 
-			<DeleteNoteDialog note={app.noteDeletion.target()} pending={app.noteDeletion.pending()} error={app.noteDeletion.error()}
-				t={app.t} onClose={app.noteDeletion.close} onConfirm={app.noteDeletion.confirm} />
-			<SettingsDialog
-				soundVolume={app.preferences.soundVolume()}
-				onSoundVolumeChange={app.preferences.setSoundVolume}
-				aiResetting={app.aiChat.resetting()}
-				aiCleanupError={app.aiChat.cleanupError()}
-				canvasLayout={app.preferences.canvasLayout()}
-				onCanvasLayoutChange={app.preferences.setCanvasLayout}
-				aiFeaturesEnabled={app.preferences.aiFeaturesEnabled()}
-				aiChatShortcut={app.preferences.aiChatShortcut()}
-				onAiChatShortcutChange={app.preferences.setAiChatShortcut}
-				onAiFeaturesEnabledChange={app.preferences.setAiFeaturesEnabled}
-				gambiarraEnabled={app.preferences.gambiarraEnabled()}
-				onGambiarraEnabledChange={app.preferences.setGambiarraEnabled}
-				footer={<CheckForUpdatesButton t={app.t} updates={app.updates} />}
-				open={app.settingsOpen()}
-				centerCanvasOnLaunch={app.preferences.centerCanvasOnLaunch()}
-				hideCanvasControls={app.preferences.hideCanvasControls()}
-				language={app.preferences.language()}
-				theme={app.preferences.theme()}
-				backgroundTheme={app.preferences.backgroundTheme()}
-				textCursor={app.preferences.textCursor()}
-				t={app.t}
-				onClose={() => app.setSettingsOpen(false)}
-				onCenterCanvasChange={app.preferences.setCenterCanvasOnLaunch}
-				onHideCanvasControlsChange={app.preferences.setHideCanvasControls}
-				onLanguageChange={app.preferences.setLanguage}
-				onThemeChange={app.preferences.setTheme}
-				onBackgroundThemeChange={app.preferences.setBackgroundTheme}
-				onTextCursorChange={app.preferences.setTextCursor}
-			/>
-			<NoteNameDialog
-				mode={app.navigation.nameDialog()}
-				title={app.navigation.nameDialogTitle()}
-				error={app.navigation.nameDialogError()}
-				saving={app.navigation.savingName()}
-				t={app.t}
-				onTitleChange={app.navigation.setNameDialogTitle}
-				onClose={app.navigation.closeNameDialog}
-				onSubmit={app.navigation.confirmNameDialog}
-			/>
-			<VaultDialog
-				open={app.vaults.dialogOpen()}
-				required={!app.vaults.activeVaultId()}
-				vaults={app.vaults.vaults()}
-				activeVaultId={app.vaults.activeVaultId()}
-				getDetails={app.vaults.getDetails}
-				error={app.vaults.error()}
-				errorAction={app.vaults.errorAction()}
-				saving={app.vaults.saving() || app.vaultActionPending() || app.canvasHistory.pending() || app.noteReferences.pending()}
-				t={app.t}
-				onClose={app.vaults.closeDialog}
-				onClearError={app.vaults.clearError}
-				onRetryLoad={() => void app.vaults.retryLoad()}
-				onCreate={app.createVault}
-				onRename={app.renameVault}
-				onDelete={app.deleteVault}
-				onSelect={(vault) => void app.selectVault(vault)}
-				onReorder={app.vaults.reorder}
-			/>
-			<NoteLoadIssuesDialog issues={app.notes.loadIssues()} t={app.t} onClose={app.notes.dismissLoadIssues} />
-			<Show when={app.preferences.gambiarraEnabled()} fallback={<AiChatPanel aiChat={app.aiChat} notes={app.notes.notes()}
-				onOpenNote={(note) => void app.openAiNote(note)} t={app.t} />}>
-				<GambiarraPanel open={app.chatOpen()} vaultId={app.vaults.activeVaultId()}
-					onClose={() => app.setChatOpen(false)} t={app.t} studyRequest={app.cliStudies.request()}
-					canConfirmStudy={!!app.cliStudyReturn()} onConfirmStudy={app.confirmCliStudy} />
+			<Show when={deleteDialogMounted()}>
+				<Suspense fallback={null}>
+					<DeleteNoteDialog note={app.noteDeletion.target()} pending={app.noteDeletion.pending()} error={app.noteDeletion.error()}
+						t={app.t} onClose={app.noteDeletion.close} onConfirm={app.noteDeletion.confirm} />
+				</Suspense>
+			</Show>
+			<Show when={settingsMounted()}>
+				<Suspense fallback={null}>
+					<SettingsDialog
+						soundVolume={app.preferences.soundVolume()}
+						onSoundVolumeChange={app.preferences.setSoundVolume}
+						aiResetting={app.aiChat.resetting()}
+						aiCleanupError={app.aiChat.cleanupError()}
+						canvasLayout={app.preferences.canvasLayout()}
+						onCanvasLayoutChange={app.preferences.setCanvasLayout}
+						aiFeaturesEnabled={app.preferences.aiFeaturesEnabled()}
+						aiChatShortcut={app.preferences.aiChatShortcut()}
+						onAiChatShortcutChange={app.preferences.setAiChatShortcut}
+						searchShortcut={app.preferences.searchShortcut()}
+						onSearchShortcutChange={app.preferences.setSearchShortcut}
+						onAiFeaturesEnabledChange={app.preferences.setAiFeaturesEnabled}
+						gambiarraEnabled={app.preferences.gambiarraEnabled()}
+						onGambiarraEnabledChange={app.preferences.setGambiarraEnabled}
+						versionControl={() => <CheckForUpdatesButton t={app.t} updates={app.updates} />}
+						open={app.settingsOpen()}
+						centerCanvasOnLaunch={app.preferences.centerCanvasOnLaunch()}
+						hideCanvasControls={app.preferences.hideCanvasControls()}
+						language={app.preferences.language()}
+						theme={app.preferences.theme()}
+						backgroundTheme={app.preferences.backgroundTheme()}
+						textCursor={app.preferences.textCursor()}
+						t={app.t}
+						onClose={() => app.setSettingsOpen(false)}
+						onCenterCanvasChange={app.preferences.setCenterCanvasOnLaunch}
+						onHideCanvasControlsChange={app.preferences.setHideCanvasControls}
+						onLanguageChange={app.preferences.setLanguage}
+						onThemeChange={app.preferences.setTheme}
+						onBackgroundThemeChange={app.preferences.setBackgroundTheme}
+						onTextCursorChange={app.preferences.setTextCursor}
+					/>
+				</Suspense>
+			</Show>
+			<Show when={noteNameDialogMounted()}>
+				<Suspense fallback={null}>
+					<NoteNameDialog
+						mode={app.navigation.nameDialog()}
+						title={app.navigation.nameDialogTitle()}
+						error={app.navigation.nameDialogError()}
+						saving={app.navigation.savingName()}
+						t={app.t}
+						onTitleChange={app.navigation.setNameDialogTitle}
+						onClose={app.navigation.closeNameDialog}
+						onSubmit={app.navigation.confirmNameDialog}
+					/>
+				</Suspense>
+			</Show>
+			<Show when={vaultDialogMounted()}>
+				<Suspense fallback={null}>
+					<VaultDialog
+						open={app.vaults.dialogOpen()}
+						required={!app.vaults.activeVaultId()}
+						vaults={app.vaults.vaults()}
+						activeVaultId={app.vaults.activeVaultId()}
+						getDetails={app.vaults.getDetails}
+						error={app.vaults.error()}
+						errorAction={app.vaults.errorAction()}
+						saving={app.vaults.saving() || app.vaultActionPending() || app.canvasHistory.pending() || app.noteReferences.pending()}
+						t={app.t}
+						onClose={app.vaults.closeDialog}
+						onClearError={app.vaults.clearError}
+						onRetryLoad={() => void app.vaults.retryLoad()}
+						onCreate={app.createVault}
+						onRename={app.renameVault}
+						onDelete={app.deleteVault}
+						onSelect={(vault) => void app.selectVault(vault)}
+						onReorder={app.vaults.reorder}
+					/>
+				</Suspense>
+			</Show>
+			<Show when={noteIssuesDialogMounted()}>
+				<Suspense fallback={null}>
+					<NoteLoadIssuesDialog issues={app.notes.loadIssues()} t={app.t} onClose={app.notes.dismissLoadIssues} />
+				</Suspense>
+			</Show>
+			<Show when={chatMounted()}>
+				<Suspense fallback={null}>
+					<Show when={app.preferences.gambiarraEnabled()} fallback={<Show when={app.aiChatLoaded()}>
+						<AiChatPanel aiChat={app.aiChat} notes={app.notes.notes()} onOpenNote={(note) => void app.openAiNote(note)} t={app.t} />
+					</Show>}>
+						<GambiarraPanel open={app.chatOpen()} vaultId={app.vaults.activeVaultId()}
+							onClose={() => app.setChatOpen(false)} t={app.t} studyRequest={app.cliStudies.request()}
+							canConfirmStudy={!!app.cliStudyReturn()} onConfirmStudy={app.confirmCliStudy} />
+					</Show>
+				</Suspense>
 			</Show>
 		</div>
 		<Show when={app.updates.installing()}>

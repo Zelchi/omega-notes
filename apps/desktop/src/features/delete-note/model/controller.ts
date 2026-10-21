@@ -1,12 +1,12 @@
 import { createEffect, createMemo, createSignal, onCleanup, type Accessor } from "solid-js";
-import type { StudyNote } from "@/entities/note";
+import type { NoteSummary } from "@/entities/note";
 
 export const useNoteDeletion = (options: {
 	vaultId: Accessor<string | undefined>;
-	notes: Accessor<StudyNote[]>;
+	notes: Accessor<NoteSummary[]>;
 	blocked: Accessor<boolean>;
 	beforeDelete: () => Promise<boolean>;
-	remove: (note: StudyNote) => Promise<void>;
+	remove: (note: NoteSummary) => Promise<void>;
 	onDeleted: (id: string) => void;
 }) => {
 	const [target, setTarget] = createSignal<{ id: string; vaultId: string }>();
@@ -22,7 +22,7 @@ export const useNoteDeletion = (options: {
 		if (target() && !note()) { setTarget(undefined); setError(false); }
 	});
 	const close = () => { if (!pending()) { setTarget(undefined); setError(false); } };
-	const hasContent = (note: StudyNote) => note.document.elements.some(element => element.type !== "text" || element.text.trim().length > 0);
+	const hasContent = (note: NoteSummary) => note.hasContent;
 	const execute = async (id: string, vaultId: string, confirmed = false): Promise<void> => {
 		if (disposed || pending() || options.blocked() || vaultId !== options.vaultId()) return;
 		setPending(true); setError(false);
@@ -44,7 +44,7 @@ export const useNoteDeletion = (options: {
 	};
 	return {
 		target: note, pending, error, close,
-		request: async (requested: StudyNote): Promise<void> => {
+		request: async (requested: NoteSummary): Promise<void> => {
 			if (disposed || pending() || target() || options.blocked()) return;
 			const vaultId = options.vaultId(), current = options.notes().find(note => note.id === requested.id);
 			if (!vaultId || !current) return;

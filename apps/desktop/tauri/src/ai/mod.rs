@@ -2,6 +2,7 @@ pub(crate) mod cli_commands;
 pub(crate) mod commands;
 mod instructions;
 pub(crate) mod link_requests;
+pub(crate) mod markdown_segments;
 mod mcp;
 mod providers;
 mod repository;

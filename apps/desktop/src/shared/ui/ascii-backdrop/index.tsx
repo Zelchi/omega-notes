@@ -18,8 +18,8 @@ const tileScene = (scene: string, columns = 3, rows = 3): string => {
 	).join("\n\n");
 };
 
-const matrixScene = Array.from({ length: 72 }, (_, row) =>
-	Array.from({ length: 400 }, (_, column) => {
+const matrixScene = Array.from({ length: 120 }, (_, row) =>
+	Array.from({ length: 240 }, (_, column) => {
 		const start = (column * 17 + Math.floor(column / 3) * 11) % 29;
 		const length = (column * 7 + 13) % 17 + 6;
 		const progress = (row - start + 29) % 29;
@@ -51,7 +51,7 @@ const scenes: Record<AsciiTheme, string> = {
           .             *               .
  .                *                .
       .                   .             *
-	`, 4, 3),
+	`, 4, 6),
 	matrix: matrixScene,
 };
 

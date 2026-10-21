@@ -6,10 +6,10 @@ use uuid::Uuid;
 use crate::names::normalize_name;
 use crate::notes::{
     archive_deleted_note, audio_ids_in_document, delete_note_files, deleted_notes,
-    deleted_notes_directory, empty_document, ensure_unique_note_title_in_directory, existing_note,
-    image_ids_in_document, note_backup_exists, note_backup_path, note_from_path_with_id, note_path,
-    prune_deleted_notes, remove_deleted_note, validate_note_id, validate_note_title,
-    video_ids_in_document, write_note, NoteDocument, NoteLoadIssue, NoteSaveResult, StudyNote,
+    deleted_notes_directory, empty_document, existing_note, image_ids_in_document,
+    note_backup_exists, note_backup_path, note_from_path_with_id, note_path, prune_deleted_notes,
+    remove_deleted_note, validate_note_id, validate_note_title, video_ids_in_document, write_note,
+    NoteDocument, NoteLoadIssue, NoteSaveResult, StudyNote,
 };
 
 use super::cleanup::{cleanup_issue, collect_unreferenced_images, collect_unreferenced_media};
@@ -21,15 +21,17 @@ pub(crate) fn create_note(
     let _title_lock = super::lock_title_mutations()?;
     let (directory, backups_directory) = resolve_directories()?;
     validate_note_title(&note_title)?;
-    ensure_unique_note_title_in_directory(&directory, &note_title, None)?;
+    super::loading::ensure_unique_note_title(&directory, &backups_directory, &note_title, None)?;
     let note_id = Uuid::now_v7().to_string();
-    write_note(
+    let note = write_note(
         &directory,
         &backups_directory,
         &note_id,
         note_title.trim(),
         &empty_document(),
-    )
+    )?;
+    super::update_cached_note_summaries(&directory, std::slice::from_ref(&note));
+    Ok(note)
 }
 
 pub(crate) fn save_note(
@@ -57,7 +59,12 @@ pub(crate) fn save_note_checked(
         .as_ref()
         .is_none_or(|note| normalize_name(&note.title) != normalize_name(&note_title))
     {
-        ensure_unique_note_title_in_directory(&directory, &note_title, Some(&note_id))?;
+        super::loading::ensure_unique_note_title(
+            &directory,
+            &backups_directory,
+            &note_title,
+            Some(&note_id),
+        )?;
     }
     let previous_document = existing
         .as_ref()
@@ -85,6 +92,7 @@ pub(crate) fn save_note_checked(
         &document,
         expected,
     )?;
+    super::update_cached_note_summaries(&directory, std::slice::from_ref(&saved));
 
     let removed_images = previous_images
         .difference(&current_images)
@@ -138,6 +146,7 @@ pub(crate) fn delete_note(
     let previous_document = note.document;
     archive_deleted_note(&directory, &note_id)?;
     delete_note_files(&directory, &backups_directory, &note_id)?;
+    super::remove_cached_note_summary(&directory, &note_id);
     let mut removed_images = image_ids_in_document(&previous_document);
     let mut removed_audio = audio_ids_in_document(&previous_document);
     let mut removed_video = video_ids_in_document(&previous_document);

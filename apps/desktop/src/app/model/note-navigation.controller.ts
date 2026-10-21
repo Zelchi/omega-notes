@@ -1,6 +1,7 @@
-import { readNoteMode, saveNoteMode, type NoteMode } from "@/features/change-preferences";
+import { readNoteMode, saveNoteMode } from "@/features/change-preferences/api/preferences.repository";
+import type { NoteMode } from "@/features/change-preferences/model/preferences";
 import { batch, createEffect, createMemo, createSignal, onCleanup, untrack, type Accessor } from "solid-js";
-import { isNoteTitleAvailable, type NotesLibrary, type NoteDocument, type StudyNote } from "@/entities/note";
+import { isNoteTitleAvailable, type NotesLibrary, type NoteDocument, type NoteSummary, type StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { playSound } from "@/shared/ui/sound";
 import { createNavigationHistory, findHistoryIndex, recordNavigation, type NavigationHistory, type NavigationLocation } from "./navigation-history";
@@ -20,7 +21,7 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 	const notes = dependencies.notes;
 	const t = dependencies.t;
 	const [selectedId, setSelectedId] = createSignal<string>();
-	const selectedNote = createMemo(() => notes.notes().find((note) => note.id === selectedId()));
+	const selectedNote = createMemo(() => notes.loadedNotes().find((note) => note.id === selectedId()));
 	const [route, setRoute] = createSignal<NoteRoute>("canvas");
 	const [mode, setMode] = createSignal<NoteMode>(readNoteMode());
 	const [centeredAtLaunch, setCenteredAtLaunch] = createSignal(false);
@@ -64,7 +65,7 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		});
 	};
 
-	const requestRenameNote = async (note: StudyNote): Promise<void> => {
+	const requestRenameNote = async (note: NoteSummary): Promise<void> => {
 		if (!(await notes.flushSave())) return;
 		const current = notes.notes().find((item) => item.id === note.id);
 		if (!current) return;
@@ -145,12 +146,18 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 			if (dependencies.beforeNavigate && !(await dependencies.beforeNavigate())) return;
 			if (!(await notes.flushSave()) || disposed || vaultId !== dependencies.activeVaultId()) return;
 			if (location.route === "note" && !noteIds().has(location.noteId)) return;
+			if (location.route === "note") {
+				try { await notes.loadNote(location.noteId); }
+				catch (error) { console.error("Could not load note", error); return; }
+				if (disposed || vaultId !== dependencies.activeVaultId() || !noteIds().has(location.noteId)) return;
+			}
 			const commit = () => {
 				if (disposed || vaultId !== dependencies.activeVaultId() || location.route === "note" && !noteIds().has(location.noteId)) return;
 				batch(() => {
 					if (location.route === "note") storeHistory(targetIndex === undefined ? recordNavigation(history(), location) : { ...history(), index: targetIndex });
 					applyLocation(location);
 				});
+				notes.releaseLoadedNotes(location.route === "note" ? location.noteId : selectedId());
 			};
 			commit();
 		} finally { if (!disposed) setNavigating(false); }
@@ -160,13 +167,13 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		const index = findHistoryIndex(history(), direction, noteIds());
 		if (index >= 0) await navigate(history().entries[index], index);
 	};
-	const openNote = (note: StudyNote): Promise<void> => navigate({ route: "note", noteId: note.id });
+	const openNote = (note: NoteSummary | StudyNote): Promise<void> => navigate({ route: "note", noteId: note.id });
 
-	const selectSearchResult = (note: StudyNote) => void openNote(note);
+	const selectSearchResult = (note: NoteSummary) => void openNote(note);
 	const backToCanvas = (): Promise<void> => navigate({ route: "canvas" });
 	const backToLastNote = (): Promise<void> => {
-		const lastNote = selectedNote();
-		return lastNote ? openNote(lastNote) : Promise.resolve();
+		const lastNoteId = selectedId();
+		return lastNoteId ? navigate({ route: "note", noteId: lastNoteId }) : Promise.resolve();
 	};
 
 	const updateTitle = async (title: string): Promise<boolean> => {
@@ -214,6 +221,7 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		navigating,
 		canGoBack: () => route() === "note" && !navigating() && !notes.loading() && findHistoryIndex(history(), -1, noteIds()) >= 0,
 		canGoForward: () => route() === "note" && !navigating() && !notes.loading() && findHistoryIndex(history(), 1, noteIds()) >= 0,
+		hasLastNote: () => Boolean(selectedId() && noteIds().has(selectedId()!)),
 		goBack: () => travel(-1),
 		goForward: () => travel(1),
 		updateTitle,

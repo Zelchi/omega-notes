@@ -18,6 +18,9 @@ export type IconName =
 	| "reset"
 	| "search"
 	| "settings"
+	| "keyboard"
+	| "display"
+	| "sliders"
 	| "minimize"
 	| "maximize"
 	| "restore"
@@ -32,7 +35,6 @@ export type IconName =
 	| "add"
 	| "view"
 	| "attachment"
-	| "exportPdf"
 	| "bulletList"
 	| "orderedList"
 	| "quote"
@@ -119,6 +121,9 @@ const paths: Record<IconName, Component> = {
 			<circle cx="12" cy="12" r="3" />
 		</>
 	),
+	keyboard: () => <><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="M6 9h.01M9.5 9h.01M13 9h.01M16.5 9h.01M20 9h.01M6 12h.01M9.5 12h.01M13 12h.01M16.5 12h.01M7.5 15h9" /></>,
+	display: () => <><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8m-4-4v4" /></>,
+	sliders: () => <><path d="M4 6h16M4 12h16M4 18h16" /><circle cx="9" cy="6" r="2" fill="var(--surface-panel)" /><circle cx="15" cy="12" r="2" fill="var(--surface-panel)" /><circle cx="8" cy="18" r="2" fill="var(--surface-panel)" /></>,
 	search: () => (
 		<>
 			<circle cx="10.8" cy="10.8" r="6.8" />
@@ -126,10 +131,6 @@ const paths: Record<IconName, Component> = {
 		</>
 	),
 	attachment: () => <path d="m8.5 12.5 6.8-6.8a3.2 3.2 0 0 1 4.5 4.5l-8.5 8.5a5 5 0 0 1-7.1-7.1l8.5-8.5" />,
-	exportPdf: () => <>
-		<path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10l-7-7Z" />
-		<path d="M13 3v7h7M12 12v6m-3-3 3 3 3-3" />
-	</>,
 	alignLeft: () => <path d="M4 6h16M4 10h10M4 14h16M4 18h10" />,
 	alignCenter: () => <path d="M4 6h16M7 10h10M4 14h16M7 18h10" />,
 	alignJustify: () => <path d="M4 6h16M4 10h16M4 14h16M4 18h16" />,

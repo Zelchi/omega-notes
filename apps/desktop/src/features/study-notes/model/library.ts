@@ -1,11 +1,11 @@
 import { createEffect, createSignal, on, onCleanup } from "solid-js";
-import { readStudies, readStudy, saveStudy, deleteStudy, saveStudyProgress, type StudyDeck, type StudyKind, type StudySummary, type StudyProgress, type InvalidStudySession } from "@/entities/study";
+import { readStudies, readStudy, saveStudy, deleteStudy, saveStudyProgress, type StudyDeck, type StudyKind, type StudySummary, type StudyProgress, type InvalidStudyItem } from "@/entities/study";
 import type { StudyEnvironment } from "./environment";
 
 /** All study methods share one vault library and serialize writes, including browser storage. */
 export const useStudyLibrary = (options: StudyEnvironment) => {
 	const [decks, setDecks] = createSignal<StudySummary[]>([]);
-	const [invalidSessions, setInvalidSessions] = createSignal<InvalidStudySession[]>([]);
+	const [invalidItems, setInvalidItems] = createSignal<InvalidStudyItem[]>([]);
 	const [loading, setLoading] = createSignal(false), [storageFailed, setStorageFailed] = createSignal(false);
 	const [error, setError] = createSignal<string>();
 	let revision = 0, writeRevision = 0, disposed = false, operations = Promise.resolve();
@@ -23,20 +23,20 @@ export const useStudyLibrary = (options: StudyEnvironment) => {
 		const token = new AbortController(); reading = token;
 		const vaultId = options.vaultId(), requestRevision = ++revision;
 		const active = () => !disposed && !token.signal.aborted && requestRevision === revision && vaultId === options.vaultId();
-		setDecks([]); setInvalidSessions([]); setStorageFailed(false); setError(undefined);
+		setDecks([]); setInvalidItems([]); setStorageFailed(false); setError(undefined);
 		if (!vaultId) { setLoading(false); if (reading === token) reading = undefined; return; }
 		setLoading(true);
 		try {
 			while (active()) {
 				const observedWrites = writeRevision;
-				setDecks([]); setInvalidSessions([]);
+				setDecks([]); setInvalidItems([]);
 				await serialize(async () => {
 					if (!active()) return;
 					await readStudies(vaultId, {
-						signal: token.signal, onSession: session => {
-							if (active()) setDecks(previous => previous.some(value => value.id === session.id) ? previous : [...previous, session]);
-						}, onInvalidSession: session => {
-							if (active()) setInvalidSessions(previous => [...previous, session]);
+						signal: token.signal, onItem: item => {
+							if (active()) setDecks(previous => previous.some(value => value.id === item.id) ? previous : [...previous, item]);
+						}, onInvalidItem: item => {
+							if (active()) setInvalidItems(previous => [...previous, item]);
 						}
 					});
 				});
@@ -69,7 +69,7 @@ export const useStudyLibrary = (options: StudyEnvironment) => {
 		return saved;
 	};
 	return {
-		decks, setDecks, invalidSessions, loading, storageFailed, error, load, flushSave,
+		decks, setDecks, invalidItems, loading, storageFailed, error, load, flushSave,
 		save: (vaultId: string, deck: StudyDeck, signal?: AbortSignal) => mutate(async () => {
 			if (signal?.aborted) return false;
 			await saveStudy(vaultId, deck);
@@ -84,7 +84,7 @@ export const useStudyLibrary = (options: StudyEnvironment) => {
 		remove: (vaultId: string, id: string, kind: StudyKind) => mutate(async () => {
 			await deleteStudy(vaultId, id, kind);
 			progressWrites.delete(progressKey(vaultId, kind, id));
-			if (vaultId === options.vaultId()) setInvalidSessions(previous => previous.filter(session => session.id !== id));
+			if (vaultId === options.vaultId()) setInvalidItems(previous => previous.filter(item => item.id !== id));
 		}),
 		saveProgress: (vaultId: string, id: string, kind: StudyKind, progress: StudyProgress) => persistProgress({ vaultId, id, kind, progress, failed: false }),
 	};

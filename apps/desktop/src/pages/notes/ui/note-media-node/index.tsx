@@ -1,11 +1,12 @@
-import { Show, type Component } from "solid-js";
+import { lazy, Show, Suspense, type Component } from "solid-js";
 import { cx } from "@/shared/lib/classes";
 import MediaPositioningActions from "../media-positioning-actions";
 import { DEFAULT_AUDIO_VOLUME } from "@/entities/note";
-import AudioPlayer from "../note-audio-player";
-import VideoPlayer from "../note-video-player";
 import { useNoteMediaNodeController, type NoteMediaNodeProps } from "./controller";
 import { styles } from "./style.css.ts";
+
+const AudioPlayer = lazy(() => import("../note-audio-player"));
+const VideoPlayer = lazy(() => import("../note-video-player"));
 
 const NoteMediaNode: Component<NoteMediaNodeProps> = (props) => {
 	const media = useNoteMediaNodeController(props);
@@ -53,26 +54,30 @@ const NoteMediaNode: Component<NoteMediaNodeProps> = (props) => {
 			<Show
 				when={props.element().type === "audio"}
 				fallback={
-					<VideoPlayer
-						source={media.source()}
-						hidden={props.activePositioningId === props.element().id}
-						t={props.t}
-						onLoadedMetadata={media.setVideoAspect}
-					/>
+					<Suspense fallback={null}>
+						<VideoPlayer
+							source={media.source()}
+							hidden={props.activePositioningId === props.element().id}
+							t={props.t}
+							onLoadedMetadata={media.setVideoAspect}
+						/>
+					</Suspense>
 				}
 			>
-				<AudioPlayer
-					source={media.source()}
-					volume={audioVolume()}
-					hidden={props.activePositioningId === props.element().id}
-					t={props.t}
-					onVolumeChange={(volume) => {
-						const element = props.element();
-						if (element.type === "audio" && element.volume !== volume) {
-							props.onChange({ ...element, volume });
-						}
-					}}
-				/>
+				<Suspense fallback={null}>
+					<AudioPlayer
+						source={media.source()}
+						volume={audioVolume()}
+						hidden={props.activePositioningId === props.element().id}
+						t={props.t}
+						onVolumeChange={(volume) => {
+							const element = props.element();
+							if (element.type === "audio" && element.volume !== volume) {
+								props.onChange({ ...element, volume });
+							}
+						}}
+					/>
+				</Suspense>
 			</Show>
 			<Show when={props.element().type === "video" && props.activePositioningId === props.element().id}>
 				<div class={styles.videoPositioning} aria-hidden="true">

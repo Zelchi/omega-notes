@@ -2,28 +2,38 @@ use super::{library::Library, offset, required_note, text};
 use serde_json::{json, Value};
 use std::path::Path;
 
-pub(super) fn excerpt(contents: &str, offset: usize, limit: usize) -> Value {
+pub(super) fn excerpt(contents: &str, offset: usize, limit: usize) -> Result<Value, String> {
     let total = contents.chars().count();
+    if contents.trim().is_empty() {
+        return Err("AI_CONTENT_EMPTY".into());
+    }
+    if offset >= total {
+        return Err("AI_OFFSET_OUT_OF_RANGE".into());
+    }
     let excerpt: String = contents.chars().skip(offset).take(limit).collect();
     let end = offset.saturating_add(excerpt.chars().count());
-    json!({"text":excerpt,"totalCharacters":total,"nextOffset":(end < total).then_some(end)})
+    Ok(json!({"text":excerpt,"totalCharacters":total,"nextOffset":(end < total).then_some(end)}))
 }
-fn read_result(note: &crate::notes::StudyNote, args: &Value, limit: usize) -> Value {
-    let mut result = excerpt(&text(note), offset(args), limit);
+fn read_result(
+    note: &crate::notes::StudyNote,
+    args: &Value,
+    limit: usize,
+) -> Result<Value, String> {
+    let mut result = excerpt(&text(note), offset(args), limit)?;
     result["id"] = json!(note.id);
     result["title"] = json!(note.title);
     result["reference"] = json!(super::reference(&note.id));
     result["updatedAt"] = json!(note.updated_at);
     result["revision"] = json!(super::linking::revision(note).ok());
-    result
+    Ok(result)
 }
 pub(super) fn read_one(directory: &Path, args: &Value) -> Result<Value, String> {
     let note = required_note(directory, args, "noteId")?;
-    Ok(read_result(
+    read_result(
         &note,
         args,
         args["limit"].as_u64().unwrap_or(16000) as usize,
-    ))
+    )
 }
 pub(super) fn read_many(directory: &Path, args: &Value) -> Result<Value, String> {
     let mut results = Vec::new();
@@ -31,25 +41,14 @@ pub(super) fn read_many(directory: &Path, args: &Value) -> Result<Value, String>
     let limit = args["limit"].as_u64().unwrap_or(4000) as usize;
     for id in args["noteIds"].as_array().ok_or("AI_INVALID_ARGUMENTS")? {
         match required_note(directory, &json!({"noteId":id}), "noteId") {
-            Ok(note) => results.push(read_result(&note, args, limit)),
+            Ok(note) => match read_result(&note, args, limit) {
+                Ok(result) => results.push(result),
+                Err(error) => errors.push(json!({"id":id,"error":error})),
+            },
             Err(error) => errors.push(json!({"id":id,"error":error})),
         }
     }
     Ok(json!({"notes":results,"errors":errors}))
-}
-fn match_offset(contents: &str, query: &str) -> Option<usize> {
-    let byte = contents.to_lowercase().find(query)?;
-    let mut folded_bytes = 0;
-    for (index, character) in contents.chars().enumerate() {
-        if folded_bytes >= byte {
-            return Some(index);
-        }
-        folded_bytes += character.to_lowercase().map(char::len_utf8).sum::<usize>();
-        if folded_bytes > byte {
-            return Some(index);
-        }
-    }
-    Some(contents.chars().count())
 }
 pub(super) fn list(directory: &Path, args: &Value, search: bool) -> Result<Value, String> {
     let query = args["query"]
@@ -60,16 +59,28 @@ pub(super) fn list(directory: &Path, args: &Value, search: bool) -> Result<Value
     if search && query.is_empty() {
         return Err("AI_INVALID_QUERY".into());
     }
-    let library = Library::load(directory)?;
+    let library = if search {
+        Library::load_for_search(directory)?
+    } else {
+        Library::load(directory)?
+    };
+    let search_matches = if search {
+        super::search::with_index(directory, &library, |index: &super::search::SearchCache| {
+            index.matching(&query)
+        })?
+    } else {
+        Default::default()
+    };
     let mut matches = Vec::new();
     let mut total = 0usize;
+    let unreadable = library.unreadable;
     let offset = offset(args);
     let limit = if search { 20 } else { 100 };
     for note in &library.notes {
-        let contents = if search { text(note) } else { String::new() };
+        let content_available = note.has_text;
         let title_match = search && note.title.to_lowercase().contains(&query);
         let found = if search {
-            match_offset(&contents, &query)
+            search_matches.get(&note.id)
         } else {
             None
         };
@@ -77,13 +88,13 @@ pub(super) fn list(directory: &Path, args: &Value, search: bool) -> Result<Value
             continue;
         }
         if total >= offset && matches.len() < limit {
-            let mut result = json!({"id":note.id,"title":note.title,"reference":super::reference(&note.id),"preview":note.preview});
+            let mut result = json!({"id":note.id,"title":note.title,"reference":super::reference(&note.id),"preview":note.preview,"contentAvailable":content_available});
             if search {
-                let start = found.unwrap_or(0).saturating_sub(120);
-                result["snippet"] =
-                    json!(contents.chars().skip(start).take(600).collect::<String>());
-                result["snippetOffset"] = json!(start);
-                result["matchOffset"] = json!(found);
+                if let Some(found) = found {
+                    result["snippet"] = json!(found.snippet);
+                    result["snippetOffset"] = json!(found.snippet_offset);
+                    result["matchOffset"] = json!(found.match_offset);
+                }
                 result["matchedIn"] = json!(if title_match && found.is_some() {
                     "both"
                 } else if title_match {
@@ -96,8 +107,21 @@ pub(super) fn list(directory: &Path, args: &Value, search: bool) -> Result<Value
         }
         total += 1;
     }
+    if offset > 0 && offset >= total {
+        return Err("AI_OFFSET_OUT_OF_RANGE".into());
+    }
     let end = offset.saturating_add(matches.len());
+    let message = if total == 0 {
+        Some(if search {
+            "No notes match this search."
+        } else {
+            "The vault contains no readable notes."
+        })
+    } else {
+        None
+    };
     Ok(
-        json!({"notes":matches,"total":total,"unreadableNotes":library.unreadable,"nextOffset":(end < total).then_some(end)}),
+        json!({"notes":matches,"total":total,"unreadableNotes":unreadable,
+        "nextOffset":(end < total).then_some(end),"message":message}),
     )
 }

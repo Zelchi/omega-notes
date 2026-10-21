@@ -8,6 +8,7 @@ import {
 	type NoteDocument,
 	type NoteElement,
 	type NotePositionedElement,
+	type NoteSummary,
 	type StudyNote,
 	type NoteTextElement,
 	type NoteTextAlignment,
@@ -23,18 +24,18 @@ import type { ParagraphAlignmentHandler } from "@/features/align-text";
 export type NoteCanvasEditorProps = {
 	noteId: string;
 	document: NoteDocument;
-	notes: StudyNote[];
+	notes: NoteSummary[];
+	loadAllNotes: () => Promise<StudyNote[]>;
+	releaseLoadedNotes: () => void;
 	referenceTitles: Record<string, string>;
 	mode: "edit" | "view";
 	t: (key: TranslationKey) => string;
 	onChange: (document: NoteDocument) => void;
 	onDelete?: () => void;
 	deleteDisabled?: boolean;
-	onOpenNote: (note: StudyNote) => void;
+	onOpenNote: (note: NoteSummary) => void;
 	onOpenMissingNote?: (target: string) => void;
 	onPositioningChange?: (active: boolean) => void;
-	onExportPdf?: () => Promise<void>;
-	exportPdfDisabled?: boolean;
 };
 
 type AttachmentPosition = { x: number; y: number };

@@ -1,7 +1,7 @@
 import Textarea from "@/shared/ui/textarea";
 import Button from "@/shared/ui/button";
 import { For, Show, createEffect, createMemo, untrack, onCleanup, type Component } from "solid-js";
-import { normalizeNoteTitle, type StudyNote } from "@/entities/note";
+import { normalizeNoteTitle, type NoteSummary } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import Icon from "@/shared/ui/icon";
 import Dropdown from "@/shared/ui/dropdown";
@@ -18,8 +18,8 @@ import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 
 type Props = {
     aiChat: AiChatController;
-    notes: StudyNote[];
-    onOpenNote: (note: StudyNote) => void;
+    notes: NoteSummary[];
+    onOpenNote: (note: NoteSummary) => void;
     t: (key: TranslationKey) => string;
 };
 

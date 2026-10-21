@@ -2,13 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRoot, createSignal } from 'solid-js';
 import { useNotes } from '../src/entities/note/model/notes-library.ts';
-import { note, deferred, settle } from './helpers.mjs';
+import { note, noteSummary, deferred, settle } from './helpers.mjs';
 
 const setup = async (t, onSave) => {
     const initial = [note('a'), note('b')], writes = [];
     const previous = globalThis.window;
-    globalThis.window = { __TAURI_INTERNALS__: { invoke: async (command, args) => {
+    globalThis.window = { __TAURI_INTERNALS__: { transformCallback: () => 1, unregisterCallback: () => {}, invoke: async (command, args) => {
         if (command === 'list_notes') return { notes: initial, issues: [], referenceTitles: {} };
+        if (command === 'stream_note_summaries') {
+            for (const value of initial) args.onItem.onmessage({ event: 'item', data: noteSummary(value) });
+            args.onItem.onmessage({ event: 'complete', data: { issues: [], referenceTitles: {} } });
+            return;
+        }
+        if (command === 'get_note') return initial.find(value => value.id === args.noteId);
         if (command === 'save_note') {
             writes.push({ id: args.noteId, text: args.document.elements[0].text });
             if (onSave) await onSave(args, writes.length);
@@ -22,7 +28,10 @@ const setup = async (t, onSave) => {
         const [vault, updateVault] = createSignal('vault-a'); setVault = updateVault;
         library = useNotes(vault);
     });
-    await settle();
+    for (let attempt = 0; attempt < 50 && (!library.hasLoadedVault() || library.notes().length !== initial.length); attempt++) await settle();
+    assert.equal(library.hasLoadedVault(), true);
+    assert.equal(library.notes().length, initial.length);
+    await library.loadAllNotes();
     const edit = (id, text) => library.updateDocument(id, note(id, text).document);
     return { library, writes, edit, setVault };
 };
@@ -32,10 +41,11 @@ test('autosave coalesces edits and flush waits for persistence', async t => {
     assert.deepEqual(f.writes, [{ id: 'a', text: 'latest' }]);
 });
 test('failed old save cannot overwrite a newer queued save', async t => {
-    t.mock.timers.enable({ apis: ['setTimeout'] });
     const first = deferred(), f = await setup(t, (_args, count) => count === 1 ? first.promise : undefined);
-    f.edit('a', 'old'); t.mock.timers.tick(500); await settle();
-    f.edit('a', 'new'); t.mock.timers.tick(500); await settle();
+    void first.promise.catch(() => undefined);
+    const debounce = () => new Promise(resolve => setTimeout(resolve, 510));
+    f.edit('a', 'old'); await debounce(); await settle();
+    f.edit('a', 'new'); await debounce(); await settle();
     first.reject(Error('simulated write failure')); await settle();
     assert.equal(await f.library.flushSave(), true);
     assert.deepEqual(f.writes.map(write => write.text), ['old', 'new']);
@@ -55,7 +65,7 @@ test('failed latest save remains retryable', async t => {
 });
 test('unselecting a vault clears its loaded state', async t => {
     const f = await setup(t); assert.equal(f.library.hasLoadedVault(), true);
-    f.setVault(undefined); assert.equal(f.library.hasLoadedVault(), false); assert.deepEqual(f.library.notes(), []);
+    f.setVault(undefined); await settle(); assert.equal(f.library.hasLoadedVault(), false); assert.deepEqual(f.library.notes(), []);
 });
 test('concurrent flush calls share the same operation', async t => {
     const save = deferred(), f = await setup(t, () => save.promise);

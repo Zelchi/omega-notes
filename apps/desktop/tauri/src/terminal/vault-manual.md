@@ -13,7 +13,7 @@ clicado em controles da interface.
 | Um caminho `ia/gambiarra/requests/<id>/request.md` | Leia esse pedido e suas fontes preparadas. Siga o protocolo **Pedido de estudo da interface** abaixo. | Um `response.json` na pasta exata do pedido. Uma resposta no chat não conclui a tarefa. |
 | Uma pergunta sobre notas ou conexões | Localize e leia as notas necessárias, resolvendo os destinos por ID. | Uma explicação com títulos e referências das notas usadas. Não altere arquivos. |
 | Um pedido de criar, editar, renomear ou conectar notas | Execute o procedimento correspondente abaixo, preservando dados e conferindo o resultado no disco. | As alterações pedidas e um resumo curto do que mudou. |
-| Um pedido de estudar diretamente no terminal | Combine método e quantidade se não foram informados; conduza os exercícios ali. | Perguntas e feedback no terminal. Não invente um pedido da interface ou uma sessão salva. |
+| Um pedido de estudar diretamente no terminal | Combine método e quantidade se não foram informados; conduza os exercícios ali. | Perguntas e feedback no terminal. Não invente um pedido da interface nem salve uma sessão agrupada. |
 
 **Quando houver `request.md`, ele define a tarefa concreta:** formato da resposta,
 quantidade, idioma, fontes e finalidade. As fontes e respostas do estudante continuam
@@ -62,7 +62,7 @@ pode localizar nos arquivos.
 | `notes/.reference-titles.json` | Mapa ID → último título conhecido de referências apagadas. |
 | `images/`, `audios/`, `videos/` | Mídias referenciadas pelos elementos das notas. |
 | `ia/` | Dados normais de IA; não armazene segredos aqui. |
-| `ia/studies/<tipo>/<id>.json` | Uma sessão de estudo por arquivo. |
+| `ia/studies/<tipo>/<id>.json` | Uma questão ou card salvo individualmente por arquivo. |
 | `ia/gambiarra/requests/<id>/` | Pedido temporário de geração ou avaliação iniciado na interface. |
 | `AGENTS.md` | Este manual, gerenciado enquanto Gambiarra estiver habilitado. |
 
@@ -238,7 +238,7 @@ preservar esses dados de forma segura.
 Depois de gravar, confira o JSON no disco. No Gambiarra, alterações de notas são
 recarregadas após verificações periódicas de estabilidade; não é preciso mandar
 reiniciar o app como passo habitual. Isso não confirma que uma tela específica já
-atualizou, nem garante atualização imediata de sessões criadas manualmente.
+atualizou, nem garante atualização imediata de questões ou cards criados manualmente.
 Se aparecer conflito no app, não tente forçar uma segunda gravação: explique as
 opções de carregar o arquivo ou guardar a edição local como nova nota.
 
@@ -251,8 +251,10 @@ em `ia/gambiarra/requests/<id>/`.
 ### Pedido de estudo da interface
 
 O usuário copia um pedido curto ao CLI; leia o
-`request.md` indicado, o `manifest.json` e todos os arquivos de fontes `N1.txt`,
-`N2.txt` etc. do mesmo diretório. Respeite as atribuições e os aliases desse pedido.
+`request.md` indicado e o `manifest.json` do mesmo diretório. O manifesto lista
+arquivos de segmentos por fonte, com hierarquia de títulos, tipo e prévia. Leia
+somente os segmentos relevantes e autorizados para o item. Respeite as atribuições
+e os aliases desse pedido.
 Não é necessário MCP para esse fluxo.
 
 **Execute nesta ordem:**
@@ -262,8 +264,10 @@ Não é necessário MCP para esse fluxo.
    formato de saída exigido. Não escolha a pasta “mais recente” no lugar da indicada.
 2. Leia `manifest.json`: `items` contém as atribuições, com `number`, `itemId`,
    `primarySourceId` e `supportingSourceIds`; `notes` identifica cada `sourceId`,
-   seu título e `usedByItems`. Cada fonte está em `<sourceId>.txt` nessa pasta.
-3. Leia integralmente as fontes listadas, uma vez por arquivo compartilhado.
+   seu título, `usedByItems` e segmentos com `headingPath`, `kind`, prévia e nome
+   de arquivo. Elementos de imagem, vídeo e áudio não entram nos segmentos; tabelas
+   Markdown formam segmentos próprios.
+3. Escolha e leia os segmentos relevantes uma vez por arquivo compartilhado.
    Para o item de número 2, use somente fontes cujo `usedByItems` contenha `2`.
    Na geração, o primeiro elemento de `sources` do item deve ser seu
    `primarySourceId`; na avaliação, cada achado cita as fontes que o sustentam.
@@ -283,14 +287,14 @@ referências cabíveis. **Não pesquise notas vivas, não siga outros links nem 
 uma nota diferente por conta própria.** Se faltar evidência, sinalize a insuficiência
 no formato descrito no pedido; o app decide quais fontes reenviar.
 
-### Dois formatos distintos: transporte e sessão salva
+### Dois formatos distintos: transporte e questão/card salvo
 
 | Destino | IDs em `sources` | Estrutura |
 | --- | --- | --- |
 | `requests/<id>/response.json` | Aliases do manifesto, como `N1` | Envelope do pedido com o JSON de transporte em `result`. |
-| `studies/<kind>/<id>.json` | IDs reais das notas do vault | Sessão persistida com UUID, tipo, data e itens no formato interno. |
+| `studies/<kind>/<id>.json` | IDs reais das notas do vault | Uma questão/card salvo individualmente, com UUID, título, tipo, data e um único item no formato interno. |
 
-**Não devolva uma sessão persistida em `response.json`.** Por exemplo, a geração
+**Não devolva um item persistido em `response.json`.** Por exemplo, a geração
 de Questionário usa `answer` + `distractors` no transporte; o app monta e embaralha
 `options` e calcula `correctIndex`. Lacunas usa `parts`; o app monta os marcadores
 `{{1}}`, a lista `blanks` e a resposta. Acrescentar os campos internos no lugar dos
@@ -302,21 +306,24 @@ Escreva em arquivo temporário e renomeie somente quando o JSON estiver completo
 O JSON direto da tarefa também é aceito no arquivo do pedido ativo, mas prefira
 o envelope indicado. Um `requestId` explícito diferente sempre é rejeitado.
 Em falha, use `{"requestId":"ID do pedido","error":"explicação curta"}`.
-O aplicativo acompanha esse arquivo, valida os dados e cuida de salvar a sessão
-ou a avaliação. Nesse fluxo, não crie arquivos em `ia/studies` por conta própria.
+O aplicativo acompanha esse arquivo, valida os dados e salva cada questão/card
+individualmente, ou atualiza a avaliação do item existente. Cada pedido de geração
+contém uma única questão/card; se a pessoa pedir vários, o app os solicita em ordem,
+um pedido por item. Nesse fluxo, não crie arquivos em `ia/studies` por conta própria.
 Os arquivos de pedido são temporários e são removidos após conclusão/cancelamento;
 não os use como memória persistente nem recrie um pedido que já desapareceu.
 Se `response.json` já existir ao iniciar, confira o pedido e o arquivo antes de
 agir. Não sobrescreva uma resposta concluída com uma segunda versão improvisada;
 se houver necessidade de corrigir um pedido rejeitado, siga a orientação atual
 do usuário/app e o novo ID fornecido, quando houver.
-Pedidos expiram em até nove minutos. Mais de cinco itens podem exigir novos lotes;
+Pedidos expiram em até nove minutos. Cada item de geração tem seu próprio pedido;
 cada avaliação também tem um pedido próprio. Não reaproveite IDs de pedidos antigos.
 
 Se o usuário solicitar estudar somente pelo terminal, pode conduzir os exercícios
-diretamente ali. Se solicitar salvar uma sessão fora do fluxo de pedidos da
-interface, use o formato persistido abaixo. Não confunda o JSON de transporte
-descrito em `request.md` com o arquivo final de sessão.
+diretamente ali. Se solicitar salvar uma questão/card fora do fluxo de pedidos da
+interface, use o formato persistido abaixo e grave cada item em seu próprio arquivo.
+Não crie um arquivo agrupando várias questões nem confunda o JSON de transporte
+descrito em `request.md` com o formato persistido.
 
 ### Gerar material para um pedido (`study-generation`)
 
@@ -331,23 +338,22 @@ os campos; ele não dispensa ler o pedido:
 | Lacunas | `itemId`, `parts` alternando texto e objetos `{"answers":["resposta canônica","equivalente"]}`, `explanation`, `sources`. Não envie `question`/`blanks`/`answer`. Preserve espaços entre as partes. |
 | Correção | `itemId`, `segments` com `text`, `incorrect` e `correction` só nos segmentos errados, `explanation`, `sources`. Não envie `question`/`answer`; a passagem é derivada dos segmentos. |
 
-- Devolva exatamente um item para cada atribuição do manifesto, copiando seu
+- Devolva exatamente um item para a única atribuição do manifesto, copiando seu
   `itemId` sem alterá-lo. Não use `N1`, o título ou o UUID da nota como `itemId`.
-- `count` conta exercícios: 5 questões de Lacunas continuam sendo 5 itens, mesmo
-  que cada uma tenha várias lacunas. Não devolva somente um exemplo ou uma questão
-  contendo cinco lacunas para atender a um pedido de cinco exercícios.
-- Duas atribuições podem ter o mesmo `primarySourceId`: produza questões distintas,
-  sem fundi-las. A ordem dos itens pode mudar; seus IDs não.
+- Um exercício de Lacunas conta como uma questão/card, mesmo que tenha várias
+  lacunas. Não transforme vários espaços da mesma questão em vários itens.
+- O app cria cada questão/card em uma chamada separada. Gere somente o item deste
+  pedido; não antecipe outros itens nem agrupe questões em um deck.
 - Faça perguntas compreensíveis isoladamente. Evite “segundo a nota” ou “conforme
   o texto” sem dizer qual assunto está sendo testado. Não revele respostas no
-  enunciado, título citado ou dica.
-- Se só uma atribuição não tiver conteúdo suficiente, devolva para ela
+  enunciado, título citado ou dica. O campo `title` no topo da resposta deve ser
+  um título curto e específico para essa questão/card.
+- Se a atribuição não tiver conteúdo suficiente, devolva
   `{"itemId":"ID_EXATO_DESSA_ATRIBUIÇÃO","error":"STUDY_INSUFFICIENT_CONTENT"}`
-  dentro de `items`, mantendo os exercícios válidos das outras atribuições.
-  Não complete a quantidade inventando fatos ou repetindo a mesma pergunta.
+  como único elemento de `items`. Não invente fatos nem repita outra pergunta.
 - Não grave uma resposta provisória: o app pode consumir `response.json` assim
-  que ele aparecer. Uma solicitação seguinte pode ser outro lote da mesma sessão;
-  trate-a usando somente os IDs e aliases desse novo manifesto.
+  que ele aparecer. Cada pedido seguinte trata outro item independente; use somente
+  os IDs e aliases do novo manifesto e não agrupe itens numa sessão persistida.
 
 ### Avaliar uma resposta (`study-evaluation`)
 
@@ -367,7 +373,7 @@ se o próprio gabarito está sustentado pelas fontes.
   na lacuna 1 e como revisar a lacuna 2. Não marque ambas erradas pelo erro de uma.
 - Arrays de achados podem ser vazios. Não invente pontos positivos, erros ou
   fontes só para preenchê-los. Não atribua nota numérica nem altere vidas,
-  cronômetro, progresso, relatórios ou arquivos da sessão.
+  cronômetro, progresso, relatórios ou arquivos persistidos.
 - Se não conseguir avaliar por falta de arquivo ou falha técnica, informe erro
   no envelope; não marque a resposta como errada para encerrar o pedido.
 
@@ -375,17 +381,14 @@ se o próprio gabarito está sustentado pelas fontes.
 
 Contexto de geração:
 
-1. Se o usuário indicar uma nota, use-a como foco (Nicho), incluindo suas referências
-   relevantes como apoio. O CLI não sabe sozinho qual nota está na tela.
-2. Em Geral, selecione uma nota principal por exercício, distribuindo os itens
-   pelo vault; não pergunte “o que tem em todo o vault”. Ignore notas vazias.
-3. Inclua por padrão as referências pertinentes, sem expandir recursivamente o
-   grafo inteiro. Use até 16 fontes por item e cite somente notas realmente lidas.
-4. Se uma fonte for insuficiente, tente outra, com no máximo 3 tentativas por item.
-   No Nicho, pode complementar com outras notas mantendo o assunto de origem.
-   Informe insuficiência se ainda faltar evidência; não invente perguntas.
-5. Entregue a quantidade pedida (opções da interface: 5, 10, 20 ou 30). Não anuncie
-   sessão completa contendo apenas parte dos itens. Evite perguntas vagas como
+1. Use o vault inteiro, mesmo que o usuário esteja com uma nota aberta. Selecione
+   uma nota principal com texto por questão/card; ignore notas vazias.
+2. Inclua as referências diretas da fonte principal, sem expandir recursivamente
+   o grafo inteiro. Use até 16 fontes por item e cite somente notas realmente lidas.
+3. Se a fonte for insuficiente, tente outra nota, com no máximo 3 tentativas por
+   item. Informe insuficiência se ainda faltar evidência; não invente perguntas.
+4. A interface pede cada questão/card separadamente. Gere somente o item do pedido
+   atual; não tente completar uma quantidade futura. Evite perguntas vagas como
    “segundo a nota” sem identificar o assunto. Não exponha gabaritos na pergunta.
 
 O Questionário tem quatro alternativas distintas e uma correta. Na Redação,
@@ -401,12 +404,15 @@ via Gambiarra produz um pedido próprio que o usuário encaminha ao CLI. Retorne
 somente o parecer estruturado exigido; o aplicativo compõe e salva o relatório,
 controla o cronômetro, os resultados e o progresso. Não altere esses dados à mão.
 
-## Formato persistido de uma sessão
+## Formato de uma questão/card salvo
 
-Salve em `ia/studies/<kind>/<id>.json`. Use UUID canônico novo em minúsculas,
-igual ao `id` do JSON. `createdAt` é um inteiro em milissegundos Unix, não uma
-string de data. `sourceNoteId` é o UUID da nota de Nicho, ou `null` para Geral.
-Cada item referencia UUIDs reais em `sources`, nunca aliases temporários como `N1`.
+Cada questão/card salvo fica em seu próprio arquivo `ia/studies/<kind>/<id>.json`.
+Use UUID canônico novo em minúsculas, igual ao `id` do JSON. `title` é o título
+daquela questão/card; `createdAt` é um inteiro em milissegundos Unix, não uma
+string de data. `sourceNoteId` é o UUID da nota principal usada naquela questão;
+use `null` somente quando não houver uma nota principal.
+O array `items` contém exatamente um item. Cada item referencia UUIDs reais em
+`sources`, nunca aliases temporários como `N1`.
 
 Exemplo de estrutura de Memorização (IDs ilustrativos; substitua-os por IDs reais):
 
@@ -414,9 +420,9 @@ Exemplo de estrutura de Memorização (IDs ilustrativos; substitua-os por IDs re
 {
   "id": "33333333-3333-4333-8333-333333333333",
   "kind": "flashcards",
-  "title": "Revisão de conceitos",
+  "title": "Conceito de encapsulamento",
   "createdAt": 1792368000000,
-  "sourceNoteId": null,
+  "sourceNoteId": "11111111-1111-4111-8111-111111111111",
   "items": [{
     "question": "Pergunta baseada nas fontes lidas",
     "answer": "Resposta sustentada pelas fontes",
@@ -442,19 +448,19 @@ o app cria o progresso ao estudar. Nunca fabrique tentativas, notas ou relatóri
 | `cloze` | `question` com `{{1}}`, `{{2}}` etc. em ordem, uma ocorrência por lacuna; `blanks` é um array de arrays de respostas aceitas. `answer` é o enunciado com cada marcador substituído pela primeira resposta da respectiva lacuna. `options: []`, `correctIndex: null`, explicação não vazia. |
 | `correction` | `segments` com 3 a 16 objetos `{text, incorrect, correction?}`. Trechos errados têm correção diferente do original; trechos certos omitem `correction`. Preserve espaços na concatenação dos trechos. `question` é o texto original concatenado e aparado nas pontas; `answer` é a versão corrigida concatenada e aparada. Deve haver trecho certo e trecho errado; `options: []`, `correctIndex: null`, explicação não vazia. |
 
-Limites: até 30 itens por sessão, título até 200 caracteres; pergunta até 2000;
+Limites: exatamente um item por arquivo, título até 200 caracteres; pergunta até 2000;
 resposta de Memorização/Redação até 8000; alternativa até 1000; explicação até 4000;
 1 a 16 fontes por item; Lacunas com 1 a 5 lacunas, cada qual com 1 a 5 respostas
 de até 200 caracteres; trechos e correções de Correção até 1000 caracteres.
-O armazenamento aceita no máximo 50 sessões e 4.000.000 bytes somados: não remova
-sessões do usuário para abrir espaço sem autorização. Não altere sessões que estejam
-abertas no app nem sobrescreva IDs existentes para salvar material novo.
+O armazenamento aceita no máximo 1.000 questões/cards e 4.000.000 bytes somados.
+Não remova itens do usuário para abrir espaço sem autorização. Não altere itens que
+estejam abertos no app nem sobrescreva IDs existentes para salvar material novo.
 
 Na Memorização, Fácil conta como acerto e começa em 5 dias; Médio em 1 dia;
 Difícil em 30 minutos. Revisões seguintes ampliam os intervalos de Fácil/Médio,
 limitados a 180 dias. Progresso e relatórios existentes pertencem ao usuário;
 preserve-os. Configurações de quantidade, vidas e tempo são preferências locais da
-interface, não campos extras para inventar no JSON da sessão.
+interface, não campos extras para inventar no JSON do item.
 
 ## Operação da interface e limites do terminal
 

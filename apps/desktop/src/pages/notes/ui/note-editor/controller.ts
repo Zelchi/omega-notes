@@ -1,11 +1,13 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import type { NoteDocument, StudyNote } from "@/entities/note";
+import type { NoteDocument, NoteSummary, StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 
 export type NoteEditorProps = {
 	onRegisterBeforeShutdown?: (save?: () => Promise<boolean>) => void;
 	note: StudyNote;
-	notes: StudyNote[];
+	notes: NoteSummary[];
+	loadAllNotes: () => Promise<StudyNote[]>;
+	releaseLoadedNotes: () => void;
 	referenceTitles: Record<string, string>;
 	mode: "edit" | "view";
 	t: (key: TranslationKey) => string;
@@ -13,7 +15,7 @@ export type NoteEditorProps = {
 	onDocumentChange: (document: NoteDocument) => void;
 	onDelete?: () => void;
 	deleteDisabled?: boolean;
-	onOpenNote: (note: StudyNote) => void;
+	onOpenNote: (note: NoteSummary) => void;
 	onOpenMissingNote: (target: string) => void;
 };
 

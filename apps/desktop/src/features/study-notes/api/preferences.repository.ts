@@ -2,7 +2,7 @@ import type { StudyKind } from "@/entities/study";
 
 type StudyPreferences = { count: number; seconds: number; lives: number };
 const key = (kind: StudyKind) => `omega-notes.settings.studies.${kind}`;
-const generationTimesKey = "omega-notes.study-generation-times.v1";
+const generationTimesKey = "omega-notes.study-generation-times.v2";
 const studyKinds: StudyKind[] = ["flashcards", "quiz", "written", "cloze", "correction"];
 const generationHistoryLimit = 10;
 const decode = (value: unknown): StudyPreferences => {
@@ -39,7 +39,7 @@ const readGenerationTimes = (): GenerationTimes => {
 	} catch { return {}; }
 };
 
-/** Keeps a rolling local history so each study method can estimate its own generation time. */
+/** Stores individual question/card generation times, separately for each study method. */
 export const readStudyGenerationTimes = (kind: StudyKind): number[] => readGenerationTimes()[kind] ?? [];
 export const saveStudyGenerationTime = (kind: StudyKind, duration: number): void => {
 	if (!Number.isFinite(duration) || duration <= 0) return;

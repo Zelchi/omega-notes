@@ -1,13 +1,15 @@
 import { mapTextOutsideCode } from "@/shared/lib/formatted-text";
-import type { StudyNote } from "./note";
+import type { NoteSummary } from "./note";
 import type { NoteDocument } from "./note-document";
 import { createNoteTitleIndex, normalizeNoteTitle } from "./note-titles";
+
+type NoteName = Pick<NoteSummary, "id" | "title">;
 
 export const renameResolvedNoteLinks = (
 	document: NoteDocument,
 	previousTitle: string,
 	nextTitle: string,
-	notes: StudyNote[],
+	notes: readonly NoteName[],
 	renamedId: string,
 ): NoteDocument => {
 	const titleIndex = createNoteTitleIndex(notes);
@@ -31,8 +33,8 @@ const rewriteTextLinks = (
 	previousTitle: string,
 	nextTitle: string,
 	renamedId: string,
-	titleIndex: Map<string, StudyNote>,
-	idIndex: Map<string, StudyNote>,
+	titleIndex: Map<string, NoteName>,
+	idIndex: Map<string, NoteName>,
 ): string => {
 	const previousKey = normalizeNoteTitle(previousTitle);
 	return mapTextOutsideCode(content, (prose) => prose.replace(/\[\[([^\]\r\n]+)\]\]/g, (link, targetAndAlias: string) => {

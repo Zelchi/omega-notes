@@ -2,7 +2,7 @@ import { createSignal, onCleanup, type Accessor } from "solid-js";
 import { playSound } from "@/shared/ui/sound";
 import {
     bindNoteReferences, canCreateNoteReference, createNoteTitleIndex, normalizeNoteTitle, resolveNoteReference,
-    type NotesLibrary, type StudyNote
+    type NotesLibrary, type NoteSummary, type StudyNote
 } from "@/entities/note";
 
 export const useCreateNoteFromLink = (options: {
@@ -11,7 +11,7 @@ export const useCreateNoteFromLink = (options: {
     sourceNoteId: Accessor<string | undefined>;
     enabled: Accessor<boolean>;
     beforeOpen: () => Promise<boolean>;
-    onOpenNote: (note: StudyNote) => Promise<void>;
+    onOpenNote: (note: NoteSummary | StudyNote) => Promise<void>;
 }) => {
     const [pending, setPending] = createSignal(false);
     const [error, setError] = createSignal(false);
@@ -29,7 +29,7 @@ export const useCreateNoteFromLink = (options: {
         try {
             if (!(await options.beforeOpen())) throw new Error("SAVE_FAILED");
             if (disposed || vaultId !== options.vaultId() || sourceId !== options.sourceNoteId()) return;
-            let note = resolve(target);
+            let note: NoteSummary | StudyNote | undefined = resolve(target);
             if (!note) {
                 try {
                     note = await options.notes.create(target.trim());
@@ -41,7 +41,7 @@ export const useCreateNoteFromLink = (options: {
                 }
             }
             if (disposed || vaultId !== options.vaultId() || sourceId !== options.sourceNoteId()) return;
-            const source = options.notes.notes().find((item) => item.id === sourceId);
+            const source = sourceId ? await options.notes.loadNote(sourceId).catch(() => undefined) : undefined;
             if (source) {
                 const document = bindNoteReferences(source.document, target, note.id);
                 if (document !== source.document) options.notes.updateDocument(source.id, document);

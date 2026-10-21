@@ -1,30 +1,32 @@
 import { isTerminalTarget } from "@/shared/lib/terminal-focus";
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import type { StudyNote } from "@/entities/note";
+import type { NoteSummary } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
+import { matchesSearchShortcut, type SearchShortcut } from "@/features/change-preferences/model/search-shortcut";
 import { createSearchIndex, searchNotes, type SearchIndex } from "../../lib/search";
 
 export type FloatingSearchProps = {
-	notes: StudyNote[];
+	notes: NoteSummary[];
 	mode: "edit" | "view";
 	showBackButton: boolean;
 	backButtonDisabled: boolean;
 	canGoBack: boolean;
 	canGoForward: boolean;
 	isOnCanvas: boolean;
+	searchShortcut: SearchShortcut;
 	t: (key: TranslationKey) => string;
 	onBack: () => void;
 	onHistoryBack: () => void;
 	onHistoryForward: () => void;
 	onModeChange: (mode: "edit" | "view") => void;
-	onSelectNote: (note: StudyNote) => void;
+	onSelectNote: (note: NoteSummary) => void;
 };
 
 export const useFloatingSearchController = (props: FloatingSearchProps) => {
 	const [query, setQuery] = createSignal("");
 	const [activeIndex, setActiveIndex] = createSignal(0);
 	let root!: HTMLDivElement;
-	let indexedNotes: StudyNote[] | undefined;
+	let indexedNotes: NoteSummary[] | undefined;
 	let searchIndex: SearchIndex | undefined;
 	const results = createMemo(() => {
 		const value = query();
@@ -51,10 +53,10 @@ export const useFloatingSearchController = (props: FloatingSearchProps) => {
 		setQuery("");
 	};
 	const onSearchShortcut = (event: KeyboardEvent): void => {
-		if (isTerminalTarget(event.target) || event.defaultPrevented || event.isComposing || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "p") return;
+		if (isTerminalTarget(event.target) || !matchesSearchShortcut(event, props.searchShortcut)) return;
 		event.preventDefault();
-		event.stopImmediatePropagation();
 		if (event.repeat || !root.isConnected || root.closest("[inert]") || document.querySelector("[aria-modal='true']:not([inert])")) return;
+		event.stopImmediatePropagation();
 		const input = root.querySelector("input");
 		input?.focus({ preventScroll: true });
 		input?.select();
@@ -68,7 +70,7 @@ export const useFloatingSearchController = (props: FloatingSearchProps) => {
 		removeEventListener("keydown", onSearchShortcut, true);
 	});
 
-	const select = (note: StudyNote): void => {
+	const select = (note: NoteSummary): void => {
 		setQuery("");
 		props.onSelectNote(note);
 	};

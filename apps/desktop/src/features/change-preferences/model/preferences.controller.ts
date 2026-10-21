@@ -3,6 +3,7 @@ import { setSoundVolume as applySoundVolume } from "@/shared/ui/sound";
 import type { Language } from "@/shared/lib/i18n";
 import type { BackgroundTheme, CanvasLayout, TextCursor, Theme } from "./preferences";
 import { isAiChatShortcut, type AiChatShortcut } from "./ai-chat-shortcut";
+import { isSearchShortcut, type SearchShortcut } from "./search-shortcut";
 import {
 	readAiFeaturesEnabled,
 	readGambiarraEnabled,
@@ -11,6 +12,8 @@ import {
 	saveSoundVolume,
 	readAiChatShortcut,
 	saveAiChatShortcut,
+	readSearchShortcut,
+	saveSearchShortcut,
 	saveAiFeaturesEnabled,
 	readCanvasLayout,
 	readBackgroundTheme,
@@ -34,6 +37,7 @@ export const usePreferences = () => {
 	const [aiFeaturesEnabled, setAiFeaturesEnabled] = createSignal(readAiFeaturesEnabled());
 	const [gambiarraEnabled, setGambiarraEnabled] = createSignal(!aiFeaturesEnabled() && readGambiarraEnabled());
 	const [aiChatShortcut, setAiChatShortcut] = createSignal(readAiChatShortcut());
+	const [searchShortcut, setSearchShortcut] = createSignal(readSearchShortcut());
 	const [canvasLayout, setCanvasLayout] = createSignal<CanvasLayout>(readCanvasLayout());
 	const [centerCanvasOnLaunch, setCenterCanvasOnLaunch] = createSignal(readCenterCanvasOnLaunch());
 	const [hideCanvasControls, setHideCanvasControls] = createSignal(readHideCanvasControls());
@@ -70,10 +74,16 @@ export const usePreferences = () => {
 		aiFeaturesEnabled,
 		gambiarraEnabled,
 		aiChatShortcut,
+		searchShortcut,
 		setAiChatShortcut: (value: AiChatShortcut) => {
 			if (!isAiChatShortcut(value)) return;
 			setAiChatShortcut(value);
 			saveAiChatShortcut(value);
+		},
+		setSearchShortcut: (value: SearchShortcut) => {
+			if (!isSearchShortcut(value)) return;
+			setSearchShortcut(value);
+			saveSearchShortcut(value);
 		},
 		setAiFeaturesEnabled: (value: boolean) => {
 			if (value) { setGambiarraEnabled(false); saveGambiarraEnabled(false); }

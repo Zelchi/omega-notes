@@ -9,6 +9,7 @@ mod connections;
 mod library;
 mod linking;
 mod reading;
+mod search;
 mod structure;
 
 pub(crate) fn invalidate_cache() {
@@ -108,6 +109,10 @@ pub(super) fn text(note: &notes::StudyNote) -> String {
         .join("\n")
 }
 
+pub(super) fn has_text(contents: &str) -> bool {
+    !contents.trim().is_empty()
+}
+
 fn offset(args: &Value) -> usize {
     args["offset"].as_u64().unwrap_or(0).min(usize::MAX as u64) as usize
 }
@@ -124,7 +129,11 @@ fn required_note(directory: &Path, args: &Value, key: &str) -> Result<notes::Stu
     read(&notes::note_path(directory, id))
 }
 
-pub(super) fn context_excerpt(contents: &str, offset: usize, limit: usize) -> Value {
+pub(super) fn context_excerpt(
+    contents: &str,
+    offset: usize,
+    limit: usize,
+) -> Result<Value, String> {
     reading::excerpt(contents, offset, limit)
 }
 
@@ -167,6 +176,8 @@ pub(super) fn call(directory: &Path, tool: &str, args: &Value) -> Result<Value, 
         "read_notes" => reading::read_many(directory, args),
         "get_note_outline" => structure::outline(directory, args),
         "read_note_section" => structure::read_section(directory, args),
+        "get_note_segments" => structure::segments(directory, args),
+        "read_note_segment" => structure::read_segment(directory, args),
         "list_note_connections" => connections::list(directory, args),
         "get_vault_overview" => connections::overview(directory),
         "find_unresolved_links" => connections::unresolved(directory, args),

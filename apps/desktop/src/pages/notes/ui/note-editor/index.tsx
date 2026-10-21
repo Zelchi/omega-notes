@@ -3,8 +3,6 @@ import { Show, type Component } from "solid-js";
 import NoteCanvasEditor from "../note-canvas-editor";
 import { useNoteEditorController, type NoteEditorProps } from "./controller";
 import { styles } from "./style.css.ts";
-import { exportNote } from "../../lib/export-note";
-import { EXPORT_PDF_ENABLED } from "@/features/export-note-pdf";
 
 const NoteEditor: Component<NoteEditorProps> = (props) => {
 	const editor = useNoteEditorController(props);
@@ -45,14 +43,10 @@ const NoteEditor: Component<NoteEditorProps> = (props) => {
 			</div>
 			<NoteCanvasEditor
 				noteId={props.note.id}
-				exportPdfDisabled={editor.positioningElement() || editor.savingTitle()}
-				onExportPdf={EXPORT_PDF_ENABLED ? async () => {
-					await editor.onTitleBlur();
-					if (editor.titleError()) throw new Error(editor.titleError());
-					await exportNote(props.note, props.notes, props.t, props.referenceTitles);
-				} : undefined}
 				document={props.note.document}
 				notes={props.notes}
+				loadAllNotes={props.loadAllNotes}
+				releaseLoadedNotes={props.releaseLoadedNotes}
 				referenceTitles={props.referenceTitles}
 				mode={props.mode}
 				t={props.t}
@@ -60,7 +54,7 @@ const NoteEditor: Component<NoteEditorProps> = (props) => {
 				onDelete={props.onDelete}
 				deleteDisabled={props.deleteDisabled}
 				onOpenNote={props.onOpenNote}
-					onOpenMissingNote={props.onOpenMissingNote}
+				onOpenMissingNote={props.onOpenMissingNote}
 				onPositioningChange={editor.setPositioningElement}
 			/>
 		</section>

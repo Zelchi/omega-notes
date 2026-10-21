@@ -1,5 +1,26 @@
 # Histórico de atualizações
 
+## v0.4.5
+
+### Estudos
+
+- Questões e cards gerados são salvos como itens individuais. A pessoa escolhe quando gerar cada item e monta a própria prática selecionando quantos quer responder.
+- A geração contínua pode ser ligada ou desligada durante o processo. Cada nova questão é gerada em uma chamada separada, com até três tentativas quando falta conteúdo.
+- O estudo prioriza itens errados, mantém progresso por item e mostra revisão de erros no método inteiro. O temporizador estima o tempo usando até as dez últimas gerações de cada método.
+- O contexto para a IA identifica seções por títulos e tabelas, resume notas extensas e desconsidera imagens, vídeos e áudios ao preparar conteúdo para estudo.
+
+### Notas e ferramentas de IA
+
+- Leituras de notas extensas podem ser direcionadas a seções e tabelas, com resumos reutilizáveis e limites de leitura para reduzir o contexto enviado à IA.
+- Operações de leitura, edição e renomeação de notas coordenam alterações concorrentes e detectam mudanças externas com mais segurança.
+- A busca e as referências a notas foram aprimoradas, e o carregamento de recursos de IA passa a ocorrer sob demanda.
+
+### Interface e compatibilidade
+
+- Atalhos de busca configuráveis e configurações reorganizadas, com a versão do aplicativo na seção de preferências.
+- Em NVIDIA proprietária + Wayland, o aplicativo desativa o renderer DMA-BUF do WebKitGTK antes de inicializar a janela; as animações da interface permanecem ativas.
+- Removido o código e as dependências da exportação PDF que estava desativada.
+
 ## v0.4.4
 
 ### Estudos com IA

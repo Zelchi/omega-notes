@@ -1,14 +1,14 @@
 import Link from "@/shared/ui/link";
 import { For, Show, createMemo, type Component } from "solid-js";
 import { parseNoteTextLinks } from "../model/text-links";
-import type { StudyNote } from "../model/note";
+import type { NoteSummary } from "../model/note";
 import { parseFormattedText, type TextRun } from "@/shared/lib/formatted-text";
 import FormattedRun from "@/shared/ui/formatted-run";
 import FormattedBlockView from "@/shared/ui/formatted-block";
 import ExternalLink from "@/shared/ui/external-link";
 import type { TranslationKey } from "@/shared/lib/i18n";
 
-type TextPart = { text: string; note?: StudyNote };
+type TextPart = { text: string; note?: NoteSummary };
 
 type NoteContentTextProps = {
     text: string;
@@ -16,8 +16,8 @@ type NoteContentTextProps = {
     linkClass?: string;
     t: (key: TranslationKey) => string;
     referenceTitles: Record<string, string>;
-    resolveNote: (target: string) => StudyNote | undefined;
-    onOpenNote: (note: StudyNote) => void;
+    resolveNote: (target: string) => NoteSummary | undefined;
+    onOpenNote: (note: NoteSummary) => void;
 };
 
 const NoteReferences: Component<NoteContentTextProps> = (props) => {

@@ -1,6 +1,6 @@
 [package]
 name = "omega-notes"
-version = "0.4.4"
+version = "0.4.5"
 description = "Um espaço local para guardar e organizar seus estudos"
 authors = ["you"]
 edition = "2021"
@@ -33,3 +33,6 @@ uuid = { version = "1.27", features = ["v4", "v7"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tauri-plugin-wayland-nvidia-quirk = "0.1.0"

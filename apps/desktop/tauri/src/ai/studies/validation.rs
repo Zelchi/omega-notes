@@ -218,8 +218,7 @@ pub(super) fn validate(deck: &Deck) -> Result<(), String> {
             .source_note_id
             .as_ref()
             .is_none_or(|id| uuid::Uuid::parse_str(id).is_ok())
-        && !deck.items.is_empty()
-        && deck.items.len() <= 30
+        && deck.items.len() == 1
         && deck.items.iter().all(|item| {
             valid_text(&item.question, 2000)
                 && !item.sources.is_empty()

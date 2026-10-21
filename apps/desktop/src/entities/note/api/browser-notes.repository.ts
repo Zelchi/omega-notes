@@ -1,6 +1,7 @@
 import { createUuidV7 } from "@/shared/lib/ids";
-import type { NoteLibrary, NoteLoadIssue, NoteSaveResult, NoteStorageStats, StudyNote } from "../model/note";
+import type { NoteChangeSet, NoteLibrary, NoteLoadIssue, NoteSaveResult, NoteStorageStats, NoteSummary, NoteSummaryLibrary, StudyNote } from "../model/note";
 import { createEmptyDocument, documentPreview } from "../model/note-document";
+import { summarizeNote } from "../model/note-summary";
 import { renameResolvedNoteLinks } from "../model/note-links";
 import { isNoteTitleAvailable, normalizeNoteTitle } from "../model/note-titles";
 
@@ -73,6 +74,39 @@ export const listNotes = async (): Promise<NoteLibrary> => {
 		catch (error) { report(error); }
 	}
 	return { notes, issues, referenceTitles };
+};
+
+export const streamNoteSummaries = async (
+	_onVaultId: string,
+	_observerId: string,
+	_onExternal: boolean,
+	_resetObserverSnapshot: boolean,
+	onItems: (notes: NoteSummary[]) => void,
+): Promise<Omit<NoteSummaryLibrary, "notes">> => {
+	const library = await listNotes();
+	for (let offset = 0; offset < library.notes.length; offset += 32) {
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+		onItems(library.notes.slice(offset, offset + 32).map(summarizeNote));
+	}
+	return { issues: library.issues, referenceTitles: library.referenceTitles };
+};
+
+export const notesChanges = async (_vaultId: string, _observerId: string): Promise<NoteChangeSet> => ({
+	fullResync: false,
+	changeToken: null,
+	changedIds: [],
+	removedIds: [],
+	notes: [],
+	issues: [],
+	referenceTitles: {},
+});
+
+export const acknowledgeNoteChanges = async (_observerId: string, _changeToken: string): Promise<void> => undefined;
+
+export const getNote = async (_vaultId: string, noteId: string): Promise<StudyNote> => {
+	const note = readNotes().find((entry) => entry.id === noteId);
+	if (!note) throw new Error("NOTE_NOT_FOUND");
+	return note;
 };
 
 export const createNote = async (title: string): Promise<StudyNote> => {
@@ -152,6 +186,8 @@ export const listDeletedNotes = async (): Promise<StudyNote[]> => {
 	const serialized = localStorage.getItem(deletedStorageKey());
 	return serialized ? parseNotes(serialized) : [];
 };
+
+export const listDeletedNoteIds = async (): Promise<string[]> => (await listDeletedNotes()).map((note) => note.id);
 
 export const restoreDeletedNote = async (noteId: string): Promise<NoteSaveResult> => {
 	const deleted = await listDeletedNotes();

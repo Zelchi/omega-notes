@@ -17,7 +17,8 @@ pub(crate) use document::{
 };
 pub(crate) use links::{note_reference_targets, note_title_indexes, rename_resolved_note_links};
 pub(crate) use models::{
-    NoteDocument, NoteElement, NoteLibrary, NoteLoadIssue, NoteSaveResult, StudyNote,
+    NoteContentStats, NoteDocument, NoteElement, NoteLibrary, NoteLoadIssue, NoteSaveResult,
+    NoteSummary, StudyNote,
 };
 pub(crate) use reference_titles::{load_reference_titles, remember_reference_title};
 pub(crate) use repository::{
@@ -30,7 +31,4 @@ pub(crate) use repository::{
 pub(crate) use services::{
     content_stats, referenced_audio_and_video_ids, referenced_image_ids, referenced_media_ids,
 };
-pub(crate) use validation::{
-    ensure_unique_note_title, ensure_unique_note_title_in_directory, validate_note_id,
-    validate_note_title,
-};
+pub(crate) use validation::{validate_note_id, validate_note_title};

@@ -40,10 +40,14 @@ pub(crate) fn get_vault_details(
         });
     };
 
+    let backups_directory = vault_backups_directory(&directory, &vault.id);
+    crate::app::library::stream_note_summaries(
+        &|| Ok((notes_directory.clone(), backups_directory.clone())),
+        |_| Ok(()),
+    )?;
     let content = notes::content_stats(&notes_directory)?;
 
     let vault_directory = vault_directory(&directory, vault)?;
-    let backups_directory = vault_backups_directory(&directory, &vault.id);
     let (vault_storage_bytes, vault_last_modified_at) = vault_storage_stats(&vault_directory)?;
     let (backup_storage_bytes, backup_last_modified_at) = if backups_directory.is_dir() {
         vault_storage_stats(&backups_directory)?

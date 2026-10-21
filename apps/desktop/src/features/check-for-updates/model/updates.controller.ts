@@ -1,5 +1,5 @@
 import { createSignal, onCleanup, onMount, type Accessor } from "solid-js";
-import { checkForUpdates, downloadUpdate, installUpdate, updatesConfigured, type Update } from "../api/updates.repository";
+import type { Update } from "../api/updates.repository";
 
 type Status = "idle" | "checking" | "current" | "available" | "downloading" | "installing" | "failed" | "unavailable";
 
@@ -22,7 +22,9 @@ export const useUpdatesController = (beforeInstall: () => Promise<boolean>, canI
 			setProgress(undefined);
 			let downloaded = 0;
 			let total: number | undefined;
-			if (downloadedUpdate !== candidate) await downloadUpdate(candidate, (event) => {
+			const repository = await import("../api/updates.repository");
+			if (!active) return;
+			if (downloadedUpdate !== candidate) await repository.downloadUpdate(candidate, (event) => {
 				if (!active) return;
 				if (event.event === "Started") total = event.data.contentLength;
 				else if (event.event === "Progress") downloaded += event.data.chunkLength;
@@ -34,7 +36,7 @@ export const useUpdatesController = (beforeInstall: () => Promise<boolean>, canI
 			setStatus("installing");
 			if (!(await beforeInstall())) throw new Error("UPDATE_SAVE_FAILED");
 			if (!active) return;
-			await installUpdate(candidate);
+			await repository.installUpdate(candidate);
 		} catch (error) {
 			console.error(error);
 			if (active) setStatus("failed");
@@ -49,14 +51,16 @@ export const useUpdatesController = (beforeInstall: () => Promise<boolean>, canI
 		clearTimeout(noticeTimeout);
 		try {
 			setStatus("checking");
-			if (!(await updatesConfigured())) {
+			const repository = await import("../api/updates.repository");
+			if (!active) return;
+			if (!(await repository.updatesConfigured())) {
 				if (active) {
 					setStatus("unavailable");
 					noticeTimeout = setTimeout(() => { if (active) setStatus("idle"); }, 2_000);
 				}
 				return;
 			}
-			const candidate = await checkForUpdates();
+			const candidate = await repository.checkForUpdates();
 			if (!active) { await candidate?.close(); return; }
 			await update?.close();
 			update = candidate ?? undefined;
@@ -72,7 +76,18 @@ export const useUpdatesController = (beforeInstall: () => Promise<boolean>, canI
 	};
 
 	onMount(() => {
-		if (import.meta.env.PROD) void check();
+		if (!import.meta.env.PROD) return;
+		const idleWindow = window as Window & {
+			requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+			cancelIdleCallback?: (handle: number) => void;
+		};
+		if (idleWindow.requestIdleCallback) {
+			const handle = idleWindow.requestIdleCallback(() => void check(), { timeout: 4_000 });
+			onCleanup(() => idleWindow.cancelIdleCallback?.(handle));
+		} else {
+			const timer = setTimeout(() => void check(), 1_200);
+			onCleanup(() => clearTimeout(timer));
+		}
 	});
 	onCleanup(() => {
 		active = false;

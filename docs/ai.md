@@ -216,19 +216,21 @@ a usar esses links também em listas, resumos e confirmações, em vez de apenas
 
 | Ferramenta | Consulta e limites |
 |---|---|
-| `list_notes` | Lista IDs, títulos e prévias; 100 notas por página. |
-| `search_notes` | Busca em títulos e textos; 20 resultados por página, com trecho do conteúdo encontrado e seu deslocamento em caracteres. |
-| `read_note` | Lê até 16 mil caracteres de uma nota. |
-| `read_notes` | Lê até oito notas distintas; até 4 mil caracteres por nota, com erros individuais e continuação pela leitura de uma nota. |
-| `read_study_context` | Consulta o snapshot preparado para geração ou avaliação: manifesto de fontes e atribuições, 50 fontes por página, ou conteúdo de uma fonte em páginas de até 16 mil caracteres Unicode. Usa `sourceId` local, como `N1`, na leitura e nas citações. É anunciada somente nas tarefas de estudo, sem aparecer no Chat comum. Fora de uma solicitação preparada, não disponibiliza contexto. |
+| `list_notes` | Lista IDs, títulos e prévias; 100 notas por página. `contentAvailable` indica se há texto na nota. |
+| `search_notes` | Busca em títulos e textos; 20 resultados por página. Só inclui trecho e deslocamento quando encontrou a consulta no texto; correspondências apenas no título não inventam um trecho vazio. |
+| `read_note` | Lê até 16 mil caracteres. Nota sem texto e deslocamento fora do conteúdo retornam erros explícitos em vez de uma página vazia. |
+| `read_notes` | Lê até oito notas distintas; até 4 mil caracteres por nota, com erros individuais para notas vazias ou deslocamentos inválidos. |
+| `read_study_context` | Consulta o snapshot preparado para geração ou avaliação: manifesto de fontes e atribuições, até 50 fontes por página e segmentos com caminho de títulos Markdown h1–h6 e prévias. Tabelas Markdown são segmentos próprios; elementos de imagem, vídeo e áudio são omitidos. Fontes de até 8 mil caracteres incluem o texto; em fontes maiores, `segmentId` lê só o segmento selecionado e `segmentOffset` pagina o índice. O texto de segmento pagina em blocos de até 16 mil caracteres Unicode. Notas principais sem texto causam nova tentativa com outra nota; fontes complementares vazias são marcadas como `contentAvailable=false`. Usa `sourceId` local, como `N1`, na leitura e nas citações. É anunciada somente nas tarefas de estudo, sem aparecer no Chat comum. Fora de uma solicitação preparada, não disponibiliza contexto. |
 | `list_note_connections` | Lista referências de entrada, saída ou ambas, sem duplicatas; 100 notas por página. |
 | `get_vault_overview` | Conta notas legíveis, referências direcionadas, conexões únicas, notas isoladas e links sem destino. |
 | `get_note_outline` | Lista títulos Markdown h1–h6, com nível, linhas e `sectionId`; 100 títulos por página. |
 | `read_note_section` | Lê uma seção pelo `sectionId`, incluindo os subtítulos, até o próximo título de nível igual ou superior; até 16 mil caracteres. O ID zero lê a introdução. |
+| `get_note_segments` | Divide o texto de uma nota em segmentos com `headingPath` h1–h6; tabelas Markdown são listadas à parte e trazem prévia. Elementos de imagem, vídeo e áudio são omitidos. Lista 100 por página. |
+| `read_note_segment` | Lê um segmento de texto ou uma tabela pelo `segmentId`, com seu caminho de títulos, em páginas de até 16 mil caracteres. |
 | `find_unresolved_links` | Lista links para notas ausentes, com ID/título da origem e destino escrito; permite filtrar a origem por `noteId`, com 100 resultados por página. |
 | `find_connection_path` | Encontra um caminho mínimo entre duas notas, considerando ambas as direções ou somente as saídas; profundidade padrão de 12 conexões e máxima de 32. |
 
-Consultas paginadas usam `offset` e retornam `nextOffset`; valor nulo indica o fim.
+Consultas paginadas usam `offset` e retornam `nextOffset`; valor nulo indica o fim. Uma busca sem resultados retorna uma mensagem explícita. Não solicite outra página depois do fim; offsets fora do conteúdo retornam erro.
 Deslocamentos de texto contam caracteres Unicode. A busca retorna `snippetOffset`
 para continuar a leitura perto do resultado. IDs de seção são específicos da versão
 atual do texto: consulte novamente o sumário depois de editar uma nota.
@@ -436,10 +438,12 @@ com revisão esperada, preservação de backup, troca da conversa principal e re
 de callbacks antigos. O bloqueio de sessão também é exercitado com dois processos
 separados. Esses testes não iniciam uma conversa autenticada com o provedor.
 
-Com Recursos de IA desativados, segurar o controle por cinco segundos ativa o
-modo Gambiarra. A preferência é salva nesta instalação e o controle passa a
-mostrar Gambiarra. Desligá-lo retorna a Recursos de IA desativados; o clique curto
-no controle original continua habilitando a integração normal.
+Nas configurações de IA, o Modo Gambiarra aparece abaixo de Recursos de IA. Ao
+solicitar a ativação, o app abre um modal de aviso sobre as configurações; o modo
+só é ativado após a confirmação. O aviso informa que o modo é experimental e que
+o CLI escolhido pode alterar arquivos do vault ativo. A preferência é salva nesta
+instalação. Os modos são mutuamente exclusivos: ativar Recursos de IA desativa o
+Modo Gambiarra.
 
 Neste modo, o botão e o atalho do Chat abrem um terminal interativo na lateral.
 Ele inicia o shell padrão do sistema na raiz do vault ativo, acima da pasta
@@ -514,9 +518,11 @@ provedor ou interpretação da saída visual do terminal.
 Os cinco métodos ficam disponíveis também em Gambiarra. Ao iniciar uma geração,
 o app salva as edições, prepara o mesmo snapshot de fontes da integração normal e
 cria `ia/gambiarra/requests/<requestId>/` com `request.md`, `manifest.json` e
-fontes completas `N1.txt`, `N2.txt` etc. O botão **Copiar pedido para o CLI** copia
-uma instrução para a IA ler esses arquivos. No modal, esse botão também abre a
-lateral; o usuário cola o pedido no CLI de IA iniciado ali, não no shell.
+arquivos por segmento (`N1-S1.txt`, `N1-S2.txt` etc.). O manifesto inclui caminho
+de títulos, tipo e prévia; tabelas Markdown são segmentos próprios. O botão
+**Copiar pedido para o CLI** copia uma instrução para a IA escolher os arquivos
+relevantes. No modal, esse botão também abre a lateral; o usuário cola o pedido
+no CLI de IA iniciado ali, não no shell.
 No terminal, apenas o botão de copiar fica acima da área de texto. O botão
 **Confirmar** no rodapé fecha o Chat e reabre o método de estudo responsável pelo
 pedido, preservando seu estado. Ele continua disponível após receber a resposta
@@ -534,9 +540,9 @@ o usuário ou interpretando a tela da PTY. A resposta inteira é limitada a 1.02
 bytes, precisa corresponder ao pedido e passa pelos validadores atuais do estudo.
 Na avaliação, as fontes em disco também são conferidas antes de aceitar o parecer.
 
-A seleção Geral/Nicho, as referências, os lotes de até cinco itens, as três
-tentativas e a quantidade exata continuam iguais. Um lote seguinte ou uma nova
-avaliação produz outro pedido para copiar; não há envio automático ao CLI aberto.
+A seleção geral de fontes pelo vault, as referências diretas e as três tentativas
+por questão continuam iguais. Cada questão/card e cada nova avaliação produzem
+um pedido individual para copiar; não há envio automático ao CLI aberto.
 Redação/Lacunas mantêm a fila de correções e deixam responder às próximas questões;
 ao final, aguardam os pareceres e exibem o relatório. Sessões e progresso continuam
 no armazenamento normal em `ia/studies/`, gravados pelo app.

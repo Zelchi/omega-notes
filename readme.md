@@ -167,8 +167,6 @@ pendentes e reinicia após a instalação. No Linux, a instalação pode solicit
 Você também pode usar **Verificar atualizações**, no final das configurações.
 A conexão com a internet é necessária para verificar e baixar novas versões.
 
-> A exportação para PDF está temporariamente desativada.
-
 ---
 
 <div align="center">

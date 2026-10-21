@@ -1,5 +1,6 @@
 import { mapTextOutsideCode } from "@/shared/lib/formatted-text";
-import type { StudyNote } from "./note";
+import type { NoteSummary } from "./note";
+type NoteName = Pick<NoteSummary, "id" | "title">;
 import { normalizeNoteTitle } from "./note-titles";
 
 export const createNoteReferenceNormalizer = () => {
@@ -7,7 +8,7 @@ export const createNoteReferenceNormalizer = () => {
     const titles = new Map<string, string>();
     const rememberedTitles = new Map<string, string>();
     return {
-        bind: (notes: StudyNote[]) => {
+        bind: (notes: readonly NoteName[]) => {
             if (notes.length === titles.size && notes.every((note) => titles.get(note.id) === note.title)) return false;
             for (const note of notes) targets.set(normalizeNoteTitle(note.title), note.id);
             for (const note of notes) targets.set(normalizeNoteTitle(note.id), note.id);

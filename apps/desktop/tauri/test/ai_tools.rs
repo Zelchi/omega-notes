@@ -63,7 +63,7 @@ fn catalog_has_all_tools_and_correct_mcp_annotations() {
     )
     .unwrap();
     let list = response["result"]["tools"].as_array().unwrap();
-    assert_eq!(list.len(), 11);
+    assert_eq!(list.len(), 13);
     for tool in list {
         assert_ne!(tool["name"], "read_study_context");
         assert!(!tool["description"].as_str().unwrap().is_empty());
@@ -118,10 +118,12 @@ fn read_batch_keeps_successes_and_bounds_unicode_pages() {
     assert_eq!(result["notes"][0]["text"], "ação");
     assert_eq!(result["notes"][0]["nextOffset"], 5);
     assert_eq!(result["errors"].as_array().unwrap().len(), 1);
-    assert_eq!(
-        vault.call("read_note", json!({"noteId":a,"offset":999}))["nextOffset"],
-        Value::Null
-    );
+    assert!(tools::call(
+        &vault.directory,
+        "read_note",
+        &json!({"noteId":a,"offset":999})
+    )
+    .is_err());
     let long = vault.note(2, "Long", &"á".repeat(5000));
     assert_eq!(
         vault.call("read_notes", json!({"noteIds":[long]}))["notes"][0]["text"]
@@ -255,10 +257,12 @@ fn headings_empty_notes_and_outline_pagination() {
         vault.call("get_note_outline", json!({"noteId":empty}))["total"],
         0
     );
-    assert_eq!(
-        vault.call("read_note_section", json!({"noteId":empty,"sectionId":0}))["text"],
-        ""
-    );
+    assert!(tools::call(
+        &vault.directory,
+        "read_note_section",
+        &json!({"noteId":empty,"sectionId":0})
+    )
+    .is_err());
     let contents = (0..105)
         .map(|n| format!("# Heading {n}\ntext\n"))
         .collect::<String>();
@@ -514,7 +518,17 @@ fn queries_do_not_change_note_files() {
     for (path, bytes) in before {
         assert_eq!(fs::read(path).unwrap(), bytes);
     }
-    assert_eq!(fs::read_dir(&vault.directory).unwrap().count(), 2);
+    let note_file_count = fs::read_dir(&vault.directory)
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "omega")
+        })
+        .count();
+    assert_eq!(note_file_count, 2);
 }
 
 #[cfg(unix)]
