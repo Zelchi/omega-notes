@@ -67,8 +67,6 @@ struct PersistedEntryRef<'a> {
 }
 
 pub(super) struct SearchMatch {
-    pub snippet: String,
-    pub snippet_offset: usize,
     pub match_offset: usize,
 }
 
@@ -424,13 +422,7 @@ fn make_match(original: &str, folded: &str, byte_offset: usize) -> SearchMatch {
         }
         folded_index = folded_index.saturating_add(folded_length);
     }
-    let snippet_offset = match_offset.saturating_sub(120);
-    let snippet = original.chars().skip(snippet_offset).take(600).collect();
-    SearchMatch {
-        snippet,
-        snippet_offset,
-        match_offset,
-    }
+    SearchMatch { match_offset }
 }
 
 fn note_id_from_filename(file_name: &str) -> Option<String> {

@@ -2,8 +2,8 @@ import { createSignal, onCleanup, onMount } from "solid-js";
 import { isTauriRuntime } from "@/shared/lib/tauri";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import {
-	closeWindow,
 	confirmCloseWithoutSaving,
+	hideMainWindow,
 	isWindowMaximized,
 	minimizeWindow,
 	onWindowCloseRequested,
@@ -88,7 +88,7 @@ export const useWindowControls = (beforeClose: () => Promise<boolean>, t: (key: 
 		},
 		toggleMaximize,
 		close: () => {
-			if (isTauriRuntime()) void closeWindow().catch(console.error);
+			if (isTauriRuntime()) void hideMainWindow().catch(console.error);
 		},
 	};
 };

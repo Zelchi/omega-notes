@@ -14,7 +14,7 @@ use crate::notes::{
 };
 
 const SUMMARY_INDEX_FILE: &str = ".note-summaries.json";
-const SUMMARY_INDEX_VERSION: u8 = 3;
+const SUMMARY_INDEX_VERSION: u8 = 5;
 const SUMMARY_INDEX_MAX_BYTES: u64 = 64 * 1024 * 1024;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -665,14 +665,36 @@ pub(crate) fn summary_from_note(note: crate::notes::StudyNote) -> crate::notes::
         crate::notes::NoteElement::Text { text, .. } => !text.trim().is_empty(),
         _ => false,
     });
+    let study_text = note
+        .document
+        .elements
+        .iter()
+        .filter_map(|element| match element {
+            crate::notes::NoteElement::Text { text, .. } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let study_content_characters = study_text.chars().count();
+    let study_content_words = study_text
+        .split_whitespace()
+        .filter(|word| word.chars().any(char::is_alphanumeric))
+        .count();
+    let study_content_lines = study_text
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| line.chars().count().saturating_add(79) / 80)
+        .sum();
     crate::notes::NoteSummary {
         id: note.id,
         title: note.title,
-        preview: note.preview,
         updated_at: note.updated_at,
         links,
         has_content,
         has_text,
+        study_content_characters,
+        study_content_words,
+        study_content_lines,
     }
 }
 
@@ -930,10 +952,16 @@ mod tests {
         let (summaries, _) = vault.summaries();
         assert_eq!(summaries.len(), 1);
         assert_eq!(summaries[0].title, "Original");
+        assert_eq!(
+            summaries[0].study_content_characters,
+            "Conteúdo preservado".chars().count()
+        );
+        assert_eq!(summaries[0].study_content_words, 2);
+        assert_eq!(summaries[0].study_content_lines, 1);
         assert!(read_summary_index(&vault.notes).is_some());
         assert_eq!(fs::read(&note_path).unwrap(), original);
 
-        for invalid_index in [b"not-json".as_slice(), br#"{"version":2,"entries":[]}"#] {
+        for invalid_index in [b"not-json".as_slice(), br#"{"version":4,"entries":[]}"#] {
             fs::write(&index_path, invalid_index).unwrap();
             let (summaries, _) = vault.summaries();
             assert_eq!(summaries.len(), 1);

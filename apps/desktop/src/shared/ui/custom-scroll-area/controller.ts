@@ -57,7 +57,6 @@ export const useCustomScrollArea = (options: { compact?: boolean; accelerateScro
 		const value = metrics();
 		const client = axis === "vertical" ? value.clientHeight : value.clientWidth;
 		const scrollLength = axis === "vertical" ? value.scrollHeight : value.scrollWidth;
-		// Keep these insets synchronized with the matching top/bottom or left/right track styles.
 		const trackInset = options.compact ? 4 : axis === "vertical" ? 16 : 28;
 		const trackLength = Math.max(0, (axis === "vertical" ? value.rootHeight : value.rootWidth) - trackInset);
 		const maxScroll = Math.max(0, scrollLength - client);
@@ -91,8 +90,10 @@ export const useCustomScrollArea = (options: { compact?: boolean; accelerateScro
 		const pointerStart = axis === "vertical" ? event.clientY : event.clientX;
 		const scrollStart = axis === "vertical" ? viewport.scrollTop : viewport.scrollLeft;
 		event.currentTarget.setPointerCapture(event.pointerId);
-		setDrag({ axis, pointerId: event.pointerId, captureTarget: event.currentTarget,
-			pointerStart, scrollStart, travel: geometry.trackLength - geometry.length, maxScroll: geometry.maxScroll });
+		setDrag({
+			axis, pointerId: event.pointerId, captureTarget: event.currentTarget,
+			pointerStart, scrollStart, travel: geometry.trackLength - geometry.length, maxScroll: geometry.maxScroll
+		});
 	};
 
 	const moveThumb = (event: PointerEvent): void => {

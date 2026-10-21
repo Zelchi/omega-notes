@@ -10,6 +10,7 @@ import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { Vault, VaultDetails } from "@/entities/vault";
 import type { VaultErrorAction } from "../../model/vault-error";
+import type { VaultDialogState } from "../../model/vaults.controller";
 import { useVaultReorder } from "../../model/vault-reorder";
 import { styles } from "./style.css.ts";
 
@@ -36,6 +37,7 @@ const formatCount = (count: number, locale: string): string => new Intl.NumberFo
 
 type Props = {
 	open: boolean;
+	dialogState: VaultDialogState;
 	required: boolean;
 	vaults: Vault[];
 	activeVaultId?: string;
@@ -56,73 +58,45 @@ type Props = {
 
 const VaultDialog: Component<Props> = (props) => {
 	let vaultList: HTMLDivElement | undefined;
-	const [name, setName] = createSignal("");
 	const [createInputRow, setCreateInputRow] = createSignal<HTMLDivElement>();
 	const [renameInput, setRenameInput] = createSignal<HTMLInputElement>();
-	const [editingVaultId, setEditingVaultId] = createSignal<string>();
-	const [editingName, setEditingName] = createSignal("");
-	const [deletingVault, setDeletingVault] = createSignal<Vault>();
-	const backdropDismiss = createBackdropDismiss(() => { if (!props.saving) props.onClose(); });
-	const deleteBackdropDismiss = createBackdropDismiss(() => { if (!props.saving) setDeletingVault(undefined); });
-	const [selectedVaultId, setSelectedVaultId] = createSignal<string>();
-	const [vaultDetails, setVaultDetails] = createSignal<Record<string, VaultDetails>>({});
+	const state = props.dialogState;
+	const backdropDismiss = createBackdropDismiss(props.onClose);
+	const deleteBackdropDismiss = createBackdropDismiss(() => state.setDeleteConfirmationVisible(false));
 	const reorder = useVaultReorder({
 		vaults: () => props.vaults,
-		enabled: () => props.open && !props.saving && !editingVaultId() && !deletingVault(),
+		enabled: () => props.open && !props.saving && !state.editingVaultId() && !state.deleteConfirmationVisible(),
 		getList: () => vaultList,
 		onReorder: ids => props.onReorder(ids),
 	});
-	const selectedVault = () => props.vaults.find((vault) => vault.id === selectedVaultId());
-	const detailRequests = new Map<string, number>();
-	let detailsRevision = 0;
-	let wasOpen = false;
+	const selectedVault = () => props.vaults.find((vault) => vault.id === state.selectedVaultId());
 
 	createEffect(() => {
 		const isOpen = props.open;
-		const activeVaultId = props.activeVaultId;
-		const vaultIds = props.vaults.map((vault) => vault.id);
-		const currentSelection = selectedVaultId();
-		if (isOpen && (!wasOpen || !vaultIds.includes(currentSelection ?? ""))) {
-			setSelectedVaultId(activeVaultId ?? vaultIds[0]);
-		}
-		wasOpen = isOpen;
-	});
-
-	createEffect(() => {
-		const isOpen = props.open;
-		const vaultId = selectedVaultId();
+		const vaultId = state.selectedVaultId();
 		if (!isOpen || !vaultId) return;
-
-		const revision = ++detailsRevision;
-		detailRequests.set(vaultId, revision);
-		void props
-			.getDetails(vaultId)
-			.then((details) => {
-				if (detailRequests.get(vaultId) !== revision) return;
-				setVaultDetails((current) => ({ ...current, [vaultId]: details }));
-			})
-			.catch((error) => console.error(error));
+		void props.getDetails(vaultId).catch(error => console.error(error));
 	});
 
 	const submit = async (event: SubmitEvent): Promise<void> => {
 		event.preventDefault();
-		const trimmedName = name().trim();
+		const trimmedName = state.name().trim();
 		if (!trimmedName || props.saving || props.errorAction === "load") return;
 		props.onClearError();
-		if (await props.onCreate(trimmedName)) setName("");
+		if (await props.onCreate(trimmedName)) state.setName("");
 	};
 
 	const submitRename = async (event: SubmitEvent, vault: Vault): Promise<void> => {
 		event.preventDefault();
-		if (!editingName().trim() || props.saving) return;
+		if (!state.editingName().trim() || props.saving) return;
 		props.onClearError();
-		if (await props.onRename(vault, editingName().trim())) setEditingVaultId(undefined);
+		if (await props.onRename(vault, state.editingName().trim())) state.setEditingVaultId(undefined);
 	};
 
 	const confirmDelete = async (vault: Vault): Promise<void> => {
 		if (props.saving) return;
 		props.onClearError();
-		if (await props.onDelete(vault)) setDeletingVault(undefined);
+		if (await props.onDelete(vault)) { state.setDeletingVault(undefined); state.setDeleteConfirmationVisible(false); }
 	};
 
 	return (
@@ -150,7 +124,7 @@ const VaultDialog: Component<Props> = (props) => {
 									<h3 class={styles.detailTitle}>{props.t("vault")}</h3>
 									<Show when={selectedVault()}>
 										{(vault) => {
-											const details = () => vaultDetails()[vault().id];
+											const details = () => state.details()[vault().id];
 											return (
 												<div class={styles.metrics}>
 													<div class={styles.metric}>
@@ -243,8 +217,8 @@ const VaultDialog: Component<Props> = (props) => {
 										class={styles.input}
 										autofocus
 										maxLength={64}
-										value={name()}
-										onInput={(event) => setName(event.currentTarget.value)}
+										value={state.name()}
+										onInput={(event) => state.setName(event.currentTarget.value)}
 										placeholder={props.t("vaultName")}
 										aria-label={props.t("vaultName")}
 										disabled={props.saving}
@@ -253,7 +227,7 @@ const VaultDialog: Component<Props> = (props) => {
 										class={styles.createButton}
 										type="submit"
 										aria-label={props.t("create")}
-										disabled={!name().trim() || props.saving || props.errorAction === "load"}
+										disabled={!state.name().trim() || props.saving || props.errorAction === "load"}
 									>
 										<Icon name="add" size={18} />
 									</Button>
@@ -275,7 +249,7 @@ const VaultDialog: Component<Props> = (props) => {
 										{(vault) => (
 											<div data-vault-row={vault.id} class={cx(styles.vaultRow, reorder.draggedId() === vault.id && styles.draggingVault)}>
 												<Show
-													when={editingVaultId() === vault.id}
+									when={state.editingVaultId() === vault.id}
 													fallback={
 														<>
 															<Button
@@ -283,17 +257,17 @@ const VaultDialog: Component<Props> = (props) => {
 																	styles.vault,
 																	vault.id === props.activeVaultId &&
 																		styles.activeVault,
-																	vault.id === selectedVaultId() &&
+											vault.id === state.selectedVaultId() &&
 																		styles.previewVault,
 																)}
 																type="button"
-																aria-pressed={vault.id === selectedVaultId()}
+										aria-pressed={vault.id === state.selectedVaultId()}
 																disabled={props.saving}
 																onPointerDown={event => reorder.begin(event, vault.id)}
 																onClick={(event) => {
 																	if (reorder.consumeClick(event)) return;
 																	props.onClearError();
-																	setSelectedVaultId(vault.id);
+											state.setSelectedVaultId(vault.id);
 																}}
 															>
 																{vault.name}
@@ -306,8 +280,8 @@ const VaultDialog: Component<Props> = (props) => {
 																	disabled={props.saving}
 																	onClick={() => {
 																		props.onClearError();
-																		setEditingName(vault.name);
-																		setEditingVaultId(vault.id);
+												state.setEditingName(vault.name);
+												state.setEditingVaultId(vault.id);
 																	}}
 																>
 																	<Icon name="edit" size={14} />
@@ -319,7 +293,8 @@ const VaultDialog: Component<Props> = (props) => {
 																	disabled={props.saving}
 																	onClick={() => {
 																		props.onClearError();
-																		setDeletingVault(vault);
+													state.setDeletingVault(vault);
+													state.setDeleteConfirmationVisible(true);
 																	}}
 																>
 																	<Icon name="delete" size={14} />
@@ -336,9 +311,9 @@ const VaultDialog: Component<Props> = (props) => {
 															ref={setRenameInput}
 															class={styles.renameInput}
 															maxLength={64}
-															value={editingName()}
+										value={state.editingName()}
 															onInput={(event) =>
-																setEditingName(event.currentTarget.value)
+											state.setEditingName(event.currentTarget.value)
 															}
 															aria-label={props.t("vaultName")}
 															disabled={props.saving}
@@ -347,7 +322,7 @@ const VaultDialog: Component<Props> = (props) => {
 															class={styles.iconAction}
 															type="submit"
 															aria-label={props.t("save")}
-															disabled={!editingName().trim() || props.saving}
+										disabled={!state.editingName().trim() || props.saving}
 														>
 															<Icon name="check" size={14} />
 														</Button>
@@ -358,7 +333,7 @@ const VaultDialog: Component<Props> = (props) => {
 															disabled={props.saving}
 															onClick={() => {
 																props.onClearError();
-																setEditingVaultId(undefined);
+										state.setEditingVaultId(undefined);
 															}}
 														>
 															<Icon name="close" size={14} />
@@ -401,7 +376,6 @@ const VaultDialog: Component<Props> = (props) => {
 											class={cx(styles.cancel, styles.footerCancel)}
 											type="button"
 											onClick={props.onClose}
-											disabled={props.saving}
 										>
 											{props.t("cancel")}
 										</Button>
@@ -426,14 +400,16 @@ const VaultDialog: Component<Props> = (props) => {
 					</Show>
 				</section>
 			</div>
-			<Show when={deletingVault()}>
-				{(vault) => (
+							<Show when={props.open && state.deleteConfirmationVisible() && state.deletingVault()}>
+									{(vault) => (
 					<div
 						class={styles.confirmBackdrop}
 						ref={(element) => registerExitSnapshot(element, { kind: "dialog", key: "vault-delete-dialog" })}
 						{...deleteBackdropDismiss}
 					>
-						<section class={styles.confirmDialog} role="alertdialog" aria-modal="true">
+									<section class={styles.confirmDialog} role="alertdialog" aria-modal="true" onKeyDown={event => {
+										if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); state.setDeleteConfirmationVisible(false); }
+									}}>
 							<AsciiBackdrop placement="modal" />
 							<h3 class={styles.title}>{props.t("delete")}</h3>
 							<strong class={styles.deleteName}>{vault().name}</strong>
@@ -450,7 +426,8 @@ const VaultDialog: Component<Props> = (props) => {
 									disabled={props.saving}
 									onClick={() => {
 										props.onClearError();
-										setDeletingVault(undefined);
+											state.setDeletingVault(undefined);
+											state.setDeleteConfirmationVisible(false);
 									}}
 								>
 									{props.t("cancel")}

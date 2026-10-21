@@ -1,6 +1,6 @@
 import Textarea from "@/shared/ui/textarea";
 import Button from "@/shared/ui/button";
-import { For, Show, createEffect, createMemo, untrack, onCleanup, type Component } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, untrack, onCleanup, type Component } from "solid-js";
 import { normalizeNoteTitle, type NoteSummary } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import Icon from "@/shared/ui/icon";
@@ -15,6 +15,7 @@ import TextCaret from "@/shared/ui/text-caret";
 import { useTextareaCaret } from "@/shared/ui/text-caret/use-textarea-caret";
 import CustomScrollArea, { CustomScrollbars, useCustomScrollArea } from "@/shared/ui/custom-scroll-area";
 import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 type Props = {
     aiChat: AiChatController;
@@ -28,7 +29,7 @@ const effortLabels: Record<string, TranslationKey> = {
     high: "aiEffortHigh", xhigh: "aiEffortExtraHigh", max: "aiEffortMax", ultra: "aiEffortUltra",
 };
 
-const ChatComposer: Component<Pick<Props, "aiChat" | "t"> & { onSend: () => void }> = (props) => {
+const ChatComposer: Component<Pick<Props, "aiChat" | "t"> & { onSend: () => void; onInputReady: (input: HTMLTextAreaElement) => void }> = (props) => {
     const messageCaret = useTextareaCaret();
     const composerScroll = useCustomScrollArea({ compact: true });
     let input: HTMLTextAreaElement | undefined;
@@ -61,7 +62,7 @@ const ChatComposer: Component<Pick<Props, "aiChat" | "t"> & { onSend: () => void
         <div class={styles.messageInput} ref={composerScroll.setRoot} data-omega-scroll-root
             onPointerMove={composerScroll.moveThumb} onPointerUp={composerScroll.finishDrag}
             onPointerCancel={composerScroll.finishDrag} onLostPointerCapture={composerScroll.finishDrag}>
-            <Textarea ref={(element) => { input = element; messageCaret.bind(element); composerScroll.setViewport(element); composerScroll.setContent(element); }}
+            <Textarea ref={(element) => { input = element; props.onInputReady(element); messageCaret.bind(element); composerScroll.setViewport(element); composerScroll.setContent(element); }}
                 data-omega-scroll-viewport class={styles.textarea} aria-label={props.t("aiMessage")} placeholder={props.t("aiMessagePlaceholder")} value={props.aiChat.chat().draft} maxlength={8000}
                 disabled={!props.aiChat.status().authenticated || props.aiChat.pending()}
                 onInput={(event) => props.aiChat.setDraft(event.currentTarget.value)}
@@ -87,16 +88,62 @@ const ChatBody: Component<Props> = (props) => {
     const notesById = createMemo(() => new Map(props.notes.map((note) => [normalizeNoteTitle(note.id), note])));
     const resolveNote = (target: string) => notesById().get(normalizeNoteTitle(target));
     let messages: HTMLDivElement | undefined;
+    let body: HTMLDivElement | undefined;
+    let composerInput: HTMLTextAreaElement | undefined;
     let scrollFrame = 0;
-    let follow = true;
+    const [textMenu, setTextMenu] = createSignal<{ text: string; x: number; y: number }>();
+    createEffect(() => {
+        if (!textMenu()) return;
+        const outside = (event: PointerEvent) => {
+            if (!(event.target instanceof Element) || !event.target.closest(`.${styles.contextMenu}`)) setTextMenu(undefined);
+        };
+        const escape = (event: KeyboardEvent) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            setTextMenu(undefined);
+        };
+        window.addEventListener("pointerdown", outside);
+        window.addEventListener("keydown", escape, true);
+        onCleanup(() => {
+            window.removeEventListener("pointerdown", outside);
+            window.removeEventListener("keydown", escape, true);
+        });
+    });
+    const openTextMenu = (event: MouseEvent): void => {
+        const target = event.currentTarget;
+        const selection = window.getSelection();
+        const text = selection?.toString() ?? "";
+        if (!body || !(target instanceof Element) || !selection?.anchorNode || !selection.focusNode || !text.trim() ||
+            !target.contains(selection.anchorNode) || !target.contains(selection.focusNode)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = body.getBoundingClientRect();
+        const width = 184;
+        const height = 112;
+        setTextMenu({
+            text,
+            x: Math.max(8, Math.min(event.clientX - rect.left, rect.width - width - 8)),
+            y: Math.max(8, Math.min(event.clientY - rect.top, rect.height - height - 8)),
+        });
+    };
+    const askAboutSelectedText = (text: string): void => {
+        const draft = props.aiChat.chat().draft;
+        props.aiChat.setDraft(`${draft}${draft ? "\n\n" : ""}${text}`);
+        setTextMenu(undefined);
+        composerInput?.focus({ preventScroll: true });
+    };
     createEffect(() => {
         props.aiChat.chat().messages;
         props.aiChat.chat().busy;
+        const view = props.aiChat.messageView();
         cancelAnimationFrame(scrollFrame);
-        scrollFrame = requestAnimationFrame(() => { if (messages && follow) messages.scrollTop = messages.scrollHeight; });
+        scrollFrame = requestAnimationFrame(() => {
+            if (messages) messages.scrollTop = view.follow ? messages.scrollHeight : view.scrollTop;
+        });
     });
     onCleanup(() => cancelAnimationFrame(scrollFrame));
-    return <div class={styles.body}>
+    return <div class={styles.body} ref={body}>
         <header class={styles.header}>
             <h2 id="ai-chat-heading" class={styles.title}>{props.t("aiChat")}</h2>
             <div class={styles.actions}>
@@ -131,7 +178,10 @@ const ChatBody: Component<Props> = (props) => {
                     viewportStyle={{ padding: "8px 16px 8px 4px" }}
                     ariaLabel={props.t("aiMessages")}
                     viewportRef={(element) => { messages = element; }}
-                    onScroll={(element) => { follow = element.scrollHeight - element.scrollTop - element.clientHeight < 60; }}>
+                    onScroll={(element) => props.aiChat.setMessageView(
+                        element.scrollTop,
+                        element.scrollHeight - element.scrollTop - element.clientHeight < 60,
+                    )}>
                     <For each={messageIds()}>{(id) => {
                         const initial = untrack(() => messagesById().get(id))!;
                         const message = () => messagesById().get(id) ?? initial;
@@ -145,12 +195,14 @@ const ChatBody: Component<Props> = (props) => {
                                     </Button>
                                 </Show>
                             </div>
-                            <ChatMessageText t={props.t}
-                                text={message().role === "user" && message().action === "undo-links" ? props.t("aiUndoRequest") : message().text || (id === props.aiChat.chat().requestId && props.aiChat.chat().busy ? props.t("aiThinking") : props.t("aiNoResponse"))}
-                                referenceTitles={props.aiChat.chat().referenceTitles}
-                                resolveNote={resolveNote}
-                                onOpenNote={props.onOpenNote}
-                            />
+                            <div class={styles.messageContent} onContextMenu={openTextMenu}>
+                                <ChatMessageText t={props.t}
+                                    text={message().role === "user" && message().action === "undo-links" ? props.t("aiUndoRequest") : message().text || (id === props.aiChat.chat().requestId && props.aiChat.chat().busy ? props.t("aiThinking") : props.t("aiNoResponse"))}
+                                    referenceTitles={props.aiChat.chat().referenceTitles}
+                                    resolveNote={resolveNote}
+                                    onOpenNote={props.onOpenNote}
+                                />
+                            </div>
                         </div>;
                     }}</For>
                 </CustomScrollArea>
@@ -187,8 +239,21 @@ const ChatBody: Component<Props> = (props) => {
                     </div>
                 </Show>
             </div>
-            <ChatComposer aiChat={props.aiChat} t={props.t} onSend={() => { follow = true; void props.aiChat.send(); }} />
+            <ChatComposer aiChat={props.aiChat} t={props.t} onInputReady={(input) => { composerInput = input; }} onSend={() => { props.aiChat.setMessageView(messages?.scrollTop ?? 0, true); void props.aiChat.send(); }} />
         </Show>
+        <Show when={textMenu()}>{(menu) => <div class={styles.contextMenu} style={{ left: `${menu().x}px`, top: `${menu().y}px` }}
+            role="group" aria-label={props.t("aiSelectionActions")}
+            onPointerDown={(event) => event.stopPropagation()} onContextMenu={(event) => event.preventDefault()}>
+            <Button class={styles.contextMenuButton} type="button" onClick={() => {
+                void navigator.clipboard.writeText(menu().text).catch(console.error);
+                setTextMenu(undefined);
+            }}><Icon name="copy" size={15} />{props.t("aiSelectionCopy")}</Button>
+            <Button class={styles.contextMenuButton} type="button" disabled={!props.aiChat.status().authenticated || props.aiChat.pending()} onClick={() => askAboutSelectedText(menu().text)}><Icon name="chat" size={15} />{props.t("aiSelectionAsk")}</Button>
+            <Button class={styles.contextMenuButton} type="button" onClick={() => {
+                void openUrl(`https://www.google.com/search?q=${encodeURIComponent(menu().text)}`).catch(console.error);
+                setTextMenu(undefined);
+            }}><Icon name="search" size={15} />{props.t("aiSelectionSearchGoogle")}</Button>
+        </div>}</Show>
     </div>;
 };
 

@@ -33,16 +33,20 @@ const entryActions = style({
 
 export const styles = {
 	root: style({
+		position: "relative",
 		width: "100%",
 		height: "100%",
 		minHeight: 0,
 		overflow: "hidden",
 		backgroundColor: "var(--board)",
+		backgroundImage: "radial-gradient(var(--board-dots) 0.8px, transparent 0.8px)",
+		backgroundSize: "21px 21px",
 	}),
 	content: style({
 		display: "flex",
 		flexDirection: "column",
 		width: "100%",
+		maxWidth: 790,
 		height: "100%",
 		minHeight: 0,
 		marginInline: "auto",
@@ -193,9 +197,21 @@ export const styles = {
 		selectors: { "&:focus-visible": { outline: "2px solid var(--ink)", outlineOffset: -2 } },
 	}),
 	draggableEntry: style({ cursor: "grab", selectors: { "&:active": { cursor: "grabbing" } } }),
+	entryContent: style({
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: 6,
+		width: "fit-content",
+		maxWidth: "100%",
+		minWidth: 0,
+		marginInline: "auto",
+	}),
+	entryIcon: style({ display: "inline-flex", flex: "0 0 auto", color: "var(--muted)" }),
 	entryTitle: style({
 		display: "block",
-		width: "100%",
+		flex: "0 1 auto",
+		maxWidth: "100%",
 		minWidth: 0,
 		overflow: "hidden",
 		color: "var(--ink)",

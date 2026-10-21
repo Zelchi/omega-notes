@@ -33,6 +33,8 @@ type Props = {
 	aiFeaturesEnabled: boolean;
 	kanbanOpen: boolean;
 	onKanban: () => void;
+	pomodoroOpen: boolean;
+	onPomodoro: () => void;
 	onMinimize: () => void;
 	onToggleMaximize: () => void;
 	onClose: () => void;
@@ -50,6 +52,13 @@ const WindowTitlebar: Component<Props> = (props) => (
 			onClick={() => runAppAction(props.onKanban, props.settingsOpen, props.onSettings)}>
 			<Icon name="bulletList" size={16} />
 		</Button>
+		<Show when={import.meta.env.DEV}>
+			<Button class={cx(styles.button, styles.pomodoroButton)} type="button" disabled={!props.vaultName} aria-label={props.t("pomodoroOpen")}
+				aria-expanded={props.pomodoroOpen} aria-controls="pomodoro-panel"
+				onClick={() => runAppAction(props.onPomodoro, props.settingsOpen, props.onSettings)}>
+				<Icon name="clock" size={16} />
+			</Button>
+		</Show>
 		<Show when={props.vaultName}>
 			<Button class={styles.vaultName} type="button" onClick={() => props.vaultDialogOpen ? props.onVaultClick() : runAppAction(props.onVaultClick, props.settingsOpen, props.onSettings)}>
 				{props.vaultName}
@@ -83,7 +92,7 @@ const WindowTitlebar: Component<Props> = (props) => (
 				<Button
 					class={cx(styles.button, styles.closeButton)}
 					type="button"
-					aria-label={props.t("close")}
+					aria-label={props.t("trayHide")}
 					onClick={props.onClose}
 				>
 					<Icon name="close" size={14} />

@@ -11,6 +11,7 @@ import { styles } from "@/features/chat-with-ai/ui/ai-chat-panel/style.css.ts";
 import TerminalView from "./terminal-view";
 import StudyRequestNotice from "./study-request-notice";
 import type { CliStudyRequest } from "../model/study-bridge";
+import type { useGambiarraTerminal } from "../model/controller";
 import { terminalStyles } from "./style.css.ts";
 import { cx } from "@/shared/lib/classes";
 import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
@@ -20,23 +21,16 @@ const providers: { id: AiProviderId; name: string }[] = [
     { id: "opencode", name: "OpenCode" }, { id: "antigravity", name: "Antigravity" },
 ];
 
-const VaultTerminal: Component<{ vaultId: string; providerId: AiProviderId; visible: boolean; onCliExit: () => void; t: (key: TranslationKey) => string }> = props => {
-    const [started, setStarted] = createSignal(false), [generation, setGeneration] = createSignal(1);
-    createEffect(() => { if (props.visible) setStarted(true); });
-    return <Show when={started()}><Show when={generation()} keyed>{_generation =>
-        <TerminalView vaultId={props.vaultId} providerId={props.providerId} visible={props.visible} t={props.t}
-            onCliExit={() => { setStarted(false); props.onCliExit(); }} onRestart={() => setGeneration(value => value + 1)} />
-    }</Show></Show>;
-};
+const VaultTerminal: Component<{ session: ReturnType<typeof useGambiarraTerminal>; visible: boolean; t: (key: TranslationKey) => string }> = props =>
+    <TerminalView session={props.session} visible={props.visible} t={props.t} />;
 
-const TerminalPanel: Component<{ open: boolean; vaultId: string | undefined; onClose: () => void; t: (key: TranslationKey) => string; studyRequest?: CliStudyRequest; canConfirmStudy: boolean; onConfirmStudy: () => void }> = props => {
+const TerminalPanel: Component<{ open: boolean; vaultId: string | undefined; terminal: ReturnType<typeof useGambiarraTerminal>; onClose: () => void; t: (key: TranslationKey) => string; studyRequest?: CliStudyRequest; canConfirmStudy: boolean; onConfirmStudy: () => void }> = props => {
     const presence = createPresence(() => props.open, 210);
-    const [provider, setProvider] = createSignal<AiProviderId>();
     const [installedProviders, setInstalledProviders] = createSignal<Partial<InstalledAiProviders>>({});
     const [checkingProviders, setCheckingProviders] = createSignal(false);
     const [providerCheckFailed, setProviderCheckFailed] = createSignal(false);
     createEffect(() => {
-        if (!props.open || provider()) return;
+        if (!props.open || props.terminal.provider()) return;
         let current = true;
         onCleanup(() => { current = false; });
         setCheckingProviders(true);
@@ -60,13 +54,13 @@ const TerminalPanel: Component<{ open: boolean; vaultId: string | undefined; onC
                 <Button class={styles.closeButton} type="button" aria-label={props.t("close")} onClick={props.onClose}><Icon name="close" size={15} /></Button>
             </header>
             <Show when={props.studyRequest}>{request => <StudyRequestNotice request={request()} t={props.t} />}</Show>
-            <Show when={provider()} keyed fallback={
+            <Show when={props.terminal.provider()} keyed fallback={
                 <section class={styles.connectSection} aria-labelledby="gambiarra-connect-heading">
                     <h3 id="gambiarra-connect-heading" class={styles.connectTitle}>{props.t("connectAi")}</h3>
                     <div class={styles.providers}>
                         <For each={providers}>{option =>
                             <Button class={styles.providerButton} type="button" disabled={!props.vaultId || checkingProviders() || !installedProviders()[option.id]}
-                                onClick={() => setProvider(option.id)}>
+                                onClick={() => props.terminal.selectProvider(option.id)}>
                                 <AiProviderIcon provider={option.id} />
                                 <span>{option.name}</span>
                             </Button>
@@ -74,9 +68,7 @@ const TerminalPanel: Component<{ open: boolean; vaultId: string | undefined; onC
                     </div>
                     <Show when={providerCheckFailed()}><p class={styles.error} role="alert">{props.t("aiProviderCheckFailed")}</p></Show>
                 </section>
-            }>{providerId =>
-                <Show when={props.vaultId} keyed>{vaultId => <VaultTerminal vaultId={vaultId} providerId={providerId} visible={props.open} onCliExit={props.onClose} t={props.t} />}</Show>
-                }</Show>
+            }>{_providerId => <VaultTerminal session={props.terminal} visible={props.open} t={props.t} />}</Show>
             <Show when={props.canConfirmStudy}><footer class={terminalStyles.studyFooter}>
                 <Button class={terminalStyles.restart} type="button" onClick={props.onConfirmStudy}>{props.t("studyCliConfirm")}</Button>
             </footer></Show>

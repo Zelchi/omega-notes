@@ -1,6 +1,6 @@
 import { createUuidV7 } from "@/shared/lib/ids";
 import type { NoteChangeSet, NoteLibrary, NoteLoadIssue, NoteSaveResult, NoteStorageStats, NoteSummary, NoteSummaryLibrary, StudyNote } from "../model/note";
-import { createEmptyDocument, documentPreview } from "../model/note-document";
+import { createEmptyDocument } from "../model/note-document";
 import { summarizeNote } from "../model/note-summary";
 import { renameResolvedNoteLinks } from "../model/note-links";
 import { NOTE_TITLE_MAX_LENGTH } from "../model/note-titles";
@@ -16,7 +16,7 @@ const notesStorageKey = (vaultId: string): string => `${STORAGE_KEY}:${vaultId}`
 
 const vaultStorageKey = (): string => notesStorageKey(activeVaultId ?? "default");
 
-const parseNotes = (serialized: string): StudyNote[] => {
+const parseNotes = (serialized: string, storageKey?: string): StudyNote[] => {
 	const notes = JSON.parse(serialized) as StudyNote[];
 	if (!Array.isArray(notes) || notes.some((note) => {
 		const document = note?.document;
@@ -35,13 +35,23 @@ const parseNotes = (serialized: string): StudyNote[] => {
 	})) {
 		throw new Error("Formato de nota Ômega Notes incompatível.");
 	}
-	return notes;
+	let hadPreview = false;
+	const normalized = notes.map((note) => {
+		if (Object.hasOwn(note, "preview")) hadPreview = true;
+		const { preview: _preview, ...withoutPreview } = note as StudyNote & { preview?: unknown };
+		return withoutPreview;
+	});
+	if (hadPreview && storageKey) {
+		try { localStorage.setItem(storageKey, JSON.stringify(normalized)); }
+		catch { /* Mantém a leitura das notas se o cache antigo não puder ser regravado. */ }
+	}
+	return normalized;
 };
 
 const readNotes = (): StudyNote[] => {
 	const value = localStorage.getItem(vaultStorageKey());
 	if (value === null) return [];
-	return parseNotes(value);
+	return parseNotes(value, vaultStorageKey());
 };
 
 const writeNotes = (notes: StudyNote[]): void => {
@@ -118,7 +128,6 @@ export const createNote = async (title: string): Promise<StudyNote> => {
 		title,
 		document: createEmptyDocument(),
 		updatedAt: Date.now(),
-		preview: "",
 	};
 	writeNotes([note, ...existingNotes]);
 	return note;
@@ -139,7 +148,6 @@ export const renameNote = async (noteId: string, title: string): Promise<StudyNo
 				...note,
 				title,
 				document,
-				preview: documentPreview(document),
 				updatedAt: changedAt,
 			};
 		}
@@ -147,7 +155,6 @@ export const renameNote = async (noteId: string, title: string): Promise<StudyNo
 		return {
 			...note,
 			document,
-			preview: documentPreview(document),
 			updatedAt: changedAt,
 		};
 	});
@@ -164,7 +171,6 @@ export const saveNote = async (note: StudyNote): Promise<NoteSaveResult> => {
 
 	const saved: StudyNote = {
 		...note,
-		preview: documentPreview(note.document),
 		updatedAt: Date.now(),
 	};
 	const notes = existingNotes.filter((item) => item.id !== saved.id);
@@ -176,7 +182,7 @@ const deletedStorageKey = (): string => `${vaultStorageKey()}:deleted`;
 
 export const listDeletedNotes = async (): Promise<StudyNote[]> => {
 	const serialized = localStorage.getItem(deletedStorageKey());
-	return serialized ? parseNotes(serialized) : [];
+	return serialized ? parseNotes(serialized, deletedStorageKey()) : [];
 };
 
 export const listDeletedNoteIds = async (): Promise<string[]> => (await listDeletedNotes()).map((note) => note.id);

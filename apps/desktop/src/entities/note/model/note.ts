@@ -5,18 +5,19 @@ export type StudyNote = {
 	title: string;
 	document: NoteDocument;
 	updatedAt: number;
-	preview: string;
 };
 
 export type NoteSummary = {
 	id: string;
 	title: string;
 	displayTitle?: string;
-	preview: string;
 	updatedAt: number;
 	links: string[];
 	hasContent: boolean;
 	hasText: boolean;
+	studyContentCharacters: number;
+	studyContentWords: number;
+	studyContentLines: number;
 };
 
 export type NoteLoadIssue = {

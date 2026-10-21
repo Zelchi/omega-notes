@@ -136,22 +136,6 @@ pub(crate) fn validate_document(document: &NoteDocument) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn preview_from_document(document: &NoteDocument) -> String {
-    document
-        .elements
-        .iter()
-        .find_map(|element| match element {
-            NoteElement::Text { text, .. } => text
-                .lines()
-                .map(str::trim)
-                .find(|line| !line.is_empty())
-                .map(|line| line.chars().take(160).collect::<String>()),
-            NoteElement::Image { .. } => None,
-            NoteElement::Audio { .. } | NoteElement::Video { .. } => None,
-        })
-        .unwrap_or_default()
-}
-
 pub(crate) fn image_ids_in_document(document: &NoteDocument) -> HashSet<String> {
     document
         .elements

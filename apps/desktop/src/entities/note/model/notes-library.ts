@@ -15,7 +15,7 @@ import {
 } from "../api/notes.repository";
 import type { NoteChangeSet, NoteLoadIssue, NoteSummary, StudyNote } from "./note";
 import { summarizeNote } from "./note-summary";
-import { documentPreview, type NoteDocument } from "./note-document";
+import { type NoteDocument } from "./note-document";
 import { withDocumentReadSlot } from "./document-read-limiter";
 import { createNoteDisplayTitleIndex, NOTE_TITLE_MAX_LENGTH } from "./note-titles";
 import type { NoteLinkPatch } from "./note-link-patch";
@@ -49,8 +49,10 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 	const [resolvingConflict, setResolvingConflict] = createSignal(false);
 	const sameNote = (a: StudyNote | undefined, b: StudyNote | undefined) => a === b || !!a && !!b && a.title === b.title && documentSignature(a.document) === documentSignature(b.document);
 	const sameSummary = (a: NoteSummary | undefined, b: NoteSummary | undefined) => a === b || !!a && !!b &&
-		a.title === b.title && a.preview === b.preview && a.updatedAt === b.updatedAt &&
-		a.hasContent === b.hasContent && a.hasText === b.hasText && a.links.join("\0") === b.links.join("\0");
+		a.title === b.title && a.updatedAt === b.updatedAt &&
+		a.hasContent === b.hasContent && a.hasText === b.hasText &&
+		a.studyContentCharacters === b.studyContentCharacters && a.studyContentWords === b.studyContentWords && a.studyContentLines === b.studyContentLines &&
+		a.links.join("\0") === b.links.join("\0");
 	const readSummaryLibrary = async (vaultId: string, external: boolean, resetObserverSnapshot = true) => {
 		const summaries: NoteSummary[] = [];
 		const completion = await streamNoteSummaries(vaultId, observerId, external, resetObserverSnapshot, (batch) => summaries.push(...batch));
@@ -508,7 +510,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 	const updateDocument = (noteId: string, document: NoteDocument): void => {
 		const current = loadedNotes().get(noteId);
 		if (!current) return;
-		queueSave({ ...current, document, preview: documentPreview(document), updatedAt: Date.now() });
+		queueSave({ ...current, document, updatedAt: Date.now() });
 	};
 
 	const applyLinkedMentions = async (patch: NoteLinkPatch, stillValid: () => boolean): Promise<() => Promise<void>> => {

@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::storage::{atomic_write, preserve_recovery_copy as preserve_file_copy};
 
-use super::document::{preview_from_document, validate_document};
+use super::document::validate_document;
 use super::models::{NoteDocument, OmegaNoteFile, StudyNote};
 use super::validation::{validate_note_id, validate_note_title};
 
@@ -46,7 +46,6 @@ pub(crate) fn note_from_contents(path: &Path, id: &str, stored: &str) -> Result<
     validate_document(&note.document)?;
 
     Ok(StudyNote {
-        preview: preview_from_document(&note.document),
         document: note.document,
         updated_at: modified_at(path),
         id: id.to_string(),

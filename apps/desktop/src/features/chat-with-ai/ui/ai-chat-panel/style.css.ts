@@ -17,7 +17,7 @@ export const styles = {
         width: "min(420px, calc(100% - 24px))", background: "var(--surface-panel)",
         borderLeft: "1px solid var(--border-strong)", overflow: "hidden",
     }),
-    body: style({ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 16, gap: 14, minHeight: 0 }),
+    body: style({ position: "relative", display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 16, gap: 14, minHeight: 0 }),
     header: style({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 14, borderBottom: "1px solid var(--border-soft)" }),
     title: style({ margin: 0, fontSize: 15, fontWeight: 600 }),
     actions: style({ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }),
@@ -37,6 +37,17 @@ export const styles = {
     user: style({ transformOrigin: "bottom right", background: "var(--surface-input)", alignSelf: "flex-end", maxWidth: "90%" }),
     assistant: style({ alignSelf: "stretch" }),
     messageText,
+    messageContent: style({ minWidth: 0 }),
+    contextMenu: style({
+        position: "absolute", zIndex: 5, display: "grid", width: 176, gap: 2, padding: 4,
+        background: "var(--surface-panel)", border: "1px solid var(--border-strong)", borderRadius: 6,
+    }),
+    contextMenuButton: style({
+        display: "flex", alignItems: "center", gap: 8, minHeight: 32, paddingInline: 9,
+        color: "var(--ink)", background: "transparent", border: 0, borderRadius: 4,
+        fontSize: 12, textAlign: "left", cursor: "pointer",
+        selectors: { "&:hover:not(:disabled)": { background: "var(--surface-hover)" }, "&:disabled": { opacity: 0.45, cursor: "default" } },
+    }),
     textSeparator: style({ margin: "0.75em 0", border: 0, borderTop: "1px solid var(--border-strong)" }),
     noteLink: style({
         color: "inherit", textDecoration: "underline", textUnderlineOffset: 3,

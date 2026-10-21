@@ -1,5 +1,24 @@
 # Histórico de atualizações
 
+## v0.4.8
+
+### Pomodoro e tarefas
+
+- Novo painel Pomodoro com ciclos de foco e pausa configuráveis e uma lista To Do independente, salva por vault.
+- O timer mantém o andamento ao ocultar a janela e restaura o estado salvo ao reabrir o aplicativo.
+- A bandeja do sistema permite mostrar ou ocultar o aplicativo e controlar o Pomodoro.
+
+### Métodos de estudo
+
+- A seleção de fontes filtra notas sem conteúdo suficiente antes do sorteio e considera referências encadeadas até três níveis antes de enviar o pedido à IA.
+- O índice de notas registra as métricas de texto usadas nessa filtragem.
+
+### Integrações e interface
+
+- A sessão da CLI continua ativa quando o painel é ocultado, e o histórico do terminal reaparece ao abri-lo novamente.
+- No Windows, a execução das CLIs usa a chamada direta do programa, e a detecção do OpenCode inclui outro pacote v2 antes do fallback v1.
+- Painéis e diálogos preservam o estado ao alternar entre eles.
+
 ## v0.4.7
 
 ### Organização

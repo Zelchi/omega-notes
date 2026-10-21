@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, on, Show, type Component } from "solid-js";
+import { createMemo, createSignal, For, Show, type Component } from "solid-js";
 import Button from "@/shared/ui/button";
 import CustomScrollArea from "@/shared/ui/custom-scroll-area";
 import Icon from "@/shared/ui/icon";
@@ -21,22 +21,10 @@ const formatCardDate = (value: number | null) => value === null ? "—" : cardDa
 
 const KanbanPanel: Component<Props> = (props) => {
 	const presence = createPresence(props.kanban.open, 210);
-	const [adding, setAdding] = createSignal<KanbanStatus>();
-	const [draft, setDraft] = createSignal("");
-	const [editing, setEditing] = createSignal<string>();
-	const [editDraft, setEditDraft] = createSignal("");
+	const { adding, setAdding, draft, setDraft, editing, setEditing, editDraft, setEditDraft,
+		actionsVisibleId, setActionsVisibleId, collapsedStatuses, setCollapsedStatuses } = props.kanban.view;
 	const [draggedId, setDraggedId] = createSignal<string>();
 	const [dropTarget, setDropTarget] = createSignal<{ status: KanbanStatus; position: number }>();
-	const [actionsVisibleId, setActionsVisibleId] = createSignal<string>();
-	const [collapsedStatuses, setCollapsedStatuses] = createSignal<Set<KanbanStatus>>(new Set<KanbanStatus>());
-
-	createEffect(on(() => props.vaultId, () => {
-		setAdding(undefined);
-		setDraft("");
-		setEditing(undefined);
-		setEditDraft("");
-		setCollapsedStatuses(new Set<KanbanStatus>());
-	}, { defer: false }));
 
 	const byStatus = createMemo(() => {
 		const grouped = new Map<KanbanStatus, Map<number, KanbanItem>>(kanbanStatuses.map((status) => [status, new Map()]));

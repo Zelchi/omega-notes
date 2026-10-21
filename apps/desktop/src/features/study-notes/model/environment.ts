@@ -5,14 +5,11 @@ import type { StudyContext, AiTaskPurpose } from "@/entities/ai";
 
 export type StudyEnvironment = {
 	vaultId: Accessor<string | undefined>;
-	notes: Accessor<StudyNote[]>;
-	loadAllNotes: () => Promise<StudyNote[]>;
 	noteSummaries: Accessor<NoteSummary[]>;
 	currentNote: Accessor<StudyNote | undefined>;
 	aiEnabled: Accessor<boolean>;
 	normalAiMode: Accessor<boolean>;
 	aiConnected: Accessor<boolean>;
-	onConnect: () => void;
 	canGenerate: Accessor<boolean>;
 	requestText: (prompt: string, signal: AbortSignal, context?: StudyContext, purpose?: Exclude<AiTaskPurpose, "chat">) => Promise<string>;
 	describeAiError: (failure: unknown) => string;

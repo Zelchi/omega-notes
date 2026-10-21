@@ -16,6 +16,9 @@ const MAX_ACTIVE_CONTEXT_BYTES: usize = 128_000_000;
 const LIFETIME: Duration = Duration::from_secs(600);
 const CACHE_BYTES: usize = 16_000_000;
 const CACHE_ENTRIES: usize = 128;
+const MIN_STUDY_CHARACTERS: usize = 180;
+const MIN_STUDY_WORDS: usize = 25;
+const MIN_STUDY_LINES: usize = 3;
 static REGISTRY: LazyLock<Mutex<Registry>> = LazyLock::new(|| Mutex::new(Registry::default()));
 
 #[derive(Default)]
@@ -28,6 +31,8 @@ struct SourceContent {
     title: String,
     text: String,
     characters: usize,
+    words: usize,
+    lines: usize,
     segments: Vec<segments::Segment>,
 }
 struct CachedSource {
@@ -88,11 +93,14 @@ fn source(directory: &Path, id: &str, generation: u64) -> Result<Arc<SourceConte
     }
     let note = notes::note_from_contents(&path, id, &stored)?;
     let text = tools::text(&note);
+    let (characters, words, lines) = study_content_stats(&text);
     let content_segments = segments::build(&text);
     let content = Arc::new(SourceContent {
         title: note.title,
-        characters: text.chars().count(),
+        characters,
         text,
+        words,
+        lines,
         segments: content_segments,
     });
     let entry = CachedSource {
@@ -125,10 +133,29 @@ fn source(directory: &Path, id: &str, generation: u64) -> Result<Arc<SourceConte
     Ok(content)
 }
 
+fn study_content_stats(text: &str) -> (usize, usize, usize) {
+    let characters = text.chars().count();
+    let words = text
+        .split_whitespace()
+        .filter(|word| word.chars().any(char::is_alphanumeric))
+        .count();
+    let lines = text
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| line.chars().count().saturating_add(79) / 80)
+        .sum();
+    (characters, words, lines)
+}
+
+fn has_sufficient_study_content(characters: usize, words: usize, lines: usize) -> bool {
+    characters >= MIN_STUDY_CHARACTERS && words >= MIN_STUDY_WORDS && lines >= MIN_STUDY_LINES
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct Assignment {
     item_id: String,
+    candidate_id: String,
     note_id: String,
     source_ids: Vec<String>,
     supporting_note_ids: Vec<String>,
@@ -175,6 +202,7 @@ pub(crate) async fn prepare_study_context(
                 || item.item_id.len() > 64
                 || !item_ids.insert(&item.item_id)
                 || !item.source_ids.contains(&item.note_id)
+                || item.source_ids.len() > 16
                 || item
                     .supporting_note_ids
                     .iter()
@@ -182,6 +210,13 @@ pub(crate) async fn prepare_study_context(
             {
                 return Err("AI_INVALID_MESSAGE".into());
             }
+            source(&directory, &item.candidate_id, generation).map_err(|error| {
+                if error == "AI_NOTE_NOT_FOUND" {
+                    "STUDY_SOURCE_MISSING".to_string()
+                } else {
+                    error
+                }
+            })?;
             let mut seen = HashSet::new();
             for id in &item.source_ids {
                 if !seen.insert(id) {
@@ -215,6 +250,29 @@ pub(crate) async fn prepare_study_context(
                     content,
                     used_by: vec![position + 1],
                 });
+            }
+        }
+        for item in &items {
+            let mut seen = HashSet::new();
+            let mut characters = 0;
+            let mut words = 0;
+            let mut lines = 0;
+            for id in &item.source_ids {
+                if !seen.insert(id) {
+                    continue;
+                }
+                let Some(&source_index) = index.get(id) else {
+                    return Err("AI_INVALID_MESSAGE".into());
+                };
+                let content = &notes[source_index].content;
+                if tools::has_text(&content.text) {
+                    characters += content.characters;
+                    words += content.words;
+                    lines += content.lines;
+                }
+            }
+            if !has_sufficient_study_content(characters, words, lines) {
+                return Err("STUDY_INSUFFICIENT_CONTENT".into());
             }
         }
         if tools::resolve_vault(&app, &vault_id)? != directory {

@@ -10,6 +10,7 @@ export const useNoteDeletion = (options: {
 	onDeleted: (id: string) => void;
 }) => {
 	const [target, setTarget] = createSignal<{ id: string; vaultId: string }>();
+	const [open, setOpen] = createSignal(false);
 	const [pending, setPending] = createSignal(false);
 	const [error, setError] = createSignal(false);
 	let disposed = false;
@@ -19,9 +20,13 @@ export const useNoteDeletion = (options: {
 		return current?.vaultId === options.vaultId() ? options.notes().find(note => note.id === current?.id) : undefined;
 	});
 	createEffect(() => {
-		if (target() && !note()) { setTarget(undefined); setError(false); }
+		if (target() && !note()) { setOpen(false); setTarget(undefined); setError(false); }
 	});
-	const close = () => { if (!pending()) { setTarget(undefined); setError(false); } };
+	const close = () => setOpen(false);
+	const cancel = () => {
+		if (pending()) return;
+		setOpen(false); setTarget(undefined); setError(false);
+	};
 	const hasContent = (note: NoteSummary) => note.hasContent;
 	const execute = async (id: string, vaultId: string, confirmed = false): Promise<void> => {
 		if (disposed || pending() || options.blocked() || vaultId !== options.vaultId()) return;
@@ -36,6 +41,7 @@ export const useNoteDeletion = (options: {
 			if (disposed || vaultId !== options.vaultId()) return;
 			if (options.notes().some(note => note.id === id)) throw new Error("DELETE_FAILED");
 			setTarget(undefined);
+			setOpen(false);
 			options.onDeleted(id);
 		} catch (cause) {
 			console.error("Could not delete note", cause);
@@ -43,13 +49,15 @@ export const useNoteDeletion = (options: {
 		} finally { if (!disposed) setPending(false); }
 	};
 	return {
-		target: note, pending, error, close,
+		target: note, open, pending, error, close, cancel,
 		request: async (requested: NoteSummary): Promise<void> => {
-			if (disposed || pending() || target() || options.blocked()) return;
+			if (disposed || options.blocked()) return;
+			if (target()) { setOpen(true); return; }
+			if (pending()) return;
 			const vaultId = options.vaultId(), current = options.notes().find(note => note.id === requested.id);
 			if (!vaultId || !current) return;
 			setError(false);
-			if (hasContent(current)) setTarget({ id: current.id, vaultId });
+			if (hasContent(current)) { setTarget({ id: current.id, vaultId }); setOpen(true); }
 			else await execute(current.id, vaultId);
 		},
 		confirm: async () => {

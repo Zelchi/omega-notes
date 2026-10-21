@@ -39,12 +39,12 @@ export const useAnswerReview = (options: StudyEnvironment, session: {
 		abort = token; setEvaluating(true); update(value.itemIndex, { status: "evaluating" });
 		try {
 			if (!options.aiConnected()) throw Error("AI_DISCONNECTED");
-			const context = contexts.get(options.notes(), value.item);
+			const context = contexts.get(options.noteSummaries(), value.item);
 			const response = await options.requestText(session.prompt(value.item, value.answer, options.t("locale"), value.blankAnswers), token.signal, {
-				items: [{ itemId: `review-${value.itemIndex}`, noteId: context.noteId, sourceIds: context.sourceIds, supportingNoteIds: context.supportingNoteIds }],
+				items: [{ itemId: `review-${value.itemIndex}`, candidateId: context.candidateId, noteId: context.noteId, sourceIds: context.sourceIds, supportingNoteIds: context.supportingNoteIds }],
 			}, "study-evaluation");
 			if (!valid()) return;
-			if (!contexts.unchanged(context, options.notes(), value.item)) throw Error("STUDY_SOURCES_CHANGED");
+			if (!contexts.unchanged(context, options.noteSummaries(), value.item)) throw Error("STUDY_SOURCES_CHANGED");
 			const feedback = parseGeneratedFeedback(response, context.references, value.item.blanks?.length), outcome = feedback.correct ? "correct" : "wrong";
 			batch(() => {
 				session.onResult(value.itemIndex, outcome, { answer: value.answer, blankAnswers: value.blankAnswers, feedback });

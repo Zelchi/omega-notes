@@ -61,6 +61,12 @@ export const useAiChat = (options: {
         chatErrorTimers.clear();
     };
     const [chats, setChats] = createSignal<Record<string, VaultChat>>({});
+    const [messageViews, setMessageViews] = createSignal<Record<string, { scrollTop: number; follow: boolean }>>({});
+    const messageView = () => messageViews()[options.vaultId() ?? ""] ?? { scrollTop: 0, follow: true };
+    const setMessageView = (scrollTop: number, follow: boolean) => {
+        const id = options.vaultId();
+        if (id) setMessageViews((current) => ({ ...current, [id]: { scrollTop, follow } }));
+    };
     const chat = createMemo(() => {
         const id = options.vaultId();
         return id ? chats()[id] ?? emptyChat() : emptyChat();
@@ -657,6 +663,7 @@ export const useAiChat = (options: {
             await send(request, context, "undo-links");
         },
         requestText, describeError: describe, provider, providers: aiProviders, installedProviders, checkingProviders, open, setOpen, status, sending, resetting, cleanupError, models, selectedModel, selectedEffort, fastAvailable, pending, ready, error, chat, connect, send, cancel, flushSave,
+        messageView, setMessageView,
         refresh: () => run(refresh), signIn: () => run(provider.signIn),
         setDraft: (draft: string) => { const id = options.vaultId(); if (id && loaded.has(id)) patchChat(id, (value) => ({ ...value, draft })); },
         setModel: (model: string) => { const id = options.vaultId(); if (id && loaded.has(id)) patchChat(id, (value) => ({ ...value, model, effort: "", fast: false })); },

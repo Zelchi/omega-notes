@@ -27,11 +27,13 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 	const [mode, setMode] = createSignal<NoteMode>(readNoteMode());
 	const [centeredAtLaunch, setCenteredAtLaunch] = createSignal(false);
 	const [nameDialog, setNameDialog] = createSignal<NameDialogMode>();
+	const [nameDialogVisible, setNameDialogVisible] = createSignal(false);
 	const [nameDialogTitle, setNameDialogTitle] = createSignal("");
 	const [nameDialogError, setNameDialogError] = createSignal<string | undefined>(undefined, { equals: false });
 	const [renameTargetId, setRenameTargetId] = createSignal<string>();
 	const [savingName, setSavingName] = createSignal(false);
 	let resolveCreateNote: ((note: StudyNote | undefined) => void) | undefined;
+	let pendingCreateNote: Promise<StudyNote | undefined> | undefined;
 	const histories = new Map<string, NavigationHistory>();
 	const lastNotes = new Map<string, string>();
 	const [history, setHistory] = createSignal(createNavigationHistory());
@@ -55,18 +57,31 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 	});
 
 	const createNoteAtCanvas = async (): Promise<StudyNote | undefined> => {
+		if (nameDialog() === "create" && pendingCreateNote) {
+			setNameDialogVisible(true);
+			return pendingCreateNote;
+		}
+		if (nameDialog()) cancelNameDialog();
 		if (notes.loading()) return undefined;
 		if (!(await notes.flushSave())) return undefined;
-		return new Promise((resolve) => {
+		pendingCreateNote = new Promise((resolve) => {
 			resolveCreateNote = resolve;
 			setRenameTargetId(undefined);
 			setNameDialogTitle("");
 			setNameDialogError(undefined);
 			setNameDialog("create");
+			setNameDialogVisible(true);
 		});
+		return pendingCreateNote;
 	};
 
 	const requestRenameNote = async (note: NoteSummary): Promise<void> => {
+		if (savingName()) return;
+		if (nameDialog() === "rename" && renameTargetId() === note.id) {
+			setNameDialogVisible(true);
+			return;
+		}
+		if (nameDialog()) cancelNameDialog();
 		if (!(await notes.flushSave())) return;
 		const current = notes.notes().find((item) => item.id === note.id);
 		if (!current) return;
@@ -74,17 +89,24 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		setNameDialogTitle(current.title);
 		setNameDialogError(undefined);
 		setNameDialog("rename");
+		setNameDialogVisible(true);
 	};
 
-	const closeNameDialog = (): void => {
+	const hideNameDialog = (): void => {
+		setNameDialogVisible(false);
+	};
+
+	const cancelNameDialog = (): void => {
 		if (savingName()) return;
 		const currentMode = nameDialog();
+		setNameDialogVisible(false);
 		setNameDialog(undefined);
 		setRenameTargetId(undefined);
 		setNameDialogError(undefined);
 		if (currentMode === "create") {
 			resolveCreateNote?.(undefined);
 			resolveCreateNote = undefined;
+			pendingCreateNote = undefined;
 		}
 	};
 
@@ -100,12 +122,15 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 			if (currentMode === "create") {
 				const note = await notes.create(title);
 				playSound("note-create");
+				setNameDialogVisible(false);
 				setNameDialog(undefined);
 				resolveCreateNote?.(note);
 				resolveCreateNote = undefined;
+				pendingCreateNote = undefined;
 			} else {
 				const note = notes.notes().find((item) => item.id === targetId);
 				if (note && !(await notes.rename(note, title))) return;
+				setNameDialogVisible(false);
 				setNameDialog(undefined);
 				setRenameTargetId(undefined);
 				setNameDialogError(undefined);
@@ -135,7 +160,7 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 	};
 	const navigate = async (location: NavigationLocation, targetIndex?: number): Promise<void> => {
 		const vaultId = dependencies.activeVaultId();
-		if (!vaultId || navigating() || notes.loading() || nameDialog()) return;
+		if (!vaultId || navigating() || notes.loading() || nameDialogVisible()) return;
 		setNavigating(true);
 		try {
 			if (dependencies.beforeNavigate && !(await dependencies.beforeNavigate())) return;
@@ -184,7 +209,7 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 	};
 
 	const handleEscape = (): void => {
-		if (nameDialog()) closeNameDialog();
+		if (nameDialogVisible()) hideNameDialog();
 		else if (route() === "note") void backToCanvas();
 	};
 
@@ -198,6 +223,7 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		setCenteredAtLaunch,
 		canvasCenterOnMount,
 		nameDialog,
+		nameDialogVisible,
 		nameDialogTitle,
 		setNameDialogTitle: (title: string) => {
 			setNameDialogTitle(title);
@@ -207,7 +233,8 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		savingName,
 		createNoteAtCanvas,
 		requestRenameNote,
-		closeNameDialog,
+		hideNameDialog,
+		cancelNameDialog,
 		confirmNameDialog,
 		openNote,
 		selectSearchResult,

@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, createUniqueId, For, lazy, on, onCleanup, Show, Suspense, Switch, Match, type Component } from "solid-js";
+import { createEffect, createMemo, createUniqueId, For, lazy, on, onCleanup, Show, Suspense, Switch, Match, type Component } from "solid-js";
 import type { NoteSummary } from "@/entities/note";
 import type { StudyKind } from "@/entities/study";
 import type { TranslationKey } from "@/shared/lib/i18n";
@@ -70,27 +70,21 @@ const StudyDialog: Component<{
 		const dash = generationCircumference * progress;
 		return `${dash} ${generationCircumference - dash}`;
 	};
-	const [deleteVisibleId, setDeleteVisibleId] = createSignal<string>();
-	// Layout aprovado: oito itens por página; veja docs/questionnaire-layout.md antes de alterar.
 	const libraryPageSize = 8;
-	const [librarySearch, setLibrarySearch] = createSignal("");
-	const [libraryPage, setLibraryPage] = createSignal(0);
 	const normalizeSearch = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 	const filteredSaved = createMemo(() => {
-		const query = normalizeSearch(librarySearch().trim());
+		const query = normalizeSearch(study.librarySearch().trim());
 		return study.saved().filter(deck => !query || normalizeSearch(deck.title).includes(query));
 	});
 	const libraryPageCount = createMemo(() => Math.max(1, Math.ceil(filteredSaved().length / libraryPageSize)));
-	const paginatedSaved = createMemo(() => filteredSaved().slice(libraryPage() * libraryPageSize, (libraryPage() + 1) * libraryPageSize));
-	createEffect(on(() => [study.open(), study.kind()] as const, ([open]) => {
-		if (open) { setLibrarySearch(""); setLibraryPage(0); }
-	}));
+	const paginatedSaved = createMemo(() => filteredSaved().slice(study.libraryPage() * libraryPageSize, (study.libraryPage() + 1) * libraryPageSize));
+	const centerSetupPage = () => study.stage() === "setup" && paginatedSaved().length === libraryPageSize;
 	createEffect(() => {
-		if (study.saved().length <= libraryPageSize && librarySearch()) { setLibrarySearch(""); setLibraryPage(0); }
+		if (study.saved().length <= libraryPageSize && study.librarySearch()) { study.setLibrarySearch(""); study.setLibraryPage(0); }
 	});
 	createEffect(() => {
 		const lastPage = Math.max(0, libraryPageCount() - 1);
-		if (libraryPage() > lastPage) setLibraryPage(lastPage);
+		if (study.libraryPage() > lastPage) study.setLibraryPage(lastPage);
 	});
 	let closeButton!: HTMLButtonElement, viewport: HTMLDivElement | undefined;
 	createEffect(on(() => [study.open(), study.kind(), study.stage()] as const, ([open]) => {
@@ -118,7 +112,7 @@ const StudyDialog: Component<{
 	return <Show when={presence.present()}>
 		<div class={cx(styles.backdrop, study.kind() === "written" && study.stage() === "running" && styles.writtenBackdrop)} inert={presence.exiting()} aria-hidden={presence.exiting() || undefined} {...backdrop}
 			ref={element => registerVisibilityAnimation(element, presence.exiting, "fade")}>
-			<section class={cx(styles.dialog, (study.kind() === "flashcards" || study.kind() === "cloze" || study.kind() === "correction") && styles.flashcardDialog)} role="dialog" aria-modal="true" aria-labelledby={headingId}
+			<section class={styles.dialog} role="dialog" aria-modal="true" aria-labelledby={headingId}
 				ref={element => registerVisibilityAnimation(element, presence.exiting, "dialog")}>
 				<AsciiBackdrop placement="modal" />
 				<header class={styles.header}>
@@ -128,163 +122,162 @@ const StudyDialog: Component<{
 						<Button ref={closeButton} class={cx(styles.button, styles.icon)} type="button" aria-label={props.t("close")} onClick={study.close}><Icon name="close" size={16} /></Button>
 					</div>
 				</header>
-				<div class={cx(styles.content, study.kind() === "quiz" && styles.quizContent, study.stage() === "setup" && study.kind() !== "quiz" && styles.setupContent)}>
-				<CustomScrollArea fitContent={study.stage() === "setup" && study.kind() !== "quiz"} centerContentVertically={study.stage() === "setup" && study.kind() === "quiz"} zeroVerticalPadding={study.stage() === "setup" && study.kind() === "quiz"} viewportStyle={study.kind() === "quiz" && study.stage() !== "setup" ? { "padding-top": "32px", "padding-bottom": "20px" } : undefined} viewportRef={element => { viewport = element; }} onScroll={element => { if (study.open()) study.setScrollTop(element.scrollTop); }}><div class={cx(styles.body, study.stage() === "setup" && (study.kind() === "quiz" ? styles.quizSetupBody : styles.setupBody))}>
-				<Show when={props.cliRequest}>{request => <StudyRequestNotice request={request()} t={props.t} onOpenCli={props.onOpenCli} />}</Show>
-				<Show when={study.error()}><p class={styles.error} role="alert">{study.error()}</p></Show>
-				<Show when={study.review.failed()}>
-					<For each={study.review.responses().filter(value => value.status === "failed")}>{value => <p class={styles.error} role="alert">{value.error}</p>}</For>
-					<Button class={styles.button} type="button" disabled={!props.canGenerate} onClick={study.review.retry}>{props.t("retry")}</Button>
-				</Show>
-				<Show when={study.progressFailed()}><Button class={styles.button} type="button" onClick={() => void study.retryProgress()}>{props.t("retry")}</Button></Show>
-				<Switch>
-					<Match when={study.stage() === "setup"}>
-						<div class={styles.settings}>
-							<div class={styles.label}><span>{props.t("studyCount")}</span>
-								<Dropdown ariaLabel={props.t("studyCount")} value={String(study.count())} options={[
-									{ value: "5", label: "5" }, { value: "10", label: "10" }, { value: "20", label: "20" }, { value: "30", label: "30" },
-									{ value: "infinite", label: props.t("studyInfinite") },
-								]} onChange={value => study.setCount(value === "infinite" ? value : Number(value))} />
-							</div>
-							<Show when={study.kind() !== "flashcards"}>
-								<div class={styles.label}><span>{props.t("studyLives")}</span>
-									<Dropdown ariaLabel={props.t("studyLives")} value={String(study.lives())} options={[
-										{ value: "1", label: "1" }, { value: "3", label: "3" }, { value: "5", label: "5" },
-										{ value: "infinite", label: props.t("studyInfinite") },
-									]} onChange={value => study.setLives(value === "infinite" ? value : Number(value))} />
-								</div>
-								<div class={styles.label}><span>{props.t("studySeconds")}</span>
-									<Dropdown ariaLabel={props.t("studySeconds")} value={String(study.seconds())} options={[
-										{ value: "30", label: props.t("studyThirtySeconds") },
-										{ value: "60", label: props.t("studyOneMinute") },
-										{ value: "300", label: props.t("studyFiveMinutes") },
-										{ value: "infinite", label: props.t("studyInfinite") },
-									]} onChange={value => study.setSeconds(value === "infinite" ? value : Number(value))} />
-								</div>
-							</Show>
-						</div>
-
-
-						<Show when={!props.connected}><p class={styles.muted}>{props.t("studyConnectFirst")}</p><Button class={styles.button} type="button" onClick={() => { study.close(); props.onConnect(); }}>{props.t("aiConnect")}</Button></Show>
-						<Show when={props.connected && props.aiBusy}><p class={styles.muted} role="status">{busyMessage()}</p></Show>
-						<Show when={study.storageFailed()}><Button class={styles.button} type="button" onClick={() => void study.retry()}>{props.t("retry")}</Button></Show>
-							<Show when={study.invalidItems().length}>
-								<p class={styles.error} role="alert">{props.t("studyInvalidItems")}</p>
-								<Button class={styles.button} type="button" disabled={study.loading()} onClick={() => void study.retry()}>{props.t("retry")}</Button>
-								<For each={study.invalidItems()}>{item => <div class={styles.itemRow}>
-									<span class={styles.muted}>{item.kind}/{item.id}.json</span>
-									<Button class={cx(styles.button, styles.icon, styles.danger)} type="button" disabled={study.loading() || study.savingProgress() || study.progressFailed()} aria-label={props.t("delete")} onClick={() => void study.remove(item.id)}><Icon name="delete" size={15} /></Button>
-								</div>}</For>
-							</Show>
-		<Show when={study.saved().length}><div class={cx(styles.library, study.saved().length > libraryPageSize && styles.libraryWithSearch)} role="region" aria-label={props.t("studySaved")}>
-							<Show when={study.saved().length > libraryPageSize}>
-								<div class={styles.librarySearchSticky}>
-									<Input class={styles.librarySearch} type="search" value={librarySearch()} onInput={event => { setLibrarySearch(event.currentTarget.value); setLibraryPage(0); }} placeholder={props.t("searchPlaceholder")} aria-label={props.t("searchPlaceholder")} />
-								</div>
-							</Show>
-							<Show when={paginatedSaved().length} fallback={librarySearch().trim() ? <p class={styles.noSearchResults}>{props.t("studyNoSearchResults")}</p> : null}>
-							<For each={paginatedSaved()}>{deck => {
-								const outcome = deck.progress?.items[0]?.lastOutcome;
-								const outcomeClass = outcome === undefined ? undefined : outcome === "correct" ? styles.correct : styles.wrong;
-								const actionsVisible = () => deleteVisibleId() === deck.id;
-								return <div class={styles.libraryEntry} onContextMenu={event => {
-									event.preventDefault(); event.stopPropagation();
-									setDeleteVisibleId(current => current === deck.id ? undefined : deck.id);
-								}}>
-								<div class={styles.libraryItemRow}>
-									<Button class={cx(styles.button, styles.icon, styles.actionReveal, styles.actionRevealLeading, actionsVisible() && styles.actionRevealVisible, actionsVisible() && styles.actionRevealLeadingVisible)} type="button" disabled={!actionsVisible() || !deck.progress?.items.length || study.loading() || study.savingProgress() || study.progressFailed()} aria-hidden={!actionsVisible()} tabIndex={actionsVisible() ? 0 : -1} aria-label={props.t("studyClearProgress")} onClick={() => { setDeleteVisibleId(undefined); void study.clearProgress(deck); }}><Icon name="reset" size={16} /></Button>
-									<Button class={cx(styles.button, styles.itemTitle, outcomeClass)} type="button" disabled={study.loading() || study.savingProgress() || study.progressFailed()} onClick={() => { setDeleteVisibleId(undefined); void study.start(deck); }}><span>{deck.title}</span></Button>
-									<Show when={deck.kind === "written" || deck.kind === "cloze"}>
-										<div class={styles.reportSlot}>
-											<Show when={deck.hasReport}>
-												<Button class={cx(styles.button, styles.icon)} type="button" disabled={study.loading() || study.savingProgress() || study.progressFailed()} aria-label={props.t("studyOpenReport")} onClick={() => study.viewReport(deck)}><Icon name="view" size={16} /></Button>
-											</Show>
+				<div class={styles.content}>
+					<CustomScrollArea centerContentVertically={centerSetupPage()} zeroVerticalPadding={centerSetupPage()} viewportStyle={study.stage() !== "setup" ? { "padding-top": "32px", "padding-bottom": "20px" } : undefined} viewportRef={element => { viewport = element; }} onScroll={element => { if (study.open()) study.setScrollTop(element.scrollTop); }}><div class={cx(styles.body, study.stage() === "setup" && styles.setupBody)}>
+						<Show when={props.cliRequest}>{request => <StudyRequestNotice request={request()} t={props.t} onOpenCli={props.onOpenCli} />}</Show>
+						<Show when={study.error()}><p class={styles.error} role="alert">{study.error()}</p></Show>
+						<Show when={study.review.failed()}>
+							<For each={study.review.responses().filter(value => value.status === "failed")}>{value => <p class={styles.error} role="alert">{value.error}</p>}</For>
+							<Button class={styles.button} type="button" disabled={!props.canGenerate} onClick={study.review.retry}>{props.t("retry")}</Button>
+						</Show>
+						<Show when={study.progressFailed()}><Button class={styles.button} type="button" onClick={() => void study.retryProgress()}>{props.t("retry")}</Button></Show>
+						<Switch>
+							<Match when={study.stage() === "setup"}>
+								<div class={styles.settings}>
+									<div class={styles.label}><span>{props.t("studyCount")}</span>
+										<Dropdown ariaLabel={props.t("studyCount")} value={String(study.count())} options={[
+											{ value: "5", label: "5" }, { value: "10", label: "10" }, { value: "20", label: "20" }, { value: "30", label: "30" },
+											{ value: "infinite", label: props.t("studyInfinite") },
+										]} onChange={value => study.setCount(value === "infinite" ? value : Number(value))} />
+									</div>
+									<Show when={study.kind() !== "flashcards"}>
+										<div class={styles.label}><span>{props.t("studyLives")}</span>
+											<Dropdown ariaLabel={props.t("studyLives")} value={String(study.lives())} options={[
+												{ value: "1", label: "1" }, { value: "3", label: "3" }, { value: "5", label: "5" },
+												{ value: "infinite", label: props.t("studyInfinite") },
+											]} onChange={value => study.setLives(value === "infinite" ? value : Number(value))} />
+										</div>
+										<div class={styles.label}><span>{props.t("studySeconds")}</span>
+											<Dropdown ariaLabel={props.t("studySeconds")} value={String(study.seconds())} options={[
+												{ value: "30", label: props.t("studyThirtySeconds") },
+												{ value: "60", label: props.t("studyOneMinute") },
+												{ value: "300", label: props.t("studyFiveMinutes") },
+												{ value: "infinite", label: props.t("studyInfinite") },
+											]} onChange={value => study.setSeconds(value === "infinite" ? value : Number(value))} />
 										</div>
 									</Show>
-									<Button class={cx(styles.button, styles.icon, styles.danger, styles.actionReveal, styles.actionRevealTrailing, actionsVisible() && styles.actionRevealVisible, actionsVisible() && styles.actionRevealTrailingVisible)} type="button" disabled={!actionsVisible() || study.loading() || study.savingProgress() || study.progressFailed()} aria-hidden={!actionsVisible()} tabIndex={actionsVisible() ? 0 : -1} aria-label={props.t("delete")} onClick={() => { setDeleteVisibleId(undefined); void study.remove(deck.id); }}><Icon name="delete" size={15} /></Button>
 								</div>
-								</div>;
-							}}</For>
-							</Show>
-							<Show when={filteredSaved().length > libraryPageSize}>
-				<nav class={styles.libraryPagination} aria-label={props.t("studyPagination")}>
-									<Button class={cx(styles.button, styles.icon)} type="button" aria-label={props.t("studyPreviousPage")} disabled={libraryPage() === 0} onClick={() => setLibraryPage(page => Math.max(0, page - 1))}><Icon name="back" size={16} /></Button>
-									<span class={styles.libraryPageLabel}>{props.t("studyPageIndicator").replace("{current}", String(libraryPage() + 1)).replace("{total}", String(libraryPageCount()))}</span>
-									<Button class={cx(styles.button, styles.icon, styles.libraryNextButton)} type="button" aria-label={props.t("studyNextPage")} disabled={libraryPage() + 1 >= libraryPageCount()} onClick={() => setLibraryPage(page => Math.min(libraryPageCount() - 1, page + 1))}><span class={styles.libraryNextIcon}><Icon name="back" size={16} /></span></Button>
-								</nav>
-							</Show>
-						</div></Show>
-					</Match>
-					<Match when={study.stage() === "generating"}>
-						<Show when={props.normalAiMode}>
-							<div class={styles.generationRingCenter}>
-							<svg class={cx(styles.generationRing, generationPercent() === undefined && styles.generationRingIndeterminate)} viewBox={`0 0 ${generationRingSize} ${generationRingSize}`}
-								role="progressbar" aria-label={props.t("studyGenerating")} aria-valuemin="0" aria-valuemax="100"
-								aria-valuenow={generationPercent()} aria-valuetext={generationPercent() === undefined ? props.t("studyGenerationFirst") : props.t("studyGenerationProgress").replace("{percent}", String(generationPercent()))}>
-								<circle class={styles.generationRingTrack} cx={generationRingCenter} cy={generationRingCenter} r={generationRingRadius} />
-								<circle class={styles.generationRingProgress} cx={generationRingCenter} cy={generationRingCenter} r={generationRingRadius} transform={`rotate(-90 ${generationRingCenter} ${generationRingCenter})`}
-									stroke-dasharray={generationDashArray()} />
-								<circle class={styles.generationRingEdge} cx={generationRingCenter} cy={generationRingCenter} r={26 * generationSvgScale} />
-								<circle class={styles.generationRingEdge} cx={generationRingCenter} cy={generationRingCenter} r={24 * generationSvgScale} />
-							</svg>
-							<span class={styles.generationRingTime} aria-hidden="true">{generationTimeText()}</span>
-							</div>
-						</Show>
-					</Match>
-					<Match when={study.stage() === "running"}>
-						<div class={styles.status} aria-live="polite"><span>{study.index() + 1} / {study.sessionIndices().length}</span>
-							<Show when={study.deck()?.kind !== "flashcards"}><span>{props.t("studyLives")}: {study.remainingLives() === "infinite" ? props.t("studyInfinite") : study.remainingLives()} · {study.remainingTime() === "infinite" ? props.t("studyInfinite") : `${study.remainingTime()}s`}</span></Show>
-						</div>
-						<Show when={study.current()}>{item => <>
-							<Show when={study.deck()?.kind === "correction"}><Suspense fallback={null}><CorrectionExercise study={study} t={props.t} /></Suspense></Show>
-							<Show when={study.deck()?.kind !== "correction"}>
-							<Show when={study.deck()?.kind !== "cloze"} fallback={<Suspense fallback={null}><ClozeExercise study={study} t={props.t} /></Suspense>}>
-							<div class={styles.card}><h3 class={styles.question}>{item().question}</h3>
-								<Show when={study.deck()?.kind === "flashcards" && study.revealed()}><div class={styles.answer}>{item().answer}</div></Show>
-							</div>
-							</Show>
-							</Show>
-							<Show when={study.deck()?.kind === "written"} fallback={<>
-							<Show when={study.deck()?.kind === "quiz"}>
-								<div class={styles.choices}><For each={item().options}>{(option, index) => <Button type="button"
-									class={cx(styles.button, styles.choice, study.answered() && study.choice() === index() && (item().correctIndex === index() ? styles.correct : styles.wrong))}
-									disabled={study.answered() || study.savingProgress() || study.progressFailed()} onClick={() => study.answer(index())}>{String.fromCharCode(65 + index())}. {option}</Button>}</For></div>
-								<Show when={study.answered()}>
-									<p class={styles.muted} role="status">{props.t(study.choice() === undefined ? "studyTimeout" : study.choice() === item().correctIndex ? "studyCorrect" : "studyWrong")} {item().explanation}</p>
+
+
+								<Show when={!props.connected}><p class={styles.muted}>{props.t("studyConnectFirst")}</p><Button class={styles.button} type="button" onClick={() => { study.close(); props.onConnect(); }}>{props.t("aiConnect")}</Button></Show>
+								<Show when={props.connected && props.aiBusy}><p class={styles.muted} role="status">{busyMessage()}</p></Show>
+								<Show when={study.storageFailed()}><Button class={styles.button} type="button" onClick={() => void study.retry()}>{props.t("retry")}</Button></Show>
+								<Show when={study.invalidItems().length}>
+									<p class={styles.error} role="alert">{props.t("studyInvalidItems")}</p>
+									<Button class={styles.button} type="button" disabled={study.loading()} onClick={() => void study.retry()}>{props.t("retry")}</Button>
+									<For each={study.invalidItems()}>{item => <div class={styles.itemRow}>
+										<span class={styles.muted}>{item.kind}/{item.id}.json</span>
+										<Button class={cx(styles.button, styles.icon, styles.danger)} type="button" disabled={study.loading() || study.savingProgress() || study.progressFailed()} aria-label={props.t("delete")} onClick={() => void study.remove(item.id)}><Icon name="delete" size={15} /></Button>
+									</div>}</For>
 								</Show>
-							</Show>
-							</>}>
-								<Suspense fallback={null}><WrittenAnswer study={study} notes={props.notes} referenceTitles={props.referenceTitles} t={props.t} onOpenNote={props.onOpenNote} /></Suspense>
-							</Show>
-							<Show when={study.revealed() || study.answered()}><div class={styles.actions}>
-								<span class={styles.muted}>{props.t("studySources")}</span>
-								<For each={item().sources}>{id => {
-									const source = () => props.notes.find(note => note.id === id);
-									return <Button class={styles.link} type="button" disabled={!source()} onClick={() => { const note = source(); if (note) { study.close(); props.onOpenNote(note); } }}>{source() ? displayNoteTitle(source()!) : props.referenceTitles[id] ?? props.t("studyDeletedSource")}</Button>;
-								}}</For>
-							</div></Show>
-						</>}</Show>
-					</Match>
-					<Match when={study.stage() === "grading"}>
-						<p class={styles.muted} role="status">{props.t("studyWrittenWaiting").replace("{count}", String(study.review.pending()))}</p>
-					</Match>
-					<Match when={study.stage() === "report"}>
-						<Show when={study.deck()}>{deck => <>
-							<h3 class={styles.question}>{props.t("studyReport")}</h3>
-							<p class={styles.muted}>{generatedAt(deck().createdAt)} · {props.t("studyAccuracy")}: {study.accuracy(deck()) ?? 0}%</p>
-							<Suspense fallback={null}><AnswerResults study={study} notes={props.notes} referenceTitles={props.referenceTitles} t={props.t} onOpenNote={props.onOpenNote}
-								responses={(deck().progress?.responses ?? []).map(entry => ({ ...entry, status: "done" as const, item: deck().items[entry.itemIndex] }))} /></Suspense>
-						</>}</Show>
-					</Match>
-					<Match when={study.stage() === "result"}>
-						<h3 class={styles.question}>{props.t("studyResults")}</h3>
-						<p class={styles.muted}>{props.t("studyScore")}: {study.correct()} / {study.sessionIndices().length ?? 0}</p>
-						<Show when={study.endReason() === "lives"}><p class={styles.muted}>{props.t("studyNoLives")}</p></Show>
-						<Show when={study.deck()?.kind === "written" || study.deck()?.kind === "cloze"}><Suspense fallback={null}><AnswerResults study={study} notes={props.notes} referenceTitles={props.referenceTitles} t={props.t} onOpenNote={props.onOpenNote} /></Suspense></Show>
-						<Show when={study.kind() === "flashcards"}><div class={styles.actions}><ResultActions /></div></Show>
-					</Match>
-				</Switch>
-				</div></CustomScrollArea></div>
+								<Show when={study.saved().length}><div class={cx(styles.library, study.saved().length > libraryPageSize && styles.libraryWithSearch)} role="region" aria-label={props.t("studySaved")}>
+									<Show when={study.saved().length > libraryPageSize}>
+										<div class={styles.librarySearchSticky}>
+											<Input class={styles.librarySearch} type="search" value={study.librarySearch()} onInput={event => { study.setLibrarySearch(event.currentTarget.value); study.setLibraryPage(0); }} placeholder={props.t("searchPlaceholder")} aria-label={props.t("searchPlaceholder")} />
+										</div>
+									</Show>
+									<Show when={paginatedSaved().length} fallback={study.librarySearch().trim() ? <p class={styles.noSearchResults}>{props.t("studyNoSearchResults")}</p> : null}>
+										<For each={paginatedSaved()}>{deck => {
+											const outcome = deck.progress?.items[0]?.lastOutcome;
+											const outcomeClass = outcome === undefined ? undefined : outcome === "correct" ? styles.correct : styles.wrong;
+											const actionsVisible = () => study.deleteVisibleId() === deck.id;
+											return <div class={styles.libraryEntry} onContextMenu={event => {
+												event.preventDefault(); event.stopPropagation();
+												study.setDeleteVisibleId(current => current === deck.id ? undefined : deck.id);
+											}}>
+												<div class={styles.libraryItemRow}>
+													<Button class={cx(styles.button, styles.icon, styles.actionReveal, styles.actionRevealLeading, actionsVisible() && styles.actionRevealVisible, actionsVisible() && styles.actionRevealLeadingVisible)} type="button" disabled={!actionsVisible() || !deck.progress?.items.length || study.loading() || study.savingProgress() || study.progressFailed()} aria-hidden={!actionsVisible()} tabIndex={actionsVisible() ? 0 : -1} aria-label={props.t("studyClearProgress")} onClick={() => { study.setDeleteVisibleId(undefined); void study.clearProgress(deck); }}><Icon name="reset" size={16} /></Button>
+													<Button class={cx(styles.button, styles.itemTitle, outcomeClass)} type="button" disabled={study.loading() || study.savingProgress() || study.progressFailed()} onClick={() => { study.setDeleteVisibleId(undefined); void study.start(deck); }}><span>{deck.title}</span></Button>
+													<Show when={deck.kind === "written" || deck.kind === "cloze"}>
+														<div class={styles.reportSlot}>
+															<Show when={deck.hasReport}>
+																<Button class={cx(styles.button, styles.icon)} type="button" disabled={study.loading() || study.savingProgress() || study.progressFailed()} aria-label={props.t("studyOpenReport")} onClick={() => study.viewReport(deck)}><Icon name="view" size={16} /></Button>
+															</Show>
+														</div>
+													</Show>
+													<Button class={cx(styles.button, styles.icon, styles.danger, styles.actionReveal, styles.actionRevealTrailing, actionsVisible() && styles.actionRevealVisible, actionsVisible() && styles.actionRevealTrailingVisible)} type="button" disabled={!actionsVisible() || study.loading() || study.savingProgress() || study.progressFailed()} aria-hidden={!actionsVisible()} tabIndex={actionsVisible() ? 0 : -1} aria-label={props.t("delete")} onClick={() => { study.setDeleteVisibleId(undefined); void study.remove(deck.id); }}><Icon name="delete" size={15} /></Button>
+												</div>
+											</div>;
+										}}</For>
+									</Show>
+									<Show when={filteredSaved().length > libraryPageSize}>
+										<nav class={styles.libraryPagination} aria-label={props.t("studyPagination")}>
+											<Button class={cx(styles.button, styles.icon)} type="button" aria-label={props.t("studyPreviousPage")} disabled={study.libraryPage() === 0} onClick={() => study.setLibraryPage(page => Math.max(0, page - 1))}><Icon name="back" size={16} /></Button>
+											<span class={styles.libraryPageLabel}>{props.t("studyPageIndicator").replace("{current}", String(study.libraryPage() + 1)).replace("{total}", String(libraryPageCount()))}</span>
+											<Button class={cx(styles.button, styles.icon, styles.libraryNextButton)} type="button" aria-label={props.t("studyNextPage")} disabled={study.libraryPage() + 1 >= libraryPageCount()} onClick={() => study.setLibraryPage(page => Math.min(libraryPageCount() - 1, page + 1))}><span class={styles.libraryNextIcon}><Icon name="back" size={16} /></span></Button>
+										</nav>
+									</Show>
+								</div></Show>
+							</Match>
+							<Match when={study.stage() === "generating"}>
+								<Show when={props.normalAiMode}>
+									<div class={styles.generationRingCenter}>
+										<svg class={cx(styles.generationRing, generationPercent() === undefined && styles.generationRingIndeterminate)} viewBox={`0 0 ${generationRingSize} ${generationRingSize}`}
+											role="progressbar" aria-label={props.t("studyGenerating")} aria-valuemin="0" aria-valuemax="100"
+											aria-valuenow={generationPercent()} aria-valuetext={generationPercent() === undefined ? props.t("studyGenerationFirst") : props.t("studyGenerationProgress").replace("{percent}", String(generationPercent()))}>
+											<circle class={styles.generationRingTrack} cx={generationRingCenter} cy={generationRingCenter} r={generationRingRadius} />
+											<circle class={styles.generationRingProgress} cx={generationRingCenter} cy={generationRingCenter} r={generationRingRadius} transform={`rotate(-90 ${generationRingCenter} ${generationRingCenter})`}
+												stroke-dasharray={generationDashArray()} />
+											<circle class={styles.generationRingEdge} cx={generationRingCenter} cy={generationRingCenter} r={26 * generationSvgScale} />
+											<circle class={styles.generationRingEdge} cx={generationRingCenter} cy={generationRingCenter} r={24 * generationSvgScale} />
+										</svg>
+										<span class={styles.generationRingTime} aria-hidden="true">{generationTimeText()}</span>
+									</div>
+								</Show>
+							</Match>
+							<Match when={study.stage() === "running"}>
+								<div class={styles.status} aria-live="polite"><span>{study.index() + 1} / {study.sessionIndices().length}</span>
+									<Show when={study.deck()?.kind !== "flashcards"}><span>{props.t("studyLives")}: {study.remainingLives() === "infinite" ? props.t("studyInfinite") : study.remainingLives()} · {study.remainingTime() === "infinite" ? props.t("studyInfinite") : `${study.remainingTime()}s`}</span></Show>
+								</div>
+								<Show when={study.current()}>{item => <>
+									<Show when={study.deck()?.kind === "correction"}><Suspense fallback={null}><CorrectionExercise study={study} t={props.t} /></Suspense></Show>
+									<Show when={study.deck()?.kind !== "correction"}>
+										<Show when={study.deck()?.kind !== "cloze"} fallback={<Suspense fallback={null}><ClozeExercise study={study} t={props.t} /></Suspense>}>
+											<div class={styles.card}><h3 class={styles.question}>{item().question}</h3>
+												<Show when={study.deck()?.kind === "flashcards" && study.revealed()}><div class={styles.answer}>{item().answer}</div></Show>
+											</div>
+										</Show>
+									</Show>
+									<Show when={study.deck()?.kind === "written"} fallback={<>
+										<Show when={study.deck()?.kind === "quiz"}>
+											<div class={styles.choices}><For each={item().options}>{(option, index) => <Button type="button"
+												class={cx(styles.button, styles.choice, study.answered() && study.choice() === index() && (item().correctIndex === index() ? styles.correct : styles.wrong))}
+												disabled={study.answered() || study.savingProgress() || study.progressFailed()} onClick={() => study.answer(index())}>{String.fromCharCode(65 + index())}. {option}</Button>}</For></div>
+											<Show when={study.answered()}>
+												<p class={styles.muted} role="status">{props.t(study.choice() === undefined ? "studyTimeout" : study.choice() === item().correctIndex ? "studyCorrect" : "studyWrong")} {item().explanation}</p>
+											</Show>
+										</Show>
+									</>}>
+										<Suspense fallback={null}><WrittenAnswer study={study} notes={props.notes} referenceTitles={props.referenceTitles} t={props.t} onOpenNote={props.onOpenNote} /></Suspense>
+									</Show>
+									<Show when={study.revealed() || study.answered()}><div class={styles.actions}>
+										<span class={styles.muted}>{props.t("studySources")}</span>
+										<For each={item().sources}>{id => {
+											const source = () => props.notes.find(note => note.id === id);
+											return <Button class={styles.link} type="button" disabled={!source()} onClick={() => { const note = source(); if (note) { study.close(); props.onOpenNote(note); } }}>{source() ? displayNoteTitle(source()!) : props.referenceTitles[id] ?? props.t("studyDeletedSource")}</Button>;
+										}}</For>
+									</div></Show>
+								</>}</Show>
+							</Match>
+							<Match when={study.stage() === "grading"}>
+								<p class={styles.muted} role="status">{props.t("studyWrittenWaiting").replace("{count}", String(study.review.pending()))}</p>
+							</Match>
+							<Match when={study.stage() === "report"}>
+								<Show when={study.deck()}>{deck => <>
+									<h3 class={styles.question}>{props.t("studyReport")}</h3>
+									<p class={styles.muted}>{generatedAt(deck().createdAt)} · {props.t("studyAccuracy")}: {study.accuracy(deck()) ?? 0}%</p>
+									<Suspense fallback={null}><AnswerResults study={study} notes={props.notes} referenceTitles={props.referenceTitles} t={props.t} onOpenNote={props.onOpenNote}
+										responses={(deck().progress?.responses ?? []).map(entry => ({ ...entry, status: "done" as const, item: deck().items[entry.itemIndex] }))} /></Suspense>
+								</>}</Show>
+							</Match>
+							<Match when={study.stage() === "result"}>
+								<h3 class={styles.question}>{props.t("studyResults")}</h3>
+								<p class={styles.muted}>{props.t("studyScore")}: {study.correct()} / {study.sessionIndices().length ?? 0}</p>
+								<Show when={study.endReason() === "lives"}><p class={styles.muted}>{props.t("studyNoLives")}</p></Show>
+								<Show when={study.deck()?.kind === "written" || study.deck()?.kind === "cloze"}><Suspense fallback={null}><AnswerResults study={study} notes={props.notes} referenceTitles={props.referenceTitles} t={props.t} onOpenNote={props.onOpenNote} /></Suspense></Show>
+							</Match>
+						</Switch>
+					</div></CustomScrollArea></div>
 				<Show when={study.stage() === "running" && study.deck()?.kind === "quiz"}>
 					<footer class={styles.footer}>
 						<div class={styles.practiceNavigation}>
@@ -293,8 +286,8 @@ const StudyDialog: Component<{
 						</div>
 					</footer>
 				</Show>
-				<Show when={study.stage() === "result" && study.kind() !== "flashcards"}>
-					<footer class={styles.footer}><div class={styles.clozeNavigation}><ResultActions /></div></footer>
+				<Show when={study.stage() === "result"}>
+					<footer class={styles.footer}><div class={styles.resultActions}><ResultActions /></div></footer>
 				</Show>
 				<Show when={study.stage() === "setup"}>
 					<footer class={styles.footer}>
@@ -334,7 +327,7 @@ const StudyDialog: Component<{
 					</footer>
 				</Show>
 				<Show when={study.stage() === "running" && study.deck()?.kind === "flashcards"}>
-					<footer class={styles.flashcardFooter}>
+					<footer class={cx(styles.footer, styles.flashcardFooter)}>
 						<div class={styles.ratings}>
 							<For each={["easy", "medium", "hard"] as const}>{rating => <Button class={styles.button} type="button" disabled={!study.revealed() || study.answered() || study.savingProgress() || study.progressFailed()} onClick={() => study.mark(rating)}>
 								{props.t(rating === "easy" ? "studyEasy" : rating === "medium" ? "studyMedium" : "studyHard")}

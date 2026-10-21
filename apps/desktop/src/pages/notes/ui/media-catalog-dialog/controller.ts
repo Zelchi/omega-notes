@@ -161,10 +161,6 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 
 	onCleanup(clearSources);
 
-	createEffect(() => {
-		if (!props.open) setQuery("");
-	});
-
 	const close = (): void => {
 		props.onClose();
 	};
@@ -235,4 +231,12 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 		cleanupStatus,
 		setFileInput: (element: HTMLInputElement) => (fileInput = element),
 	};
+};
+
+export type MediaCatalogController = ReturnType<typeof useMediaCatalogDialogController>;
+export type MediaCatalogViewProps = {
+	open: boolean;
+	exiting: boolean;
+	t: (key: TranslationKey) => string;
+	catalog: MediaCatalogController;
 };

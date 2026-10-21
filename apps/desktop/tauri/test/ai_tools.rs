@@ -174,22 +174,15 @@ fn invalid_arguments_and_unknown_tools_are_rejected() {
 }
 
 #[test]
-fn search_snippet_is_at_the_match_and_offsets_survive_unicode_case_expansion() {
+fn search_results_omit_text_excerpts_and_keep_unicode_match_offsets() {
     let vault = Vault::new();
     let text = format!("İ🌳{}mAgIc suffix", "á".repeat(1500));
     vault.note(1, "Unrelated", &text);
     let result = vault.call("search_notes", json!({"query":"MAGIC"}));
     let result = &result["notes"][0];
     assert_eq!(result["matchOffset"], 1502);
-    assert!(result["snippet"].as_str().unwrap().contains("mAgIc"));
-    assert_eq!(result["snippetOffset"], 1382);
-    assert_eq!(
-        text.chars()
-            .skip(result["snippetOffset"].as_u64().unwrap() as usize)
-            .take(600)
-            .collect::<String>(),
-        result["snippet"].as_str().unwrap()
-    );
+    assert!(result.get("snippet").is_none());
+    assert!(result.get("snippetOffset").is_none());
 }
 
 #[test]

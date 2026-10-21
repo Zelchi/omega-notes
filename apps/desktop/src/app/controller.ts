@@ -9,9 +9,11 @@ import { useCanvasHistory } from "@/features/undo-canvas-edit";
 import { useNotes, type NoteSummary } from "@/entities/note";
 import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner } from "solid-js";
 import { translate, type TranslationKey } from "@/shared/lib/i18n";
+import { configureTrayMenu, onTrayAction } from "./api/tray.repository";
 import { useVaults } from "@/features/manage-vault/model/vaults.controller";
 import type { Vault } from "@/entities/vault";
 import { matchesAiChatShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
+import { matchesCanvasLayoutShortcut } from "@/features/change-preferences/model/canvas-layout-shortcut";
 import { usePreferences } from "@/features/change-preferences/model/preferences.controller";
 import { useWindowControls } from "./model/window-controls.controller";
 import { useNoteNavigationController } from "./model/note-navigation.controller";
@@ -20,6 +22,9 @@ import type { AiChatController } from "@/features/chat-with-ai/model/ai-chat.con
 import { useTemporaryNoteReading } from "@/features/follow-note-link";
 import { disposeSounds, prepareSounds } from "@/shared/ui/sound";
 import { useKanban } from "@/features/manage-kanban/model/controller";
+import { usePomodoro } from "@/features/pomodoro/model/controller";
+import { useGambiarraTerminal } from "@/features/gambiarra-terminal/model/controller";
+import type { SettingsCategory } from "@/features/change-preferences/model/preferences";
 
 const createLazyController = <T,>(loadModule: () => Promise<() => T>) => {
 	const owner = getOwner();
@@ -51,6 +56,7 @@ export const useAppController = () => {
 	const vaults = useVaults();
 	const preferences = usePreferences();
 	const kanban = useKanban(vaults.activeVaultId);
+	const pomodoro = usePomodoro(vaults.activeVaultId);
 	const notes = useNotes(vaults.activeVaultId, preferences.gambiarraEnabled);
 	const t = (key: TranslationKey) => translate(preferences.language(), key);
 	let saveNoteTitle: (() => Promise<boolean>) | undefined;
@@ -65,9 +71,22 @@ export const useAppController = () => {
 	};
 	const beforeShutdown = async () => {
 		if (!(await beforeAiRequest())) return false;
+		if (!(await pomodoro.flushSave())) return false;
 		return saveStudies ? saveStudies() : true;
 	};
 	const windowControls = useWindowControls(beforeShutdown, t);
+	createEffect(() => {
+		void configureTrayMenu({
+			show: t("trayShow"),
+		hide: t("trayHide"),
+			start: t("pomodoroStart"),
+			pause: t("pomodoroPause"),
+			reset: t("pomodoroReset"),
+			next: t("trayNext"),
+			update: t("updateAction"),
+			exit: t("trayExit"),
+		}, pomodoro.running()).catch(console.error);
+	});
 	const navigation = useNoteNavigationController({
 		notes,
 		activeVaultId: vaults.activeVaultId,
@@ -138,24 +157,28 @@ export const useAppController = () => {
 		},
 	});
 	const [gambiarraChatOpen, setGambiarraChatOpen] = createSignal(false);
+	const gambiarraTerminal = useGambiarraTerminal({
+		vaultId: vaults.activeVaultId,
+		enabled: preferences.gambiarraEnabled,
+		onCliExit: () => setGambiarraChatOpen(false),
+	});
 	const chatAvailable = () => preferences.aiFeaturesEnabled() || preferences.gambiarraEnabled();
 	const chatOpen = () => preferences.gambiarraEnabled() ? gambiarraChatOpen() : aiChat.open();
 	const setChatOpen = (value: boolean | ((open: boolean) => boolean)) => {
 		const open = typeof value === "function" ? value(chatOpen()) : value;
-		if (open) {
-			kanban.setOpen(false);
-			setSettingsOpen(false);
-		}
+		if (open) hideOtherWindows("chat");
 		if (preferences.gambiarraEnabled()) setGambiarraChatOpen(open && !!vaults.activeVaultId());
 		else aiChat.setOpen(open);
 	};
 	const toggleKanban = () => {
 		if (!vaults.activeVaultId()) return;
-		if (!kanban.open()) {
-			setChatOpen(false);
-			setSettingsOpen(false);
-		}
+		if (!kanban.open()) hideOtherWindows("kanban");
 		kanban.setOpen((open) => !open);
+	};
+	const togglePomodoro = () => {
+		if (!vaults.activeVaultId()) return;
+		if (!pomodoro.open()) hideOtherWindows("pomodoro");
+		pomodoro.setOpen((open) => !open);
 	};
 	let terminalVault = vaults.activeVaultId(), terminalMode = preferences.gambiarraEnabled(), terminalSyncRevision = 0;
 	createEffect(() => {
@@ -196,12 +219,10 @@ export const useAppController = () => {
 		(preferences.gambiarraEnabled() ? isTauriRuntime() : aiChat.ready() && studyConnected());
 	const studiesLazy = createLazyController<StudiesController>(() =>
 		import("@/features/study-notes/model/controller").then(({ useStudies }) => () => useStudies({
-			vaultId: vaults.activeVaultId, notes: notes.loadedNotes, loadAllNotes: notes.loadAllNotes,
-			noteSummaries: notes.notes,
+			vaultId: vaults.activeVaultId, noteSummaries: notes.notes,
 			currentNote: () => navigation.route() === "note" ? navigation.selectedNote() : undefined,
 			aiEnabled: chatAvailable, normalAiMode: () => !preferences.gambiarraEnabled(), canGenerate: canGenerateStudy,
 			aiConnected: studyConnected,
-			onConnect: () => aiChat.setOpen(true),
 			requestText: (...args) => preferences.gambiarraEnabled() ? cliStudies.requestText(...args) : aiChat.requestText(...args),
 			describeAiError: failure => aiChat.describeError(failure),
 			onOpenNote: navigation.openNote, t,
@@ -209,16 +230,15 @@ export const useAppController = () => {
 	);
 	const studies = new Proxy({} as StudiesController, {
 		get: (_target, property) => {
-			if (property === "close") return () => {
-				studiesLazy.controller()?.close();
-				notes.releaseLoadedNotes(navigation.selectedNote()?.id);
-			};
+			if (property === "close") return () => studiesLazy.controller()?.close();
+			if (property === "open") return () => studiesLazy.controller()?.open() ?? false;
 			if (property === "show") return (kind: StudyKind) => {
 				if (!chatAvailable()) return;
-				void studiesLazy.load().then(async controller => {
-					if (!controller) return;
-					if (studyConnected()) await notes.loadAllNotes();
-					if (vaults.activeVaultId()) controller.show(kind);
+				void studiesLazy.load().then(controller => {
+					if (controller && vaults.activeVaultId()) {
+						hideOtherWindows("study");
+						controller.show(kind);
+					}
 				}).catch(error => console.warn("Could not open study tools", error));
 			};
 			const current = studiesLazy.controller();
@@ -226,7 +246,6 @@ export const useAppController = () => {
 				const value = Reflect.get(current, property, current);
 				return typeof value === "function" ? value.bind(current) : value;
 			}
-			if (property === "open") return () => false;
 			if (property === "activeRequestKind") return () => undefined;
 			if (property === "kind") return () => "flashcards";
 			if (property === "flushSave") return () => Promise.resolve(true);
@@ -260,13 +279,14 @@ export const useAppController = () => {
 	saveAiChats = () => aiChat.flushSave();
 	saveStudies = () => studies.flushSave();
 	const [settingsOpen, setSettingsOpen] = createSignal(false);
+	const [settingsCategory, setSettingsCategory] = createSignal<SettingsCategory>("preferences");
+	const [confirmGambiarra, setConfirmGambiarra] = createSignal(false);
 	const toggleSettings = () => {
 		if (settingsOpen()) {
 			setSettingsOpen(false);
 			return;
 		}
-		setChatOpen(false);
-		kanban.setOpen(false);
+		hideOtherWindows("settings");
 		setSettingsOpen(true);
 	};
 	const canvasHistory = useCanvasHistory({
@@ -274,8 +294,8 @@ export const useAppController = () => {
 		notes,
 		setLayout: preferences.setCanvasLayout,
 		enabled: () => navigation.route() === "canvas" && navigation.mode() === "edit" &&
-			!notes.loading() && !navigation.nameDialog() && !vaults.dialogOpen() && !settingsOpen() &&
-			!chatOpen() && !noteDeletion.target() && !noteDeletion.pending() && !vaultActionPending() && !updates.installing() && !notes.loadIssues().length,
+			!notes.loading() && !navigation.nameDialogVisible() && !vaults.dialogOpen() && !settingsOpen() &&
+			!chatOpen() && !noteDeletion.open() && !noteDeletion.pending() && !vaultActionPending() && !updates.installing() && !notes.loadIssues().length,
 	});
 	const noteDeletion = useNoteDeletion({
 		vaultId: vaults.activeVaultId,
@@ -293,7 +313,7 @@ export const useAppController = () => {
 	const noteReferences = useCreateNoteFromLink({
 		notes, vaultId: vaults.activeVaultId, sourceNoteId: () => navigation.selectedNote()?.id,
 		enabled: () => !notes.loading() && !vaultActionPending() && !canvasHistory.pending() &&
-			!navigation.nameDialog() && !vaults.dialogOpen() && !noteDeletion.target() && !noteDeletion.pending() && !updates.installing(),
+			!navigation.nameDialogVisible() && !vaults.dialogOpen() && !noteDeletion.open() && !noteDeletion.pending() && !updates.installing(),
 		beforeOpen: beforeShutdown, onOpenNote: navigation.openNote,
 	});
 	const updates = useUpdatesController(beforeShutdown, () =>
@@ -303,8 +323,35 @@ export const useAppController = () => {
 		mode: navigation.mode,
 		noteId: () => navigation.selectedNote()?.id,
 		enabled: () => navigation.route() === "note" && Boolean(navigation.selectedNote()) &&
-			!navigation.nameDialog() && !vaults.dialogOpen() && !settingsOpen() && !studies.open() && !updates.installing(),
+			!navigation.nameDialogVisible() && !vaults.dialogOpen() && !settingsOpen() && !studies.open() && !updates.installing(),
 	});
+	const hideOtherWindows = (keep: "chat" | "kanban" | "pomodoro" | "settings" | "vault" | "study" | "note-name" | "delete") => {
+		if (keep !== "chat") setChatOpen(false);
+		if (keep !== "kanban") kanban.setOpen(false);
+		if (keep !== "pomodoro") pomodoro.setOpen(false);
+		if (keep !== "settings") setSettingsOpen(false);
+		if (keep !== "vault") vaults.closeDialog();
+		if (keep !== "study") studies.close();
+		if (keep !== "note-name") navigation.hideNameDialog();
+		if (keep !== "delete") noteDeletion.close();
+	};
+	const toggleVaultDialog = () => {
+		if (vaults.dialogOpen()) { vaults.closeDialog(); return; }
+		hideOtherWindows("vault");
+		vaults.openDialog();
+	};
+	const createNoteAtCanvas = () => {
+		hideOtherWindows("note-name");
+		return navigation.createNoteAtCanvas();
+	};
+	const requestRenameNote = (note: NoteSummary) => {
+		hideOtherWindows("note-name");
+		void navigation.requestRenameNote(note);
+	};
+	const requestDeleteNote = (note: NoteSummary) => {
+		hideOtherWindows("delete");
+		return noteDeletion.request(note);
+	};
 
 
 	const [studyReturn, setStudyReturn] = createSignal<{ vaultId: string; kind: StudyKind }>();
@@ -330,7 +377,7 @@ export const useAppController = () => {
 		if (!target) return;
 		if (!enabled || vaultId !== target.vaultId || studies.open()) { setStudyReturn(undefined); return; }
 		if (navigation.route() !== "canvas" || navigation.navigating() || vaults.dialogOpen() || settingsOpen() ||
-			navigation.nameDialog() || noteDeletion.target() || noteDeletion.pending() || updates.installing()) return;
+			navigation.nameDialogVisible() || noteDeletion.open() || noteDeletion.pending() || updates.installing()) return;
 		const frame = requestAnimationFrame(() => {
 			if (studyNavigationDisposed || studyReturn() !== target || vaults.activeVaultId() !== target.vaultId ||
 				!chatAvailable() || navigation.route() !== "canvas") return;
@@ -342,6 +389,17 @@ export const useAppController = () => {
 	onMount(() => {
 		prepareSounds();
 		onCleanup(disposeSounds);
+		let active = true;
+		let unlistenTray: (() => void) | undefined;
+		void onTrayAction(action => {
+			switch (action) {
+				case "pomodoro-toggle": pomodoro.running() ? pomodoro.pause() : pomodoro.start(); break;
+				case "pomodoro-reset": pomodoro.reset(); break;
+				case "pomodoro-next": pomodoro.next(); break;
+				case "update": void updates.activate(); break;
+			}
+		}).then(unlisten => { if (active) unlistenTray = unlisten; else unlisten(); }).catch(console.error);
+		onCleanup(() => { active = false; unlistenTray?.(); });
 		const preventNativeTab = (event: KeyboardEvent) => {
 			if (event.key === "Tab" && !isTerminalTarget(event.target)) event.preventDefault();
 		};
@@ -350,8 +408,8 @@ export const useAppController = () => {
 
 		const onKanbanShortcut = (event: KeyboardEvent) => {
 			if (event.defaultPrevented || event.isComposing || isTerminalTarget(event.target) || !vaults.activeVaultId()
-				|| navigation.nameDialog() || vaults.dialogOpen() || settingsOpen() || studies.open()
-				|| noteDeletion.target() || noteDeletion.pending() || updates.installing()) return;
+				|| navigation.nameDialogVisible() || vaults.dialogOpen() || settingsOpen() || studies.open()
+				|| noteDeletion.open() || noteDeletion.pending() || updates.installing()) return;
 			if (event.metaKey || event.getModifierState("AltGraph") || event.code !== "KeyB"
 				|| !event.ctrlKey || event.altKey || !event.shiftKey) return;
 			event.preventDefault();
@@ -363,7 +421,7 @@ export const useAppController = () => {
 
 		const onAiShortcut = (event: KeyboardEvent) => {
 			if (event.defaultPrevented || event.isComposing || !chatAvailable() || !vaults.activeVaultId() ||
-				navigation.nameDialog() || vaults.dialogOpen() || settingsOpen() || studies.open() || noteDeletion.target() || noteDeletion.pending() || updates.installing()) return;
+				navigation.nameDialogVisible() || vaults.dialogOpen() || settingsOpen() || studies.open() || noteDeletion.open() || noteDeletion.pending() || updates.installing()) return;
 			if (!matchesAiChatShortcut(event, preferences.aiChatShortcut())) return;
 			event.preventDefault();
 			event.stopPropagation();
@@ -372,16 +430,30 @@ export const useAppController = () => {
 		addEventListener("keydown", onAiShortcut, true);
 		onCleanup(() => removeEventListener("keydown", onAiShortcut, true));
 
+		const onCanvasLayoutShortcut = (event: KeyboardEvent) => {
+			if (!vaults.activeVaultId() || navigation.route() !== "canvas" || settingsOpen() || chatOpen() ||
+				kanban.open() || pomodoro.open() || vaults.dialogOpen() || studies.open() || noteDeletion.open() ||
+				noteDeletion.pending() || navigation.nameDialogVisible() || updates.installing()) return;
+			if (!matchesCanvasLayoutShortcut(event, preferences.canvasLayoutShortcut())) return;
+			event.preventDefault();
+			event.stopPropagation();
+			if (!event.repeat) preferences.setCanvasLayout(preferences.canvasLayout() === "static" ? "dynamic" : "static");
+		};
+		addEventListener("keydown", onCanvasLayoutShortcut, true);
+		onCleanup(() => removeEventListener("keydown", onCanvasLayoutShortcut, true));
+
 		const onShortcut = (event: KeyboardEvent) => {
 			if (event.key !== "Escape" || isTerminalTarget(event.target)) return;
 			if (vaults.dialogOpen()) {
-				if (!vaultActionPending() && !vaults.saving()) vaults.closeDialog();
+				vaults.closeDialog();
 			} else if (settingsOpen()) {
 				setSettingsOpen(false);
 			} else if (chatOpen()) {
 				setChatOpen(false);
 			} else if (kanban.open()) {
 				kanban.setOpen(false);
+			} else if (pomodoro.open()) {
+				pomodoro.setOpen(false);
 			} else {
 				navigation.handleEscape();
 			}
@@ -450,23 +522,27 @@ export const useAppController = () => {
 		}
 	};
 	return {
-		studies, canGenerateStudy, studyConnected, studyAiBusy, cliStudies, cliStudyReturn, confirmCliStudy, openStudyNote,
-		noteDeletion,
+		studies, canGenerateStudy, studyConnected, studyAiBusy, cliStudies, cliStudyReturn, confirmCliStudy, openStudyNote, gambiarraTerminal,
+		noteDeletion, requestDeleteNote,
 		noteReferences,
 		canvasHistory,
 		aiChat, aiChatLoaded: () => Boolean(aiChatLazy.controller()), chatOpen, setChatOpen, chatAvailable,
-		kanban, toggleKanban,
+		kanban, toggleKanban, pomodoro, togglePomodoro,
 		openAiNote,
 		updates,
 		registerBeforeShutdown: (save?: () => Promise<boolean>) => { saveNoteTitle = save; },
-		vaults,
+		vaults, toggleVaultDialog,
 		notes,
 		preferences,
 		windowControls,
-		navigation,
+		navigation, createNoteAtCanvas, requestRenameNote,
 		temporaryReading,
 		settingsOpen,
 		setSettingsOpen,
+		settingsCategory,
+		setSettingsCategory,
+		confirmGambiarra,
+		setConfirmGambiarra,
 		toggleSettings,
 		vaultActionPending,
 		selectVault,

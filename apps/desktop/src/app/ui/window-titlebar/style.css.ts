@@ -79,6 +79,7 @@ export const styles = {
 		},
 	}),
 	kanbanButton: style({ marginInlineStart: 11 }),
+	pomodoroButton: style({ marginInlineStart: 2 }),
 	closeButton: style({
 		color: "var(--text-control)",
 		backgroundColor: "transparent",

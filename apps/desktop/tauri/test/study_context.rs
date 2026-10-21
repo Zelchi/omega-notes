@@ -2,6 +2,20 @@ use super::*;
 use std::fs;
 
 #[test]
+fn linked_text_aggregates_characters_words_and_wrapped_lines_before_generation() {
+    let linked_text = "A memória organiza conceitos e reforça a aprendizagem. ".repeat(3);
+    let first = study_content_stats(&linked_text);
+    let second = study_content_stats(&linked_text);
+    assert!(!has_sufficient_study_content(first.0, first.1, first.2));
+    assert!(!has_sufficient_study_content(second.0, second.1, second.2));
+    assert!(has_sufficient_study_content(
+        first.0 + second.0,
+        first.1 + second.1,
+        first.2 + second.2
+    ));
+}
+
+#[test]
 fn source_cache_reuses_exact_revisions_rejects_invalid_files_and_obeys_reset() {
     let directory =
         std::env::temp_dir().join(format!("omega-study-context-{}", uuid::Uuid::new_v4()));
