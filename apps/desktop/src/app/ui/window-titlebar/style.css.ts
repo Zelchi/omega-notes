@@ -35,7 +35,7 @@ export const styles = {
 	}),
 	vaultName: style({
 		position: "absolute",
-		zIndex: 1,
+		zIndex: 2,
 		left: "50%",
 		maxWidth: "35%",
 		height: 27,

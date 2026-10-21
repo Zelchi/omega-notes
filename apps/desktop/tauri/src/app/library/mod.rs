@@ -14,7 +14,10 @@ pub(crate) fn lock_title_mutations() -> Result<MutexGuard<'static, ()>, String> 
 }
 
 pub(crate) use cleanup::{cleanup_orphaned_media, MediaCleanupSummary};
-pub(crate) use loading::list_notes;
+pub(crate) use loading::{
+    content_stats_from_index, list_notes, remove_cached_note_summary, stream_note_summaries,
+    stream_note_summaries_with_text, update_cached_note_summaries,
+};
 pub(crate) use mutations::{
     create_note, delete_note, list_deleted_notes, restore_deleted_note, save_note_checked,
 };

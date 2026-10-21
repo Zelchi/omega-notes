@@ -2,6 +2,7 @@ import Button from "@/shared/ui/button";
 import type { Component } from "solid-js";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { UpdatesController } from "../model/updates.controller";
+import desktopPackage from "../../../../package.json";
 import { styles } from "./style.css";
 
 export const CheckForUpdatesButton: Component<{
@@ -10,22 +11,23 @@ export const CheckForUpdatesButton: Component<{
 }> = (props) => {
 	const label = () => {
 		switch (props.updates.status()) {
-			case "checking": return props.t("checkingUpdates");
-			case "current": return props.t("appUpToDate");
-			case "available": return `${props.t("updateAvailable")} ${props.updates.version()}`;
-			case "downloading": {
-				const progress = props.updates.progress();
-				return `${props.t("downloadingUpdate")}${progress === undefined ? "" : ` ${progress}%`}`;
-			}
-			case "installing": return props.t("installingUpdate");
-			case "failed": return props.t("updateCheckFailed");
-			case "unavailable": return props.t("updateCheckUnavailable");
-			default: return props.t("checkForUpdates");
+			case "available": return `${desktopPackage.version} > ${props.updates.version()}`;
+			case "downloading": return props.t("updateDownloading");
+			case "installing": return props.t("updateInstalling");
+			default: return desktopPackage.version;
 		}
 	};
-	return <Button class={styles.button} type="button" disabled={props.updates.busy()}
-		aria-busy={props.updates.busy()}
-		onClick={() => void props.updates.activate()}>
-		<span aria-live="polite" aria-atomic="true">{label()}</span>
-	</Button>;
+	return (
+		<div class={styles.row}>
+			<span class={styles.version}>{props.t("appVersion")}</span>
+			<Button class={styles.button} type="button" disabled={props.updates.busy()}
+				aria-busy={props.updates.busy()}
+				title={props.updates.status() === "available"
+					? `${props.t("updateAvailable")} ${props.updates.version()}`
+					: props.t("checkForUpdates")}
+				onClick={() => void props.updates.activate()}>
+				<span aria-live="polite" aria-atomic="true">{label()}</span>
+			</Button>
+		</div>
+	);
 };

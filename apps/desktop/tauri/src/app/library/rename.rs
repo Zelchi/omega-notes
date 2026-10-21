@@ -1,13 +1,14 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::names::normalize_name;
 use crate::notes::{
-    begin_note_rename_journal, commit_note_rename_journal, ensure_unique_note_title,
-    note_title_indexes, rename_resolved_note_links, rollback_note_rename_journal, validate_note_id,
-    validate_note_title, write_note, NoteDocument, StudyNote,
+    begin_note_rename_journal, commit_note_rename_journal, note_from_path_with_id, note_path,
+    rename_resolved_note_links, rollback_note_rename_journal, validate_note_id,
+    validate_note_title, write_note, NoteDocument, NoteSummary, StudyNote,
 };
 
-use super::loading::list_notes;
+use super::loading::stream_note_summaries;
 
 #[derive(Debug)]
 pub(crate) enum RenameNoteError {
@@ -32,9 +33,21 @@ pub(crate) fn rename_note(
     validate_note_id(&note_id).map_err(RenameNoteError::Validation)?;
     validate_note_title(&note_title).map_err(RenameNoteError::Validation)?;
     let (directory, backups_directory) = resolve_directories().map_err(RenameNoteError::Context)?;
-    let notes = list_notes(&|| Ok((directory.clone(), backups_directory.clone())))
-        .map_err(RenameNoteError::Library)?
-        .notes;
+    let mut notes = Vec::new();
+    let (issues, _) = stream_note_summaries(
+        &|| Ok((directory.clone(), backups_directory.clone())),
+        |note| {
+            notes.push(note);
+            Ok(())
+        },
+    )
+    .map_err(RenameNoteError::Library)?;
+    if issues
+        .iter()
+        .any(|issue| issue.file_name == "notes" || issue.file_name.ends_with(".omega"))
+    {
+        return Err(RenameNoteError::Library("NOTE_TITLE_CHECK_FAILED".into()));
+    }
     let current = notes
         .iter()
         .find(|note| note.id == note_id)
@@ -44,13 +57,36 @@ pub(crate) fn rename_note(
         return Ok(Vec::new());
     }
     if normalize_name(&current.title) != normalize_name(next_title) {
-        ensure_unique_note_title(&notes, next_title, Some(&note_id))
-            .map_err(RenameNoteError::Validation)?;
+        super::loading::ensure_unique_note_title_in_summaries(
+            &notes,
+            &normalize_name(next_title),
+            Some(&note_id),
+        )
+        .map_err(RenameNoteError::Validation)?;
     }
 
-    let (notes_by_id, notes_by_title) = note_title_indexes(&notes);
+    let (notes_by_id, notes_by_title) = summary_title_indexes(&notes);
+    let previous_key = normalize_name(&current.title);
     let mut updates = Vec::new();
-    for note in &notes {
+    for summary in &notes {
+        let should_read_document = summary.id == note_id
+            || summary.links.iter().any(|target| {
+                let key = normalize_name(target);
+                key == previous_key
+                    && !notes_by_id.contains_key(&key)
+                    && notes_by_title.get(&key).is_some_and(|id| id == &note_id)
+            });
+        if !should_read_document {
+            continue;
+        }
+        let path = note_path(&directory, &summary.id);
+        let metadata = std::fs::symlink_metadata(&path).map_err(|error| {
+            RenameNoteError::Library(format!("Não foi possível ler a nota: {error}"))
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(RenameNoteError::Library("NOTE_READ_FAILED".into()));
+        }
+        let note = note_from_path_with_id(&path, &summary.id).map_err(RenameNoteError::Library)?;
         let (document, links_changed) = rename_resolved_note_links(
             &note.document,
             &current.title,
@@ -90,7 +126,27 @@ pub(crate) fn rename_note(
     if let Err(commit_error) = commit_note_rename_journal(&journal) {
         return rollback_rename(journal, commit_error);
     }
+    super::update_cached_note_summaries(&directory, &saved);
     Ok(saved)
+}
+
+fn summary_title_indexes(
+    notes: &[NoteSummary],
+) -> (HashMap<String, String>, HashMap<String, String>) {
+    let mut by_id = HashMap::new();
+    for note in notes {
+        by_id.insert(normalize_name(&note.id), note.id.clone());
+    }
+    let mut stable_notes = notes.iter().collect::<Vec<_>>();
+    stable_notes.sort_by(|first, second| first.id.cmp(&second.id));
+    let mut by_title = HashMap::new();
+    for note in stable_notes {
+        let key = normalize_name(&note.title);
+        if !key.is_empty() {
+            by_title.entry(key).or_insert_with(|| note.id.clone());
+        }
+    }
+    (by_id, by_title)
 }
 
 fn save_renamed_notes(

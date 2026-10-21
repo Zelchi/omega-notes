@@ -7,7 +7,7 @@ use std::{
 use tauri::AppHandle;
 
 const MAX_BYTES: u64 = 4_000_000;
-const MAX_SESSIONS: usize = 50;
+const MAX_ITEMS: usize = 1000;
 const KINDS: [Kind; 5] = [
     Kind::Flashcards,
     Kind::Quiz,
@@ -39,7 +39,7 @@ fn directory(path: &Path, create: bool) -> Result<bool, String> {
 fn root(app: &AppHandle, vault_id: &str) -> Result<PathBuf, String> {
     Ok(super::super::repository::data_directory(app, vault_id)?.join("studies"))
 }
-fn session_path(
+fn item_path(
     app: &AppHandle,
     vault_id: &str,
     kind: Kind,
@@ -71,7 +71,7 @@ struct Entry {
     id: String,
     bytes: u64,
 }
-/** Scan only filenames and sizes when saving; other session contents are untouched. */
+/** Scan only filenames and sizes when saving; other study items are untouched. */
 fn entries(app: &AppHandle, vault_id: &str) -> Result<Vec<Entry>, String> {
     let base = root(app, vault_id)?;
     if !directory(&base, false)? {
@@ -110,7 +110,7 @@ fn entries(app: &AppHandle, vault_id: &str) -> Result<Vec<Entry>, String> {
             bytes = bytes
                 .checked_add(metadata.len())
                 .ok_or("STUDY_STORAGE_FAILED")?;
-            if result.len() >= MAX_SESSIONS || bytes > MAX_BYTES {
+            if result.len() >= MAX_ITEMS || bytes > MAX_BYTES {
                 return Err("STUDY_STORAGE_FAILED".into());
             }
             result.push(Entry {
@@ -159,7 +159,7 @@ pub(super) fn read_each(
     Ok(entries.len())
 }
 pub(super) fn read(app: &AppHandle, vault_id: &str, kind: Kind, id: &str) -> Result<Deck, String> {
-    read_file(&session_path(app, vault_id, kind, id, false)?, kind, id)
+    read_file(&item_path(app, vault_id, kind, id, false)?, kind, id)
 }
 pub(super) fn write(
     app: &AppHandle,
@@ -167,14 +167,14 @@ pub(super) fn write(
     deck: &Deck,
     existing_only: bool,
 ) -> Result<(), String> {
-    let path = session_path(app, vault_id, deck.kind, &deck.id, true)?;
+    let path = item_path(app, vault_id, deck.kind, &deck.id, true)?;
     let entries = entries(app, vault_id)?;
     let previous = entries.iter().find(|entry| entry.id == deck.id);
     if previous.is_some_and(|entry| entry.kind != deck.kind) || existing_only && previous.is_none()
     {
         return Err("STUDY_STORAGE_FAILED".into());
     }
-    if previous.is_none() && entries.len() >= MAX_SESSIONS {
+    if previous.is_none() && entries.len() >= MAX_ITEMS {
         return Err("STUDY_LIMIT_REACHED".into());
     }
     let bytes = serde_json::to_vec_pretty(deck).map_err(|_| "STUDY_STORAGE_FAILED")?;
@@ -185,7 +185,7 @@ pub(super) fn write(
     crate::storage::atomic_write(&path, &bytes, None).map_err(|_| "STUDY_STORAGE_FAILED".into())
 }
 pub(super) fn delete(app: &AppHandle, vault_id: &str, kind: Kind, id: &str) -> Result<(), String> {
-    match fs::remove_file(session_path(app, vault_id, kind, id, false)?) {
+    match fs::remove_file(item_path(app, vault_id, kind, id, false)?) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(_) => Err("STUDY_STORAGE_FAILED".into()),

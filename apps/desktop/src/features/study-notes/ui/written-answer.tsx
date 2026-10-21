@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createMemo, createUniqueId, onCleanup, type Component } from "solid-js";
-import { createNoteTitleIndex, normalizeNoteTitle, resolveNoteReference, type StudyNote } from "@/entities/note";
+import { createNoteTitleIndex, normalizeNoteTitle, resolveNoteReference, type NoteSummary } from "@/entities/note";
 import { NoteContentText } from "@/entities/note/ui";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import Button from "@/shared/ui/button";
@@ -52,8 +52,8 @@ const WrittenDraft: Component<{ study: StudiesController; t: (key: TranslationKe
 };
 
 type WrittenProps = {
-	responses?: StudyResponse[]; study: StudiesController; notes: StudyNote[]; referenceTitles: Record<string, string>;
-	t: (key: TranslationKey) => string; onOpenNote: (note: StudyNote) => void;
+	responses?: StudyResponse[]; study: StudiesController; notes: NoteSummary[]; referenceTitles: Record<string, string>;
+	t: (key: TranslationKey) => string; onOpenNote: (note: NoteSummary) => void;
 };
 const WrittenAnswer: Component<WrittenProps> = props => <>
 	<WrittenDraft study={props.study} t={props.t} />
@@ -62,10 +62,10 @@ const WrittenAnswer: Component<WrittenProps> = props => <>
 </>;
 
 const AnswerResult: Component<WrittenProps & {
-	response: StudyResponse; noteIndex: Map<string, StudyNote>; resolveNote: (target: string) => StudyNote | undefined;
+	response: StudyResponse; noteIndex: Map<string, NoteSummary>; resolveNote: (target: string) => NoteSummary | undefined;
 }> = props => {
 	const resolveNote = (target: string) => props.resolveNote(target);
-	const openSource = (note: StudyNote) => { props.study.close(); props.onOpenNote(note); };
+	const openSource = (note: NoteSummary) => { props.study.close(); props.onOpenNote(note); };
 	const answerParts = createMemo(() => splitClozeText(props.response.item.question));
 	const answerTone = (correct?: boolean) => correct === undefined ? undefined : correct ? styles.reportCorrect : styles.reportWrong;
 	const groups = () => {

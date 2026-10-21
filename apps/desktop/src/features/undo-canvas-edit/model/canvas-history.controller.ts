@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount, untrack, type Accessor } from "solid-js";
-import type { NotesLibrary, StudyNote } from "@/entities/note";
+import type { NotesLibrary, NoteSummary, StudyNote } from "@/entities/note";
 import { playSound } from "@/shared/ui/sound";
 import { CanvasSnapshotStore, type CanvasSnapshot } from "./canvas-snapshot-store";
 
@@ -70,8 +70,8 @@ export const useCanvasHistory = (options: {
 		const activeIds = new Set(untrack(options.notes.notes).map((note) => note.id));
 		void options.notes.listDeleted().then((deleted) => {
 			if (disposed || histories.get(id) !== current) return;
-			const recovered: Action[] = deleted.filter((note) => !activeIds.has(note.id))
-				.reverse().map((note) => ({ kind: "delete", noteId: note.id }));
+			const recovered: Action[] = deleted.filter((noteId) => !activeIds.has(noteId))
+				.reverse().map((noteId) => ({ kind: "delete", noteId }));
 			const known = new Set(current.past.flatMap((action) => action.kind === "move" ? [] : [action.noteId]));
 			current.past = [...recovered.filter((action) => action.kind !== "move" && !known.has(action.noteId)), ...current.past].slice(-100);
 		}).catch(cause => {
@@ -87,7 +87,7 @@ export const useCanvasHistory = (options: {
 		});
 	});
 
-	const remove = async (note: StudyNote): Promise<void> => {
+	const remove = async (note: NoteSummary): Promise<void> => {
 		const id = options.vaultId(), current = history();
 		if (disposed || !id || !current || pending()) return;
 		const before = snapshots.read(id);

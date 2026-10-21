@@ -2,7 +2,6 @@ import Tooltip from "@/shared/ui/tooltip";
 import Button from "@/shared/ui/button";
 import { createMemo, createRenderEffect, createSignal, createUniqueId, For, Match, onCleanup, onMount, Show, Switch, type Component } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
-import { ExportPdfButton } from "@/features/export-note-pdf";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import type { NoteTextAlignment } from "@/entities/note";
@@ -24,8 +23,6 @@ type Props = {
 	deleteDisabled?: boolean;
 	onAlignmentChange: (alignment: NoteTextAlignment) => void;
 	onFormat: (format: TextFormat) => void;
-	onExportPdf?: () => Promise<void>;
-	exportPdfDisabled?: boolean;
 };
 
 const alignmentButtons: {
@@ -199,12 +196,6 @@ const NoteEditingToolbar: Component<Props> = (props) => {
 			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("separator")}>―</Button>
 		<Button class={styles.button} type="button" aria-label={props.t("insertTable")}
 			onPointerDown={(event) => event.preventDefault()} onClick={() => props.onFormat("table")}><Icon name="table" size={17} /></Button>
-		<Show when={props.onExportPdf}>
-			{(onExport) => <>
-				<span class={styles.divider} aria-hidden="true" />
-				<ExportPdfButton t={props.t} onExport={onExport()} disabled={props.exportPdfDisabled} />
-			</>}
-		</Show>
 		<Show when={props.onDelete}>
 			<span class={styles.divider} aria-hidden="true" />
 			<Button class={cx(styles.button, styles.deleteButton)} type="button" aria-label={props.t("deleteNote")}

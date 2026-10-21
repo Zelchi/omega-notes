@@ -1,8 +1,5 @@
-import CorrectionExercise from "./correction-exercise";
-import ClozeExercise from "./cloze-exercise";
-import WrittenAnswer, { AnswerResults } from "./written-answer";
-import { createEffect, createMemo, createUniqueId, For, on, onCleanup, Show, Switch, Match, type Component } from "solid-js";
-import type { StudyNote } from "@/entities/note";
+import { createEffect, createMemo, createSignal, createUniqueId, For, lazy, on, onCleanup, Show, Suspense, Switch, Match, type Component } from "solid-js";
+import type { NoteSummary } from "@/entities/note";
 import type { StudyKind } from "@/entities/study";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import Button from "@/shared/ui/button";
@@ -19,15 +16,25 @@ import StudyRequestNotice from "@/features/gambiarra-terminal/ui/study-request-n
 import type { CliStudyRequest } from "@/features/gambiarra-terminal/model/study-bridge";
 import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 
+const CorrectionExercise = lazy(() => import("./correction-exercise"));
+const ClozeExercise = lazy(() => import("./cloze-exercise"));
+const WrittenAnswer = lazy(() => import("./written-answer"));
+const AnswerResults = lazy(() => import("./written-answer").then(module => ({ default: module.AnswerResults })));
+
 const StudyDialog: Component<{
-	study: StudiesController; notes: StudyNote[]; referenceTitles: Record<string, string>;
+	study: StudiesController; notes: NoteSummary[]; referenceTitles: Record<string, string>;
 	canGenerate: boolean; aiBusy: boolean; chatBusy: boolean; connected: boolean;
 	normalAiMode: boolean;
 	cliRequest?: CliStudyRequest; onOpenCli?: () => void;
-	t: (key: TranslationKey) => string; onConnect: () => void; onOpenNote: (note: StudyNote) => void;
+	t: (key: TranslationKey) => string; onConnect: () => void; onOpenNote: (note: NoteSummary) => void;
 }> = props => {
 	const study = props.study, presence = createPresence(study.open, 210), headingId = createUniqueId();
 	const methodTitle = (kind: StudyKind) => props.t(kind === "flashcards" ? "studyFlashcards" : kind === "written" ? "studyWrittenQuiz" : kind === "cloze" ? "studyCloze" : kind === "correction" ? "studyCorrection" : "studyQuiz");
+	const quizContinueLabel = (): TranslationKey => study.sessionIndices().length === 1
+		? "studyMenuLabel"
+		: study.index() + 1 >= study.sessionIndices().length || study.remainingLives() === 0
+			? "studyResults"
+			: "studyNextShort";
 	const busyMessage = () => {
 		const kind = study.activeRequestKind();
 		const source = kind ? methodTitle(kind) : props.chatBusy ? props.t("aiChat") : undefined;
@@ -35,8 +42,7 @@ const StudyDialog: Component<{
 	};
 	const heading = createMemo<string>(previous => {
 		if (!study.open()) return previous ?? "";
-		const method = methodTitle(study.kind());
-		return `${method} · ${study.contextNote()?.title ?? props.t("studyGeneral")}`;
+		return methodTitle(study.kind());
 	});
 	const generatedAt = (timestamp: number) => new Intl.DateTimeFormat(props.t("locale"), { dateStyle: "medium", timeStyle: "medium" }).format(timestamp);
 	const generationTimeText = () => {
@@ -62,6 +68,7 @@ const StudyDialog: Component<{
 		const dash = generationCircumference * progress;
 		return `${dash} ${generationCircumference - dash}`;
 	};
+	const [deleteVisibleId, setDeleteVisibleId] = createSignal<string>();
 	let closeButton!: HTMLButtonElement, viewport: HTMLDivElement | undefined;
 	createEffect(on(() => [study.open(), study.kind(), study.stage()] as const, ([open]) => {
 		if (!open) return;
@@ -82,8 +89,8 @@ const StudyDialog: Component<{
 	});
 	const ResultActions: Component = () => <>
 		<Button class={styles.button} type="button" disabled={study.savingProgress() || study.progressFailed()} onClick={() => { const deck = study.deck(); if (deck) study.start(deck); }}>{props.t("studyRestart")}</Button>
-		<Show when={study.deck()?.kind !== "flashcards"}><Button class={styles.button} type="button" disabled={study.savingProgress() || study.progressFailed() || !study.errorCount(study.deck()!)} onClick={() => study.start(study.deck()!, "errors")}>{props.t("studyReviewErrors")} · {study.errorCount(study.deck()!)}</Button></Show>
-		<Button class={styles.button} type="button" disabled={study.savingProgress() || study.progressFailed()} onClick={study.setup}>{props.t("studyNewSession")}</Button>
+		<Button class={styles.button} type="button" disabled={!study.methodErrorCount() || study.loading() || study.savingProgress() || study.progressFailed()} onClick={() => void study.reviewMethodErrors()}>{props.t("studyReviewDue")}</Button>
+		<Button class={styles.button} type="button" disabled={study.savingProgress() || study.progressFailed()} onClick={study.setup}>{props.t("studyBackToItems")}</Button>
 	</>;
 	return <Show when={presence.present()}>
 		<div class={cx(styles.backdrop, study.kind() === "written" && study.stage() === "running" && styles.writtenBackdrop)} inert={presence.exiting()} aria-hidden={presence.exiting() || undefined} {...backdrop}
@@ -136,31 +143,37 @@ const StudyDialog: Component<{
 						<Show when={props.connected && props.aiBusy}><p class={styles.muted} role="status">{busyMessage()}</p></Show>
 						<Show when={study.storageFailed()}><Button class={styles.button} type="button" onClick={() => void study.retry()}>{props.t("retry")}</Button></Show>
 						<Show when={study.loading()}><p class={styles.muted} role="status">{props.t("studyLoading")}</p></Show>
-							<Show when={study.invalidSessions().length}>
-								<p class={styles.error} role="alert">{props.t("studyInvalidSessions")}</p>
+							<Show when={study.invalidItems().length}>
+								<p class={styles.error} role="alert">{props.t("studyInvalidItems")}</p>
 								<Button class={styles.button} type="button" disabled={study.loading()} onClick={() => void study.retry()}>{props.t("retry")}</Button>
-								<For each={study.invalidSessions()}>{session => <div class={styles.sessionRow}>
-									<span class={styles.muted}>{session.kind}/{session.id}.json</span>
-									<Button class={cx(styles.button, styles.icon, styles.danger)} type="button" disabled={study.loading() || study.savingProgress() || study.progressFailed()} aria-label={props.t("delete")} onClick={() => void study.remove(session.id)}><Icon name="delete" size={15} /></Button>
+								<For each={study.invalidItems()}>{item => <div class={styles.itemRow}>
+									<span class={styles.muted}>{item.kind}/{item.id}.json</span>
+									<Button class={cx(styles.button, styles.icon, styles.danger)} type="button" disabled={study.loading() || study.savingProgress() || study.progressFailed()} aria-label={props.t("delete")} onClick={() => void study.remove(item.id)}><Icon name="delete" size={15} /></Button>
 								</div>}</For>
 							</Show>
 						<Show when={study.saved().length}><div class={styles.library} role="region" aria-label={props.t("studySaved")}>
-							<For each={study.saved()}>{deck => <div class={styles.libraryEntry}>
-								<div class={styles.sessionRow}>
-								<Button class={cx(styles.button, styles.sessionDate)} type="button" disabled={study.loading() || study.savingProgress() || study.progressFailed()} onClick={() => study.start(deck)}><time dateTime={new Date(deck.createdAt).toISOString()}>{generatedAt(deck.createdAt)}</time></Button>
-								<Button class={cx(styles.button, styles.icon, styles.danger)} type="button" disabled={study.loading() || study.savingProgress() || study.progressFailed()} aria-label={props.t("delete")} onClick={() => void study.remove(deck.id)}><Icon name="delete" size={15} /></Button>
-								</div>
-								<div class={styles.sessionControls}>
-									<Show when={deck.kind === "flashcards"} fallback={<Button class={cx(styles.button, styles.sessionReview)} type="button" disabled={!study.errorCount(deck) || study.savingProgress() || study.progressFailed() || study.loading()} onClick={() => study.start(deck, "errors")}>{props.t("studyReviewErrors")} · {study.errorCount(deck)}</Button>}>
-										<Button class={cx(styles.button, styles.sessionReview)} type="button" disabled={!study.dueCount(deck) || study.savingProgress() || study.progressFailed() || study.loading()} onClick={() => study.start(deck, "due")}>{props.t("studyReviewDue")} · {study.dueCount(deck)}</Button>
-									</Show>
-									<span class={styles.accuracyBox}>{props.t("studyAccuracy")}: {study.accuracy(deck) ?? 0}% · {deck.progress?.items.length ?? 0}/{deck.itemCount}</span>
+							<For each={study.saved()}>{deck => {
+								const outcome = deck.progress?.items[0]?.lastOutcome;
+								const outcomeClass = outcome === undefined ? undefined : outcome === "correct" ? styles.correct : styles.wrong;
+								const actionsVisible = () => deleteVisibleId() === deck.id;
+								return <div class={styles.libraryEntry} onContextMenu={event => {
+									event.preventDefault(); event.stopPropagation();
+									setDeleteVisibleId(current => current === deck.id ? undefined : deck.id);
+								}}>
+								<div class={styles.libraryItemRow}>
+									<Button class={cx(styles.button, styles.icon, styles.actionReveal, styles.actionRevealLeading, actionsVisible() && styles.actionRevealVisible, actionsVisible() && styles.actionRevealLeadingVisible)} type="button" disabled={!actionsVisible() || !deck.progress?.items.length || study.loading() || study.savingProgress() || study.progressFailed()} aria-hidden={!actionsVisible()} tabIndex={actionsVisible() ? 0 : -1} aria-label={props.t("studyClearProgress")} onClick={() => { setDeleteVisibleId(undefined); void study.clearProgress(deck); }}><Icon name="reset" size={16} /></Button>
+									<Button class={cx(styles.button, styles.itemTitle, outcomeClass)} type="button" disabled={study.loading() || study.savingProgress() || study.progressFailed()} onClick={() => { setDeleteVisibleId(undefined); void study.start(deck); }}><span>{deck.title}</span></Button>
 									<Show when={deck.kind === "written" || deck.kind === "cloze"}>
-										<Button class={cx(styles.button, styles.icon)} type="button" disabled={!deck.hasReport || study.loading() || study.savingProgress() || study.progressFailed()} aria-label={props.t("studyOpenReport")} onClick={() => study.viewReport(deck)}><Icon name="view" size={16} /></Button>
+										<div class={styles.reportSlot}>
+											<Show when={deck.hasReport}>
+												<Button class={cx(styles.button, styles.icon)} type="button" disabled={study.loading() || study.savingProgress() || study.progressFailed()} aria-label={props.t("studyOpenReport")} onClick={() => study.viewReport(deck)}><Icon name="view" size={16} /></Button>
+											</Show>
+										</div>
 									</Show>
-									<Button class={cx(styles.button, styles.icon)} type="button" disabled={!deck.progress?.items.length || study.savingProgress() || study.progressFailed() || study.loading()} aria-label={props.t("studyClearProgress")} onClick={() => void study.clearProgress(deck)}><Icon name="reset" size={16} /></Button>
+									<Button class={cx(styles.button, styles.icon, styles.danger, styles.actionReveal, styles.actionRevealTrailing, actionsVisible() && styles.actionRevealVisible, actionsVisible() && styles.actionRevealTrailingVisible)} type="button" disabled={!actionsVisible() || study.loading() || study.savingProgress() || study.progressFailed()} aria-hidden={!actionsVisible()} tabIndex={actionsVisible() ? 0 : -1} aria-label={props.t("delete")} onClick={() => { setDeleteVisibleId(undefined); void study.remove(deck.id); }}><Icon name="delete" size={15} /></Button>
 								</div>
-							</div>}</For>
+								</div>;
+							}}</For>
 						</div></Show>
 					</Match>
 					<Match when={study.stage() === "generating"}>
@@ -184,9 +197,9 @@ const StudyDialog: Component<{
 							<Show when={study.deck()?.kind !== "flashcards"}><span>{props.t("studyLives")}: {study.remainingLives()} · {study.remainingTime()}s</span></Show>
 						</div>
 						<Show when={study.current()}>{item => <>
-							<Show when={study.deck()?.kind === "correction"}><CorrectionExercise study={study} t={props.t} /></Show>
+							<Show when={study.deck()?.kind === "correction"}><Suspense fallback={null}><CorrectionExercise study={study} t={props.t} /></Suspense></Show>
 							<Show when={study.deck()?.kind !== "correction"}>
-							<Show when={study.deck()?.kind !== "cloze"} fallback={<ClozeExercise study={study} t={props.t} />}>
+							<Show when={study.deck()?.kind !== "cloze"} fallback={<Suspense fallback={null}><ClozeExercise study={study} t={props.t} /></Suspense>}>
 							<div class={styles.card}><h3 class={styles.question}>{item().question}</h3>
 								<Show when={study.deck()?.kind === "flashcards" && study.revealed()}><div class={styles.answer}>{item().answer}</div></Show>
 							</div>
@@ -199,11 +212,10 @@ const StudyDialog: Component<{
 									disabled={study.answered() || study.savingProgress() || study.progressFailed()} onClick={() => study.answer(index())}>{String.fromCharCode(65 + index())}. {option}</Button>}</For></div>
 								<Show when={study.answered()}>
 									<p class={styles.muted} role="status">{props.t(study.choice() === undefined ? "studyTimeout" : study.choice() === item().correctIndex ? "studyCorrect" : "studyWrong")} {item().explanation}</p>
-									<Button class={styles.button} type="button" disabled={study.savingProgress() || study.progressFailed()} onClick={study.next}>{props.t(study.index() + 1 >= (study.sessionIndices().length ?? 0) || study.remainingLives() === 0 ? "studyResults" : "studyNext")}</Button>
 								</Show>
 							</Show>
 							</>}>
-								<WrittenAnswer study={study} notes={props.notes} referenceTitles={props.referenceTitles} t={props.t} onOpenNote={props.onOpenNote} />
+								<Suspense fallback={null}><WrittenAnswer study={study} notes={props.notes} referenceTitles={props.referenceTitles} t={props.t} onOpenNote={props.onOpenNote} /></Suspense>
 							</Show>
 							<Show when={study.revealed() || study.answered()}><div class={styles.actions}>
 								<span class={styles.muted}>{props.t("studySources")}</span>
@@ -221,30 +233,47 @@ const StudyDialog: Component<{
 						<Show when={study.deck()}>{deck => <>
 							<h3 class={styles.question}>{props.t("studyReport")}</h3>
 							<p class={styles.muted}>{generatedAt(deck().createdAt)} · {props.t("studyAccuracy")}: {study.accuracy(deck()) ?? 0}%</p>
-							<AnswerResults study={study} notes={props.notes} referenceTitles={props.referenceTitles} t={props.t} onOpenNote={props.onOpenNote}
-								responses={(deck().progress?.responses ?? []).map(entry => ({ ...entry, status: "done" as const, item: deck().items[entry.itemIndex] }))} />
+							<Suspense fallback={null}><AnswerResults study={study} notes={props.notes} referenceTitles={props.referenceTitles} t={props.t} onOpenNote={props.onOpenNote}
+								responses={(deck().progress?.responses ?? []).map(entry => ({ ...entry, status: "done" as const, item: deck().items[entry.itemIndex] }))} /></Suspense>
 						</>}</Show>
 					</Match>
 					<Match when={study.stage() === "result"}>
 						<h3 class={styles.question}>{props.t("studyResults")}</h3>
 						<p class={styles.muted}>{props.t("studyScore")}: {study.correct()} / {study.sessionIndices().length ?? 0}</p>
 						<Show when={study.endReason() !== "complete"}><p class={styles.muted}>{props.t("studyNoLives")}</p></Show>
-						<Show when={study.deck()?.kind === "written" || study.deck()?.kind === "cloze"}><AnswerResults study={study} notes={props.notes} referenceTitles={props.referenceTitles} t={props.t} onOpenNote={props.onOpenNote} /></Show>
+						<Show when={study.deck()?.kind === "written" || study.deck()?.kind === "cloze"}><Suspense fallback={null}><AnswerResults study={study} notes={props.notes} referenceTitles={props.referenceTitles} t={props.t} onOpenNote={props.onOpenNote} /></Suspense></Show>
 						<Show when={study.kind() === "flashcards"}><div class={styles.actions}><ResultActions /></div></Show>
 					</Match>
 				</Switch>
 				</div></CustomScrollArea></div>
+				<Show when={study.stage() === "running" && study.deck()?.kind === "quiz"}>
+					<footer class={styles.footer}>
+						<Button class={styles.button} type="button" disabled={!study.answered() || study.savingProgress() || study.progressFailed()} onClick={study.next}>
+							{props.t(quizContinueLabel())}
+						</Button>
+					</footer>
+				</Show>
 				<Show when={study.stage() === "result" && study.kind() !== "flashcards"}>
 					<footer class={styles.footer}><div class={styles.clozeNavigation}><ResultActions /></div></footer>
 				</Show>
 				<Show when={study.stage() === "setup"}>
 					<footer class={styles.footer}>
-						<Button class={styles.button} type="button" disabled={!props.canGenerate || study.loading() || study.storageFailed() || study.savingProgress() || study.progressFailed()} onClick={() => void study.generate()}>{props.t("studyGenerate")}</Button>
+						<div class={styles.setupActions}>
+							<Button class={styles.button} type="button" disabled={!props.canGenerate || study.loading() || study.storageFailed() || study.savingProgress() || study.progressFailed()} onClick={() => void study.generate()}>{props.t("studyGenerate")}</Button>
+							<Button class={styles.button} type="button" disabled={!study.methodErrorCount() || study.loading() || study.storageFailed() || study.savingProgress() || study.progressFailed()} onClick={() => void study.reviewMethodErrors()}>{props.t("studyReviewDue")}</Button>
+							<Button class={styles.button} type="button" disabled={!study.saved().length || study.loading() || study.storageFailed() || study.savingProgress() || study.progressFailed()} onClick={() => void study.studyRandom()}>{props.t("studyStudy")}</Button>
+						</div>
 					</footer>
 				</Show>
 				<Show when={study.stage() === "generating"}>
 					<footer class={styles.footer}>
-						<Button class={styles.button} type="button" disabled={!study.canGoHome()} onClick={study.setup}>{props.t("cancel")}</Button>
+						<div class={styles.generationActions}>
+							<Button class={styles.button} type="button" disabled={!study.canGoHome()} onClick={study.setup}>{props.t("cancel")}</Button>
+							<Button class={cx(styles.button, study.generationLoopEnabled() && styles.generationLoopActive)} type="button" role="switch"
+								aria-checked={study.generationLoopEnabled()} onClick={study.toggleGenerationLoop}>
+								{props.t(study.generationLoopEnabled() ? "studyContinuing" : "studyContinue")}
+							</Button>
+						</div>
 					</footer>
 				</Show>
 				<Show when={study.stage() === "grading"}>
@@ -263,7 +292,7 @@ const StudyDialog: Component<{
 						<div class={styles.ratings}>
 							<For each={["easy", "medium", "hard"] as const}>{rating => <Button class={styles.button} type="button" disabled={!study.revealed() || study.answered() || study.savingProgress() || study.progressFailed()} onClick={() => study.mark(rating)}>
 								{props.t(rating === "easy" ? "studyEasy" : rating === "medium" ? "studyMedium" : "studyHard")}
-								<span class={styles.sessionSubtitle}>{study.ratingInterval(rating) < 86_400_000 ? props.t("studyReviewMinutes").replace("{count}", String(study.ratingInterval(rating) / 60_000)) : props.t("studyReviewDays").replace("{count}", String(study.ratingInterval(rating) / 86_400_000))}</span>
+								<span class={styles.ratingInterval}>{study.ratingInterval(rating) < 86_400_000 ? props.t("studyReviewMinutes").replace("{count}", String(study.ratingInterval(rating) / 60_000)) : props.t("studyReviewDays").replace("{count}", String(study.ratingInterval(rating) / 86_400_000))}</span>
 							</Button>}</For>
 						</div>
 						<div class={styles.flashcardNavigation}>
@@ -286,7 +315,7 @@ const StudyDialog: Component<{
 					</div></footer>
 				</Show>
 				<Show when={study.stage() === "report"}>
-					<footer class={styles.footer}><Button class={styles.button} type="button" onClick={study.setup}>{props.t("studyBackToSessions")}</Button></footer>
+					<footer class={styles.footer}><Button class={styles.button} type="button" onClick={study.setup}>{props.t("studyBackToItems")}</Button></footer>
 				</Show>
 			</section>
 		</div>

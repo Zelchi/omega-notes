@@ -81,6 +81,13 @@ pub(crate) fn load_reference_titles(
             path.extension()
                 .is_some_and(|extension| extension == "omega")
         }) {
+            let id = path
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .ok_or_else(|| "Identificador de nota apagada inválido.".to_string())?;
+            if titles.contains_key(id) {
+                continue;
+            }
             let note = (|| {
                 if fs::symlink_metadata(path)
                     .map_err(|error| error.to_string())?

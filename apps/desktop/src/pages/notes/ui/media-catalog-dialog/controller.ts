@@ -12,7 +12,8 @@ const IMAGE_LOAD_CONCURRENCY = 4;
 
 export type MediaCatalogDialogProps = {
 	open: boolean;
-	notes: StudyNote[];
+	loadNotes: () => Promise<StudyNote[]>;
+	releaseLoadedNotes: () => void;
 	t: (key: TranslationKey) => string;
 	onClose: () => void;
 	onSelect: (media: ImportedMedia) => void;
@@ -52,6 +53,8 @@ const sourceKey = (source: ImportedMedia, elementId: string): string => {
 
 export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) => {
 	const [query, setQuery] = createSignal("");
+	const [notes, setNotes] = createSignal<StudyNote[]>([]);
+	const [loadingNotes, setLoadingNotes] = createSignal(false);
 	const [sources, setSources] = createSignal<Record<string, string>>({});
 	const [cleaning, setCleaning] = createSignal(false);
 	const [cleanupStatus, setCleanupStatus] = createSignal<{ message: string; failed: boolean }>();
@@ -60,7 +63,7 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 	const objectUrls = new Set<string>();
 	const media = createMemo(() => {
 		const catalog = new Map<string, CatalogMedia>();
-		for (const note of props.notes) {
+		for (const note of notes()) {
 			for (const element of note.document.elements) {
 				if (element.type === "text") continue;
 				const source = catalogSource(element);
@@ -84,6 +87,22 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 		objectUrls.clear();
 		setSources({});
 	};
+
+	createEffect(() => {
+		if (!props.open) { setNotes([]); setLoadingNotes(false); return; }
+		let active = true;
+		setLoadingNotes(true);
+		void props.loadNotes().then((loaded) => {
+			if (active) setNotes(loaded);
+			props.releaseLoadedNotes();
+		}).catch((error) => {
+			if (active) console.error("Could not load notes for media catalog", error);
+			props.releaseLoadedNotes();
+		}).finally(() => {
+			if (active) setLoadingNotes(false);
+		});
+		onCleanup(() => { active = false; });
+	});
 
 	createEffect(() => {
 		const open = props.open;
@@ -199,6 +218,7 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 
 	return {
 		query,
+		loadingNotes,
 		setQuery,
 		sources,
 		filtered,

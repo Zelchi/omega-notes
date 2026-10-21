@@ -36,6 +36,7 @@ pub(crate) struct CorrectionSegment {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     correction: Option<String>,
 }
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Deck {
@@ -121,6 +122,7 @@ pub(crate) struct Finding {
 pub(crate) struct Summary {
     id: String,
     kind: Kind,
+    title: String,
     created_at: u64,
     source_note_id: Option<String>,
     item_count: usize,
@@ -140,6 +142,7 @@ fn summarize(mut deck: Deck) -> Summary {
     Summary {
         id: deck.id,
         kind: deck.kind,
+        title: deck.title,
         created_at: deck.created_at,
         source_note_id: deck.source_note_id,
         item_count: deck.items.len(),
@@ -150,10 +153,10 @@ fn summarize(mut deck: Deck) -> Summary {
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub(crate) enum StudyEvent {
-    Session {
-        session: Summary,
+    Item {
+        item: Summary,
     },
-    InvalidSession {
+    InvalidItem {
         id: String,
         #[serde(rename = "studyKind")]
         study_kind: Kind,
@@ -178,23 +181,23 @@ async fn with_storage<T: Send + 'static>(
 pub(crate) async fn read_studies(
     app: AppHandle,
     vault_id: String,
-    on_session: Channel<StudyEvent>,
+    on_item: Channel<StudyEvent>,
 ) -> Result<(), String> {
     with_storage(move || {
         let total = storage::read_each(&app, &vault_id, |kind, id, deck| {
-            on_session
+            on_item
                 .send(match deck {
-                    Ok(deck) => StudyEvent::Session {
-                        session: summarize(deck),
+                    Ok(deck) => StudyEvent::Item {
+                        item: summarize(deck),
                     },
-                    Err(_) => StudyEvent::InvalidSession {
+                    Err(_) => StudyEvent::InvalidItem {
                         id: id.to_string(),
                         study_kind: kind,
                     },
                 })
                 .map_err(|_| "STUDY_STORAGE_FAILED".to_string())
         })?;
-        on_session
+        on_item
             .send(StudyEvent::Complete { total })
             .map_err(|_| "STUDY_STORAGE_FAILED".to_string())
     })

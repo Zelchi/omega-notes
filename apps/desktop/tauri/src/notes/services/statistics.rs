@@ -1,11 +1,27 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use super::super::document::{audio_ids_in_document, image_ids_in_document, video_ids_in_document};
-use super::super::models::{NoteContentStats, NoteElement};
-use super::super::repository::{note_from_path, note_paths};
+pub(crate) fn content_stats(
+    notes_directory: &Path,
+) -> Result<super::super::models::NoteContentStats, String> {
+    match crate::app::library::content_stats_from_index(notes_directory) {
+        Ok(stats) => Ok(stats),
+        Err(error) if error == "NOTE_STATS_INDEX_UNAVAILABLE" => {
+            scan_content_stats(notes_directory)
+        }
+        Err(error) => Err(error),
+    }
+}
 
-pub(crate) fn content_stats(notes_directory: &Path) -> Result<NoteContentStats, String> {
+fn scan_content_stats(
+    notes_directory: &Path,
+) -> Result<super::super::models::NoteContentStats, String> {
+    use super::super::document::{
+        audio_ids_in_document, image_ids_in_document, video_ids_in_document,
+    };
+    use super::super::models::NoteElement;
+    use super::super::repository::{note_from_path, note_paths};
+
     let (paths, entry_errors) = note_paths(notes_directory)
         .map_err(|error| format!("Não foi possível ler as notas do vault: {error}"))?;
     if let Some(error) = entry_errors.first() {
@@ -37,7 +53,7 @@ pub(crate) fn content_stats(notes_directory: &Path) -> Result<NoteContentStats, 
         }
     }
 
-    Ok(NoteContentStats {
+    Ok(super::super::models::NoteContentStats {
         note_count,
         image_count: image_ids.len(),
         audio_count: audio_ids.len(),

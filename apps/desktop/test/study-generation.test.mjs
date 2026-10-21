@@ -9,48 +9,50 @@ import { studyPrompt } from '../src/features/study-notes/model/study-prompt.ts';
 
 const notes = [note('a', 'A subject [[b]]'), note('b', 'Another subject'), note('empty', '  ')];
 const run = async (count, reply, overrides = {}) => {
-    const plan = createStudyPlan(notes, notes[0], count), calls = [];
+    const plan = createStudyPlan(notes, count), calls = [], kind = overrides.kind ?? 'written';
     const options = { notes: () => notes, t: () => 'en', requestText: async (prompt, signal, context, purpose) => {
         calls.push({ prompt, context, purpose });
         return JSON.stringify(await reply(context.items, calls.length));
     } };
-    const material = await generateStudyMaterial(options, { plan, kind: 'written', focused: true,
-        signal: new AbortController().signal, active: () => true, ...overrides });
+    const material = await generateStudyMaterial(options, { plan, kind,
+        signal: overrides.signal ?? new AbortController().signal, active: overrides.active ?? (() => true) });
     return { material, calls, plan };
 };
 const valid = items => ({ title: 'Study', items: items.map(item => ({ itemId: item.itemId,
     question: 'Question ' + item.itemId, answer: 'Answer', sources: ['N1'] })) });
 
-for (const count of [5, 10, 20, 30]) test(`generation uses batches of five and preserves order: ${count}`, async () => {
+for (const count of [5, 10, 20, 30]) test(`generation requests each item separately and preserves order: ${count}`, async () => {
     const result = await run(count, items => ({ ...valid(items), items: valid(items).items.reverse() }));
-    assert.equal(result.calls.length, count / 5);
-    assert.equal(result.material.items.length, count);
-    assert.deepEqual(result.material.items.map(item => item.question), result.plan.map(item => 'Question ' + item.itemId));
-    assert.ok(result.calls.every(call => call.purpose === 'study-generation' && call.context.items.length <= 5));
+    assert.equal(result.calls.length, count);
+    assert.equal(result.material.length, count);
+    assert.deepEqual(result.material.map(material => material.item.question), result.plan.map(item => 'Question ' + item.itemId));
+    assert.ok(result.calls.every(call => call.purpose === 'study-generation' && call.context.items.length === 1));
 });
-test('a missing item is retried alone without regenerating accepted questions', async () => {
-    const result = await run(5, (items, attempt) => valid(attempt === 1 ? items.slice(1) : items));
-    assert.deepEqual(result.calls.map(call => call.context.items.length), [5, 1]);
-    assert.equal(result.material.items.length, 5);
+test('a missing generated item is retried without changing its assignment', async () => {
+    const result = await run(1, (items, attempt) => attempt === 1
+        ? { title: 'Study', items: [{ ...valid(items).items[0], itemId: 'another-item' }] }
+        : valid(items));
+    assert.deepEqual(result.calls.map(call => call.context.items.length), [1, 1]);
+    assert.equal(result.material.length, 1);
 });
-test('duplicate item IDs are retried instead of being counted twice', async () => {
-    const result = await run(5, (items, attempt) => {
+test('duplicate item IDs are rejected and retried', async () => {
+    const result = await run(1, (items, attempt) => {
         const data = valid(items); if (attempt === 1) data.items.push(data.items[0]); return data;
     });
-    assert.deepEqual(result.calls.map(call => call.context.items.length), [5, 1]);
+    assert.deepEqual(result.calls.map(call => call.context.items.length), [1, 1]);
 });
-test('invalid material stops after three rounds and cannot return an incomplete session', async () => {
+test('a missing response is retried at most three times', async () => {
     let calls = 0;
-    await assert.rejects(run(5, () => { calls++; return { title: 'Study', items: [] }; }), /STUDY_ITEM_COUNT_MISMATCH/);
+    await assert.rejects(run(1, items => { calls++; return { ...valid(items), items: [{ ...valid(items).items[0], itemId: 'missing' }] }; }), /STUDY_ITEM_COUNT_MISMATCH/);
     assert.equal(calls, 3);
 });
 test('cancelled generation does not send a request', async () => {
     const token = new AbortController(); token.abort(); let calls = 0;
-    await assert.rejects(run(5, items => { calls++; return valid(items); }, { signal: token.signal }), /AI_CANCELLED/);
+    await assert.rejects(run(1, items => { calls++; return valid(items); }, { signal: token.signal }), /AI_CANCELLED/);
     assert.equal(calls, 0);
 });
 test('general plans skip empty notes and draw distinct subjects before repeating', () => {
-    const plan = createStudyPlan(notes, undefined, 6);
+    const plan = createStudyPlan(notes, 6);
     assert.ok(plan.every(item => item.noteId !== 'empty'));
     assert.notEqual(plan[0].noteId, plan[1].noteId);
 });
@@ -91,7 +93,7 @@ test('cloze grading derives overall accuracy from per-blank results', () => {
     assert.throws(() => parseGeneratedFeedback(JSON.stringify(data), createSourceReferences(['a']), 1), /STUDY_INVALID_RESPONSE/);
 });
 for (const kind of ['flashcards', 'written', 'cloze', 'correction']) test(`non-quiz prompts omit quiz format rules: ${kind}`, () => {
-    const prompt = studyPrompt(kind, 'en', createStudyPlan(notes, notes[0], 5));
+    const prompt = studyPrompt(kind, 'en', createStudyPlan(notes, 1));
     assert.ok(prompt.includes('read_study_context'));
     assert.equal(prompt.includes('exactly three plausible but incorrect distractors'), false);
 });
@@ -107,6 +109,7 @@ for (const kind of ['flashcards', 'quiz', 'cloze', 'correction']) test(`generati
         return { ...base, question: 'Question ' + item.itemId, answer: 'Right',
             ...(kind === 'quiz' ? { distractors: ['Wrong1', 'Wrong2', 'Wrong3'] } : {}) };
     }) }), { kind });
-    assert.equal(result.material.items.length, 5);
-    assert.ok(result.material.items.every(item => item.sources[0] === 'a' && item.question && (item.answer || item.options.length)));
+    assert.equal(result.material.length, 5);
+    assert.ok(result.material.every(material => material.item.sources[0] === material.assignment.noteId &&
+        material.item.question && (material.item.answer || material.item.options.length)));
 });

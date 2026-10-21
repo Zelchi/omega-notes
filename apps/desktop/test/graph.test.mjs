@@ -4,20 +4,21 @@ import { graphEdges } from '../src/pages/canvas/lib/graph.ts';
 import { readGraphState } from '../src/pages/canvas/api/graph.repository.ts';
 import { mapTextOutsideCode } from '../src/shared/lib/formatted-text.ts';
 import { recordNavigation, createNavigationHistory, findHistoryIndex } from '../src/app/model/navigation-history.ts';
+import { summarizeNote } from '../src/entities/note/model/note-summary.ts';
 import { note } from './helpers.mjs';
 
 for (const prose of ['`[[b]]`', '```md\n[[b]]\n```', '~~~md\n[[b]]\n~~~', '[[b\n]]']) {
     test('literal or invalid references do not create graph edges: ' + JSON.stringify(prose), () => {
-        assert.equal(graphEdges([note('a', prose), note('b')]).length, 0);
+        assert.equal(graphEdges([summarizeNote(note('a', prose)), summarizeNote(note('b'))]).length, 0);
     });
 }
 test('graph resolves IDs and aliases and deduplicates reverse connections', () => {
     const a = note('a', '[[b|Alias]] [[b]]'), b = note('b', '[[a]]');
-    assert.equal(graphEdges([a, b]).length, 1);
+    assert.equal(graphEdges([summarizeNote(a), summarizeNote(b)]).length, 1);
 });
 test('graph resolves titles and skips missing and self references', () => {
     const a = note('a', '[[Note B]] [[missing]] [[a]]'), b = { ...note('b'), title: 'Note B' };
-    assert.equal(graphEdges([a, b]).length, 1);
+    assert.equal(graphEdges([summarizeNote(a), summarizeNote(b)]).length, 1);
 });
 for (const scale of [0, -1, null, '1', 10]) test('stored camera rejects invalid scale: ' + scale, t => {
     const oldWindow = globalThis.window, oldStorage = globalThis.localStorage;

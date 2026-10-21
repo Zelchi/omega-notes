@@ -1,6 +1,6 @@
 mod ai;
 mod app;
-mod exports;
+mod graphics_compat;
 mod images;
 mod media;
 mod names;
@@ -18,7 +18,12 @@ pub fn run() {
     if ai::run_if_requested() || terminal::run_if_requested() {
         return;
     }
-    tauri::Builder::default()
+    graphics_compat::configure_nvidia_wayland();
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "linux")]
+    let builder = builder.plugin(tauri_plugin_wayland_nvidia_quirk::init());
+
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -63,7 +68,6 @@ pub fn run() {
             ai::link_requests::complete_ai_link_request,
             app::updates::updater_ready,
             web::fetch_url_title,
-            exports::commands::export_note_pdf,
             ai::studies::read_studies,
             ai::studies::read_study,
             ai::studies::save_study,
@@ -80,7 +84,11 @@ pub fn run() {
             vaults::commands::reorder_vaults,
             vaults::commands::delete_vault,
             notes::commands::list_notes,
-            notes::commands::notes_revision,
+            notes::commands::stream_note_summaries,
+            notes::commands::notes_changes,
+            notes::commands::acknowledge_note_changes,
+            notes::commands::get_note,
+            notes::commands::list_deleted_note_ids,
             notes::commands::create_note,
             notes::commands::save_note,
             notes::commands::rename_note,

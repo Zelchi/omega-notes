@@ -68,7 +68,15 @@ fn replace_file(temporary: &Path, destination: &Path) -> std::io::Result<()> {
 }
 
 pub(crate) fn atomic_write(path: &Path, bytes: &[u8], backup: Option<&Path>) -> Result<(), String> {
-    atomic_write_checked(path, bytes, backup, None)
+    atomic_write_with(path, backup, |file| file.write_all(bytes))
+}
+
+pub(crate) fn atomic_write_with(
+    path: &Path,
+    backup: Option<&Path>,
+    write: impl FnOnce(&mut File) -> std::io::Result<()>,
+) -> Result<(), String> {
+    atomic_write_inner(path, backup, None, write)
 }
 
 pub(crate) fn atomic_write_checked(
@@ -76,6 +84,15 @@ pub(crate) fn atomic_write_checked(
     bytes: &[u8],
     backup: Option<&Path>,
     expected: Option<&[u8]>,
+) -> Result<(), String> {
+    atomic_write_inner(path, backup, expected, |file| file.write_all(bytes))
+}
+
+fn atomic_write_inner(
+    path: &Path,
+    backup: Option<&Path>,
+    expected: Option<&[u8]>,
+    write: impl FnOnce(&mut File) -> std::io::Result<()>,
 ) -> Result<(), String> {
     let parent = path
         .parent()
@@ -91,7 +108,7 @@ pub(crate) fn atomic_write_checked(
             .write(true)
             .create_new(true)
             .open(&temporary)?;
-        file.write_all(bytes)?;
+        write(&mut file)?;
         file.sync_all()?;
         drop(file);
 

@@ -1,4 +1,5 @@
-export type AiChatShortcut = { code: string; ctrl: boolean; alt: boolean; shift: boolean };
+export type KeyboardShortcut = { code: string; ctrl: boolean; alt: boolean; shift: boolean };
+export type AiChatShortcut = KeyboardShortcut;
 
 export const DEFAULT_AI_CHAT_SHORTCUT: AiChatShortcut = { code: "KeyJ", ctrl: true, alt: false, shift: false };
 
@@ -8,18 +9,22 @@ const keyLabels: Record<string, string> = {
     Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/",
 };
 
-export const isAiChatShortcut = (value: unknown): value is AiChatShortcut => {
+export const isKeyboardShortcut = (value: unknown): value is KeyboardShortcut => {
     if (!value || typeof value !== "object") return false;
-    const shortcut = value as AiChatShortcut;
+	const shortcut = value as KeyboardShortcut;
     return typeof shortcut.code === "string" && keyCodes.test(shortcut.code)
         && typeof shortcut.ctrl === "boolean" && typeof shortcut.alt === "boolean" && typeof shortcut.shift === "boolean"
         && !(shortcut.code === "KeyA" && shortcut.ctrl && !shortcut.alt && !shortcut.shift);
 };
 
-export const formatAiChatShortcut = (shortcut: AiChatShortcut, aria = false): string => {
+export const isAiChatShortcut = isKeyboardShortcut;
+
+export const formatKeyboardShortcut = (shortcut: KeyboardShortcut, aria = false): string => {
     const key = keyLabels[shortcut.code] ?? shortcut.code.replace(/^(Key|Digit)/, "");
     return [shortcut.ctrl && (aria ? "Control" : "Ctrl"), shortcut.alt && "Alt", shortcut.shift && "Shift", key].filter(Boolean).join("+");
 };
+
+export const formatAiChatShortcut = formatKeyboardShortcut;
 
 export const matchesAiChatShortcut = (event: KeyboardEvent, shortcut: AiChatShortcut): boolean => {
     if (event.metaKey || event.getModifierState("AltGraph") || event.code !== shortcut.code

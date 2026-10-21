@@ -1,24 +1,50 @@
 import { isTerminalTarget } from "@/shared/lib/terminal-focus";
 import { isTauriRuntime } from "@/shared/lib/tauri";
-import { syncTerminalInstructions } from "@/features/gambiarra-terminal/api/terminal.repository";
-import { useCliStudyBridge } from "@/features/gambiarra-terminal/model/study-bridge";
+import type { CliStudyBridge } from "@/features/gambiarra-terminal/model/study-bridge";
 import { useCreateNoteFromLink } from "@/features/create-note-from-link";
-import { useStudies } from "@/features/study-notes";
+import type { StudiesController } from "@/features/study-notes/model/controller";
 import type { StudyKind } from "@/entities/study";
-import { useNoteDeletion } from "@/features/delete-note";
+import { useNoteDeletion } from "@/features/delete-note/model/controller";
 import { useCanvasHistory } from "@/features/undo-canvas-edit";
-import { useNotes, type StudyNote } from "@/entities/note";
-import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import { useNotes, type NoteSummary } from "@/entities/note";
+import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner } from "solid-js";
 import { translate, type TranslationKey } from "@/shared/lib/i18n";
-import { useVaults } from "@/features/manage-vault";
+import { useVaults } from "@/features/manage-vault/model/vaults.controller";
 import type { Vault } from "@/entities/vault";
-import { matchesAiChatShortcut, usePreferences } from "@/features/change-preferences";
+import { matchesAiChatShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
+import { usePreferences } from "@/features/change-preferences/model/preferences.controller";
 import { useWindowControls } from "./model/window-controls.controller";
 import { useNoteNavigationController } from "./model/note-navigation.controller";
-import { useUpdatesController } from "@/features/check-for-updates";
-import { useAiChat, defaultAiProvider } from "@/features/chat-with-ai";
+import { useUpdatesController } from "@/features/check-for-updates/model/updates.controller";
+import type { AiChatController } from "@/features/chat-with-ai/model/ai-chat.controller";
 import { useTemporaryNoteReading } from "@/features/follow-note-link";
 import { disposeSounds, prepareSounds } from "@/shared/ui/sound";
+
+const createLazyController = <T,>(loadModule: () => Promise<() => T>) => {
+	const owner = getOwner();
+	const [controller, setController] = createSignal<T>();
+	let pending: Promise<T | undefined> | undefined;
+	let disposed = false;
+	const load = (): Promise<T | undefined> => {
+		const current = controller();
+		if (current) return Promise.resolve(current);
+		if (pending) return pending;
+		if (!owner || disposed) return Promise.resolve(undefined);
+		let request: Promise<T | undefined>;
+		request = Promise.resolve().then(loadModule).then((create) => {
+			if (disposed) return undefined;
+			const value = runWithOwner(owner, create);
+			if (value !== undefined) setController(() => value);
+			return value;
+		}).finally(() => {
+			if (pending === request) pending = undefined;
+		});
+		pending = request;
+		return request;
+	};
+	onCleanup(() => { disposed = true; });
+	return { controller, load };
+};
 
 export const useAppController = () => {
 	const vaults = useVaults();
@@ -47,9 +73,67 @@ export const useAppController = () => {
 		beforeNavigate: async () => saveNoteTitle ? saveNoteTitle() : true,
 		t,
 	});
-	const aiChat = useAiChat({
-		provider: defaultAiProvider, enabled: preferences.aiFeaturesEnabled, vaultId: vaults.activeVaultId,
-		notes: notes.notes, currentNote: () => navigation.route() === "note" ? navigation.selectedNote() : undefined, notesReady: () => !notes.loading() && notes.hasLoadedVault(), beforeSend: beforeAiRequest, applyLinkedMentions: notes.applyLinkedMentions, t
+	const aiChatLazy = createLazyController<AiChatController>(() =>
+		Promise.all([
+			import("@/features/chat-with-ai/model/ai-chat.controller"),
+			import("@/features/chat-with-ai/api/providers"),
+		]).then(([controller, providers]) => () => controller.useAiChat({
+			provider: providers.defaultAiProvider, enabled: preferences.aiFeaturesEnabled, vaultId: vaults.activeVaultId,
+			notes: notes.notes, currentNote: () => navigation.route() === "note" ? navigation.selectedNote() : undefined,
+			notesReady: () => !notes.loading() && notes.hasLoadedVault(), beforeSend: beforeAiRequest,
+			applyLinkedMentions: notes.applyLinkedMentions, t,
+		})),
+	);
+	createEffect(() => {
+		if (preferences.aiFeaturesEnabled()) void aiChatLazy.load().catch(error => console.warn("Could not load AI chat", error));
+	});
+	const aiChatFallbacks: Record<string, unknown> = {
+		canUndoLinks: () => false,
+		providers: [],
+		installedProviders: () => ({ codex: false, claude: false, opencode: false, antigravity: false }),
+		checkingProviders: () => false,
+		open: () => false,
+		status: () => ({ connected: false, authenticated: false }),
+		sending: () => false,
+		resetting: () => false,
+		cleanupError: () => undefined,
+		models: () => [],
+		selectedModel: () => undefined,
+		selectedEffort: () => undefined,
+		fastAvailable: () => false,
+		pending: () => false,
+		ready: () => false,
+		error: () => undefined,
+		chat: () => ({ messages: [], referenceTitles: {}, draft: "", model: "", effort: "", fast: false, busy: false }),
+	};
+	const aiChat = new Proxy({} as AiChatController, {
+		get: (_target, property) => {
+			const current = aiChatLazy.controller();
+			if (current) {
+				const value = Reflect.get(current, property, current);
+				return typeof value === "function" ? value.bind(current) : value;
+			}
+			if (property === "provider") return undefined;
+			if (property === "setOpen") return (value: boolean | ((open: boolean) => boolean)) => {
+				const open = typeof value === "function" ? value(false) : value;
+				if (!open) return;
+				if (!preferences.aiFeaturesEnabled()) return;
+				void aiChatLazy.load().then(controller => controller?.setOpen(true))
+					.catch(error => console.warn("Could not open AI chat", error));
+			};
+			if (property === "flushSave") return () => Promise.resolve(true);
+			if (property === "describeError") return (_failure: unknown) => t("aiRequestFailed");
+			if (property in aiChatFallbacks) return aiChatFallbacks[property as string];
+			return (...args: unknown[]) => {
+				const request = aiChatLazy.load().then(controller => {
+					if (!controller) return undefined;
+					const action = Reflect.get(controller, property, controller);
+					return typeof action === "function" ? action.apply(controller, args) : undefined;
+				});
+				if (property === "requestText") return request.then(value => value ?? Promise.reject(Error("AI_DISCONNECTED")));
+				return request.catch(error => console.warn("Could not run AI chat action", error));
+			};
+		},
 	});
 	const [gambiarraChatOpen, setGambiarraChatOpen] = createSignal(false);
 	const chatAvailable = () => preferences.aiFeaturesEnabled() || preferences.gambiarraEnabled();
@@ -59,27 +143,90 @@ export const useAppController = () => {
 		if (preferences.gambiarraEnabled()) setGambiarraChatOpen(open && !!vaults.activeVaultId());
 		else aiChat.setOpen(open);
 	};
-	let terminalVault = vaults.activeVaultId(), terminalMode = preferences.gambiarraEnabled();
+	let terminalVault = vaults.activeVaultId(), terminalMode = preferences.gambiarraEnabled(), terminalSyncRevision = 0;
 	createEffect(() => {
 		const vault = vaults.activeVaultId(), mode = preferences.gambiarraEnabled();
+		const revision = ++terminalSyncRevision;
 		if (vault !== terminalVault || mode !== terminalMode) { setGambiarraChatOpen(false); aiChat.setOpen(false); }
 		terminalVault = vault; terminalMode = mode;
-		if (isTauriRuntime()) void syncTerminalInstructions(vault, mode).catch(error => console.warn("Could not update vault AI instructions", error));
+		if (isTauriRuntime()) void import("@/features/gambiarra-terminal/api/terminal.repository").then(({ syncTerminalInstructions }) => {
+			if (revision !== terminalSyncRevision) return;
+			return syncTerminalInstructions(vault, mode);
+		}).catch(error => console.warn("Could not update vault AI instructions", error));
 	});
-	const cliStudies = useCliStudyBridge({ vaultId: vaults.activeVaultId, enabled: preferences.gambiarraEnabled, beforeSend: beforeAiRequest });
+	const cliStudiesLazy = createLazyController<CliStudyBridge>(() =>
+		import("@/features/gambiarra-terminal/model/study-bridge").then(({ useCliStudyBridge }) => () => useCliStudyBridge({
+			vaultId: vaults.activeVaultId, enabled: preferences.gambiarraEnabled, beforeSend: beforeAiRequest,
+		})),
+	);
+	createEffect(() => {
+		if (preferences.gambiarraEnabled()) void cliStudiesLazy.load().catch(error => console.warn("Could not load CLI study support", error));
+	});
+	const cliStudies = new Proxy({} as CliStudyBridge, {
+		get: (_target, property) => {
+			const current = cliStudiesLazy.controller();
+			if (current) {
+				const value = Reflect.get(current, property, current);
+				return typeof value === "function" ? value.bind(current) : value;
+			}
+			if (property === "request") return () => undefined;
+			if (property === "busy") return () => false;
+			if (property === "requestText") return (...args: Parameters<CliStudyBridge["requestText"]>) =>
+				cliStudiesLazy.load().then(controller => controller ? controller.requestText(...args) : Promise.reject(Error("AI_DISCONNECTED")));
+			return undefined;
+		},
+	});
 	const studyConnected = () => preferences.gambiarraEnabled() || (aiChat.status().connected && aiChat.status().authenticated);
 	const studyAiBusy = () => preferences.gambiarraEnabled() ? cliStudies.busy() : aiChat.pending() || aiChat.sending() || aiChat.chat().busy;
 	const canGenerateStudy = () => chatAvailable() && !notes.loading() && !vaultActionPending() && !studyAiBusy() &&
 		(preferences.gambiarraEnabled() ? isTauriRuntime() : aiChat.ready() && studyConnected());
-	const studies = useStudies({
-		vaultId: vaults.activeVaultId, notes: notes.notes,
-		currentNote: () => navigation.route() === "note" ? navigation.selectedNote() : undefined,
-		aiEnabled: chatAvailable, normalAiMode: () => !preferences.gambiarraEnabled(), canGenerate: canGenerateStudy,
-		aiConnected: studyConnected,
-		onConnect: () => aiChat.setOpen(true),
-		requestText: (...args) => preferences.gambiarraEnabled() ? cliStudies.requestText(...args) : aiChat.requestText(...args),
-		describeAiError: aiChat.describeError,
-		onOpenNote: navigation.openNote, t,
+	const studiesLazy = createLazyController<StudiesController>(() =>
+		import("@/features/study-notes/model/controller").then(({ useStudies }) => () => useStudies({
+			vaultId: vaults.activeVaultId, notes: notes.loadedNotes, loadAllNotes: notes.loadAllNotes,
+			noteSummaries: notes.notes,
+			currentNote: () => navigation.route() === "note" ? navigation.selectedNote() : undefined,
+			aiEnabled: chatAvailable, normalAiMode: () => !preferences.gambiarraEnabled(), canGenerate: canGenerateStudy,
+			aiConnected: studyConnected,
+			onConnect: () => aiChat.setOpen(true),
+			requestText: (...args) => preferences.gambiarraEnabled() ? cliStudies.requestText(...args) : aiChat.requestText(...args),
+			describeAiError: failure => aiChat.describeError(failure),
+			onOpenNote: navigation.openNote, t,
+		})),
+	);
+	const studies = new Proxy({} as StudiesController, {
+		get: (_target, property) => {
+			if (property === "close") return () => {
+				studiesLazy.controller()?.close();
+				notes.releaseLoadedNotes(navigation.selectedNote()?.id);
+			};
+			if (property === "show") return (kind: StudyKind) => {
+				if (!chatAvailable()) return;
+				void studiesLazy.load().then(async controller => {
+					if (!controller) return;
+					if (studyConnected()) await notes.loadAllNotes();
+					if (vaults.activeVaultId()) controller.show(kind);
+				}).catch(error => console.warn("Could not open study tools", error));
+			};
+			const current = studiesLazy.controller();
+			if (current) {
+				const value = Reflect.get(current, property, current);
+				return typeof value === "function" ? value.bind(current) : value;
+			}
+			if (property === "open") return () => false;
+			if (property === "activeRequestKind") return () => undefined;
+			if (property === "kind") return () => "flashcards";
+			if (property === "flushSave") return () => Promise.resolve(true);
+			if (property === "canRandom") return () => notes.notes().some(note => note.id !== navigation.selectedNote()?.id);
+			if (property === "randomNote") return () => {
+				const loaded = studiesLazy.controller();
+				if (loaded) return loaded.randomNote();
+				const selectedId = navigation.selectedNote()?.id;
+				const candidates = notes.notes().filter(note => note.id !== selectedId);
+				if (!candidates.length) return;
+				void navigation.openNote(candidates[Math.floor(Math.random() * candidates.length)]);
+			};
+			return undefined;
+		},
 	});
 	const [cliStudyReturn, setCliStudyReturn] = createSignal<StudyKind>();
 	let cliStudyVault = vaults.activeVaultId();
@@ -96,8 +243,8 @@ export const useAppController = () => {
 		setChatOpen(false);
 		studies.show(kind);
 	};
-	saveAiChats = aiChat.flushSave;
-	saveStudies = studies.flushSave;
+	saveAiChats = () => aiChat.flushSave();
+	saveStudies = () => studies.flushSave();
 	const [settingsOpen, setSettingsOpen] = createSignal(false);
 	const canvasHistory = useCanvasHistory({
 		vaultId: vaults.activeVaultId,
@@ -144,7 +291,7 @@ export const useAppController = () => {
 		++studyNavigationRevision; setStudyReturn(undefined);
 	});
 	onCleanup(() => { studyNavigationDisposed = true; });
-	const openStudyNote = async (note: StudyNote): Promise<void> => {
+	const openStudyNote = async (note: NoteSummary): Promise<void> => {
 		const vaultId = vaults.activeVaultId(), kind = studies.kind(), revision = studyNavigationRevision;
 		if (!vaultId || !chatAvailable()) return;
 		setStudyReturn(undefined); studies.close();
@@ -224,7 +371,7 @@ export const useAppController = () => {
 			setVaultActionPending(false);
 		}
 	};
-	const openAiNote = async (note: StudyNote): Promise<void> => {
+	const openAiNote = async (note: NoteSummary): Promise<void> => {
 		const vaultId = vaults.activeVaultId();
 		if (!vaultId || !(await beforeShutdown()) || vaultId !== vaults.activeVaultId()) return;
 		const current = notes.notes().find((item) => item.id === note.id);
@@ -266,7 +413,7 @@ export const useAppController = () => {
 		noteDeletion,
 		noteReferences,
 		canvasHistory,
-		aiChat, chatOpen, setChatOpen, chatAvailable,
+		aiChat, aiChatLoaded: () => Boolean(aiChatLazy.controller()), chatOpen, setChatOpen, chatAvailable,
 		openAiNote,
 		updates,
 		registerBeforeShutdown: (save?: () => Promise<boolean>) => { saveNoteTitle = save; },

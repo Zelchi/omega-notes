@@ -1,10 +1,8 @@
-import { mapTextOutsideCode } from "@/shared/lib/formatted-text";
 import {
 	createNoteTitleIndex,
-	documentText,
 	normalizeNoteTitle,
 	resolveNoteReference,
-	type StudyNote,
+	type NoteSummary,
 } from "@/entities/note";
 import type { Edge, NodeSize, Point } from "../model/graph";
 
@@ -14,7 +12,7 @@ const NODE_WIDTH = 222;
 const NODE_HEIGHT = 34;
 let titleMeasurer: CanvasRenderingContext2D | null | undefined;
 
-export const nodeSize = (note: StudyNote): NodeSize => {
+export const nodeSize = (note: Pick<NoteSummary, "title">): NodeSize => {
 	if (titleMeasurer === undefined && typeof document !== "undefined") {
 		titleMeasurer = document.createElement("canvas").getContext("2d");
 	}
@@ -32,22 +30,18 @@ export const defaultPosition = (index: number, total: number, size: NodeSize): P
 	};
 };
 
-export const graphEdges = (notes: StudyNote[]): Edge[] => {
+export const graphEdges = (notes: NoteSummary[]): Edge[] => {
 	const byTitle = createNoteTitleIndex(notes);
 	const byId = new Map(notes.map((note) => [normalizeNoteTitle(note.id), note]));
 	const unique = new Map<string, Edge>();
 
 	for (const source of notes) {
-		mapTextOutsideCode(documentText(source.document), (prose) => {
-			for (const match of prose.matchAll(/\[\[([^\]\r\n]+)\]\]/g)) {
-				const targetText = (match[1] ?? "").split("|")[0].trim();
-				const target = resolveNoteReference(targetText, byId, byTitle);
-				if (!target || target.id === source.id) continue;
-				const [firstId, secondId] = [source.id, target.id].sort();
-				unique.set(`${firstId}:${secondId}`, { source, target });
-			}
-			return prose;
-		});
+		for (const targetText of source.links) {
+			const target = resolveNoteReference(targetText, byId, byTitle);
+			if (!target || target.id === source.id) continue;
+			const [firstId, secondId] = [source.id, target.id].sort();
+			unique.set(`${firstId}:${secondId}`, { source, target });
+		}
 	}
 	return [...unique.values()];
 };

@@ -58,5 +58,9 @@ pub(crate) async fn fetch_url_title(url: String) -> Result<Option<String>, Strin
             break;
         }
     }
-    Ok(title::extract_title(&String::from_utf8_lossy(&body)))
+    tauri::async_runtime::spawn_blocking(move || {
+        title::extract_title(&String::from_utf8_lossy(&body))
+    })
+    .await
+    .map_err(|_| "URL_FETCH_FAILED".to_string())
 }

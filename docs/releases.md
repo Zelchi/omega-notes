@@ -26,17 +26,17 @@ A numeração do projeto usa componentes de 0 a 9. Depois de `0.3.9`, a próxima
 
 1. Use a mesma versão em `apps/desktop/package.json`, `apps/desktop/tauri/Cargo.toml` e `apps/desktop/tauri/tauri.conf.json`.
 2. Atualize os arquivos de lock junto com as dependências e a versão do pacote Rust. Registre as novidades em `changelog.md`, em uma seção `## vX.Y.Z`; o workflow usa essa seção na descrição da release.
-3. Faça commit, crie uma tag com essa versão e envie ao GitHub. Atualmente o projeto está em `0.4.4`:
+3. Faça commit, crie uma tag com essa versão e envie ao GitHub. A próxima versão é `0.4.5`:
 
 ```sh
 git add .
-git commit -m "chore(release): prepara v0.4.4"
-git tag v0.4.4
+git commit -m "chore(release): prepara v0.4.5"
+git tag v0.4.5
 git push origin HEAD
-git push origin v0.4.4
+git push origin v0.4.5
 ```
 
-Uma tag publicada deve apontar para o commit completo da versão. Para outra versão, substitua `0.4.4` nos três arquivos e nos comandos. A preparação recusa uma tag que não corresponda aos arquivos do projeto.
+Uma tag publicada deve apontar para o commit completo da versão. Para outra versão, substitua `0.4.5` nos três arquivos e nos comandos. A preparação recusa uma tag que não corresponda aos arquivos do projeto.
 
 O workflow `.github/workflows/release.yml`:
 
@@ -74,7 +74,7 @@ Cada diretório contém seu próprio `vaults.json`, vaults, notas, mídias e pas
 Execute os comandos na raiz do repositório. Depois de configurar a versão e o repositório, no Linux:
 
 ```sh
-GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=v0.4.4 node scripts/prepare-release.mjs
+GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=v0.4.5 node scripts/prepare-release.mjs
 TAURI_SIGNING_PRIVATE_KEY="$PWD/.keys/updater.key" npm run tauri -- build --bundles deb,rpm --config tauri/tauri.release.conf.json -- --locked
 ```
 
@@ -90,6 +90,6 @@ No Ubuntu, baixe o `.deb` do release e instale pelo aplicativo de pacotes ou por
 
 ### Renderização no Wayland
 
-O executável Linux define `WEBKIT_DISABLE_DMABUF_RENDERER=1` antes de iniciar o Tauri, evitando o caminho DMABUF que causou `Error 71 (Protocol error)` no Fedora. Isso também se aplica ao lançamento pelo menu. Uma configuração explícita dessa variável no ambiente é preservada. O ajuste usa um caminho de renderização potencialmente mais lento; veja as [orientações do Tauri](https://v2.tauri.app/develop/debug/linux-graphics/).
+Antes de inicializar GTK/WebKitGTK, o executável detecta o driver NVIDIA proprietário e a sessão Wayland. Nesse caso, se o ambiente não tiver uma configuração gráfica explícita, define `WEBKIT_DISABLE_DMABUF_RENDERER=1`. O ajuste não altera o explicit sync e não desativa o DMA-BUF em outros ambientes. Variáveis de ambiente configuradas explicitamente são respeitadas.
 
-Em pacotes anteriores a essa correção, abra com `WEBKIT_DISABLE_DMABUF_RENDERER=1 omega-notes`.
+Essa configuração evita a piscada observada ao abrir modais e painéis em NVIDIA + Wayland. Ela muda o caminho de renderização do WebKitGTK; recursos que dependem de canvas WebGL devem ser conferidos nesse ambiente.

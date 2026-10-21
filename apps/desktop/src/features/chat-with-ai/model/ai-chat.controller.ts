@@ -13,7 +13,7 @@ import { subscribeLinkRequests, completeLinkRequest, type LinkRequest } from "..
 import type { NoteLinkPatch } from "@/entities/note";
 import type { StudyContext, AiTaskPurpose } from "@/entities/ai";
 import { prepareStudyContext, releaseStudyContext, validateStudyContext } from "../api/study-context.repository";
-import { createNoteReferenceNormalizer, parseNoteTextLinks, type StudyNote } from "@/entities/note";
+import { createNoteReferenceNormalizer, parseNoteTextLinks, type NoteSummary, type StudyNote } from "@/entities/note";
 
 const emptyChat = (): VaultChat => ({ messages: [], referenceTitles: {}, draft: "", model: "", effort: "", fast: false, busy: false });
 
@@ -21,7 +21,7 @@ export const useAiChat = (options: {
     provider: AiProvider;
     enabled: Accessor<boolean>;
     vaultId: Accessor<string | undefined>;
-    notes: Accessor<StudyNote[]>;
+    notes: Accessor<NoteSummary[]>;
     currentNote: Accessor<StudyNote | undefined>;
     notesReady: Accessor<boolean>;
     beforeSend: () => Promise<boolean>;

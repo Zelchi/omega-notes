@@ -1,6 +1,6 @@
 import type { CanvasSnapshot, CanvasRestore } from "@/features/undo-canvas-edit";
 import type { Point } from "../../model/graph";
-import type { StudyNote } from "@/entities/note";
+import type { NoteSummary, StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 
 export type { Edge, GraphState, NodeSize, Point, View } from "../../model/graph";
@@ -15,11 +15,11 @@ export type GraphCanvasProps = {
 	onHistoryRestored: () => void;
 	onNoteCreated: (vaultId: string, note: StudyNote, before: CanvasSnapshot, after: CanvasSnapshot) => void;
 	onNotesMoved: (vaultId: string, before: CanvasSnapshot, after: CanvasSnapshot) => void;
-	notes: StudyNote[];
+	notes: NoteSummary[];
 	onCreateNote: () => Promise<StudyNote | undefined>;
-	onOpenNote: (note: StudyNote) => void;
-	onRequestRename: (note: StudyNote) => void;
-	onDeleteNote: (note: StudyNote) => Promise<void>;
+	onOpenNote: (note: NoteSummary) => void;
+	onRequestRename: (note: NoteSummary) => void;
+	onDeleteNote: (note: NoteSummary) => Promise<void>;
 	centerOnMount: boolean;
 	onCanvasMount: () => void;
 	hideCanvasControls: boolean;

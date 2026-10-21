@@ -1,6 +1,6 @@
 import { documentText, type StudyNote } from "@/entities/note";
 import type { StudyItem } from "@/entities/study";
-import { createStudySourceResolver } from "./context";
+import { createStudySourceResolver, hasStudyText } from "./context";
 import { createSourceReferences } from "./ai-response";
 
 export const createEvaluationContextCache = () => {
@@ -12,16 +12,18 @@ export const createEvaluationContextCache = () => {
 	const prepare = (item: StudyItem) => {
 		const primary = index.get(item.sources[0]);
 		if (!primary) throw Error("STUDY_SOURCE_MISSING");
+		if (!hasStudyText(primary)) throw Error("AI_STUDY_SOURCE_EMPTY");
 		const sources = new Map(resolve!(primary).map(note => [note.id, note]));
 		for (const id of item.sources) {
 			const note = index.get(id);
 			if (!note) throw Error("STUDY_SOURCE_MISSING");
-			sources.set(id, note);
+			if (hasStudyText(note)) sources.set(id, note);
 		}
 		const sourceIds = [...sources.keys()];
+		const authorizedSourceIds = new Set(sourceIds);
 		return {
 			noteId: primary.id, sourceIds,
-			supportingNoteIds: item.sources.filter(id => id !== primary.id),
+			supportingNoteIds: item.sources.filter(id => id !== primary.id && authorizedSourceIds.has(id)),
 			references: createSourceReferences(sourceIds),
 			revisions: [...sources.values()].map(note => {
 				let snapshot = revisions.get(note.id);

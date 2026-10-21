@@ -31,7 +31,6 @@ export const styles = {
 		fontWeight: 500,
 		lineHeight: 1,
 		letterSpacing: "0.08em",
-		textShadow: "0 0 2px currentColor",
 		whiteSpace: "pre",
 		selectors: {
 			'[data-theme="matrix"] &': { letterSpacing: "0.4em" },

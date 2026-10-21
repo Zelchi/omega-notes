@@ -19,6 +19,7 @@ type Props = {
 	maximized: boolean;
 	backgroundTheme: BackgroundTheme;
 	settingsOpen: boolean;
+	vaultDialogOpen: boolean;
 	vaultName?: string;
 	t: (key: TranslationKey) => string;
 	onVaultClick: () => void;
@@ -41,7 +42,7 @@ const WindowTitlebar: Component<Props> = (props) => (
 			<span data-tauri-drag-region>{props.t("windowName")}</span>
 		</div>
 		<Show when={props.vaultName}>
-			<Button class={styles.vaultName} type="button" onClick={() => runAppAction(props.onVaultClick)}>
+			<Button class={styles.vaultName} type="button" onClick={() => props.vaultDialogOpen ? props.onVaultClick() : runAppAction(props.onVaultClick)}>
 				{props.vaultName}
 			</Button>
 		</Show>

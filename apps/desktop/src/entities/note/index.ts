@@ -6,7 +6,8 @@ export { createNoteReferenceNormalizer } from "./model/reference-normalizer";
 export { createEditableNoteReferences } from "./model/editable-note-references";
 export { paragraphStarts, paragraphIndexAt, remapParagraphAlignments } from "./model/text-alignment";
 
-export type { NoteLoadIssue, StudyNote } from "./model/note";
+export type { NoteLoadIssue, NoteSummary, StudyNote } from "./model/note";
+export { summarizeNote } from "./model/note-summary";
 export {
 	createAudioElement,
 	createImageElement,

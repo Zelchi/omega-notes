@@ -91,13 +91,25 @@ pub(crate) struct StudyNote {
     pub(crate) preview: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct NoteLoadIssue {
     pub(crate) file_name: String,
     pub(crate) message: String,
     pub(crate) recovery_path: Option<String>,
     pub(crate) recovered: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct NoteSummary {
+    pub(crate) id: String,
+    pub(crate) title: String,
+    pub(crate) preview: String,
+    pub(crate) updated_at: u64,
+    pub(crate) links: Vec<String>,
+    pub(crate) has_content: bool,
+    pub(crate) has_text: bool,
 }
 
 #[derive(Debug, Serialize)]

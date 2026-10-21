@@ -5,13 +5,13 @@ import FormattedBlockView from "@/shared/ui/formatted-block";
 import ExternalLink from "@/shared/ui/external-link";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { parseFormattedText, type TextRun, type FormattedFragment } from "@/features/format-text";
-import { parseNoteTextLinks, resolveNoteReference, canCreateNoteReference, normalizeNoteTitle, type NoteTextLink, type StudyNote } from "@/entities/note";
+import { parseNoteTextLinks, resolveNoteReference, canCreateNoteReference, normalizeNoteTitle, type NoteTextLink, type NoteSummary } from "@/entities/note";
 
 type RenderTextOptions = {
-	notesById: Map<string, StudyNote>;
-	notesByTitle: Map<string, StudyNote>;
+	notesById: Map<string, NoteSummary>;
+	notesByTitle: Map<string, NoteSummary>;
 	rememberedTitles: ReadonlyMap<string, string>;
-	onOpenNote: (note: StudyNote) => void;
+	onOpenNote: (note: NoteSummary) => void;
 	onOpenMissingNote?: (target: string) => void;
 	onOpenExternalUrl: (url: string) => void;
 	t: (key: TranslationKey) => string;

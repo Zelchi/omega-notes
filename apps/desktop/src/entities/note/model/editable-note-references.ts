@@ -1,8 +1,8 @@
 import { mapTextOutsideCode } from "@/shared/lib/formatted-text";
-import type { StudyNote } from "./note";
+import type { NoteSummary } from "./note";
 import { normalizeNoteTitle } from "./note-titles";
 
-export const createEditableNoteReferences = (notes: readonly Pick<StudyNote, "id" | "title">[]) => {
+export const createEditableNoteReferences = (notes: readonly Pick<NoteSummary, "id" | "title">[]) => {
 	const ids = new Set(notes.map((note) => normalizeNoteTitle(note.id)));
 	const titleCounts = new Map<string, number>();
 	for (const note of notes) {

@@ -1,13 +1,14 @@
-import { parseStudyJson, StudyInsufficientContentError, StudyItemCountError, type StudyDeck, type StudyItem, type StudyKind } from "@/entities/study";
+import { parseStudyJson, StudyInsufficientContentError, StudyItemCountError, type StudyItem, type StudyKind } from "@/entities/study";
 import { createSourceReferences, decodeGeneratedItem } from "./ai-response";
-import { expandFocusedStudyPlan, replaceStudyAssignments, type StudyAssignment } from "./context";
+import { replaceStudyAssignments, type StudyAssignment } from "./context";
 import { studyPrompt } from "./study-prompt";
 import type { StudyEnvironment } from "./environment";
 
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 1;
 const MAX_ROUNDS = 3;
-type Issue = "missing-item" | "invalid-item" | "duplicate-item" | "insufficient-content";
-type Accepted = { item: StudyItem; primaryNoteId: string };
+type Issue = "missing-item" | "invalid-item" | "duplicate-item" | "insufficient-content" | "empty-source";
+type Accepted = { item: StudyItem; primaryNoteId: string; title: string };
+export type GeneratedStudyItem = { assignment: StudyAssignment; item: StudyItem; title: string };
 const questionKey = (question: string) => question.normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ").trim();
 
 /** IDs, rather than response positions, bind partial or reordered output to its source scope. */
@@ -17,7 +18,7 @@ const parseBatch = (output: string, kind: StudyKind, batch: StudyAssignment[]) =
 	const values = new Map<string, StudyItem>();
 	const references = createSourceReferences(batch.flatMap(item => [...item.sourceIds]));
 	const title = typeof data.title === "string" && data.title.trim() && data.title.length <= 200 ? data.title.trim() : undefined;
-	if (!Array.isArray(data.items) || data.items.length > 30) throw Error("STUDY_INVALID_RESPONSE");
+	if (!Array.isArray(data.items) || data.items.length !== batch.length) throw Error("STUDY_INVALID_RESPONSE");
 	const byId = new Map<string, Record<string, unknown>[]>();
 	for (const raw of data.items) {
 		if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
@@ -31,6 +32,7 @@ const parseBatch = (output: string, kind: StudyKind, batch: StudyAssignment[]) =
 		if (rows.length !== 1) { issues.set(assignment.itemId, "duplicate-item"); continue; }
 		const row = rows[0];
 		if (row.error === "STUDY_INSUFFICIENT_CONTENT") { issues.set(assignment.itemId, "insufficient-content"); continue; }
+		if (!title) { issues.set(assignment.itemId, "invalid-item"); continue; }
 		try {
 			const item = decodeGeneratedItem(row, kind, references, assignment.sourceIds);
 			if (!item.sources.includes(assignment.noteId)) throw Error("STUDY_INVALID_RESPONSE");
@@ -43,9 +45,11 @@ const parseBatch = (output: string, kind: StudyKind, batch: StudyAssignment[]) =
 
 /** Three rounds total; accepted items leave the plan, so each slot is requested at most three times. */
 export const generateStudyMaterial = async (options: StudyEnvironment, settings: {
-	plan: StudyAssignment[]; kind: StudyKind; focused: boolean; signal: AbortSignal; active: () => boolean;
-}): Promise<Pick<StudyDeck, "title" | "items">> => {
-	let plan = settings.plan, title: string | undefined;
+	plan: StudyAssignment[]; kind: StudyKind; signal: AbortSignal; active: () => boolean;
+	onRequestStart?: (assignment: StudyAssignment) => void;
+	onItem?: (material: GeneratedStudyItem) => Promise<void>;
+}): Promise<GeneratedStudyItem[]> => {
+	let plan = settings.plan;
 	const accepted = new Map<string, Accepted>(), questions = new Set<string>(), rejectedNotes = new Set<string>();
 	const issues = new Map<string, Issue>();
 	const ensureActive = () => { if (settings.signal.aborted || !settings.active()) throw Error("AI_CANCELLED"); };
@@ -59,11 +63,24 @@ export const generateStudyMaterial = async (options: StudyEnvironment, settings:
 			const primaryIds = new Set(batch.map(item => item.noteId));
 			const avoid = [...accepted.values()].filter(value => primaryIds.has(value.primaryNoteId)).map(value => value.item.question.slice(0, 200));
 			let parsed: ReturnType<typeof parseBatch>;
-			const output = await options.requestText(studyPrompt(settings.kind, options.t("locale"), batch, {
-				avoid, issues: batch.flatMap(item => issues.has(item.itemId) ? [{ itemId: item.itemId, reason: issues.get(item.itemId)! }] : []),
-			}), settings.signal, { items: batch.map(item => ({
-				itemId: item.itemId, noteId: item.noteId, sourceIds: [...item.sourceIds], supportingNoteIds: [...(item.supportingNoteIds ?? [])],
-			})) }, "study-generation");
+			settings.onRequestStart?.(batch[0]);
+			let output: string;
+			try {
+				output = await options.requestText(studyPrompt(settings.kind, options.t("locale"), batch, {
+					avoid, issues: batch.flatMap(item => issues.has(item.itemId) ? [{ itemId: item.itemId, reason: issues.get(item.itemId)! }] : []),
+				}), settings.signal, { items: batch.map(item => ({
+					itemId: item.itemId, noteId: item.noteId, sourceIds: [...item.sourceIds], supportingNoteIds: [...(item.supportingNoteIds ?? [])],
+				})) }, "study-generation");
+			} catch (failure) {
+				ensureActive();
+				const code = failure instanceof Error ? failure.message : String(failure);
+				if (code !== "STUDY_INSUFFICIENT_CONTENT" && code !== "AI_STUDY_SOURCE_EMPTY") throw failure;
+				for (const assignment of batch) {
+					issues.set(assignment.itemId, code === "AI_STUDY_SOURCE_EMPTY" ? "empty-source" : "insufficient-content");
+					rejectedNotes.add(assignment.noteId);
+				}
+				continue;
+			}
 			ensureActive();
 			try { parsed = parseBatch(output, settings.kind, batch); }
 			catch (failure) {
@@ -71,7 +88,6 @@ export const generateStudyMaterial = async (options: StudyEnvironment, settings:
 				for (const item of batch) issues.set(item.itemId, "invalid-item");
 				continue;
 			}
-			if (parsed.title && !title) title = parsed.title;
 			for (const assignment of batch) {
 				const item = parsed.values.get(assignment.itemId);
 				if (!item) {
@@ -82,26 +98,38 @@ export const generateStudyMaterial = async (options: StudyEnvironment, settings:
 				}
 				const key = questionKey(item.question);
 				if (questions.has(key)) { issues.set(assignment.itemId, "duplicate-item"); continue; }
-				questions.add(key); accepted.set(assignment.itemId, { item, primaryNoteId: assignment.noteId }); issues.delete(assignment.itemId);
+				questions.add(key);
+				const material = { item, primaryNoteId: assignment.noteId, title: parsed.title! };
+				accepted.set(assignment.itemId, material); issues.delete(assignment.itemId);
+				await settings.onItem?.({ assignment, item, title: material.title });
+				ensureActive();
 			}
 		}
 		const remaining = plan.filter(item => !accepted.has(item.itemId));
 		if (!remaining.length || round === MAX_ROUNDS - 1) break;
-		const insufficientIds = new Set(remaining.filter(item => issues.get(item.itemId) === "insufficient-content").map(item => item.itemId));
-		if (insufficientIds.size) {
-			const replacement = settings.focused ? await expandFocusedStudyPlan(options.notes(), plan, settings.signal)
-				: replaceStudyAssignments(options.notes(), plan, rejectedNotes, insufficientIds);
+		const unavailableIds = new Set(remaining.filter(item => issues.get(item.itemId) === "insufficient-content" || issues.get(item.itemId) === "empty-source").map(item => item.itemId));
+		if (unavailableIds.size) {
+			const replacement = replaceStudyAssignments(options.notes(), plan, rejectedNotes, unavailableIds);
 			ensureActive();
-			if (replacement) plan = replacement;
-			else if (insufficientIds.size === remaining.length) throw new StudyInsufficientContentError([...rejectedNotes]);
+			if (replacement) {
+				const previous = new Map(plan.map(item => [item.itemId, item.noteId]));
+				plan = replacement;
+				for (const item of plan) {
+					if (previous.get(item.itemId) !== item.noteId && issues.get(item.itemId) === "empty-source") issues.delete(item.itemId);
+				}
+			}
+			else if (remaining.some(item => issues.get(item.itemId) === "empty-source")) throw new StudyInsufficientContentError([...rejectedNotes]);
 		}
 	}
 	ensureActive();
 	if (accepted.size !== plan.length) {
 		const pendingIssues = plan.filter(item => !accepted.has(item.itemId)).map(item => issues.get(item.itemId));
-		if (pendingIssues.includes("insufficient-content")) throw new StudyInsufficientContentError([...rejectedNotes]);
+		if (pendingIssues.includes("insufficient-content") || pendingIssues.includes("empty-source")) throw new StudyInsufficientContentError([...rejectedNotes]);
 		if (pendingIssues.some(issue => issue === "invalid-item" || issue === "duplicate-item")) throw Error("STUDY_INVALID_RESPONSE");
 		throw new StudyItemCountError(plan.length, accepted.size);
 	}
-	return { title: title ?? "Study", items: settings.plan.map(assignment => accepted.get(assignment.itemId)!.item) };
+	return plan.map(assignment => {
+		const material = accepted.get(assignment.itemId)!;
+		return { assignment, item: material.item, title: material.title };
+	});
 };

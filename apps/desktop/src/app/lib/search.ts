@@ -1,7 +1,7 @@
-import type { StudyNote } from "@/entities/note";
+import type { NoteSummary } from "@/entities/note";
 
 type IndexedNote = {
-	note: StudyNote;
+	note: NoteSummary;
 	title: string;
 	titleWords: string[];
 };
@@ -85,7 +85,7 @@ const bestTitleWordMatch = (query: string, note: IndexedNote): Match | undefined
 	return best;
 };
 
-export const createSearchIndex = (notes: StudyNote[], locale: string, previous?: SearchIndex): SearchIndex => {
+export const createSearchIndex = (notes: NoteSummary[], locale: string, previous?: SearchIndex): SearchIndex => {
 	const previousNotes =
 		previous?.locale === locale ? new Map(previous.notes.map((entry) => [entry.note.id, entry])) : undefined;
 	return {
@@ -105,7 +105,7 @@ export const createSearchIndex = (notes: StudyNote[], locale: string, previous?:
 	};
 };
 
-export const searchNotes = (index: SearchIndex, value: string): StudyNote[] => {
+export const searchNotes = (index: SearchIndex, value: string): NoteSummary[] => {
 	const query = normalize(value, index.locale);
 	if (!query) return [];
 
@@ -127,7 +127,7 @@ export const searchNotes = (index: SearchIndex, value: string): StudyNote[] => {
 
 			return { note: entry.note, score, distance };
 		})
-		.filter((result): result is { note: StudyNote; score: number; distance: number } => result !== undefined)
+		.filter((result): result is { note: NoteSummary; score: number; distance: number } => result !== undefined)
 		.sort((left, right) => {
 			return (
 				right.score - left.score || left.distance - right.distance || right.note.updatedAt - left.note.updatedAt

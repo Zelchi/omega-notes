@@ -3,6 +3,7 @@ import { decodeClozeBlanks, fillClozeText } from "./cloze";
 import { decodeStudyProgress, type StudyProgress } from "./progress";
 export type StudyKind = "flashcards" | "quiz" | "written" | "cloze" | "correction";
 export type StudyItem = { question: string; answer: string; options: string[]; correctIndex?: number; explanation: string; sources: string[]; blanks?: string[][]; segments?: CorrectionSegment[] };
+/** Persisted records contain one item; controllers may combine records into an in-memory study run. */
 export type StudyDeck = { id: string; kind: StudyKind; title: string; createdAt: number; sourceNoteId?: string; items: StudyItem[]; progress?: StudyProgress };
 
 const object = (value: unknown): Record<string, unknown> => {
@@ -90,7 +91,7 @@ export const decodeStudyDeck = (value: unknown): StudyDeck => {
 		if (!Array.isArray(item.sources) || item.sources.some(id => typeof id !== "string")) throw Error("STUDY_STORAGE_FAILED");
 		for (const id of item.sources as string[]) sources.add(id);
 	}
-	const parsed = decodeMaterial(data, data.kind, sources, 30);
+	const parsed = decodeMaterial(data, data.kind, sources, 1);
 	if (data.kind !== "written" && data.kind !== "cloze" && data.progress && typeof data.progress === "object" && "responses" in data.progress && data.progress.responses != null) throw Error("STUDY_STORAGE_FAILED");
 	const progress = data.progress == null ? undefined : decodeStudyProgress(data.progress, parsed.items.length);
 	if (data.kind !== "flashcards" && progress?.items.some(item => item.lastRating !== undefined)) throw Error("STUDY_STORAGE_FAILED");

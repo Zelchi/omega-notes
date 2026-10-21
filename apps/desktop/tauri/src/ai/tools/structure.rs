@@ -87,6 +87,56 @@ pub(super) fn outline(directory: &Path, args: &Value) -> Result<Value, String> {
         "nextOffset":(end_offset < headings.len()).then_some(end_offset)}),
     )
 }
+
+pub(super) fn segments(directory: &Path, args: &Value) -> Result<Value, String> {
+    let note = required_note(directory, args, "noteId")?;
+    let contents = text(&note);
+    let segments = super::super::markdown_segments::build(&contents);
+    let offset = offset(args);
+    if offset > 0 && offset >= segments.len() {
+        return Err("AI_OFFSET_OUT_OF_RANGE".into());
+    }
+    let entries: Vec<_> = segments
+        .iter()
+        .skip(offset)
+        .take(100)
+        .map(|segment| segment.descriptor(&contents))
+        .collect();
+    let end = offset.saturating_add(entries.len());
+    Ok(json!({
+        "id":note.id,
+        "title":note.title,
+        "reference":super::reference(&note.id),
+        "updatedAt":note.updated_at,
+        "segments":entries,
+        "total":segments.len(),
+        "message":segments.is_empty().then_some("This note has no readable text segments."),
+        "nextOffset":(end < segments.len()).then_some(end),
+    }))
+}
+
+pub(super) fn read_segment(directory: &Path, args: &Value) -> Result<Value, String> {
+    let note = required_note(directory, args, "noteId")?;
+    let contents = text(&note);
+    let segment_id = args["segmentId"].as_u64().ok_or("AI_INVALID_ARGUMENTS")?;
+    let segment_id = usize::try_from(segment_id).map_err(|_| "AI_SEGMENT_NOT_FOUND")?;
+    let segment = super::super::markdown_segments::build(&contents)
+        .into_iter()
+        .find(|segment| segment.id == segment_id)
+        .ok_or("AI_SEGMENT_NOT_FOUND")?;
+    let mut result = excerpt(
+        segment.text(&contents),
+        offset(args),
+        args["limit"].as_u64().unwrap_or(16000) as usize,
+    )?;
+    result["id"] = json!(note.id);
+    result["title"] = json!(note.title);
+    result["reference"] = json!(super::reference(&note.id));
+    result["updatedAt"] = json!(note.updated_at);
+    result["segment"] = segment.descriptor(&contents);
+    Ok(result)
+}
+
 pub(super) fn read_section(directory: &Path, args: &Value) -> Result<Value, String> {
     let note = required_note(directory, args, "noteId")?;
     let contents = text(&note);
@@ -98,7 +148,7 @@ pub(super) fn read_section(directory: &Path, args: &Value) -> Result<Value, Stri
         &contents[start..end],
         offset(args),
         args["limit"].as_u64().unwrap_or(16000) as usize,
-    );
+    )?;
     result["id"] = json!(note.id);
     result["title"] = json!(note.title);
     result["reference"] = json!(super::reference(&note.id));

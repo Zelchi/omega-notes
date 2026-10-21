@@ -1,10 +1,12 @@
-import { createMemo, createUniqueId, Index, Show, type Component } from "solid-js";
-import { TableEditor, type TableBlock } from "@/features/edit-table";
+import { createMemo, createUniqueId, Index, lazy, Show, Suspense, type Component } from "solid-js";
+import type { TableBlock } from "@/features/edit-table";
 import { NoteLinkSuggestions } from "@/features/suggest-note-link";
 import { cx } from "@/shared/lib/classes";
 import { useNoteTextNodeController, type NoteTextNodeProps } from "./controller";
 import { styles } from "./style.css.ts";
 import { playSound } from "@/shared/ui/sound";
+
+const TableEditor = lazy(() => import("@/features/edit-table/ui/table-editor"));
 
 const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 	const editor = useNoteTextNodeController(props);
@@ -114,17 +116,29 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 				/>
 			</Show>
 			<Show when={props.editable}>
-				<Index each={editor.tableFragments()}>{(fragment) => <TableEditor
-					block={fragment().format!.block as TableBlock}
-					left={editor.x() + fragment().left} top={editor.y() + fragment().top} width={fragment().width}
-					t={props.t} renderText={props.renderText} formatCell={editor.formatTableCell}
-					resolvePastedLink={editor.resolvePastedLink} canResolvePastedUrl={editor.canResolvePastedUrl}
-					onChange={(text, kind) => editor.updateTable(fragment().format!.block as TableBlock, text, kind)}
-					onDelete={() => editor.deleteTable(fragment().format!.block as TableBlock)}
-					onHistory={editor.handleKeyDown}
-					onExit={(after) => editor.exitTable(fragment().format!.block as TableBlock, after)}
-					onFormattingReady={editor.registerTableFormatting}
-					onRegisterFocus={editor.registerTableFocus} />}</Index>
+				<Index each={editor.tableFragments()}>
+					{(fragment) => (
+						<Suspense fallback={null}>
+							<TableEditor
+								block={fragment().format!.block as TableBlock}
+								left={editor.x() + fragment().left}
+								top={editor.y() + fragment().top}
+								width={fragment().width}
+								t={props.t}
+								renderText={props.renderText}
+								formatCell={editor.formatTableCell}
+								resolvePastedLink={editor.resolvePastedLink}
+								canResolvePastedUrl={editor.canResolvePastedUrl}
+								onChange={(text, kind) => editor.updateTable(fragment().format!.block as TableBlock, text, kind)}
+								onDelete={() => editor.deleteTable(fragment().format!.block as TableBlock)}
+								onHistory={editor.handleKeyDown}
+								onExit={(after) => editor.exitTable(fragment().format!.block as TableBlock, after)}
+								onFormattingReady={editor.registerTableFormatting}
+								onRegisterFocus={editor.registerTableFocus}
+							/>
+						</Suspense>
+					)}
+				</Index>
 			</Show>
 			<Show when={props.editable && editor.caret()}>
 				{(caret) => (

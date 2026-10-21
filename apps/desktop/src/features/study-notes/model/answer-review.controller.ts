@@ -53,7 +53,7 @@ export const useAnswerReview = (options: StudyEnvironment, session: {
 		} catch (failure) {
 			if (!valid()) return;
 			const code = failure instanceof Error ? failure.message : String(failure);
-			const message = code === "STUDY_SOURCE_MISSING" ? options.t("studyWrittenMissingSource") : code === "STUDY_SOURCES_CHANGED" ? options.t("studyWrittenSourcesChanged")
+			const message = code === "STUDY_SOURCE_MISSING" ? options.t("studyWrittenMissingSource") : code === "AI_STUDY_SOURCE_EMPTY" ? options.t("studyWrittenEmptySource") : code === "STUDY_SOURCES_CHANGED" ? options.t("studyWrittenSourcesChanged")
 				: code === "STUDY_INVALID_RESPONSE" || failure instanceof SyntaxError ? options.t("studyInvalidResponse") : options.describeAiError(failure);
 			update(value.itemIndex, { status: "failed", error: message });
 		} finally {

@@ -1,7 +1,7 @@
 import Button from "@/shared/ui/button";
 import { For, Show, type Component } from "solid-js";
 import { Portal } from "solid-js/web";
-import type { StudyNote } from "@/entities/note";
+import type { NoteSummary } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { cx } from "@/shared/lib/classes";
 import Icon from "@/shared/ui/icon";
@@ -10,10 +10,10 @@ import { styles } from "./style.css";
 export const NoteLinkSuggestions: Component<{
 	id: string;
 	anchor: { left: number; top: number; height: number };
-	notes: StudyNote[];
+	notes: NoteSummary[];
 	selectedIndex: number;
 	t: (key: TranslationKey) => string;
-	onSelect: (note: StudyNote) => void;
+	onSelect: (note: NoteSummary) => void;
 }> = (props) => {
 	const width = () => Math.min(260, innerWidth - 16);
 	const height = () => Math.max(1, props.notes.length) * 32 + 10;

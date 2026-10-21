@@ -1,12 +1,12 @@
 import { createEffect, createMemo, createSignal, type Accessor } from "solid-js";
-import { normalizeNoteTitle, type StudyNote } from "@/entities/note";
+import { normalizeNoteTitle, type NoteSummary } from "@/entities/note";
 import { noteLinkAtCaret, type NoteLinkContext } from "./link-context";
 
 export const useNoteLinkSuggestions = (options: {
-	notes: Accessor<StudyNote[]>;
+	notes: Accessor<NoteSummary[]>;
 	text: Accessor<string>;
 	caretOffset: Accessor<number | undefined>;
-	onSelect: (note: StudyNote, context: NoteLinkContext) => void;
+	onSelect: (note: NoteSummary, context: NoteLinkContext) => void;
 }) => {
 	const context = createMemo(() => noteLinkAtCaret(options.text(), options.caretOffset()));
 	const [dismissed, setDismissed] = createSignal<string>();
@@ -40,7 +40,7 @@ export const useNoteLinkSuggestions = (options: {
 		setSelectedIndex(0);
 		if (!context()) setDismissed(undefined);
 	});
-	const select = (note: StudyNote) => {
+	const select = (note: NoteSummary) => {
 		const current = context();
 		if (!current) return;
 		setDismissed(current.key);

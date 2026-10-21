@@ -1,3 +1,4 @@
+use super::markdown_segments as segments;
 use super::tools;
 use crate::notes;
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,7 @@ use std::{
 use tauri::AppHandle;
 
 const MAX_BYTES: usize = 64_000_000;
+const MAX_ACTIVE_CONTEXT_BYTES: usize = 128_000_000;
 const LIFETIME: Duration = Duration::from_secs(600);
 const CACHE_BYTES: usize = 16_000_000;
 const CACHE_ENTRIES: usize = 128;
@@ -26,6 +28,7 @@ struct SourceContent {
     title: String,
     text: String,
     characters: usize,
+    segments: Vec<segments::Segment>,
 }
 struct CachedSource {
     stored: String,
@@ -34,7 +37,10 @@ struct CachedSource {
 }
 impl CachedSource {
     fn bytes(&self) -> usize {
-        self.stored.len() + self.content.title.len() + self.content.text.len()
+        self.stored.len()
+            + self.content.title.len()
+            + self.content.text.len()
+            + segments::estimated_memory_bytes(&self.content.segments)
     }
 }
 
@@ -82,10 +88,12 @@ fn source(directory: &Path, id: &str, generation: u64) -> Result<Arc<SourceConte
     }
     let note = notes::note_from_contents(&path, id, &stored)?;
     let text = tools::text(&note);
+    let content_segments = segments::build(&text);
     let content = Arc::new(SourceContent {
         title: note.title,
         characters: text.chars().count(),
         text,
+        segments: content_segments,
     });
     let entry = CachedSource {
         stored,
@@ -134,6 +142,7 @@ struct Source {
 struct Context {
     directory: PathBuf,
     created: Instant,
+    memory_bytes: usize,
     items: Vec<Assignment>,
     notes: Vec<Source>,
 }
@@ -183,8 +192,18 @@ pub(crate) async fn prepare_study_context(
                     continue;
                 }
                 let content = source(&directory, id, generation)?;
+                if !tools::has_text(&content.text) {
+                    if id == &item.note_id {
+                        return Err("AI_STUDY_SOURCE_EMPTY".into());
+                    }
+                }
                 bytes = bytes
-                    .checked_add(content.text.len() + content.title.len() + id.len())
+                    .checked_add(
+                        content.text.len()
+                            + content.title.len()
+                            + id.len()
+                            + segments::estimated_memory_bytes(&content.segments),
+                    )
                     .ok_or("AI_INVALID_MESSAGE")?;
                 if bytes > MAX_BYTES {
                     return Err("AI_INVALID_MESSAGE".into());
@@ -207,7 +226,14 @@ pub(crate) async fn prepare_study_context(
         }
         let contexts = &mut registry.contexts;
         contexts.retain(|_, context| context.created.elapsed() < LIFETIME);
-        if contexts.len() >= 8 || contexts.contains_key(&request_id) {
+        let active_bytes = contexts
+            .values()
+            .map(|context| context.memory_bytes)
+            .sum::<usize>();
+        if contexts.len() >= 8
+            || contexts.contains_key(&request_id)
+            || active_bytes.saturating_add(bytes) > MAX_ACTIVE_CONTEXT_BYTES
+        {
             return Err("AI_BUSY".into());
         }
         contexts.insert(
@@ -215,6 +241,7 @@ pub(crate) async fn prepare_study_context(
             Arc::new(Context {
                 directory,
                 created: Instant::now(),
+                memory_bytes: bytes,
                 items,
                 notes,
             }),
@@ -311,10 +338,61 @@ pub(super) fn read(directory: &Path, request_id: &str, args: &Value) -> Result<V
             .find(|note| note.alias == id)
             .ok_or("AI_NOTE_NOT_FOUND")?;
         let limit = args["limit"].as_u64().unwrap_or(16000) as usize;
-        let mut result = tools::context_excerpt(&note.content.text, offset, limit);
-        result["sourceId"] = json!(note.alias);
-        result["title"] = json!(note.content.title);
-        result["usedByItems"] = json!(note.used_by);
+        if let Some(segment_id) = args["segmentId"].as_u64() {
+            let segment_id = usize::try_from(segment_id).map_err(|_| "AI_SEGMENT_NOT_FOUND")?;
+            let segment = note
+                .content
+                .segments
+                .iter()
+                .find(|segment| segment.id == segment_id)
+                .ok_or("AI_SEGMENT_NOT_FOUND")?;
+            let mut result =
+                tools::context_excerpt(segment.text(&note.content.text), offset, limit)?;
+            result["sourceId"] = json!(note.alias);
+            result["title"] = json!(note.content.title);
+            result["usedByItems"] = json!(note.used_by);
+            result["segment"] = segment.descriptor(&note.content.text);
+            return Ok(result);
+        }
+        if !tools::has_text(&note.content.text) {
+            return Err("AI_CONTENT_EMPTY".into());
+        }
+        let segment_offset = args["segmentOffset"]
+            .as_u64()
+            .unwrap_or(0)
+            .min(usize::MAX as u64) as usize;
+        if segment_offset > 0 && segment_offset >= note.content.segments.len() {
+            return Err("AI_OFFSET_OUT_OF_RANGE".into());
+        }
+        let segment_summaries: Vec<_> = note
+            .content
+            .segments
+            .iter()
+            .skip(segment_offset)
+            .take(100)
+            .map(|segment| segment.descriptor(&note.content.text))
+            .collect();
+        let next_segment_offset = segment_offset.saturating_add(segment_summaries.len());
+        let mut result = json!({
+            "sourceId":note.alias,
+            "title":note.content.title,
+            "usedByItems":note.used_by,
+            "contentAvailable":true,
+            "totalCharacters":note.content.characters,
+            "segments":segment_summaries,
+            "totalSegments":note.content.segments.len(),
+            "nextSegmentOffset":(next_segment_offset < note.content.segments.len()).then_some(next_segment_offset),
+        });
+        const INLINE_SOURCE_LIMIT: usize = 8_000;
+        if note.content.characters <= INLINE_SOURCE_LIMIT {
+            let excerpt = tools::context_excerpt(&note.content.text, offset, limit)?;
+            result["text"] = excerpt["text"].clone();
+            result["nextOffset"] = excerpt["nextOffset"].clone();
+        } else if offset > 0 {
+            return Err("AI_STUDY_SEGMENT_REQUIRED".into());
+        } else {
+            result["message"] = json!("This source is segmented. Select relevant text or table segments and read them by segmentId.");
+        }
         return Ok(result);
     }
     let notes: Vec<_> = context
@@ -325,7 +403,11 @@ pub(super) fn read(directory: &Path, request_id: &str, args: &Value) -> Result<V
         .map(|note| {
             json!({
                 "sourceId":note.alias,"title":note.content.title,
-                "totalCharacters":note.content.characters,"usedByItems":note.used_by
+                "contentAvailable":tools::has_text(&note.content.text),
+                "totalCharacters":note.content.characters,
+                "segmentCount":note.content.segments.len(),
+                "tableCount":note.content.segments.iter().filter(|segment| segment.kind == "table").count(),
+                "usedByItems":note.used_by
             })
         })
         .collect();
@@ -347,10 +429,11 @@ pub(super) fn read(directory: &Path, request_id: &str, args: &Value) -> Result<V
     )
 }
 
-pub(crate) fn export_files(
+pub(crate) fn export_to_directory(
     directory: &Path,
     request_id: &str,
-) -> Result<Vec<(String, Vec<u8>)>, String> {
+    destination: &Path,
+) -> Result<(), String> {
     let context = REGISTRY
         .lock()
         .map_err(|_| "AI_REQUEST_FAILED")?
@@ -361,34 +444,68 @@ pub(crate) fn export_files(
     if context.directory != directory || context.created.elapsed() >= LIFETIME {
         return Err("AI_STUDY_CONTEXT_UNAVAILABLE".into());
     }
-    let mut manifest = read(directory, request_id, &json!({}))?;
-    let mut offset = manifest["nextOffset"].as_u64();
-    while let Some(next) = offset {
-        let page = read(directory, request_id, &json!({"offset":next}))?;
-        manifest["notes"]
-            .as_array_mut()
-            .ok_or("AI_REQUEST_FAILED")?
-            .extend(
-                page["notes"]
-                    .as_array()
-                    .ok_or("AI_REQUEST_FAILED")?
-                    .iter()
-                    .cloned(),
-            );
-        offset = page["nextOffset"].as_u64();
+    let metadata = std::fs::symlink_metadata(destination).map_err(|_| "AI_STORAGE_FAILED")?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err("AI_STORAGE_FAILED".into());
     }
-    manifest["nextOffset"] = Value::Null;
-    let mut files = vec![(
-        "manifest.json".into(),
-        serde_json::to_vec_pretty(&manifest).map_err(|_| "AI_REQUEST_FAILED")?,
-    )];
+
+    let aliases = context
+        .notes
+        .iter()
+        .map(|note| (note.id.as_str(), note.alias.as_str()))
+        .collect::<HashMap<_, _>>();
+    let items: Vec<_> = context
+        .items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            json!({
+                "number": index + 1,
+                "itemId": item.item_id,
+                "primarySourceId": aliases.get(item.note_id.as_str()),
+                "supportingSourceIds": item.supporting_note_ids.iter()
+                    .filter_map(|id| aliases.get(id.as_str()).copied())
+                    .collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    let mut manifest_notes = Vec::with_capacity(context.notes.len());
     for source in &context.notes {
-        files.push((
-            format!("{}.txt", source.alias),
-            source.content.text.as_bytes().to_vec(),
-        ));
+        let content_available = tools::has_text(&source.content.text);
+        let mut note = json!({
+            "sourceId": source.alias,
+            "title": source.content.title,
+            "contentAvailable": content_available,
+            "totalCharacters": source.content.characters,
+            "segmentCount": source.content.segments.len(),
+            "tableCount": source.content.segments.iter().filter(|segment| segment.kind == "table").count(),
+            "usedByItems": source.used_by,
+        });
+        if content_available {
+            let mut exported_segments = Vec::with_capacity(source.content.segments.len());
+            for segment in &source.content.segments {
+                let file = format!("{}-S{}.txt", source.alias, segment.id);
+                let mut descriptor = segment.descriptor(&source.content.text);
+                descriptor["file"] = json!(file);
+                exported_segments.push(descriptor);
+                crate::storage::atomic_write_with(&destination.join(file), None, |writer| {
+                    segment.write_cli_text(&source.content.title, &source.content.text, writer)
+                })?;
+            }
+            note["segments"] = json!(exported_segments);
+        }
+        manifest_notes.push(note);
     }
-    Ok(files)
+    let manifest = json!({
+        "items": items,
+        "notes": manifest_notes,
+        "totalNotes": context.notes.len(),
+        "nextOffset": Value::Null,
+        "scope": "prepared-study-context",
+    });
+    crate::storage::atomic_write_with(&destination.join("manifest.json"), None, |writer| {
+        serde_json::to_writer_pretty(writer, &manifest).map_err(std::io::Error::other)
+    })
 }
 
 #[cfg(test)]

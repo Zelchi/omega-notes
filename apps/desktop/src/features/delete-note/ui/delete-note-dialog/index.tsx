@@ -1,7 +1,7 @@
 import { createMemo, createUniqueId, onCleanup, onMount, Show, type Component } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
 import type { TranslationKey } from "@/shared/lib/i18n";
-import type { StudyNote } from "@/entities/note";
+import type { NoteSummary } from "@/entities/note";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import Button from "@/shared/ui/button";
@@ -10,7 +10,7 @@ import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import { styles } from "./style.css.ts";
 
 type Props = {
-	note?: StudyNote;
+	note?: NoteSummary;
 	pending: boolean;
 	error: boolean;
 	t: (key: TranslationKey) => string;

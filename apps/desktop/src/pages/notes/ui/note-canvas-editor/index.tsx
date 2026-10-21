@@ -1,4 +1,4 @@
-import { createMemo, For, Index, Show, type Component } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Index, lazy, Show, Suspense, type Component } from "solid-js";
 import { useFindInNote } from "@/features/find-in-note";
 import { cx } from "@/shared/lib/classes";
 import {
@@ -9,9 +9,6 @@ import {
 	type NoteTextElement,
 } from "@/entities/note";
 import { renderNoteText } from "./render-text";
-import MediaCatalogDialog from "../media-catalog-dialog";
-import NoteImageNode from "../note-image-node";
-import NoteMediaNode from "../note-media-node";
 import NoteTextNode from "../note-text-node";
 import NoteEditingToolbar from "../note-editing-toolbar";
 import { useNoteCanvasEditorController, type NoteCanvasEditorProps } from "./controller";
@@ -19,9 +16,17 @@ import { styles } from "./style.css.ts";
 import type { FormattedFragment } from "@/features/format-text";
 import { createPresence } from "@/shared/lib/presence";
 
+const MediaCatalogDialog = lazy(() => import("../media-catalog-dialog"));
+const NoteImageNode = lazy(() => import("../note-image-node"));
+const NoteMediaNode = lazy(() => import("../note-media-node"));
+
 const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 	const editor = useNoteCanvasEditorController(props);
 	const find = useFindInNote(() => props.noteId);
+	const [mediaCatalogMounted, setMediaCatalogMounted] = createSignal(false);
+	createEffect(() => {
+		if (editor.catalogOpen()) setMediaCatalogMounted(true);
+	});
 	const toolbar = createPresence(() => (editor.editable() || find.open()) && !editor.positioningElementId(), 220);
 	const notesByTitle = createMemo(() => createNoteTitleIndex(props.notes));
 	const notesById = createMemo(() => new Map(props.notes.map((note) => [normalizeNoteTitle(note.id), note])));
@@ -53,8 +58,6 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 					readOnly={!editor.editable()}
 					onDelete={props.onDelete}
 					deleteDisabled={props.deleteDisabled}
-					onExportPdf={props.onExportPdf}
-					exportPdfDisabled={props.exportPdfDisabled}
 					exiting={toolbar.exiting()}
 					t={props.t}
 					alignment={editor.textAlignment()}
@@ -91,35 +94,39 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 										when={getElement().type === "image"}
 										fallback={
 											<Show when={getElement().type === "audio" || getElement().type === "video"}>
-												<NoteMediaNode
-													element={() => getElement() as NoteMediaElement}
-													pageWidth={props.document.page.width}
-													pageHeight={editor.renderedPageHeight()}
-													editable={editor.editable()}
-													activePositioningId={editor.positioningElementId()}
-													t={props.t}
-													onChange={editor.updateElement}
-													onPreview={editor.setPreviewElement}
-													onContextMenu={editor.startMediaPositioning}
-													onConfirm={editor.placeElement}
-													onDelete={() => editor.removeElement(getElement().id)}
-												/>
+												<Suspense fallback={null}>
+													<NoteMediaNode
+														element={() => getElement() as NoteMediaElement}
+														pageWidth={props.document.page.width}
+														pageHeight={editor.renderedPageHeight()}
+														editable={editor.editable()}
+														activePositioningId={editor.positioningElementId()}
+														t={props.t}
+														onChange={editor.updateElement}
+														onPreview={editor.setPreviewElement}
+														onContextMenu={editor.startMediaPositioning}
+														onConfirm={editor.placeElement}
+														onDelete={() => editor.removeElement(getElement().id)}
+													/>
+												</Suspense>
 											</Show>
 										}
 									>
-										<NoteImageNode
-											element={() => getElement() as NoteImageElement}
-											pageWidth={props.document.page.width}
-											pageHeight={editor.renderedPageHeight()}
-											editable={editor.editable()}
-											activePositioningId={editor.positioningElementId()}
-											t={props.t}
-											onChange={editor.updateElement}
-											onPreview={editor.setPreviewElement}
-											onContextMenu={editor.startMediaPositioning}
-											onConfirm={editor.placeElement}
-											onDelete={() => editor.removeElement(getElement().id)}
-										/>
+										<Suspense fallback={null}>
+											<NoteImageNode
+												element={() => getElement() as NoteImageElement}
+								pageWidth={props.document.page.width}
+								pageHeight={editor.renderedPageHeight()}
+								editable={editor.editable()}
+								activePositioningId={editor.positioningElementId()}
+								t={props.t}
+								onChange={editor.updateElement}
+								onPreview={editor.setPreviewElement}
+								onContextMenu={editor.startMediaPositioning}
+								onConfirm={editor.placeElement}
+								onDelete={() => editor.removeElement(getElement().id)}
+							/>
+										</Suspense>
 									</Show>
 								}
 							>
@@ -145,15 +152,20 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 					}}
 				</Index>
 			</div>
-			<MediaCatalogDialog
-				open={editor.catalogOpen()}
-				notes={props.notes}
-				t={props.t}
-				onClose={() => editor.setCatalogOpen(false)}
-				onSelect={(media) => editor.insertMedia([media])}
-				onImportFiles={editor.importFiles}
-				onImportPaths={editor.importPaths}
-			/>
+			<Show when={mediaCatalogMounted()}>
+				<Suspense fallback={null}>
+					<MediaCatalogDialog
+						open={editor.catalogOpen()}
+						loadNotes={props.loadAllNotes}
+						releaseLoadedNotes={props.releaseLoadedNotes}
+						t={props.t}
+						onClose={() => editor.setCatalogOpen(false)}
+						onSelect={(media) => editor.insertMedia([media])}
+						onImportFiles={editor.importFiles}
+						onImportPaths={editor.importPaths}
+					/>
+				</Suspense>
+			</Show>
 		</div>
 	);
 };

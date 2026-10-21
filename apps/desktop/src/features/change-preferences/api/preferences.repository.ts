@@ -1,6 +1,7 @@
 import type { BackgroundTheme, CanvasLayout, NoteMode, TextCursor, Theme } from "../model/preferences";
 import type { Language } from "@/shared/lib/i18n";
 import { DEFAULT_AI_CHAT_SHORTCUT, isAiChatShortcut, type AiChatShortcut } from "../model/ai-chat-shortcut";
+import { DEFAULT_SEARCH_SHORTCUT, isSearchShortcut, type SearchShortcut } from "../model/search-shortcut";
 
 const CENTER_CANVAS_KEY = "omega-notes.settings.center-canvas-on-launch";
 const HIDE_CANVAS_CONTROLS_KEY = "omega-notes.settings.hide-zoom-controls";
@@ -11,6 +12,7 @@ const TEXT_CURSOR_KEY = "omega-notes.settings.text-cursor";
 const AI_FEATURES_KEY = "omega-notes.settings.ai-features-enabled";
 const GAMBIARRA_KEY = "omega-notes.settings.gambiarra-enabled";
 const AI_CHAT_SHORTCUT_KEY = "omega-notes.settings.ai-chat-shortcut";
+const SEARCH_SHORTCUT_KEY = "omega-notes.settings.search-shortcut";
 const SOUND_VOLUME_KEY = "omega-notes.settings.sound-volume";
 const NOTE_MODE_KEY = "omega-notes.settings.note-mode";
 
@@ -37,6 +39,18 @@ export const readAiChatShortcut = (): AiChatShortcut => {
 
 export const saveAiChatShortcut = (value: AiChatShortcut): void => {
     try { localStorage.setItem(AI_CHAT_SHORTCUT_KEY, JSON.stringify(value)); }
+    catch (error) { console.error(error); }
+};
+
+export const readSearchShortcut = (): SearchShortcut => {
+    try {
+        const value: unknown = JSON.parse(localStorage.getItem(SEARCH_SHORTCUT_KEY) ?? "null");
+        return isSearchShortcut(value) ? value : { ...DEFAULT_SEARCH_SHORTCUT };
+    } catch { return { ...DEFAULT_SEARCH_SHORTCUT }; }
+};
+
+export const saveSearchShortcut = (value: SearchShortcut): void => {
+    try { localStorage.setItem(SEARCH_SHORTCUT_KEY, JSON.stringify(value)); }
     catch (error) { console.error(error); }
 };
 
