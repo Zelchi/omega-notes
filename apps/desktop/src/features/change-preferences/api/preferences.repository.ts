@@ -144,12 +144,16 @@ export const saveBackgroundTheme = (value: BackgroundTheme): void => {
 };
 
 export const readCanvasLayout = (): CanvasLayout => {
-	try { return localStorage.getItem("omega-notes.canvas-layout") === "dynamic" ? "dynamic" : "static"; }
+	try {
+		const value = localStorage.getItem("omega-notes.canvas-layout");
+		if (value === "archive") return import.meta.env.DEV ? "archive" : "dynamic";
+		return value === "static" ? "static" : "dynamic";
+	}
 	catch { return "static"; }
 };
 
 export const saveCanvasLayout = (layout: CanvasLayout): void => {
-	try { localStorage.setItem("omega-notes.canvas-layout", layout); }
+	try { localStorage.setItem("omega-notes.canvas-layout", layout === "archive" && !import.meta.env.DEV ? "dynamic" : layout); }
 	catch { /* The layout can still be switched when storage is unavailable. */ }
 };
 

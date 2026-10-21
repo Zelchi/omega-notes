@@ -2,13 +2,14 @@ import { createEffect, onCleanup, type Accessor } from "solid-js";
 
 /** Reverse from the current visual state when an entrance or exit is interrupted. */
 export const registerVisibilityAnimation = (
-	element: HTMLElement, exiting: Accessor<boolean>, kind: "bar" | "dialog" | "fade" | "panel",
+	element: HTMLElement, exiting: Accessor<boolean>, kind: "bar" | "dialog" | "fade" | "panel" | "panel-left",
 ): void => {
 	const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
 	const shownTransform = kind === "bar" ? "translateX(-50%)" : "none";
 	const hiddenTransform = kind === "bar" ? "translateX(-50%) translateY(6px)"
 		: kind === "dialog" ? "translateY(6px) scale(0.98)"
-			: kind === "panel" ? "translateX(calc(100% + 2px))" : "none";
+			: kind === "panel" ? "translateX(calc(100% + 2px))"
+				: kind === "panel-left" ? "translateX(calc(-100% - 2px))" : "none";
 	let animation: Animation | undefined;
 	let first = true;
 	element.style.animation = "none";

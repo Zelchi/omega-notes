@@ -1,4 +1,5 @@
 import Button from "@/shared/ui/button";
+import { displayNoteTitle } from "@/entities/note";
 import { For, Show, type Component } from "solid-js";
 import { cx } from "@/shared/lib/classes";
 import Icon from "@/shared/ui/icon";
@@ -40,7 +41,7 @@ const DynamicGraph: Component<GraphCanvasProps> = (props) => {
 				const hitDiameter = () => diameter() + NODE_HIT_MARGIN * 2;
 				return <div class={cx(styles.node, graph.hoveredId() && !graph.neighbors().has(note.id) && styles.dimmedNode)}
 					style={{ translate: `${point().x}px ${point().y}px` }}>
-					<Button type="button" aria-label={note.title} sound={false}
+					<Button type="button" aria-label={displayNoteTitle(note)} sound={false}
 						class={styles.hitTarget}
 						style={{ width: `${hitDiameter()}px`, height: `${hitDiameter()}px`, left: `${-hitDiameter() / 2}px`, top: `${-hitDiameter() / 2}px` }}
 					onPointerDown={(event) => graph.begin(event, hitsNodeCircle(event) ? note.id : undefined)}
@@ -62,7 +63,7 @@ const DynamicGraph: Component<GraphCanvasProps> = (props) => {
 						<span aria-hidden="true" class={cx(styles.dot, graph.neighbors().has(note.id) && styles.highlightedDot, graph.draggedId() === note.id && styles.draggedDot)}
 							style={{ width: `${diameter()}px`, height: `${diameter()}px` }} />
 					</Button>
-					<span class={styles.label} aria-hidden="true" style={{ top: `${diameter() / 2 + 8}px` }}>{note.title}</span>
+					<span class={styles.label} aria-hidden="true" style={{ top: `${diameter() / 2 + 8}px` }}>{displayNoteTitle(note)}</span>
 				</div>;
 			}}</For>
 		</div>

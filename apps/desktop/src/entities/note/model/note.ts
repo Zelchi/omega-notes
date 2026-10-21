@@ -11,6 +11,7 @@ export type StudyNote = {
 export type NoteSummary = {
 	id: string;
 	title: string;
+	displayTitle?: string;
 	preview: string;
 	updatedAt: number;
 	links: string[];

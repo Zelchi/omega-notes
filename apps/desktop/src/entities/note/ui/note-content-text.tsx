@@ -2,6 +2,7 @@ import Link from "@/shared/ui/link";
 import { For, Show, createMemo, type Component } from "solid-js";
 import { parseNoteTextLinks } from "../model/text-links";
 import type { NoteSummary } from "../model/note";
+import { displayNoteTitle } from "../model/note-titles";
 import { parseFormattedText, type TextRun } from "@/shared/lib/formatted-text";
 import FormattedRun from "@/shared/ui/formatted-run";
 import FormattedBlockView from "@/shared/ui/formatted-block";
@@ -29,7 +30,7 @@ const NoteReferences: Component<NoteContentTextProps> = (props) => {
             if (link.kind !== "note") continue;
             if (link.start > offset) result.push({ text: text.slice(offset, link.start) });
             const note = props.resolveNote(link.target);
-            result.push({ text: link.alias || note?.title || props.referenceTitles[link.target] || text.slice(link.start, link.end), note });
+			result.push({ text: link.alias || (note ? displayNoteTitle(note) : undefined) || props.referenceTitles[link.target] || text.slice(link.start, link.end), note });
             offset = link.end;
         }
         if (offset < text.length) result.push({ text: text.slice(offset) });

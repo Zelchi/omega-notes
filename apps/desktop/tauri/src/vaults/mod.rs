@@ -1,4 +1,5 @@
 pub(crate) mod commands;
+pub(crate) mod kanban;
 mod models;
 mod repository;
 mod service;

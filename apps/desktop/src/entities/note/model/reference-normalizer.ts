@@ -1,7 +1,7 @@
 import { mapTextOutsideCode } from "@/shared/lib/formatted-text";
 import type { NoteSummary } from "./note";
 type NoteName = Pick<NoteSummary, "id" | "title">;
-import { normalizeNoteTitle } from "./note-titles";
+import { createNoteTitleIndex, normalizeNoteTitle } from "./note-titles";
 
 export const createNoteReferenceNormalizer = () => {
     const targets = new Map<string, string>();
@@ -9,9 +9,14 @@ export const createNoteReferenceNormalizer = () => {
     const rememberedTitles = new Map<string, string>();
     return {
         bind: (notes: readonly NoteName[]) => {
-            if (notes.length === titles.size && notes.every((note) => titles.get(note.id) === note.title)) return false;
-            for (const note of notes) targets.set(normalizeNoteTitle(note.title), note.id);
-            for (const note of notes) targets.set(normalizeNoteTitle(note.id), note.id);
+            const nextTargets = new Map<string, string>();
+            for (const [title, note] of createNoteTitleIndex(notes)) nextTargets.set(title, note.id);
+            for (const note of notes) nextTargets.set(normalizeNoteTitle(note.id), note.id);
+            const changed = nextTargets.size !== targets.size || [...nextTargets].some(([key, id]) => targets.get(key) !== id) ||
+                notes.length !== titles.size || notes.some((note) => titles.get(note.id) !== note.title);
+            if (!changed) return false;
+            targets.clear();
+            for (const [key, id] of nextTargets) targets.set(key, id);
             titles.clear();
             for (const note of notes) {
                 titles.set(note.id, note.title);

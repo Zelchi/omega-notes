@@ -1,5 +1,17 @@
 # Histórico de atualizações
 
+## v0.4.7
+
+### Organização
+
+- A visualização Arquivo apresenta notas e pastas em colunas encadeadas, permite criar pastas aninhadas e reorganizar itens por arraste.
+- Kanban vertical por vault, com cinco etapas. Cartões podem ser criados, editados, movidos e reorganizados; as datas registram a criação e a mudança de etapa.
+- Títulos repetidos de notas são aceitos e recebem sufixos numerados na interface.
+
+### Integrações de IA
+
+- No Windows, a detecção procura primeiro a CLI v2 do OpenCode e tenta a v1 como fallback.
+
 ## v0.4.6
 
 ### Estudos

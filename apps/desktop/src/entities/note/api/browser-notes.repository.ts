@@ -3,7 +3,7 @@ import type { NoteChangeSet, NoteLibrary, NoteLoadIssue, NoteSaveResult, NoteSto
 import { createEmptyDocument, documentPreview } from "../model/note-document";
 import { summarizeNote } from "../model/note-summary";
 import { renameResolvedNoteLinks } from "../model/note-links";
-import { isNoteTitleAvailable, normalizeNoteTitle } from "../model/note-titles";
+import { NOTE_TITLE_MAX_LENGTH } from "../model/note-titles";
 
 const STORAGE_KEY = "omega-notes.notes.v1";
 let activeVaultId: string | undefined;
@@ -111,7 +111,7 @@ export const getNote = async (_vaultId: string, noteId: string): Promise<StudyNo
 
 export const createNote = async (title: string): Promise<StudyNote> => {
 	const existingNotes = readNotes();
-	if (!isNoteTitleAvailable(existingNotes, title)) throw new Error("DUPLICATE_TITLE");
+	if (title.trim().length > NOTE_TITLE_MAX_LENGTH) throw new Error("TITLE_TOO_LONG");
 
 	const note: StudyNote = {
 		id: createUuidV7(),
@@ -128,7 +128,7 @@ export const renameNote = async (noteId: string, title: string): Promise<StudyNo
 	const currentNotes = readNotes();
 	const current = currentNotes.find((note) => note.id === noteId);
 	if (!current) throw new Error("NOTE_NOT_FOUND");
-	if (!isNoteTitleAvailable(currentNotes, title, noteId)) throw new Error("DUPLICATE_TITLE");
+	if (title.trim().length > NOTE_TITLE_MAX_LENGTH) throw new Error("TITLE_TOO_LONG");
 	if (current.title === title) return [];
 
 	const changedAt = Date.now();
@@ -161,14 +161,6 @@ export const renameNote = async (noteId: string, title: string): Promise<StudyNo
 
 export const saveNote = async (note: StudyNote): Promise<NoteSaveResult> => {
 	const existingNotes = readNotes();
-	const existing = existingNotes.find((item) => item.id === note.id);
-	if (
-		existing &&
-		normalizeNoteTitle(existing.title) !== normalizeNoteTitle(note.title) &&
-		!isNoteTitleAvailable(existingNotes, note.title, note.id)
-	) {
-		throw new Error("DUPLICATE_TITLE");
-	}
 
 	const saved: StudyNote = {
 		...note,
@@ -195,7 +187,6 @@ export const restoreDeletedNote = async (noteId: string): Promise<NoteSaveResult
 	if (!note) throw new Error("NOTE_NOT_FOUND");
 	const existing = readNotes();
 	if (existing.some((item) => item.id === noteId)) throw new Error("NOTE_ALREADY_EXISTS");
-	if (!isNoteTitleAvailable(existing, note.title)) throw new Error("DUPLICATE_TITLE");
 	const result = await saveNote(note);
 	try { localStorage.setItem(deletedStorageKey(), JSON.stringify(deleted.filter((item) => item.id !== noteId))); }
 	catch (error) { console.error(error); }

@@ -804,7 +804,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		text: draft,
 		caretOffset,
 		onSelect: (note, context) => {
-			const target = /[\[\]|\r\n]/.test(note.title) ? note.id : note.title;
+			const target = note.displayTitle !== undefined || /[\[\]|\r\n]/.test(note.title) ? note.id : note.title;
 			const link = `[[${target}${context.alias}]]`;
 			batch(() => {
 				replaceSelection(link, { start: context.start, end: context.end });

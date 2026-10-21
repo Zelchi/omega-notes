@@ -23,7 +23,6 @@ export const styles = {
 		zIndex: 1,
 		display: "flex",
 		alignItems: "center",
-		gap: 8,
 		height: "100%",
 		flexGrow: 0,
 		flexShrink: 0,
@@ -79,6 +78,7 @@ export const styles = {
 			"&:focus-visible": { outlineOffset: -3 },
 		},
 	}),
+	kanbanButton: style({ marginInlineStart: 11 }),
 	closeButton: style({
 		color: "var(--text-control)",
 		backgroundColor: "transparent",

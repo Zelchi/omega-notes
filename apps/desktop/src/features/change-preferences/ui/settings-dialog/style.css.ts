@@ -134,7 +134,6 @@ export const styles = {
 				backgroundColor: "var(--toggle-on-dot)",
 				transform: "translateX(14px)",
 			},
-			"&:focus-visible": { outline: "2px solid var(--focus)" },
 		},
 	}),
 };

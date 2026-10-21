@@ -1,4 +1,5 @@
 import Button from "@/shared/ui/button";
+import { displayNoteTitle } from "@/entities/note";
 import Input from "@/shared/ui/input";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createUniqueId, For, Show, type Component } from "solid-js";
@@ -78,7 +79,7 @@ const FloatingSearch: Component<FloatingSearchProps> = (props) => {
 								onPointerEnter={() => search.setActiveIndex(index())}
 								onClick={() => search.select(note)}
 							>
-								<strong class={styles.resultTitle}>{note.title}</strong>
+								<strong class={styles.resultTitle}>{displayNoteTitle(note)}</strong>
 							</Button>
 						)}
 					</For>

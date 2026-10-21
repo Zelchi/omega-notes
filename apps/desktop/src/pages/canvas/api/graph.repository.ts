@@ -1,10 +1,11 @@
-import type { CanvasLayout } from "@/features/change-preferences";
 import type { GraphState } from "../model/graph";
 
-const storageKey = (vaultId: string, layout: CanvasLayout): string =>
+type GraphLayout = "static" | "dynamic";
+
+const storageKey = (vaultId: string, layout: GraphLayout): string =>
 	`omega-notes.graph.${encodeURIComponent(vaultId)}.${layout}`;
 
-export const readGraphState = (vaultId: string, layout: CanvasLayout = "static"): GraphState => {
+export const readGraphState = (vaultId: string, layout: GraphLayout = "static"): GraphState => {
 	if (!vaultId || typeof window === "undefined") return { positions: {} };
 	try {
 		const value = localStorage.getItem(storageKey(vaultId, layout));
@@ -34,7 +35,7 @@ export const readGraphState = (vaultId: string, layout: CanvasLayout = "static")
 	}
 };
 
-export const saveGraphState = (vaultId: string, state: GraphState, layout: CanvasLayout = "static"): void => {
+export const saveGraphState = (vaultId: string, state: GraphState, layout: GraphLayout = "static"): void => {
 	if (!vaultId || typeof window === "undefined") return;
 	try {
 		localStorage.setItem(storageKey(vaultId, layout), JSON.stringify(state));

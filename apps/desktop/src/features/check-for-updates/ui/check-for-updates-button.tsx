@@ -22,9 +22,6 @@ export const CheckForUpdatesButton: Component<{
 			<span class={styles.version}>{props.t("appVersion")}</span>
 			<Button class={styles.button} type="button" disabled={props.updates.busy()}
 				aria-busy={props.updates.busy()}
-				title={props.updates.status() === "available"
-					? `${props.t("updateAvailable")} ${props.updates.version()}`
-					: props.t("checkForUpdates")}
 				onClick={() => void props.updates.activate()}>
 				<span aria-live="polite" aria-atomic="true">{label()}</span>
 			</Button>

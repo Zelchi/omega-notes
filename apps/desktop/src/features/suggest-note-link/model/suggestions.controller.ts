@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, type Accessor } from "solid-js";
-import { normalizeNoteTitle, type NoteSummary } from "@/entities/note";
+import { displayNoteTitle, normalizeNoteTitle, type NoteSummary } from "@/entities/note";
 import { noteLinkAtCaret, type NoteLinkContext } from "./link-context";
 
 export const useNoteLinkSuggestions = (options: {
@@ -17,7 +17,8 @@ export const useNoteLinkSuggestions = (options: {
 		const nextCache = new Map<string, { raw: string; title: string }>();
 		const records = options.notes().map((note) => {
 			const cached = titleCache.get(note.id);
-			const entry = cached?.raw === note.title ? cached : { raw: note.title, title: normalizeNoteTitle(note.title) };
+			const label = displayNoteTitle(note);
+			const entry = cached?.raw === label ? cached : { raw: label, title: normalizeNoteTitle(label) };
 			nextCache.set(note.id, entry);
 			return { note, title: entry.title };
 		});
@@ -30,7 +31,7 @@ export const useNoteLinkSuggestions = (options: {
 		const query = normalizeNoteTitle(current.query);
 		return titles().filter(({ title }) => title.includes(query))
 			.sort((left, right) => Number(right.title.startsWith(query)) - Number(left.title.startsWith(query)) ||
-				left.title.localeCompare(right.title, "pt-BR"))
+				left.title.localeCompare(right.title, "pt-BR", { numeric: true }))
 			.slice(0, 6).map(({ note }) => note);
 	});
 	const open = () => Boolean(context() && context()!.key !== dismissed());

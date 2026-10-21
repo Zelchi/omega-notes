@@ -19,6 +19,7 @@ import { useUpdatesController } from "@/features/check-for-updates/model/updates
 import type { AiChatController } from "@/features/chat-with-ai/model/ai-chat.controller";
 import { useTemporaryNoteReading } from "@/features/follow-note-link";
 import { disposeSounds, prepareSounds } from "@/shared/ui/sound";
+import { useKanban } from "@/features/manage-kanban/model/controller";
 
 const createLazyController = <T,>(loadModule: () => Promise<() => T>) => {
 	const owner = getOwner();
@@ -49,6 +50,7 @@ const createLazyController = <T,>(loadModule: () => Promise<() => T>) => {
 export const useAppController = () => {
 	const vaults = useVaults();
 	const preferences = usePreferences();
+	const kanban = useKanban(vaults.activeVaultId);
 	const notes = useNotes(vaults.activeVaultId, preferences.gambiarraEnabled);
 	const t = (key: TranslationKey) => translate(preferences.language(), key);
 	let saveNoteTitle: (() => Promise<boolean>) | undefined;
@@ -140,8 +142,20 @@ export const useAppController = () => {
 	const chatOpen = () => preferences.gambiarraEnabled() ? gambiarraChatOpen() : aiChat.open();
 	const setChatOpen = (value: boolean | ((open: boolean) => boolean)) => {
 		const open = typeof value === "function" ? value(chatOpen()) : value;
+		if (open) {
+			kanban.setOpen(false);
+			setSettingsOpen(false);
+		}
 		if (preferences.gambiarraEnabled()) setGambiarraChatOpen(open && !!vaults.activeVaultId());
 		else aiChat.setOpen(open);
+	};
+	const toggleKanban = () => {
+		if (!vaults.activeVaultId()) return;
+		if (!kanban.open()) {
+			setChatOpen(false);
+			setSettingsOpen(false);
+		}
+		kanban.setOpen((open) => !open);
 	};
 	let terminalVault = vaults.activeVaultId(), terminalMode = preferences.gambiarraEnabled(), terminalSyncRevision = 0;
 	createEffect(() => {
@@ -246,6 +260,15 @@ export const useAppController = () => {
 	saveAiChats = () => aiChat.flushSave();
 	saveStudies = () => studies.flushSave();
 	const [settingsOpen, setSettingsOpen] = createSignal(false);
+	const toggleSettings = () => {
+		if (settingsOpen()) {
+			setSettingsOpen(false);
+			return;
+		}
+		setChatOpen(false);
+		kanban.setOpen(false);
+		setSettingsOpen(true);
+	};
 	const canvasHistory = useCanvasHistory({
 		vaultId: vaults.activeVaultId,
 		notes,
@@ -325,6 +348,19 @@ export const useAppController = () => {
 		addEventListener("keydown", preventNativeTab, true);
 		onCleanup(() => removeEventListener("keydown", preventNativeTab, true));
 
+		const onKanbanShortcut = (event: KeyboardEvent) => {
+			if (event.defaultPrevented || event.isComposing || isTerminalTarget(event.target) || !vaults.activeVaultId()
+				|| navigation.nameDialog() || vaults.dialogOpen() || settingsOpen() || studies.open()
+				|| noteDeletion.target() || noteDeletion.pending() || updates.installing()) return;
+			if (event.metaKey || event.getModifierState("AltGraph") || event.code !== "KeyB"
+				|| !event.ctrlKey || event.altKey || !event.shiftKey) return;
+			event.preventDefault();
+			event.stopPropagation();
+			if (!event.repeat) toggleKanban();
+		};
+		addEventListener("keydown", onKanbanShortcut, true);
+		onCleanup(() => removeEventListener("keydown", onKanbanShortcut, true));
+
 		const onAiShortcut = (event: KeyboardEvent) => {
 			if (event.defaultPrevented || event.isComposing || !chatAvailable() || !vaults.activeVaultId() ||
 				navigation.nameDialog() || vaults.dialogOpen() || settingsOpen() || studies.open() || noteDeletion.target() || noteDeletion.pending() || updates.installing()) return;
@@ -344,6 +380,8 @@ export const useAppController = () => {
 				setSettingsOpen(false);
 			} else if (chatOpen()) {
 				setChatOpen(false);
+			} else if (kanban.open()) {
+				kanban.setOpen(false);
 			} else {
 				navigation.handleEscape();
 			}
@@ -355,7 +393,10 @@ export const useAppController = () => {
 	createEffect(() => {
 		document.documentElement.lang = t("locale");
 		const appName = t("appName");
-		const title = navigation.route() === "note" ? navigation.selectedNote()?.title : undefined;
+		const selected = navigation.selectedNote();
+		const title = navigation.route() === "note" && selected
+			? notes.notes().find((note) => note.id === selected.id)?.displayTitle ?? selected.title
+			: undefined;
 		document.title = title ? `${title} · ${appName}` : appName;
 	});
 
@@ -414,6 +455,7 @@ export const useAppController = () => {
 		noteReferences,
 		canvasHistory,
 		aiChat, aiChatLoaded: () => Boolean(aiChatLazy.controller()), chatOpen, setChatOpen, chatAvailable,
+		kanban, toggleKanban,
 		openAiNote,
 		updates,
 		registerBeforeShutdown: (save?: () => Promise<boolean>) => { saveNoteTitle = save; },
@@ -425,6 +467,7 @@ export const useAppController = () => {
 		temporaryReading,
 		settingsOpen,
 		setSettingsOpen,
+		toggleSettings,
 		vaultActionPending,
 		selectVault,
 		createVault,

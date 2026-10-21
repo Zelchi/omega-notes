@@ -116,7 +116,11 @@ const SettingsDialog: Component<Props> = (props) => {
 									<label for="settings-canvasLayout">{props.t("canvasLayout")}</label>
 									<Dropdown id="settings-canvasLayout" ariaLabel={props.t("canvasLayout")}
 										style={{ width: "160px", "max-width": "55%", "flex-shrink": 0 }} value={props.canvasLayout}
-										options={[{ value: "static", label: props.t("staticCanvas") }, { value: "dynamic", label: props.t("dynamicCanvas") }]}
+										options={[
+											{ value: "static", label: props.t("staticCanvas") },
+											{ value: "dynamic", label: props.t("dynamicCanvas") },
+							...(import.meta.env.DEV ? [{ value: "archive", label: props.t("archiveCanvas") }] : []),
+										]}
 										onChange={(value) => props.onCanvasLayoutChange(value as CanvasLayout)} />
 								</div>
 								<div class={styles.option}>

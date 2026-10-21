@@ -28,7 +28,9 @@ export type {
 } from "./model/note-document";
 export {
 	createNoteTitleIndex,
-	isNoteTitleAvailable,
+	createNoteDisplayTitleIndex,
+	displayNoteTitle,
+	NOTE_TITLE_MAX_LENGTH,
 	normalizeNoteTitle,
 	resolveNoteReference,
 } from "./model/note-titles";
