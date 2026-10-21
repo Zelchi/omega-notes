@@ -136,13 +136,3 @@ export const createEmptyDocument = (): NoteDocument => {
 export const documentText = (document: NoteDocument): string => {
 	return document.elements.flatMap((element) => (element.type === "text" ? [element.text] : [])).join("\n");
 };
-
-export const documentPreview = (document: NoteDocument): string => {
-	return (
-		documentText(document)
-			.split("\n")
-			.map((line) => line.trim())
-			.find(Boolean)
-			?.slice(0, 160) ?? ""
-	);
-};

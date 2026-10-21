@@ -2,23 +2,22 @@ import Button from "@/shared/ui/button";
 import Input from "@/shared/ui/input";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
-import { createSignal, For, Show, Suspense, type Component, type JSX } from "solid-js";
+import { For, Show, Suspense, type Accessor, type Component, type JSX } from "solid-js";
 import type { Language, TranslationKey } from "@/shared/lib/i18n";
 import type { IconName } from "@/shared/ui/icon";
-import type { BackgroundTheme, CanvasLayout, TextCursor, Theme } from "../../model/preferences";
+import type { BackgroundTheme, CanvasLayout, SettingsCategory, TextCursor, Theme } from "../../model/preferences";
 import Icon from "@/shared/ui/icon";
 import Dropdown from "@/shared/ui/dropdown";
 import AiChatShortcutInput from "./ai-chat-shortcut-input";
-import SearchShortcutInput from "./search-shortcut-input";
+import KeyboardShortcutInput from "./keyboard-shortcut-input";
 import AiFeaturesToggle from "./ai-features-toggle";
 import GambiarraWarningDialog from "./gambiarra-warning-dialog";
 import type { AiChatShortcut } from "../../model/ai-chat-shortcut";
 import type { SearchShortcut } from "../../model/search-shortcut";
+import type { CanvasLayoutShortcut } from "../../model/canvas-layout-shortcut";
 import { styles } from "./style.css.ts";
 import BlockSlider from "@/shared/ui/block-slider";
 import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
-
-type SettingsCategory = "hotkeys" | "graphics" | "preferences" | "ai";
 
 const settingsCategories: { id: SettingsCategory; label: TranslationKey; icon: IconName }[] = [
 	{ id: "preferences", label: "settingsCategoryPreferences", icon: "sliders" },
@@ -29,6 +28,10 @@ const settingsCategories: { id: SettingsCategory; label: TranslationKey; icon: I
 
 type Props = {
 	open: boolean;
+	category: Accessor<SettingsCategory>;
+	onCategoryChange: (value: SettingsCategory) => void;
+	confirmGambiarra: Accessor<boolean>;
+	setConfirmGambiarra: (value: boolean) => void;
 	aiFeaturesEnabled: boolean;
 	gambiarraEnabled: boolean;
 	onGambiarraEnabledChange: (value: boolean) => void;
@@ -36,6 +39,8 @@ type Props = {
 	onAiChatShortcutChange: (value: AiChatShortcut) => void;
 	searchShortcut: SearchShortcut;
 	onSearchShortcutChange: (value: SearchShortcut) => void;
+	canvasLayoutShortcut: CanvasLayoutShortcut;
+	onCanvasLayoutShortcutChange: (value: CanvasLayoutShortcut) => void;
 	aiResetting?: boolean;
 	aiCleanupError?: string;
 	onAiFeaturesEnabledChange: (value: boolean) => void;
@@ -61,9 +66,7 @@ type Props = {
 };
 
 const SettingsDialog: Component<Props> = (props) => {
-	const [category, setCategory] = createSignal<SettingsCategory>("preferences");
-	const [confirmGambiarra, setConfirmGambiarra] = createSignal(false);
-	const selectedCategory = () => settingsCategories.find((item) => item.id === category())!;
+	const selectedCategory = () => settingsCategories.find((item) => item.id === props.category())!;
 	const backdropDismiss = createBackdropDismiss(() => props.onClose());
 	return (
 		<Show when={props.open}>
@@ -81,15 +84,21 @@ const SettingsDialog: Component<Props> = (props) => {
 						</Button>
 					</header>
 
-					<div class={styles.content} aria-labelledby={`settings-category-${category()}`}>
-						<h3 class={styles.sectionTitle} id={`settings-category-${category()}`}>
+					<div class={styles.content} aria-labelledby={`settings-category-${props.category()}`}>
+						<h3 class={styles.sectionTitle} id={`settings-category-${props.category()}`}>
 							{props.t(selectedCategory().label)}
 						</h3>
 						<div class={styles.options}>
-							<Show when={category() === "hotkeys"}>
+							<Show when={props.category() === "hotkeys"}>
 								<div class={styles.option}>
 									<label for="settings-searchShortcut">{props.t("searchFocusShortcut")}</label>
-									<SearchShortcutInput value={props.searchShortcut} onChange={props.onSearchShortcutChange} t={props.t} />
+									<KeyboardShortcutInput id="settings-searchShortcut" label="searchFocusShortcut"
+										value={props.searchShortcut} onChange={props.onSearchShortcutChange} t={props.t} />
+								</div>
+								<div class={styles.option}>
+									<label for="settings-canvasLayoutShortcut">{props.t("canvasLayoutShortcut")}</label>
+									<KeyboardShortcutInput id="settings-canvasLayoutShortcut" label="canvasLayoutShortcut"
+										value={props.canvasLayoutShortcut} onChange={props.onCanvasLayoutShortcutChange} t={props.t} />
 								</div>
 								<Show when={props.aiFeaturesEnabled || props.gambiarraEnabled} fallback={
 									<p class={styles.helpText}>{props.t("settingsAiShortcutDisabled")}</p>
@@ -101,7 +110,7 @@ const SettingsDialog: Component<Props> = (props) => {
 								</Show>
 							</Show>
 
-							<Show when={category() === "graphics"}>
+							<Show when={props.category() === "graphics"}>
 								<label class={styles.option}>
 									<span>{props.t("centerCanvasOnLaunch")}</span>
 									<Input class={styles.toggle} type="checkbox" checked={props.centerCanvasOnLaunch}
@@ -136,7 +145,7 @@ const SettingsDialog: Component<Props> = (props) => {
 								</div>
 							</Show>
 
-							<Show when={category() === "preferences"}>
+							<Show when={props.category() === "preferences"}>
 								<Suspense fallback={null}>{props.versionControl?.()}</Suspense>
 								<div class={styles.option}>
 									<label for="settings-language">{props.t("language")}</label>
@@ -172,7 +181,7 @@ const SettingsDialog: Component<Props> = (props) => {
 								</div>
 							</Show>
 
-							<Show when={category() === "ai"}>
+							<Show when={props.category() === "ai"}>
 								<AiFeaturesToggle aiEnabled={props.aiFeaturesEnabled} disabled={props.aiResetting}
 									onAiChange={props.onAiFeaturesEnabledChange} t={props.t} />
 								<label class={styles.option}>
@@ -182,7 +191,7 @@ const SettingsDialog: Component<Props> = (props) => {
 										onChange={(event) => {
 											if (event.currentTarget.checked) {
 												event.currentTarget.checked = false;
-												setConfirmGambiarra(true);
+												props.setConfirmGambiarra(true);
 											} else props.onGambiarraEnabledChange(false);
 										}} />
 								</label>
@@ -194,8 +203,8 @@ const SettingsDialog: Component<Props> = (props) => {
 					<footer class={styles.footer}>
 						<nav class={styles.categoryNav} aria-label={props.t("settings")}>
 							<For each={settingsCategories}>{(item) => (
-								<Button class={styles.categoryButton} type="button" aria-pressed={category() === item.id}
-									onClick={() => setCategory(item.id)}>
+								<Button class={styles.categoryButton} type="button" aria-pressed={props.category() === item.id}
+									onClick={() => props.onCategoryChange(item.id)}>
 									<Icon name={item.icon} size={17} />
 									<span>{props.t(item.label)}</span>
 								</Button>
@@ -203,10 +212,10 @@ const SettingsDialog: Component<Props> = (props) => {
 						</nav>
 					</footer>
 				</section>
-				<Show when={confirmGambiarra()}>
-					<GambiarraWarningDialog t={props.t} onCancel={() => setConfirmGambiarra(false)} onConfirm={() => {
+				<Show when={props.confirmGambiarra()}>
+					<GambiarraWarningDialog t={props.t} onCancel={() => props.setConfirmGambiarra(false)} onConfirm={() => {
 						props.onGambiarraEnabledChange(true);
-						setConfirmGambiarra(false);
+						props.setConfirmGambiarra(false);
 					}} />
 				</Show>
 			</div>

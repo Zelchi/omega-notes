@@ -2,7 +2,6 @@ use serde_json::{json, Value};
 use std::io::{self, Write};
 
 const MAX_SEGMENT_CHARACTERS: usize = 4_000;
-const PREVIEW_CHARACTERS: usize = 180;
 
 #[derive(Clone)]
 struct Heading {
@@ -39,7 +38,6 @@ impl Segment {
                 "title": heading.title,
             })).collect::<Vec<_>>(),
             "totalCharacters": self.characters(contents),
-            "preview": self.text(contents).chars().take(PREVIEW_CHARACTERS).collect::<String>(),
         })
     }
 

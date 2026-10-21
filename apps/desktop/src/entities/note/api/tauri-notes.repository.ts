@@ -9,12 +9,24 @@ type NoteSummaryCompletion = Omit<NoteSummaryLibrary, "notes">;
 const decodeSummary = (value: unknown): NoteSummary => {
 	if (!value || typeof value !== "object") throw Error("NOTE_READ_FAILED");
 	const note = value as Partial<NoteSummary>;
-	if (typeof note.id !== "string" || typeof note.title !== "string" || typeof note.preview !== "string" ||
+	if (typeof note.id !== "string" || typeof note.title !== "string" ||
 		typeof note.updatedAt !== "number" || !Array.isArray(note.links) ||
-		!note.links.every((link) => typeof link === "string") || typeof note.hasContent !== "boolean" || typeof note.hasText !== "boolean") {
+		!note.links.every((link) => typeof link === "string") || typeof note.hasContent !== "boolean" || typeof note.hasText !== "boolean" ||
+		!Number.isSafeInteger(note.studyContentCharacters) || !Number.isSafeInteger(note.studyContentWords) || !Number.isSafeInteger(note.studyContentLines) ||
+		(note.studyContentCharacters ?? -1) < 0 || (note.studyContentWords ?? -1) < 0 || (note.studyContentLines ?? -1) < 0) {
 		throw Error("NOTE_READ_FAILED");
 	}
-	return note as NoteSummary;
+	return {
+		id: note.id,
+		title: note.title,
+		updatedAt: note.updatedAt,
+		links: note.links as string[],
+		hasContent: note.hasContent,
+		hasText: note.hasText,
+		studyContentCharacters: note.studyContentCharacters!,
+		studyContentWords: note.studyContentWords!,
+		studyContentLines: note.studyContentLines!,
+	};
 };
 
 const decodeCompletion = (value: unknown): NoteSummaryCompletion => {

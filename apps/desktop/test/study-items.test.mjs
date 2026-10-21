@@ -23,10 +23,12 @@ const material = call => {
                 : { ...base, question: 'Question ' + item.itemId, answer: 'Right' };
     return JSON.stringify({ title: 'Material', items: [value] });
 };
+const sufficientSource = Array.from({ length: 3 }, (_, line) =>
+    Array.from({ length: 10 }, (_, word) => `concept${line}${word} explained with careful detail`).join(' ')).join('\n');
 
 const setup = async (t, reply = call => Promise.resolve(material(call))) => {
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
-    const storage = new Map(), calls = [], notes = [note('a', 'The subject has real source content'), note('b', 'Another subject')];
+    const storage = new Map(), calls = [], notes = [note('a', sufficientSource), note('b', sufficientSource)];
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
         getItem: key => storage.get(key) ?? null,
         setItem: (key, value) => storage.set(key, value),

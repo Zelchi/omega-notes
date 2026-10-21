@@ -216,22 +216,22 @@ a usar esses links também em listas, resumos e confirmações, em vez de apenas
 
 | Ferramenta | Consulta e limites |
 |---|---|
-| `list_notes` | Lista IDs, títulos e prévias; 100 notas por página. `contentAvailable` indica se há texto na nota. |
-| `search_notes` | Busca em títulos e textos; 20 resultados por página. Só inclui trecho e deslocamento quando encontrou a consulta no texto; correspondências apenas no título não inventam um trecho vazio. |
+| `list_notes` | Lista IDs e títulos; 100 notas por página. `contentAvailable` indica se há texto na nota. |
+| `search_notes` | Busca em títulos e textos; 20 resultados por página. Resultados com correspondência no texto incluem apenas `matchOffset`; leia a nota para consultar o trecho correspondente. |
 | `read_note` | Lê até 16 mil caracteres. Nota sem texto e deslocamento fora do conteúdo retornam erros explícitos em vez de uma página vazia. |
 | `read_notes` | Lê até oito notas distintas; até 4 mil caracteres por nota, com erros individuais para notas vazias ou deslocamentos inválidos. |
-| `read_study_context` | Consulta o snapshot preparado para geração ou avaliação: manifesto de fontes e atribuições, até 50 fontes por página e segmentos com caminho de títulos Markdown h1–h6 e prévias. Tabelas Markdown são segmentos próprios; elementos de imagem, vídeo e áudio são omitidos. Fontes de até 8 mil caracteres incluem o texto; em fontes maiores, `segmentId` lê só o segmento selecionado e `segmentOffset` pagina o índice. O texto de segmento pagina em blocos de até 16 mil caracteres Unicode. Notas principais sem texto causam nova tentativa com outra nota; fontes complementares vazias são marcadas como `contentAvailable=false`. Usa `sourceId` local, como `N1`, na leitura e nas citações. É anunciada somente nas tarefas de estudo, sem aparecer no Chat comum. Fora de uma solicitação preparada, não disponibiliza contexto. |
+| `read_study_context` | Consulta o snapshot preparado para geração ou avaliação: manifesto de fontes e atribuições, até 50 fontes por página e segmentos com caminho de títulos Markdown h1–h6, tipo e contagem de caracteres. Tabelas Markdown são segmentos próprios; elementos de imagem, vídeo e áudio são omitidos. Fontes de até 8 mil caracteres incluem o texto; em fontes maiores, `segmentId` lê só o segmento selecionado e `segmentOffset` pagina o índice. O texto de segmento pagina em blocos de até 16 mil caracteres Unicode. Notas principais sem texto causam nova tentativa com outra nota; fontes complementares vazias são marcadas como `contentAvailable=false`. Usa `sourceId` local, como `N1`, na leitura e nas citações. É anunciada somente nas tarefas de estudo, sem aparecer no Chat comum. Fora de uma solicitação preparada, não disponibiliza contexto. |
 | `list_note_connections` | Lista referências de entrada, saída ou ambas, sem duplicatas; 100 notas por página. |
 | `get_vault_overview` | Conta notas legíveis, referências direcionadas, conexões únicas, notas isoladas e links sem destino. |
 | `get_note_outline` | Lista títulos Markdown h1–h6, com nível, linhas e `sectionId`; 100 títulos por página. |
 | `read_note_section` | Lê uma seção pelo `sectionId`, incluindo os subtítulos, até o próximo título de nível igual ou superior; até 16 mil caracteres. O ID zero lê a introdução. |
-| `get_note_segments` | Divide o texto de uma nota em segmentos com `headingPath` h1–h6; tabelas Markdown são listadas à parte e trazem prévia. Elementos de imagem, vídeo e áudio são omitidos. Lista 100 por página. |
+| `get_note_segments` | Divide o texto de uma nota em segmentos com `headingPath` h1–h6 e contagem de caracteres; tabelas Markdown são listadas à parte. Elementos de imagem, vídeo e áudio são omitidos. Lista 100 por página. |
 | `read_note_segment` | Lê um segmento de texto ou uma tabela pelo `segmentId`, com seu caminho de títulos, em páginas de até 16 mil caracteres. |
 | `find_unresolved_links` | Lista links para notas ausentes, com ID/título da origem e destino escrito; permite filtrar a origem por `noteId`, com 100 resultados por página. |
 | `find_connection_path` | Encontra um caminho mínimo entre duas notas, considerando ambas as direções ou somente as saídas; profundidade padrão de 12 conexões e máxima de 32. |
 
 Consultas paginadas usam `offset` e retornam `nextOffset`; valor nulo indica o fim. Uma busca sem resultados retorna uma mensagem explícita. Não solicite outra página depois do fim; offsets fora do conteúdo retornam erro.
-Deslocamentos de texto contam caracteres Unicode. A busca retorna `snippetOffset`
+Deslocamentos de texto contam caracteres Unicode. A busca retorna `matchOffset`
 para continuar a leitura perto do resultado. IDs de seção são específicos da versão
 atual do texto: consulte novamente o sumário depois de editar uma nota.
 
@@ -519,7 +519,7 @@ Os cinco métodos ficam disponíveis também em Gambiarra. Ao iniciar uma geraç
 o app salva as edições, prepara o mesmo snapshot de fontes da integração normal e
 cria `ia/gambiarra/requests/<requestId>/` com `request.md`, `manifest.json` e
 arquivos por segmento (`N1-S1.txt`, `N1-S2.txt` etc.). O manifesto inclui caminho
-de títulos, tipo e prévia; tabelas Markdown são segmentos próprios. O botão
+de títulos, tipo e contagem de caracteres; tabelas Markdown são segmentos próprios. O botão
 **Copiar pedido para o CLI** copia uma instrução para a IA escolher os arquivos
 relevantes. No modal, esse botão também abre a lateral; o usuário cola o pedido
 no CLI de IA iniciado ali, não no shell.

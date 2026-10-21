@@ -9,9 +9,12 @@ export type IconName =
 	| "cloze"
 	| "correction"
 	| "chevronDown"
+	| "chevronRight"
+	| "gripVertical"
 	| "calendar"
 	| "clock"
 	| "chat"
+	| "copy"
 	| "send"
 	| "stop"
 	| "disconnect"
@@ -81,9 +84,12 @@ const paths: Record<IconName, Component> = {
 	"table-column-add": () => <><rect x="3" y="3" width="11" height="18" rx="1" /><path d="M8 3v18M3 9h11M3 15h11M20 8v8M16 12h8" /></>,
 	"table-column-remove": () => <><rect x="3" y="3" width="11" height="18" rx="1" /><path d="M8 3v18M3 9h11M3 15h11M16 12h8" /></>,
 	chevronDown: () => <path d="m6 9 6 6 6-6" />,
+	chevronRight: () => <path d="m9 18 6-6-6-6" />,
+	gripVertical: () => <path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01" />,
 	calendar: () => <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18M8 14h2m4 0h2M8 17h2" /></>,
 	clock: () => <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
 	chat: () => <path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2ZM7 9h10M7 13h7" />,
+	copy: () => <><rect x="8" y="8" width="13" height="13" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></>,
 	send: () => <path d="m3 3 19 9-19 9 4-9-4-9Zm4 9h15" />,
 	stop: () => <rect x="6" y="6" width="12" height="12" rx="1" />,
 	disconnect: () => <path d="m3 3 18 18M9 8l-3 3a4 4 0 0 0 5 6l2-2M11 7l2-2a4 4 0 0 1 6 5l-3 3" />,

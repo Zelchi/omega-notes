@@ -220,8 +220,8 @@ carregar o arquivo ou guardar a edição local como outra nota. Peça ao usuári
 a nota antes de alterá-la pelo CLI. Releia o arquivo imediatamente antes de gravar;
 se mudou desde a leitura inicial, reconcilie as alterações em vez de sobrescrever.
 Valide o JSON e os contratos deste manual. Grave um temporário no mesmo diretório
-e substitua o destino atomicamente quando o sistema permitir. Uma comparação
-prévia não elimina completamente concorrência com outro processo.
+e substitua o destino atomicamente quando o sistema permitir. Uma checagem inicial
+não elimina completamente a concorrência com outro processo.
 
 Para desfazer seu trabalho, reverta somente suas mudanças sobre a versão atual,
 sem restaurar um snapshot que apague edições posteriores do usuário. Guarde cópias
@@ -252,7 +252,7 @@ em `ia/gambiarra/requests/<id>/`.
 
 O usuário copia um pedido curto ao CLI; leia o
 `request.md` indicado e o `manifest.json` do mesmo diretório. O manifesto lista
-arquivos de segmentos por fonte, com hierarquia de títulos, tipo e prévia. Leia
+arquivos de segmentos por fonte, com hierarquia de títulos, tipo e contagem de caracteres. Leia
 somente os segmentos relevantes e autorizados para o item. Respeite as atribuições
 e os aliases desse pedido.
 Não é necessário MCP para esse fluxo.
@@ -264,7 +264,7 @@ Não é necessário MCP para esse fluxo.
    formato de saída exigido. Não escolha a pasta “mais recente” no lugar da indicada.
 2. Leia `manifest.json`: `items` contém as atribuições, com `number`, `itemId`,
    `primarySourceId` e `supportingSourceIds`; `notes` identifica cada `sourceId`,
-   seu título, `usedByItems` e segmentos com `headingPath`, `kind`, prévia e nome
+   seu título, `usedByItems` e segmentos com `headingPath`, `kind`, contagem de caracteres e nome
    de arquivo. Elementos de imagem, vídeo e áudio não entram nos segmentos; tabelas
    Markdown formam segmentos próprios.
 3. Escolha e leia os segmentos relevantes uma vez por arquivo compartilhado.

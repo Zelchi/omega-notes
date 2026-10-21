@@ -35,6 +35,9 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	let generationClock: ReturnType<typeof setInterval> | undefined, generationClockOwner: AbortController | undefined, generationClockStartedAt = 0;
 	const loading = () => libraryLoading() || removing() || opening();
 	const [scrollTop, setScrollTop] = createSignal(0);
+	const [librarySearch, setLibrarySearch] = createSignal("");
+	const [libraryPage, setLibraryPage] = createSignal(0);
+	const [deleteVisibleId, setDeleteVisibleId] = createSignal<string>();
 	const [error, setError] = createSignal<string>(), [deck, setDeck] = createSignal<StudyDeck>();
 	const [sessionMaterials, setSessionMaterials] = createSignal<StudyDeck[]>([]);
 	const preferences = readStudyPreferences(initialKind);
@@ -49,11 +52,11 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	const [clock, setClock] = createSignal(Date.now());
 	let pendingProgress: PendingProgress | undefined;
 	let progressSave: Promise<void> | undefined;
-	const clockTimer = setInterval(() => { if (open()) setClock(Date.now()); }, 60_000);
+	const clockTimer = setInterval(() => setClock(Date.now()), 60_000);
 	onCleanup(() => clearInterval(clockTimer));
 	const millisecondsFor = (value: StudyLimit) => value === "infinite" ? Infinity : value * 1000;
 	const remainingSeconds = (milliseconds: number): StudyLimit => milliseconds === Infinity ? "infinite" : Math.ceil(milliseconds / 1000);
-	let revision = 0, disposed = false, pausedTime = millisecondsFor(seconds());
+	let revision = 0, disposed = false;
 	const loseLife = () => setRemainingLives(previous => previous === "infinite" ? previous : Math.max(0, previous - 1));
 	const stopTimer = () => { clearInterval(timer); timer = undefined; };
 	const stopGenerationClock = (owner?: AbortController, reset = false) => {
@@ -87,7 +90,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	};
 	const review = useAnswerReview(options, {
 		active: () => options.aiEnabled() && (stage() === "running" || stage() === "grading") && (deck()?.kind === "written" || deck()?.kind === "cloze"),
-		canWrite: () => open() && stage() === "running" && (deck()?.kind === "written" || deck()?.kind === "cloze"),
+		canWrite: () => stage() === "running" && (deck()?.kind === "written" || deck()?.kind === "cloze"),
 		current, itemIndex: () => sessionIndices()[index()],
 		prompt: (item, answer, locale, blankAnswers) => item.blanks ? clozeAnswerPrompt(item, answer, locale, blankAnswers) : writtenAnswerPrompt(item.question, item.answer, answer, locale),
 		pauseTimer: () => {
@@ -104,34 +107,28 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		},
 	});
 	const cloze = useCloze({
-		active: () => open() && stage() === "running" && deck()?.kind === "cloze",
+		active: () => stage() === "running" && deck()?.kind === "cloze",
 		answered, blocked: () => savingProgress() || progressFailed(), current,
 		onSubmit: answer => review.submit(answer), onTimeout: answer => review.timeout(answer), onSkip: answer => review.skip(answer),
 	});
 	const correction = useCorrection({
-		active: () => open() && stage() === "running" && deck()?.kind === "correction",
+		active: () => stage() === "running" && deck()?.kind === "correction",
 		answered, blocked: () => progressBlocked(), current,
 		expired: () => Date.now() >= deadline,
 		onResult: result => commitOutcome(result),
 	});
-	createEffect(on(() => [open(), stage(), review.pending(), savingProgress(), progressFailed()] as const, ([isOpen, stage, pending, saving, failed]) => {
-		if (isOpen && stage === "grading" && !pending && !saving && !failed) finish(remainingLives() === 0 ? "lives" : endReason() === "manual" ? "manual" : "complete");
+	createEffect(on(() => [stage(), review.pending(), savingProgress(), progressFailed()] as const, ([currentStage, pending, saving, failed]) => {
+		if (currentStage === "grading" && !pending && !saving && !failed) finish(remainingLives() === 0 ? "lives" : endReason() === "manual" ? "manual" : "complete");
 	}));
-	const close = () => {
-		if (timer !== undefined) {
-			pausedTime = Math.max(0, deadline - Date.now());
-			setRemainingTime(remainingSeconds(pausedTime));
-		}
-		stopTimer(); setOpen(false);
-	};
+	const close = () => { setOpen(false); };
 	const resetSession = () => {
-		close(); ++revision; cancelGeneration(); review.reset(); cloze.reset(); correction.reset();
+		close(); stopTimer(); ++revision; cancelGeneration(); review.reset(); cloze.reset(); correction.reset();
 		setGenerationLoopEnabled(false);
 		setCommitting(false);
-		pendingProgress = undefined; progressSave = undefined; setRemoving(false); setOpening(false); setScrollTop(0); setProgressFailed(false); setSavingProgress(false); setError(undefined);
+		pendingProgress = undefined; progressSave = undefined; setRemoving(false); setOpening(false); setScrollTop(0); setLibrarySearch(""); setLibraryPage(0); setDeleteVisibleId(undefined); setProgressFailed(false); setSavingProgress(false); setError(undefined);
 		setStage("setup"); setDeck(undefined); setSessionMaterials([]); setSessionIndices([]); setIndex(0);
 		setRevealed(false); setAnswered(false); setChoice(undefined); setOutcome(undefined); setCorrect(0);
-		setRemainingLives(lives()); setEndReason("complete"); pausedTime = millisecondsFor(seconds());
+		setRemainingLives(lives()); setEndReason("complete");
 		setRemainingTime(seconds());
 	};
 	const contextId = createMemo(() => options.currentNote()?.id);
@@ -147,7 +144,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		setError(undefined); setScrollTop(0); setClock(Date.now()); setStage("setup");
 		setDeck(undefined); setSessionMaterials([]); setSessionIndices([]); setIndex(0); setRevealed(false); setAnswered(false);
 		setChoice(undefined); setOutcome(undefined); setCorrect(0); setRemainingLives(lives());
-		setEndReason("complete"); pausedTime = millisecondsFor(seconds()); setRemainingTime(seconds());
+		setEndReason("complete"); setRemainingTime(seconds());
 	};
 	const finish = (reason: "complete" | "lives" | "manual") => {
 		stopTimer();
@@ -199,7 +196,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	const methodErrorCount = () => saved().reduce((total, value) => total + errorCount(value), 0);
 	const progressBlocked = () => savingProgress() || progressFailed() || review.evaluating();
 	const commitOutcome = (value: StudyOutcome) => {
-		if (!open() || stage() !== "running" || answered()) return;
+		if (stage() !== "running" || answered()) return;
 		stopTimer(); setOutcome(value); setAnswered(true);
 		if (value === "correct") setCorrect(previous => previous + 1);
 		else loseLife();
@@ -212,11 +209,11 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		commitOutcome(selected === undefined ? "timeout" : selected === current()!.correctIndex ? "correct" : "wrong");
 	};
 	const startTimer = (milliseconds = millisecondsFor(seconds())) => {
-		stopTimer(); pausedTime = milliseconds; setRemainingTime(remainingSeconds(milliseconds));
+		stopTimer(); setRemainingTime(remainingSeconds(milliseconds));
 		deadline = milliseconds === Infinity ? Infinity : Date.now() + milliseconds;
-		if (!open() || milliseconds === Infinity) return;
+		if (milliseconds === Infinity) return;
 		timer = setInterval(() => {
-			if (!open() || stage() !== "running" || answered() || (deck()?.kind !== "written" && deck()?.kind !== "cloze" && progressBlocked())) return;
+			if (stage() !== "running" || answered() || (deck()?.kind !== "written" && deck()?.kind !== "cloze" && progressBlocked())) return;
 			const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000)); setRemainingTime(left);
 			if (left === 0) { if (deck()?.kind === "written") review.timeout(); else if (deck()?.kind === "cloze") cloze.timeout(); else if (deck()?.kind === "correction") commitOutcome("timeout"); else answer(); }
 		}, 100);
@@ -333,7 +330,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 			return;
 		}
 		if (decks().length + library.invalidItems().length >= 1000) { setError(options.t("studyLimitReached")); setGenerationLoopEnabled(false); return; }
-		const plan = createStudyPlan(options.notes(), 1);
+		const plan = createStudyPlan(options.noteSummaries(), 1);
 		if (!plan.length) { setError(options.t("studyNoContent")); setGenerationLoopEnabled(false); return; }
 		const token = new AbortController(); abort = token;
 		const requestRevision = revision, requestedKind = kind();
@@ -414,6 +411,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		open, review, cloze, correction, outcome, kind, stage, deck, current, saved, count, seconds, lives, loading, storageFailed,
 		generationElapsed, generationAverage, generationLoopEnabled, error: () => error() ?? library.error(),
 		index, revealed, answered, choice, correct, remainingLives, remainingTime, endReason, scrollTop, setScrollTop,
+		librarySearch, setLibrarySearch, libraryPage, setLibraryPage, deleteVisibleId, setDeleteVisibleId,
 		close, generate, start, studyRandom, reviewMethodErrors, methodErrorCount, answer, next, endStudy, canEnd: () => stage() === "running" && !loading() && !savingProgress() && !progressFailed(), sessionIndices, dueCount, errorCount, savingProgress, progressFailed,
 		flushSave: library.flushSave,
 		invalidItems: () => library.invalidItems().filter(item => item.kind === kind()),
@@ -442,9 +440,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		show: (value: StudyKind) => {
 			if (!options.aiEnabled() || !options.vaultId()) return;
 			close();
-			if (!options.aiConnected()) { options.onConnect(); return; }
 			setKind(value); setClock(Date.now()); setOpen(true);
-			if (stage() === "running" && deck()?.kind !== "flashcards" && !answered()) startTimer(pausedTime);
 		},
 		canGoHome: () => stage() !== "setup" && !loading() && !committing() && !savingProgress() && !progressFailed(),
 		toggleGenerationLoop: () => { if (stage() === "generating") setGenerationLoopEnabled(value => !value); },
@@ -492,12 +488,18 @@ export const useStudies = (options: StudyEnvironment): StudiesController => {
 	};
 	const [selected, setSelected] = createSignal<StudyKind>("flashcards");
 	const current = () => sessions[selected()];
-	const close = () => Object.values(sessions).forEach(session => session.close());
+	const close = () => { Object.values(sessions).forEach(session => session.close()); };
 	return {
 		activeRequestKind: requests.activeKind,
 		get review() { return current().review; },
 		get cloze() { return current().cloze; },
 		get correction() { return current().correction; },
+		get librarySearch() { return current().librarySearch; },
+		get setLibrarySearch() { return current().setLibrarySearch; },
+		get libraryPage() { return current().libraryPage; },
+		get setLibraryPage() { return current().setLibraryPage; },
+		get deleteVisibleId() { return current().deleteVisibleId; },
+		get setDeleteVisibleId() { return current().setDeleteVisibleId; },
 		open: () => Object.values(sessions).some(session => session.open()),
 		kind: selected, close, flushSave: library.flushSave,
 		show: value => {

@@ -12,6 +12,7 @@ import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import { styles } from "./style.css.ts";
 
 type Props = {
+	open: boolean;
 	mode: "create" | "rename" | undefined;
 	title: string;
 	error?: string;
@@ -19,6 +20,7 @@ type Props = {
 	t: (key: TranslationKey) => string;
 	onTitleChange: (value: string) => void;
 	onClose: () => void;
+	onCancel: () => void;
 	onSubmit: (event: SubmitEvent) => void | Promise<void>;
 };
 
@@ -26,14 +28,14 @@ const NoteNameDialog: Component<Props> = (props) => {
 	const backdropDismiss = createBackdropDismiss(() => props.onClose());
 	let titleInput: HTMLInputElement | undefined;
 	const errorId = createUniqueId();
-	const presence = createPresence(() => Boolean(props.mode), 210);
+	const presence = createPresence(() => props.open, 210);
 	const displayed = createMemo<Pick<Props, "mode" | "title" | "error" | "saving">>((previous) =>
 		props.mode ? { mode: props.mode, title: props.title, error: props.error, saving: props.saving }
 			: previous ?? { mode: undefined, title: "", error: undefined, saving: false },
 	);
 
 	createEffect(() => {
-		if (!props.mode) return;
+		if (!props.open || !props.mode) return;
 
 		const frame = requestAnimationFrame(() => titleInput?.focus());
 		onCleanup(() => cancelAnimationFrame(frame));
@@ -77,7 +79,7 @@ const NoteNameDialog: Component<Props> = (props) => {
 						<Button
 							class={cx(styles.action, styles.cancel)}
 							type="button"
-							onClick={props.onClose}
+							onClick={props.onCancel}
 							disabled={displayed().saving}
 						>
 							{props.t("cancel")}

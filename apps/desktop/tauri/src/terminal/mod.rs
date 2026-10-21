@@ -42,10 +42,10 @@ fn shell_command(app: &AppHandle, arguments: &[String]) -> Result<CommandBuilder
     let (provider, flags) = arguments.split_first().ok_or("TERMINAL_START_FAILED")?;
     let mut resolved = crate::ai::terminal_command(provider)?;
     resolved.extend_from_slice(flags);
-    let invocation = hooks::shell_invocation(&resolved)?;
-    let mut command = CommandBuilder::new_default_prog();
     #[cfg(unix)]
-    {
+    let mut command = {
+        let invocation = hooks::shell_invocation(&resolved)?;
+        let mut command = CommandBuilder::new_default_prog();
         let shell = command.get_shell();
         match std::path::Path::new(&shell)
             .file_name()
@@ -81,7 +81,21 @@ fn shell_command(app: &AppHandle, arguments: &[String]) -> Result<CommandBuilder
         }
         command.arg("-c");
         command.arg(format!("exec {invocation}"));
-    }
+        command
+    };
+    #[cfg(windows)]
+    let mut command = {
+        if resolved
+            .iter()
+            .any(|value| value.chars().any(char::is_control))
+        {
+            return Err("TERMINAL_FAILED".into());
+        }
+        let (program, arguments) = resolved.split_first().ok_or("TERMINAL_START_FAILED")?;
+        let mut command = CommandBuilder::new(program);
+        command.args(arguments);
+        command
+    };
     #[cfg(not(unix))]
     let _ = app;
     #[cfg(unix)]
@@ -89,23 +103,6 @@ fn shell_command(app: &AppHandle, arguments: &[String]) -> Result<CommandBuilder
         command.env("PS1", r"\u@\h: ");
         command.env("PROMPT", "%n@%m: ");
     }
-    #[cfg(windows)]
-    {
-        let shell = command.get_shell();
-        command = CommandBuilder::new(shell);
-        command.arg("/S");
-        command.arg("/C");
-        command.arg(format!("call {invocation}"));
-    }
-    #[cfg(windows)]
-    command.env(
-        "PROMPT",
-        format!(
-            "{}@{}:$S",
-            std::env::var("USERNAME").unwrap_or_default(),
-            std::env::var("COMPUTERNAME").unwrap_or_default(),
-        ),
-    );
     Ok(command)
 }
 

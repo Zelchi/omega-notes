@@ -4,10 +4,11 @@ import Button from "@/shared/ui/button";
 import Icon from "@/shared/ui/icon";
 import Input from "@/shared/ui/input";
 import { cx } from "@/shared/lib/classes";
-import { createEffect, createSignal, For, Show, type Component } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, Show, type Component } from "solid-js";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { readArchiveState, saveArchiveState, type ArchiveFolder, type ArchiveItem, type ArchiveState } from "./archive.repository";
 import { styles } from "./style.css.ts";
+import { styles as menuStyles } from "../graph-canvas/style.css.ts";
 
 type Props = {
 	vaultId: string;
@@ -15,6 +16,8 @@ type Props = {
 	mode: "edit" | "view";
 	onCreateNote: () => Promise<StudyNote | undefined>;
 	onOpenNote: (note: NoteSummary) => void;
+	onRequestRename: (note: NoteSummary) => void;
+	onDeleteNote: (note: NoteSummary) => Promise<void>;
 	t: (key: TranslationKey) => string;
 };
 
@@ -28,6 +31,7 @@ const itemKey = (item: ArchiveItem): string => `${item.kind}:${item.id}`;
 const parentKey = (folderId?: string): string => folderId ?? "";
 
 const ArchiveView: Component<Props> = (props) => {
+	let root!: HTMLElement;
 	const [state, setState] = createSignal(readArchiveState(props.vaultId));
 	const [path, setPath] = createSignal<string[]>([]);
 	const [folderEditor, setFolderEditor] = createSignal<FolderEditor>();
@@ -36,8 +40,29 @@ const ArchiveView: Component<Props> = (props) => {
 	const [confirmDeleteId, setConfirmDeleteId] = createSignal<string>();
 	const [dropTargetId, setDropTargetId] = createSignal<string>();
 	const [draggedItem, setDraggedItem] = createSignal<ArchiveItem>();
+	const [contextMenu, setContextMenu] = createSignal<{ item: ArchiveItem; x: number; y: number }>();
 
 	createEffect(() => saveArchiveState(props.vaultId, state()));
+	createEffect(() => {
+		if (!contextMenu()) return;
+		const outside = (event: PointerEvent) => {
+			if (!(event.target instanceof Element) || !event.target.closest(".graph-context-menu")) setContextMenu(undefined);
+		};
+		const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setContextMenu(undefined); };
+		window.addEventListener("pointerdown", outside);
+		window.addEventListener("keydown", escape);
+		onCleanup(() => {
+			window.removeEventListener("pointerdown", outside);
+			window.removeEventListener("keydown", escape);
+		});
+	});
+	const openEntryContextMenu = (event: MouseEvent, item: ArchiveItem): void => {
+		event.preventDefault();
+		event.stopPropagation();
+		if (props.mode !== "edit") return;
+		const rect = root.getBoundingClientRect();
+		setContextMenu({ item, x: Math.max(8, Math.min(rect.width - 160, event.clientX - rect.left)), y: Math.max(8, Math.min(rect.height - 90, event.clientY - rect.top)) });
+	};
 
 	const folderById = (folderId: string, current: ArchiveState = state()): ArchiveFolder | undefined =>
 		current.folders.find((folder) => folder.id === folderId);
@@ -259,7 +284,7 @@ const ArchiveView: Component<Props> = (props) => {
 	};
 
 	return (
-		<section class={styles.root} aria-label={props.t("archiveHeading")}>
+		<section class={styles.root} ref={root} aria-label={props.t("archiveHeading")} onContextMenu={(event) => event.preventDefault()}>
 			<div class={styles.content}>
 				<header class={styles.header}>
 					<h2 class={styles.title}>{props.t("archiveHeading")}</h2>
@@ -322,8 +347,12 @@ const ArchiveView: Component<Props> = (props) => {
 												onDragStart={(event) => startDragging(event, item)} onDragEnd={endDragging}
 												onDragOver={(event) => allowDrop(event, itemKey(item))}
 												onDragLeave={() => setDropTargetId(undefined)} onDrop={(event) => dropOnEntry(event, entry, parentFolderId)}
+												onContextMenu={(event) => openEntryContextMenu(event, item)}
 												onClick={() => entry.kind === "folder" ? openFolder(entry.folder.id, depth()) : props.onOpenNote(entry.note)}>
-												<span class={styles.entryTitle}>{entry.kind === "folder" ? entry.folder.name : displayNoteTitle(entry.note)}</span>
+												<span class={styles.entryContent}>
+													<span class={styles.entryIcon}><Icon name={folder ? "folder" : "file"} size={15} /></span>
+													<span class={styles.entryTitle}>{entry.kind === "folder" ? entry.folder.name : displayNoteTitle(entry.note)}</span>
+												</span>
 											</Button>
 											<Show when={props.mode === "edit" ? folder : undefined} keyed>{(folderItem) => (
 												<div class={styles.entryActions}>
@@ -343,6 +372,34 @@ const ArchiveView: Component<Props> = (props) => {
 					}}</For>
 				</div>
 			</div>
+			<Show when={contextMenu()}>
+				{(menu) => {
+					const rename = () => {
+						const item = menu().item;
+						setContextMenu(undefined);
+						if (item.kind === "note") {
+						const note = props.notes.find((entry) => entry.id === item.id);
+						if (note) props.onRequestRename(note);
+					} else {
+						const folder = folderById(item.id);
+						if (folder) startRenameFolder(folder);
+					}
+				};
+					const remove = () => {
+						const item = menu().item;
+						setContextMenu(undefined);
+						if (item.kind === "note") {
+							const note = props.notes.find((entry) => entry.id === item.id);
+						if (note) void props.onDeleteNote(note);
+						} else if (folderById(item.id)) setConfirmDeleteId(item.id);
+					};
+					return <div class={cx(menuStyles.contextMenu, "graph-context-menu")} style={{ left: `${menu().x}px`, top: `${menu().y}px` }}
+						onPointerDown={(event) => event.stopPropagation()} onContextMenu={(event) => event.preventDefault()}>
+						<Button type="button" class={menuStyles.menuButton} onClick={rename}><Icon name="edit" size={15} />{props.t("rename")}</Button>
+						<Button type="button" class={cx(menuStyles.menuButton, menuStyles.dangerButton)} onClick={remove}><Icon name="delete" size={15} />{props.t("delete")}</Button>
+					</div>;
+				}}
+			</Show>
 		</section>
 	);
 };

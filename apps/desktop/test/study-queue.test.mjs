@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRoot, createSignal } from 'solid-js';
-import { note, deferred, settle } from './helpers.mjs';
+import { note, noteSummary, deferred, settle } from './helpers.mjs';
 import { useStudyRequestQueue } from '../src/features/study-notes/model/request-queue.ts';
 import { useAnswerReview } from '../src/features/study-notes/model/answer-review.controller.ts';
 
@@ -45,11 +45,12 @@ for (const action of ['vault', 'disable']) test(`study queue cancels active and 
 const reviewSetup = t => {
     const calls = [], results = []; let review, setVisible, currentIndex = 0;
     const notes = [note('a', 'Source material')];
+    const summaries = notes.map(noteSummary);
     const items = Array.from({ length: 3 }, (_, index) => ({ question: 'Question ' + index, answer: 'Reference', sources: ['a'], options: [], explanation: '' }));
     createRoot(dispose => {
         t.after(dispose);
         const [visible, updateVisible] = createSignal(true); setVisible = updateVisible;
-        review = useAnswerReview({ vaultId: () => 'vault-a', notes: () => notes, aiConnected: () => true,
+        review = useAnswerReview({ vaultId: () => 'vault-a', noteSummaries: () => summaries, aiConnected: () => true,
             canGenerate: () => true, t: key => key, describeAiError: failure => failure.message,
             requestText: (prompt, signal) => { const result = deferred(); calls.push({ signal, ...result }); return result.promise; } }, {
             active: () => true, canWrite: visible, current: () => items[currentIndex], itemIndex: () => currentIndex,

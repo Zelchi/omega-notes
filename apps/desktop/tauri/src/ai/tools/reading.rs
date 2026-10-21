@@ -88,11 +88,9 @@ pub(super) fn list(directory: &Path, args: &Value, search: bool) -> Result<Value
             continue;
         }
         if total >= offset && matches.len() < limit {
-            let mut result = json!({"id":note.id,"title":note.title,"reference":super::reference(&note.id),"preview":note.preview,"contentAvailable":content_available});
+            let mut result = json!({"id":note.id,"title":note.title,"reference":super::reference(&note.id),"contentAvailable":content_available});
             if search {
                 if let Some(found) = found {
-                    result["snippet"] = json!(found.snippet);
-                    result["snippetOffset"] = json!(found.snippet_offset);
                     result["matchOffset"] = json!(found.match_offset);
                 }
                 result["matchedIn"] = json!(if title_match && found.is_some() {

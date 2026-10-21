@@ -11,21 +11,23 @@ import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import { styles } from "./style.css.ts";
 
 type Props = {
+	open: boolean;
 	note?: NoteSummary;
 	pending: boolean;
 	error: boolean;
 	t: (key: TranslationKey) => string;
 	onClose: () => void;
+	onCancel: () => void;
 	onConfirm: () => Promise<void>;
 };
 const DeleteNoteDialog: Component<Props> = (props) => {
-	const presence = createPresence(() => Boolean(props.note), 210);
+	const presence = createPresence(() => props.open, 210);
 	const title = createMemo<string>(previous => props.note ? displayNoteTitle(props.note) : previous ?? "");
 	const headingId = createUniqueId(), messageId = createUniqueId();
 	const backdrop = createBackdropDismiss(() => props.onClose());
 	onMount(() => {
 		const escape = (event: KeyboardEvent) => {
-			if (!props.note || event.key !== "Escape") return;
+			if (!props.open || event.key !== "Escape") return;
 			event.preventDefault(); event.stopImmediatePropagation(); props.onClose();
 		};
 		window.addEventListener("keydown", escape, true);
@@ -42,7 +44,7 @@ const DeleteNoteDialog: Component<Props> = (props) => {
 				<p class={styles.message} id={messageId}>{props.t("deleteNoteConfirmation")}</p>
 				<Show when={props.error}><p class={styles.error} role="alert">{props.t("deleteNoteFailed")}</p></Show>
 				<div class={styles.actions}>
-					<Button class={styles.button} type="button" disabled={props.pending} onClick={props.onClose}
+					<Button class={styles.button} type="button" disabled={props.pending} onClick={props.onCancel}
 						ref={button => { const frame = requestAnimationFrame(() => button.focus({ preventScroll: true })); onCleanup(() => cancelAnimationFrame(frame)); }}>{props.t("cancel")}</Button>
 					<Button class={cx(styles.button, styles.delete)} type="button" disabled={props.pending} onClick={() => void props.onConfirm()}>{props.t("delete")}</Button>
 				</div>

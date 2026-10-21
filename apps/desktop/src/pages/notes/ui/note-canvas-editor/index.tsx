@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, Index, lazy, Show, Suspense, type Component } from "solid-js";
+import { createMemo, For, Index, lazy, Show, Suspense, type Component } from "solid-js";
 import { useFindInNote } from "@/features/find-in-note";
 import { cx } from "@/shared/lib/classes";
 import {
@@ -15,6 +15,7 @@ import { useNoteCanvasEditorController, type NoteCanvasEditorProps } from "./con
 import { styles } from "./style.css.ts";
 import type { FormattedFragment } from "@/features/format-text";
 import { createPresence } from "@/shared/lib/presence";
+import { useMediaCatalogDialogController } from "../media-catalog-dialog/controller";
 
 const MediaCatalogDialog = lazy(() => import("../media-catalog-dialog"));
 const NoteImageNode = lazy(() => import("../note-image-node"));
@@ -23,9 +24,16 @@ const NoteMediaNode = lazy(() => import("../note-media-node"));
 const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 	const editor = useNoteCanvasEditorController(props);
 	const find = useFindInNote(() => props.noteId);
-	const [mediaCatalogMounted, setMediaCatalogMounted] = createSignal(false);
-	createEffect(() => {
-		if (editor.catalogOpen()) setMediaCatalogMounted(true);
+	const mediaCatalogPresence = createPresence(editor.catalogOpen, 210);
+	const mediaCatalog = useMediaCatalogDialogController({
+		get open() { return mediaCatalogPresence.present(); },
+		loadNotes: props.loadAllNotes,
+		releaseLoadedNotes: props.releaseLoadedNotes,
+		t: props.t,
+		onClose: () => editor.setCatalogOpen(false),
+		onSelect: (media) => editor.insertMedia([media]),
+		onImportFiles: editor.importFiles,
+		onImportPaths: editor.importPaths,
 	});
 	const toolbar = createPresence(() => (editor.editable() || find.open()) && !editor.positioningElementId(), 220);
 	const notesByTitle = createMemo(() => createNoteTitleIndex(props.notes));
@@ -152,17 +160,13 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 					}}
 				</Index>
 			</div>
-			<Show when={mediaCatalogMounted()}>
+			<Show when={mediaCatalogPresence.present()}>
 				<Suspense fallback={null}>
 					<MediaCatalogDialog
 						open={editor.catalogOpen()}
-						loadNotes={props.loadAllNotes}
-						releaseLoadedNotes={props.releaseLoadedNotes}
+						exiting={mediaCatalogPresence.exiting()}
+						catalog={mediaCatalog}
 						t={props.t}
-						onClose={() => editor.setCatalogOpen(false)}
-						onSelect={(media) => editor.insertMedia([media])}
-						onImportFiles={editor.importFiles}
-						onImportPaths={editor.importPaths}
 					/>
 				</Suspense>
 			</Show>

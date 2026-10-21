@@ -5,9 +5,11 @@ mod images;
 mod media;
 mod names;
 mod notes;
+mod pomodoro;
 mod storage;
 mod stream;
 mod terminal;
+mod tray;
 mod vaults;
 mod web;
 
@@ -31,9 +33,12 @@ pub fn run() {
         .manage(app::runtime::ActiveVault(Mutex::new(None)))
         .manage(ai::AiState::default())
         .manage(terminal::TerminalState::default())
+        .manage(pomodoro::PomodoroTimer::default())
+        .manage(tray::TrayState::default())
         .manage(ai::link_requests::LinkRequests::default())
         .setup(|app| {
             app::setup::initialize(app.handle().clone())?;
+            tray::initialize(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -85,6 +90,17 @@ pub fn run() {
             vaults::commands::delete_vault,
             vaults::kanban::read_kanban,
             vaults::kanban::save_kanban,
+            vaults::pomodoro_tasks::read_pomodoro_tasks,
+            vaults::pomodoro_tasks::save_pomodoro_tasks,
+            pomodoro::initialize_pomodoro_timer,
+            pomodoro::set_pomodoro_settings,
+            pomodoro::read_pomodoro_timer,
+            pomodoro::start_pomodoro_timer,
+            pomodoro::pause_pomodoro_timer,
+            pomodoro::reset_pomodoro_timer,
+            pomodoro::next_pomodoro_phase,
+            tray::hide_main_window,
+            tray::configure_tray_menu,
             notes::commands::list_notes,
             notes::commands::stream_note_summaries,
             notes::commands::notes_changes,

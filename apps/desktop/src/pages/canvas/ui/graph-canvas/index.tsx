@@ -1,4 +1,5 @@
 import Button from "@/shared/ui/button";
+import Icon from "@/shared/ui/icon";
 import { displayNoteTitle } from "@/entities/note";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { For, Show, type Component } from "solid-js";
@@ -139,7 +140,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 										}
 									}}
 								>
-									{props.t("rename")}
+									<Icon name="edit" size={15} />{props.t("rename")}
 								</Button>
 								<Button
 									class={cx(styles.menuButton, styles.dangerButton)}
@@ -152,7 +153,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 										}
 									}}
 								>
-									{props.t("delete")}
+									<Icon name="delete" size={15} />{props.t("delete")}
 								</Button>
 							</div>
 						);

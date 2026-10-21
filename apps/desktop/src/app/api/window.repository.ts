@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { confirm } from "@tauri-apps/plugin-dialog";
 
@@ -19,3 +20,4 @@ export const onWindowCloseRequested = (requestClose: (destroyWindow: () => Promi
 export const toggleWindowMaximize = (): Promise<void> => getCurrentWindow().toggleMaximize();
 export const minimizeWindow = (): Promise<void> => getCurrentWindow().minimize();
 export const closeWindow = (): Promise<void> => getCurrentWindow().close();
+export const hideMainWindow = (): Promise<void> => invoke("hide_main_window");

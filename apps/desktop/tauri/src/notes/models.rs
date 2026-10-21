@@ -88,7 +88,6 @@ pub(crate) struct StudyNote {
     pub(crate) title: String,
     pub(crate) document: NoteDocument,
     pub(crate) updated_at: u64,
-    pub(crate) preview: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -105,11 +104,13 @@ pub(crate) struct NoteLoadIssue {
 pub(crate) struct NoteSummary {
     pub(crate) id: String,
     pub(crate) title: String,
-    pub(crate) preview: String,
     pub(crate) updated_at: u64,
     pub(crate) links: Vec<String>,
     pub(crate) has_content: bool,
     pub(crate) has_text: bool,
+    pub(crate) study_content_characters: usize,
+    pub(crate) study_content_words: usize,
+    pub(crate) study_content_lines: usize,
 }
 
 #[derive(Debug, Serialize)]

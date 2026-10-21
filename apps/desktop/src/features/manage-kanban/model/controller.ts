@@ -8,6 +8,13 @@ export const useKanban = (vaultId: Accessor<string | undefined>) => {
 	const [items, setItems] = createSignal<KanbanItem[]>([]);
 	const [loading, setLoading] = createSignal(false);
 	const [error, setError] = createSignal(false);
+	const [adding, setAdding] = createSignal<KanbanStatus>();
+	const [draft, setDraft] = createSignal("");
+	const [editing, setEditing] = createSignal<string>();
+	const [editDraft, setEditDraft] = createSignal("");
+	const [actionsVisibleId, setActionsVisibleId] = createSignal<string>();
+	const [collapsedStatuses, setCollapsedStatuses] = createSignal<Set<KanbanStatus>>(new Set(kanbanStatuses));
+	const view = { adding, setAdding, draft, setDraft, editing, setEditing, editDraft, setEditDraft, actionsVisibleId, setActionsVisibleId, collapsedStatuses, setCollapsedStatuses };
 	let loadRevision = 0;
 	let writeRevision = 0;
 	const writes = new Map<string, Promise<void>>();
@@ -17,6 +24,8 @@ export const useKanban = (vaultId: Accessor<string | undefined>) => {
 		setOpen(false);
 		setItems([]);
 		setError(false);
+		setAdding(undefined); setDraft(""); setEditing(undefined); setEditDraft("");
+		setActionsVisibleId(undefined); setCollapsedStatuses(new Set(kanbanStatuses));
 		if (!id) { setLoading(false); return; }
 		setLoading(true);
 		const pendingWrite = writes.get(id);
@@ -95,5 +104,5 @@ export const useKanban = (vaultId: Accessor<string | undefined>) => {
 		persist(id, items().filter((item) => item.id !== itemId));
 	};
 
-	return { open, setOpen, items, loading, error, add, rename, move, remove };
+	return { open, setOpen, items, loading, error, add, rename, move, remove, view };
 };

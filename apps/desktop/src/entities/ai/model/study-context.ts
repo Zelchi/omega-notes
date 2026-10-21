@@ -1,6 +1,7 @@
 /** References only: the host reads and deduplicates the actual note contents after saving edits. */
 export type StudyContextAssignment = {
 	itemId: string;
+	candidateId: string;
 	noteId: string;
 	sourceIds: string[];
 	supportingNoteIds: string[];

@@ -139,6 +139,9 @@ export const styles = {
 		borderRadius: 6,
 	}),
 	menuButton: style({
+		display: "flex",
+		alignItems: "center",
+		gap: 8,
 		minHeight: 32,
 		paddingInline: 9,
 		color: "var(--ink)",

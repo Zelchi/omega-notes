@@ -25,7 +25,7 @@ const Canvas: Component<CanvasProps> = (props) => {
 						</Suspense>
 					</Match>
 					<Match when={props.layout === "archive" && import.meta.env.DEV}>
-						<ArchiveView vaultId={vaultId} notes={props.notes} mode={props.mode} onCreateNote={props.onCreateNote} onOpenNote={props.onOpenNote} t={props.t} />
+						<ArchiveView vaultId={vaultId} notes={props.notes} mode={props.mode} onCreateNote={props.onCreateNote} onOpenNote={props.onOpenNote} onRequestRename={props.onRequestRename} onDeleteNote={props.onDeleteNote} t={props.t} />
 					</Match>
 				</Switch>
 				<Show when={(props.layout !== "archive" || !import.meta.env.DEV) && props.notes.length === 0}>

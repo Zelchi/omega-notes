@@ -217,6 +217,7 @@ fn npm_prefixes() -> Vec<PathBuf> {
 fn opencode_v2_package_binaries(prefix: &Path, architecture: &str) -> Vec<PathBuf> {
     let modules = prefix.join("node_modules");
     let v2 = modules.join("@opencode").join("cli");
+    let v2_beta = modules.join("@opencode-ai").join("cli");
     let v2_platform = modules
         .join("@opencode")
         .join(format!("cli-win32-{architecture}"));
@@ -226,6 +227,7 @@ fn opencode_v2_package_binaries(prefix: &Path, architecture: &str) -> Vec<PathBu
             .join("@opencode")
             .join(format!("cli-win32-{architecture}")),
         v2,
+        v2_beta,
     ]
     .into_iter()
     .flat_map(opencode_package_binary_names)
@@ -262,10 +264,13 @@ fn opencode_package_binary_names(package: PathBuf) -> [PathBuf; 2] {
 
 #[cfg(any(windows, test))]
 fn opencode_v2_package_scripts(prefix: &Path) -> Vec<PathBuf> {
-    ["@opencode/cli/bin/opencode"]
-        .into_iter()
-        .map(|package_path| prefix.join("node_modules").join(package_path))
-        .collect()
+    [
+        "@opencode/cli/bin/opencode",
+        "@opencode-ai/cli/bin/opencode",
+    ]
+    .into_iter()
+    .map(|package_path| prefix.join("node_modules").join(package_path))
+    .collect()
 }
 
 #[cfg(any(windows, test))]

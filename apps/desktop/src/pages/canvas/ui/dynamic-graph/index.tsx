@@ -82,8 +82,8 @@ const DynamicGraph: Component<GraphCanvasProps> = (props) => {
 			const note = () => props.notes.find((item) => item.id === menu().noteId);
 			return <div class={cx(menuStyles.contextMenu, "graph-context-menu")} style={{ left: `${menu().x}px`, top: `${menu().y}px` }}
 				onPointerDown={(event) => event.stopPropagation()} onContextMenu={(event) => event.preventDefault()}>
-				<Button type="button" class={menuStyles.menuButton} onClick={() => { const current = note(); graph.setContextMenu(undefined); if (current) props.onRequestRename(current); }}>{props.t("rename")}</Button>
-				<Button type="button" class={cx(menuStyles.menuButton, menuStyles.dangerButton)} onClick={() => { const current = note(); graph.setContextMenu(undefined); if (current) void props.onDeleteNote(current); }}>{props.t("delete")}</Button>
+				<Button type="button" class={menuStyles.menuButton} onClick={() => { const current = note(); graph.setContextMenu(undefined); if (current) props.onRequestRename(current); }}><Icon name="edit" size={15} />{props.t("rename")}</Button>
+				<Button type="button" class={cx(menuStyles.menuButton, menuStyles.dangerButton)} onClick={() => { const current = note(); graph.setContextMenu(undefined); if (current) void props.onDeleteNote(current); }}><Icon name="delete" size={15} />{props.t("delete")}</Button>
 			</div>;
 		}}</Show>
 	</section>;

@@ -31,7 +31,15 @@ for (const media of [[], [{ type: 'image', id: 'image' }], [{ type: 'audio', id:
 }
 test('cancel leaves the note intact', async t => {
     const f = setup(note('a', 'text')); t.after(f.dispose);
-    await f.state.request(f.notes()[0]); f.state.close(); await f.state.confirm(); assert.equal(f.removed.length, 0);
+    await f.state.request(f.notes()[0]); f.state.cancel(); await f.state.confirm();
+    assert.equal(f.state.target(), undefined); assert.equal(f.removed.length, 0);
+});
+test('closing hides the confirmation and reopening restores it', async t => {
+    const f = setup(note('a', 'text')); t.after(f.dispose);
+    await f.state.request(f.notes()[0]); f.state.close();
+    assert.equal(f.state.open(), false); assert.equal(f.state.target()?.id, 'a');
+    await f.state.request(f.notes()[0]); assert.equal(f.state.open(), true);
+    await f.state.confirm(); assert.deepEqual(f.removed, ['a']);
 });
 test('content added while saving requires confirmation', async t => {
     const save = deferred(), f = setup(note('a'), { beforeDelete: () => save.promise }); t.after(f.dispose);
