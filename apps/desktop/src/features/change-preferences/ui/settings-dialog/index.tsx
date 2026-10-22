@@ -128,7 +128,7 @@ const SettingsDialog: Component<Props> = (props) => {
 										options={[
 											{ value: "static", label: props.t("staticCanvas") },
 											{ value: "dynamic", label: props.t("dynamicCanvas") },
-							...(import.meta.env.DEV ? [{ value: "archive", label: props.t("archiveCanvas") }] : []),
+							{ value: "archive", label: props.t("archiveCanvas") },
 										]}
 										onChange={(value) => props.onCanvasLayoutChange(value as CanvasLayout)} />
 								</div>

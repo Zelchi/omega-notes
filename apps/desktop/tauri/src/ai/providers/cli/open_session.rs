@@ -354,9 +354,7 @@ impl OpenCodeSession {
                 "message.updated" | "session.message.updated" => {
                     let info = properties.get("info").unwrap_or(properties);
                     let role = info["role"].as_str().or_else(|| info["type"].as_str());
-                    let Some(message_id) = info["id"].as_str() else {
-                        return None;
-                    };
+                    let message_id = info["id"].as_str()?;
                     if message_id == turn.user_message_id || role != Some("assistant") {
                         return None;
                     }
@@ -385,18 +383,12 @@ impl OpenCodeSession {
                     }
                 }
                 "message.part.updated" | "session.message.part.updated" => {
-                    let Some(part) = properties.get("part") else {
-                        return None;
-                    };
-                    let Some(message_id) = part["messageID"].as_str() else {
-                        return None;
-                    };
+                    let part = properties.get("part")?;
+                    let message_id = part["messageID"].as_str()?;
                     if message_id == turn.user_message_id {
                         return None;
                     }
-                    let Some(part_id) = part["id"].as_str() else {
-                        return None;
-                    };
+                    let part_id = part["id"].as_str()?;
                     let current =
                         turn.parts
                             .entry(part_id.into())
@@ -432,21 +424,14 @@ impl OpenCodeSession {
                     if properties["field"].as_str() != Some("text") {
                         return None;
                     }
-                    let Some(message_id) = properties["messageID"].as_str() else {
-                        return None;
-                    };
-                    let Some(part_id) = properties["partID"].as_str() else {
-                        return None;
-                    };
+                    let message_id = properties["messageID"].as_str()?;
+                    let part_id = properties["partID"].as_str()?;
                     if message_id == turn.user_message_id {
                         return None;
                     }
-                    let Some(delta) = properties["delta"]
+                    let delta = properties["delta"]
                         .as_str()
-                        .filter(|delta| !delta.is_empty())
-                    else {
-                        return None;
-                    };
+                        .filter(|delta| !delta.is_empty())?;
                     let current =
                         turn.parts
                             .entry(part_id.into())

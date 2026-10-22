@@ -492,9 +492,7 @@ fn read_summary_index(directory: &Path) -> Option<SummaryIndex> {
     }
     let mut filenames = HashSet::new();
     for entry in &index.entries {
-        let Some(id) = entry.file_name.strip_suffix(".omega") else {
-            return None;
-        };
+        let id = entry.file_name.strip_suffix(".omega")?;
         if crate::notes::validate_note_id(id).is_err()
             || entry.stamp.path != entry.file_name
             || !filenames.insert(entry.file_name.as_str())

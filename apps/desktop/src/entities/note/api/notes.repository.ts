@@ -1,7 +1,7 @@
 import { isTauriRuntime } from "@/shared/lib/tauri";
 import * as browserNotesRepository from "./browser-notes.repository";
 import * as tauriNotesRepository from "./tauri-notes.repository";
-import type { NoteChangeSet, NoteLibrary, NoteLoadIssue, NoteSaveResult, NoteSummary, NoteSummaryLibrary, StudyNote } from "../model/note";
+import type { NoteChangeSet, NoteLibrary, NoteLoadIssue, NoteMediaCatalogItem, NoteSaveResult, NoteSummary, NoteSummaryLibrary, StudyNote } from "../model/note";
 
 export const setNotesVaultId = browserNotesRepository.setNotesVaultId;
 
@@ -11,6 +11,9 @@ export const streamNoteSummaries = (vaultId: string, observerId: string, externa
 	isTauriRuntime() ? tauriNotesRepository.streamNoteSummaries(vaultId, observerId, external, resetObserverSnapshot, onItems) : browserNotesRepository.streamNoteSummaries(vaultId, observerId, external, resetObserverSnapshot, onItems);
 export const getNote = (vaultId: string, noteId: string): Promise<StudyNote> =>
 	isTauriRuntime() ? tauriNotesRepository.getNote(vaultId, noteId) : browserNotesRepository.getNote(vaultId, noteId);
+
+export const listNoteMedia = (): Promise<NoteMediaCatalogItem[]> =>
+	isTauriRuntime() ? tauriNotesRepository.listNoteMedia() : browserNotesRepository.listNoteMedia();
 export const notesChanges = (vaultId: string, observerId: string): Promise<NoteChangeSet> =>
 	isTauriRuntime() ? tauriNotesRepository.notesChanges(vaultId, observerId) : browserNotesRepository.notesChanges(vaultId, observerId);
 export const acknowledgeNoteChanges = (observerId: string, changeToken: string): Promise<void> =>

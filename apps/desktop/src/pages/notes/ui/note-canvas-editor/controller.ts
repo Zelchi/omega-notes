@@ -9,7 +9,6 @@ import {
 	type NoteElement,
 	type NotePositionedElement,
 	type NoteSummary,
-	type StudyNote,
 	type NoteTextElement,
 	type NoteTextAlignment,
 } from "@/entities/note";
@@ -23,10 +22,9 @@ import type { ParagraphAlignmentHandler } from "@/features/align-text";
 
 export type NoteCanvasEditorProps = {
 	noteId: string;
+	noteTitle: string;
 	document: NoteDocument;
 	notes: NoteSummary[];
-	loadAllNotes: () => Promise<StudyNote[]>;
-	releaseLoadedNotes: () => void;
 	referenceTitles: Record<string, string>;
 	mode: "edit" | "view";
 	t: (key: TranslationKey) => string;

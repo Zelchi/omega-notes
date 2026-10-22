@@ -110,9 +110,8 @@ export const usePreferences = () => {
 			saveBackgroundTheme(value);
 		},
 		setCanvasLayout: (value: CanvasLayout) => {
-			const layout = value === "archive" && !import.meta.env.DEV ? "dynamic" : value;
-			setCanvasLayout(layout);
-			saveCanvasLayout(layout);
+			setCanvasLayout(value);
+			saveCanvasLayout(value);
 		},
 		centerCanvasOnLaunch,
 		hideCanvasControls,

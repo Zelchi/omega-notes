@@ -1,5 +1,5 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { NoteChangeSet, NoteLibrary, NoteLoadIssue, NoteSaveResult, NoteSummary, NoteSummaryLibrary, StudyNote } from "../model/note";
+import type { NoteChangeSet, NoteLibrary, NoteLoadIssue, NoteMediaCatalogItem, NoteSaveResult, NoteSummary, NoteSummaryLibrary, StudyNote } from "../model/note";
 
 type NoteSummaryEvent =
 	| { event: "item"; data: NoteSummary }
@@ -88,6 +88,8 @@ export const streamNoteSummaries = (
 
 export const getNote = (vaultId: string, noteId: string): Promise<StudyNote> =>
 	invoke<StudyNote>("get_note", { vaultId, noteId });
+
+export const listNoteMedia = (): Promise<NoteMediaCatalogItem[]> => invoke("list_note_media");
 
 export const listNotes = (vaultId?: string, external = false): Promise<NoteLibrary> => invoke<NoteLibrary>("list_notes", { vaultId: vaultId ?? null, external });
 export const notesChanges = (vaultId: string, observerId: string): Promise<NoteChangeSet> =>

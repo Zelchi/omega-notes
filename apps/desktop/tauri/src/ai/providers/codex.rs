@@ -17,6 +17,16 @@ use crate::ai::tools;
 
 type Reply = Result<Value, String>;
 
+pub(crate) struct SendRequest<'a> {
+    pub(crate) vault_id: &'a str,
+    pub(crate) request_id: &'a str,
+    pub(crate) input: &'a str,
+    pub(crate) model: Option<&'a str>,
+    pub(crate) effort: Option<&'a str>,
+    pub(crate) fast: bool,
+    pub(crate) purpose: crate::ai::task::Purpose,
+}
+
 fn error_detail(error: &Value) -> Option<String> {
     error["message"]
         .as_str()
@@ -271,16 +281,16 @@ impl Client {
         )
     }
 
-    pub(crate) fn send(
-        &self,
-        vault_id: &str,
-        request_id: &str,
-        input: &str,
-        model: Option<&str>,
-        effort: Option<&str>,
-        fast: bool,
-        purpose: crate::ai::task::Purpose,
-    ) -> Reply {
+    pub(crate) fn send(&self, request: SendRequest<'_>) -> Reply {
+        let SendRequest {
+            vault_id,
+            request_id,
+            input,
+            model,
+            effort,
+            fast,
+            purpose,
+        } = request;
         let directory = tools::resolve_vault(&self.app, vault_id)?;
         if self.status()?["authenticated"] != true {
             return Err("AI_SIGN_IN_REQUIRED".into());

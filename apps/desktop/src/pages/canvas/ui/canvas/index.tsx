@@ -19,16 +19,16 @@ const Canvas: Component<CanvasProps> = (props) => {
 				{(vaultId) => <>
 				<Switch>
 					<Match when={props.layout === "static"}><GraphCanvas {...props} vaultId={vaultId} /></Match>
-					<Match when={props.layout === "dynamic" || props.layout === "archive" && !import.meta.env.DEV}>
+					<Match when={props.layout === "dynamic"}>
 						<Suspense fallback={<div aria-busy="true" />}>
 							<DynamicGraph {...props} vaultId={vaultId} />
 						</Suspense>
 					</Match>
-					<Match when={props.layout === "archive" && import.meta.env.DEV}>
+					<Match when={props.layout === "archive"}>
 						<ArchiveView vaultId={vaultId} notes={props.notes} mode={props.mode} onCreateNote={props.onCreateNote} onOpenNote={props.onOpenNote} onRequestRename={props.onRequestRename} onDeleteNote={props.onDeleteNote} t={props.t} />
 					</Match>
 				</Switch>
-				<Show when={(props.layout !== "archive" || !import.meta.env.DEV) && props.notes.length === 0}>
+				<Show when={props.notes.length === 0}>
 					<p class={styles.empty}>{props.t(props.mode === "edit" ? "emptyCanvasMessage" : "emptyCanvasReadMessage")}</p>
 				</Show>
 

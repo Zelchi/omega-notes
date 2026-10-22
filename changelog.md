@@ -1,5 +1,23 @@
 # Histórico de atualizações
 
+## v0.4.9
+
+### Arquivo e organização
+
+- O modo Arquivo e o painel Pomodoro com To Do independente ficam disponíveis nas versões de produção.
+- O Kanban conclui salvamentos pendentes antes de fechar o aplicativo.
+- Falhas ao salvar a organização do modo Arquivo agora são informadas e podem ser tentadas novamente.
+
+### Notas e mídias
+
+- O catálogo encontra mídias de outras notas sem carregar os documentos completos, incluindo imagens, áudios e vídeos.
+- Falhas ao carregar o catálogo de mídias agora mostram uma opção para tentar novamente.
+
+### Qualidade e documentação
+
+- Documentação reorganizada por feature, com páginas de arquitetura e desenvolvimento.
+- Workflow de qualidade e testes de regressão adicionados para Kanban, Arquivo, preferências, catálogo de mídias e recursos de produção.
+
 ## v0.4.8
 
 ### Pomodoro e tarefas

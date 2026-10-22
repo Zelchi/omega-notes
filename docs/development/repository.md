@@ -61,13 +61,10 @@ O site usa Astro e possui build estático independente. Na raiz, use:
 Ao adicionar dependências, execute `yarn install` na raiz e inclua `yarn.lock`
 no commit. Depois disso, instalações reproduzíveis usam `--frozen-lockfile`.
 
-Veja [o guia do site](../apps/web/readme.md) para a estrutura do Astro.
+Veja [o guia do site](../../apps/web/readme.md) para a estrutura do Astro.
 
 Desktop e web usam `@/` para imports a partir do `src` de cada aplicativo.
 As configurações e os componentes pertencem ao respectivo workspace.
-
-O layout aprovado do modal do Questionário e suas restrições de manutenção estão
-em [Questionário: layout aprovado](questionnaire-layout.md).
 
 ## Publicação
 
@@ -79,4 +76,4 @@ Leia [Publicação e atualizações](releases.md) para gerar uma release.
 
 O site usa `.github/workflows/pages.yml` e é publicado no GitHub Pages a partir
 da branch `main`. A configuração inicial e o endereço estão no
-[guia do site](../apps/web/readme.md#publicação-no-github-pages).
+[guia do site](../../apps/web/readme.md#publicação-no-github-pages).

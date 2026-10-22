@@ -126,6 +126,8 @@ pub(crate) async fn ai_models(app: AppHandle) -> Result<Value, String> {
     }).await
 }
 
+// O frontend envia os campos como argumentos nomeados do comando IPC.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub(crate) async fn ai_send(
     app: AppHandle,
@@ -144,15 +146,15 @@ pub(crate) async fn ai_send(
     blocking(move || {
         let client = client(&app)?;
         let _operation = client.operation.lock().map_err(|_| "AI_DISCONNECTED")?;
-        client.send(
-            &vault_id,
-            &request_id,
-            text.trim(),
-            model.as_deref(),
-            effort.as_deref(),
+        client.send(super::providers::codex::SendRequest {
+            vault_id: &vault_id,
+            request_id: &request_id,
+            input: text.trim(),
+            model: model.as_deref(),
+            effort: effort.as_deref(),
             fast,
-            purpose.unwrap_or_default(),
-        )
+            purpose: purpose.unwrap_or_default(),
+        })
     })
     .await
 }

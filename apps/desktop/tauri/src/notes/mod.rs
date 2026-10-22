@@ -23,10 +23,10 @@ pub(crate) use models::{
 pub(crate) use reference_titles::{load_reference_titles, remember_reference_title};
 pub(crate) use repository::{
     begin_note_rename_journal, commit_note_rename_journal, delete_note_files, existing_note,
-    note_backup_exists, note_backup_path, note_file_exists, note_from_contents, note_from_path,
-    note_from_path_with_id, note_id_from_backup, note_path, note_paths, preserve_recovery_copy,
-    read_file_bytes, recover_note_rename_journal, restore_file, rollback_note_rename_journal,
-    write_note, write_note_checked, NoteRenameJournal,
+    list_note_media, note_backup_exists, note_backup_path, note_file_exists, note_from_contents,
+    note_from_path, note_from_path_with_id, note_id_from_backup, note_path, note_paths,
+    preserve_recovery_copy, read_file_bytes, recover_note_rename_journal, restore_file,
+    rollback_note_rename_journal, write_note, write_note_checked, NoteRenameJournal,
 };
 pub(crate) use services::{
     content_stats, referenced_audio_and_video_ids, referenced_image_ids, referenced_media_ids,

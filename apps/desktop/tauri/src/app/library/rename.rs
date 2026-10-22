@@ -129,10 +129,7 @@ fn save_renamed_notes(
     let mut saved_notes = Vec::with_capacity(updates.len());
 
     for (id, title, document) in updates {
-        match write(&id, &title, &document) {
-            Ok(saved) => saved_notes.push(saved),
-            Err(write_error) => return Err(write_error),
-        }
+        saved_notes.push(write(&id, &title, &document)?);
     }
 
     Ok(saved_notes)

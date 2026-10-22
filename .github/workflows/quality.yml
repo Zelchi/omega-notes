@@ -1,0 +1,39 @@
+name: Verificações de qualidade
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: yarn
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'apps/desktop/tauri -> target'
+      - name: Dependências do Linux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev xdg-utils gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
+      - name: Instalar dependências JavaScript
+        run: yarn install --frozen-lockfile --non-interactive
+      - name: Verificar tipos
+        run: yarn typecheck
+      - name: Testar desktop
+        run: yarn test:desktop
+      - name: Testar backend Tauri
+        run: cargo test --locked --manifest-path apps/desktop/tauri/Cargo.toml

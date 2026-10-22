@@ -126,10 +126,8 @@ fn serve_request(
         if !valid_header_name(name) {
             return respond_empty(stream, "400 Bad Request", &[]);
         }
-        if name.eq_ignore_ascii_case("range") {
-            if range_header.replace(value.trim()).is_some() {
-                return respond_empty(stream, "400 Bad Request", &[]);
-            }
+        if name.eq_ignore_ascii_case("range") && range_header.replace(value.trim()).is_some() {
+            return respond_empty(stream, "400 Bad Request", &[]);
         }
     }
 

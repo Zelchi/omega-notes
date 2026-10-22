@@ -123,6 +123,17 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 						</p>
 					)}
 				</Show>
+				<Show when={props.catalog.loadingCatalog()}>
+					<p class={styles.cleanupStatus} role="status">{props.t("mediaCatalogLoading")}</p>
+				</Show>
+				<Show when={props.catalog.loadError()}>
+					<div class={styles.loadError} role="alert">
+						<span>{props.t("mediaCatalogLoadFailed")}</span>
+						<Button class={styles.action} type="button" disabled={props.catalog.loadingCatalog()} onClick={props.catalog.retryLoad}>
+							{props.t("retry")}
+						</Button>
+					</div>
+				</Show>
 				<div class={styles.grid}>
 					<For each={props.catalog.filtered()}>
 						{(media) => (

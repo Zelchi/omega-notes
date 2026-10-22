@@ -1,5 +1,6 @@
-use std::fs::{self, OpenOptions};
-use std::io::Write;
+use serde::de::{IgnoredAny, MapAccess, SeqAccess, Visitor};
+use std::fs::{self, File, OpenOptions};
+use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 use uuid::Uuid;
@@ -7,7 +8,9 @@ use uuid::Uuid;
 use crate::storage::{atomic_write, preserve_recovery_copy as preserve_file_copy};
 
 use super::document::validate_document;
-use super::models::{NoteDocument, OmegaNoteFile, StudyNote};
+use super::models::{
+    NoteDocument, NoteMediaCatalogItem, NoteMediaSource, OmegaNoteFile, StudyNote,
+};
 use super::validation::{validate_note_id, validate_note_title};
 
 fn modified_at(path: &Path) -> u64 {
@@ -51,6 +54,229 @@ pub(crate) fn note_from_contents(path: &Path, id: &str, stored: &str) -> Result<
         id: id.to_string(),
         title: note.title,
     })
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MediaCatalogNote {
+    format: String,
+    version: u8,
+    id: String,
+    title: String,
+    document: MediaCatalogDocument,
+}
+
+#[derive(serde::Deserialize)]
+struct MediaCatalogDocument {
+    #[serde(deserialize_with = "deserialize_media_elements")]
+    elements: Vec<MediaCatalogElement>,
+}
+
+enum MediaCatalogElement {
+    Image {
+        id: String,
+        image_id: String,
+    },
+    Audio {
+        id: String,
+        audio_id: String,
+        extension: String,
+    },
+    Video {
+        id: String,
+        video_id: String,
+        extension: String,
+    },
+    Other,
+}
+
+impl<'de> serde::Deserialize<'de> for MediaCatalogElement {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct ElementVisitor;
+
+        impl<'de> Visitor<'de> for ElementVisitor {
+            type Value = MediaCatalogElement;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("um elemento de nota")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut kind = None;
+                let mut id = None;
+                let mut image_id = None;
+                let mut audio_id = None;
+                let mut video_id = None;
+                let mut extension = None;
+
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "type" => kind = Some(map.next_value::<String>()?),
+                        "id" => id = Some(map.next_value::<String>()?),
+                        "imageId" => image_id = Some(map.next_value::<String>()?),
+                        "audioId" => audio_id = Some(map.next_value::<String>()?),
+                        "videoId" => video_id = Some(map.next_value::<String>()?),
+                        "extension" => extension = Some(map.next_value::<String>()?),
+                        _ => {
+                            map.next_value::<IgnoredAny>()?;
+                        }
+                    }
+                }
+
+                match kind.as_deref() {
+                    Some("image") => match (id, image_id) {
+                        (Some(id), Some(image_id)) => {
+                            Ok(MediaCatalogElement::Image { id, image_id })
+                        }
+                        _ => Ok(MediaCatalogElement::Other),
+                    },
+                    Some("audio") => match (id, audio_id, extension) {
+                        (Some(id), Some(audio_id), Some(extension)) => {
+                            Ok(MediaCatalogElement::Audio {
+                                id,
+                                audio_id,
+                                extension,
+                            })
+                        }
+                        _ => Ok(MediaCatalogElement::Other),
+                    },
+                    Some("video") => match (id, video_id, extension) {
+                        (Some(id), Some(video_id), Some(extension)) => {
+                            Ok(MediaCatalogElement::Video {
+                                id,
+                                video_id,
+                                extension,
+                            })
+                        }
+                        _ => Ok(MediaCatalogElement::Other),
+                    },
+                    _ => Ok(MediaCatalogElement::Other),
+                }
+            }
+        }
+
+        deserializer.deserialize_map(ElementVisitor)
+    }
+}
+
+fn deserialize_media_elements<'de, D>(deserializer: D) -> Result<Vec<MediaCatalogElement>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct ElementsVisitor;
+
+    impl<'de> Visitor<'de> for ElementsVisitor {
+        type Value = Vec<MediaCatalogElement>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("a lista de elementos de uma nota")
+        }
+
+        fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
+        where
+            A: SeqAccess<'de>,
+        {
+            let mut elements = Vec::new();
+            while let Some(element) = sequence.next_element::<MediaCatalogElement>()? {
+                match element {
+                    MediaCatalogElement::Other => {}
+                    media => elements.push(media),
+                }
+            }
+            Ok(elements)
+        }
+    }
+
+    deserializer.deserialize_seq(ElementsVisitor)
+}
+
+pub(crate) fn list_note_media(directory: &Path) -> Result<Vec<NoteMediaCatalogItem>, String> {
+    let (paths, _) = note_paths(directory).map_err(|_| "NOTE_READ_FAILED")?;
+    let mut catalog = Vec::new();
+    for path in paths
+        .iter()
+        .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("omega"))
+    {
+        let Ok(metadata) = fs::symlink_metadata(path) else {
+            continue;
+        };
+        if !metadata.is_file() || metadata.file_type().is_symlink() {
+            continue;
+        }
+        let Some(id) = path.file_stem().and_then(|stem| stem.to_str()) else {
+            continue;
+        };
+        if validate_note_id(id).is_err() {
+            continue;
+        }
+        let Ok(file) = File::open(path) else {
+            continue;
+        };
+        let Ok(note) = serde_json::from_reader::<_, MediaCatalogNote>(BufReader::new(file)) else {
+            continue;
+        };
+        if note.format != "omega-page" || note.version != 2 || note.id != id {
+            continue;
+        }
+        for element in note.document.elements {
+            let (element_id, source) = match element {
+                MediaCatalogElement::Image { id, image_id }
+                    if Uuid::parse_str(&id).is_ok() && Uuid::parse_str(&image_id).is_ok() =>
+                {
+                    (id, NoteMediaSource::Image { image_id })
+                }
+                MediaCatalogElement::Audio {
+                    id,
+                    audio_id,
+                    extension,
+                } if Uuid::parse_str(&id).is_ok()
+                    && Uuid::parse_str(&audio_id).is_ok()
+                    && crate::media::is_supported_extension("audio", &extension) =>
+                {
+                    (
+                        id,
+                        NoteMediaSource::Audio {
+                            audio_id,
+                            extension,
+                        },
+                    )
+                }
+                MediaCatalogElement::Video {
+                    id,
+                    video_id,
+                    extension,
+                } if Uuid::parse_str(&id).is_ok()
+                    && Uuid::parse_str(&video_id).is_ok()
+                    && crate::media::is_supported_extension("video", &extension) =>
+                {
+                    (
+                        id,
+                        NoteMediaSource::Video {
+                            video_id,
+                            extension,
+                        },
+                    )
+                }
+                MediaCatalogElement::Image { .. }
+                | MediaCatalogElement::Audio { .. }
+                | MediaCatalogElement::Video { .. } => continue,
+                MediaCatalogElement::Other => continue,
+            };
+            catalog.push(NoteMediaCatalogItem {
+                note_id: id.to_string(),
+                note_title: note.title.clone(),
+                element_id,
+                source,
+            });
+        }
+    }
+    Ok(catalog)
 }
 
 pub(crate) fn note_backup_path(backups_directory: &Path, note_id: &str) -> PathBuf {
@@ -448,4 +674,97 @@ pub(crate) fn delete_note_files(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod media_catalog_tests {
+    use super::{list_note_media, NoteMediaSource};
+    use serde_json::json;
+    use std::{fs, path::PathBuf};
+    use uuid::Uuid;
+
+    struct TestDirectory(PathBuf);
+
+    impl TestDirectory {
+        fn new() -> Self {
+            let path = std::env::temp_dir().join(format!("omega-media-catalog-{}", Uuid::new_v4()));
+            fs::create_dir_all(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn write_note(
+        directory: &TestDirectory,
+        id: &str,
+        title: &str,
+        elements: Vec<serde_json::Value>,
+    ) {
+        let note = json!({
+            "format": "omega-page",
+            "version": 2,
+            "id": id,
+            "title": title,
+            "document": { "elements": elements },
+        });
+        fs::write(
+            directory.0.join(format!("{id}.omega")),
+            serde_json::to_vec(&note).unwrap(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn catalog_includes_image_audio_and_video_references_from_every_note() {
+        let directory = TestDirectory::new();
+        let first_note = Uuid::new_v4().to_string();
+        let second_note = Uuid::new_v4().to_string();
+        let shared_image = Uuid::new_v4().to_string();
+        let image_element = Uuid::new_v4().to_string();
+        let audio_id = Uuid::new_v4().to_string();
+        let audio_element = Uuid::new_v4().to_string();
+        let video_id = Uuid::new_v4().to_string();
+        let video_element = Uuid::new_v4().to_string();
+
+        write_note(
+            &directory,
+            &first_note,
+            "First",
+            vec![
+                json!({ "type": "image", "id": image_element, "imageId": shared_image }),
+                json!({ "type": "audio", "id": audio_element, "audioId": audio_id, "extension": "mp3" }),
+                json!({ "type": "video", "id": video_element, "videoId": video_id, "extension": "mp4" }),
+                json!({ "type": "text", "id": Uuid::new_v4().to_string(), "text": "A note body is not media." }),
+            ],
+        );
+        write_note(
+            &directory,
+            &second_note,
+            "Second",
+            vec![
+                json!({ "type": "image", "id": Uuid::new_v4().to_string(), "imageId": shared_image }),
+                json!({ "type": "audio", "id": Uuid::new_v4().to_string(), "audioId": Uuid::new_v4().to_string(), "extension": "exe" }),
+            ],
+        );
+
+        let catalog = list_note_media(&directory.0).unwrap();
+        assert_eq!(catalog.len(), 4);
+        assert_eq!(
+            catalog
+                .iter()
+                .filter(|item| matches!(item.source, NoteMediaSource::Image { .. }))
+                .count(),
+            2
+        );
+        assert!(catalog.iter().any(|item| matches!(&item.source, NoteMediaSource::Audio { audio_id: id, extension } if id == &audio_id && extension == "mp3")));
+        assert!(catalog.iter().any(|item| matches!(&item.source, NoteMediaSource::Video { video_id: id, extension } if id == &video_id && extension == "mp4")));
+        assert!(catalog
+            .iter()
+            .all(|item| item.note_id == first_note || item.note_id == second_note));
+    }
 }

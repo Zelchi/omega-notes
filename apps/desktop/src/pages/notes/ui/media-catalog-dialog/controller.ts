@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import { createNoteDisplayTitleIndex } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
-import type { NotePositionedElement, StudyNote } from "@/entities/note";
+import { noteMediaSource, type NoteMediaCatalogItem, type NoteSummary, type StudyNote } from "@/entities/note";
 import { isTauriRuntime } from "@/shared/lib/tauri";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import type { ImportedMedia } from "../../model/media";
@@ -13,8 +13,9 @@ const IMAGE_LOAD_CONCURRENCY = 4;
 
 export type MediaCatalogDialogProps = {
 	open: boolean;
-	loadNotes: () => Promise<StudyNote[]>;
-	releaseLoadedNotes: () => void;
+	currentNote: () => StudyNote;
+	notes: () => NoteSummary[];
+	loadMediaCatalog: () => Promise<NoteMediaCatalogItem[]>;
 	t: (key: TranslationKey) => string;
 	onClose: () => void;
 	onSelect: (media: ImportedMedia) => void;
@@ -30,22 +31,6 @@ const searchKey = (value: string): string => {
 		.toLocaleLowerCase("pt-BR");
 };
 
-const catalogSource = (element: NotePositionedElement): ImportedMedia | undefined => {
-	if (element.type === "image") {
-		if (element.imageId) return { type: "image", imageId: element.imageId };
-		if (element.dataUrl) return { type: "image", dataUrl: element.dataUrl };
-		return undefined;
-	}
-	if (element.type === "audio") {
-		if (element.audioId) return { type: "audio", audioId: element.audioId, extension: element.extension };
-		if (element.dataUrl) return { type: "audio", dataUrl: element.dataUrl, extension: element.extension };
-		return undefined;
-	}
-	if (element.videoId) return { type: "video", videoId: element.videoId, extension: element.extension };
-	if (element.dataUrl) return { type: "video", dataUrl: element.dataUrl, extension: element.extension };
-	return undefined;
-};
-
 const sourceKey = (source: ImportedMedia, elementId: string): string => {
 	if (source.type === "image") return `image:${"imageId" in source ? source.imageId : elementId}`;
 	if (source.type === "audio") return `audio:${"audioId" in source ? source.audioId : elementId}`;
@@ -54,29 +39,38 @@ const sourceKey = (source: ImportedMedia, elementId: string): string => {
 
 export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) => {
 	const [query, setQuery] = createSignal("");
-	const [notes, setNotes] = createSignal<StudyNote[]>([]);
-	const [loadingNotes, setLoadingNotes] = createSignal(false);
+	const [catalogEntries, setCatalogEntries] = createSignal<NoteMediaCatalogItem[]>([]);
+	const [loadingCatalog, setLoadingCatalog] = createSignal(false);
+	const [loadError, setLoadError] = createSignal(false);
 	const [sources, setSources] = createSignal<Record<string, string>>({});
 	const [cleaning, setCleaning] = createSignal(false);
 	const [cleanupStatus, setCleanupStatus] = createSignal<{ message: string; failed: boolean }>();
 	let fileInput!: HTMLInputElement;
 	let requestId = 0;
 	const objectUrls = new Set<string>();
+	let catalogRequestId = 0;
 	const media = createMemo(() => {
 		const catalog = new Map<string, CatalogMedia>();
-		const currentNotes = notes();
-		const displayTitles = createNoteDisplayTitleIndex(currentNotes);
-		for (const note of currentNotes) {
-			for (const element of note.document.elements) {
-				if (element.type === "text") continue;
-				const source = catalogSource(element);
-				if (!source) continue;
-				const id = sourceKey(source, element.id);
-				const item = catalog.get(id) ?? { id, source, noteTitles: [] };
-				const title = displayTitles.get(note.id) ?? note.title;
-				if (!item.noteTitles.includes(title)) item.noteTitles.push(title);
-				catalog.set(id, item);
-			}
+		const currentNote = props.currentNote();
+		const entries = catalogEntries();
+		const noteNames = new Map(props.notes().map(({ id, title }) => [id, { id, title }] as const));
+		for (const entry of entries) noteNames.set(entry.noteId, { id: entry.noteId, title: entry.noteTitle });
+		noteNames.set(currentNote.id, { id: currentNote.id, title: currentNote.title });
+		const displayTitles = createNoteDisplayTitleIndex([...noteNames.values()]);
+		const addMedia = (noteId: string, noteTitle: string, elementId: string, source: ImportedMedia): void => {
+			const id = sourceKey(source, elementId);
+			const item = catalog.get(id) ?? { id, source, noteTitles: [] };
+			const title = displayTitles.get(noteId) ?? noteTitle;
+			if (!item.noteTitles.includes(title)) item.noteTitles.push(title);
+			catalog.set(id, item);
+		};
+		for (const entry of entries) {
+			if (entry.noteId !== currentNote.id) addMedia(entry.noteId, entry.noteTitle, entry.elementId, entry.source);
+		}
+		for (const element of currentNote.document.elements) {
+			if (element.type === "text") continue;
+			const source = noteMediaSource(element);
+			if (source) addMedia(currentNote.id, currentNote.title, element.id, source);
 		}
 		return [...catalog.values()];
 	});
@@ -92,20 +86,37 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 		setSources({});
 	};
 
-	createEffect(() => {
-		if (!props.open) { setNotes([]); setLoadingNotes(false); return; }
-		let active = true;
-		setLoadingNotes(true);
-		void props.loadNotes().then((loaded) => {
-			if (active) setNotes(loaded);
-			props.releaseLoadedNotes();
+	const loadCatalog = (notes: NoteSummary[]) => {
+		const requestId = ++catalogRequestId;
+		setCatalogEntries([]);
+		setLoadError(false);
+		setLoadingCatalog(true);
+		const isCurrent = () => requestId === catalogRequestId && props.open && props.notes() === notes;
+		void props.loadMediaCatalog().then((entries) => {
+			if (isCurrent()) setCatalogEntries(entries);
 		}).catch((error) => {
-			if (active) console.error("Could not load notes for media catalog", error);
-			props.releaseLoadedNotes();
+			if (!isCurrent()) return;
+			console.error("Could not load media catalog", error);
+			setLoadError(true);
 		}).finally(() => {
-			if (active) setLoadingNotes(false);
+			if (isCurrent()) setLoadingCatalog(false);
 		});
-		onCleanup(() => { active = false; });
+		return requestId;
+	};
+
+	createEffect(() => {
+		if (!props.open) {
+			catalogRequestId += 1;
+			setCatalogEntries([]);
+			setLoadError(false);
+			setLoadingCatalog(false);
+			return;
+		}
+		const notes = props.notes();
+		const requestId = loadCatalog(notes);
+		onCleanup(() => {
+			if (catalogRequestId === requestId) catalogRequestId += 1;
+		});
 	});
 
 	createEffect(() => {
@@ -164,6 +175,7 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 	const close = (): void => {
 		props.onClose();
 	};
+	const retryLoad = (): void => { loadCatalog(props.notes()); };
 
 	const selectMedia = (item: CatalogMedia): void => {
 		props.onSelect(item.source);
@@ -218,10 +230,12 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 
 	return {
 		query,
-		loadingNotes,
 		setQuery,
 		sources,
 		filtered,
+		loadingCatalog,
+		loadError,
+		retryLoad,
 		close,
 		selectMedia,
 		importFiles,

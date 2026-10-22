@@ -2,6 +2,7 @@ import { createMemo, For, Index, lazy, Show, Suspense, type Component } from "so
 import { useFindInNote } from "@/features/find-in-note";
 import { cx } from "@/shared/lib/classes";
 import {
+	listNoteMedia,
 	createNoteTitleIndex,
 	normalizeNoteTitle,
 	type NoteImageElement,
@@ -27,8 +28,12 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 	const mediaCatalogPresence = createPresence(editor.catalogOpen, 210);
 	const mediaCatalog = useMediaCatalogDialogController({
 		get open() { return mediaCatalogPresence.present(); },
-		loadNotes: props.loadAllNotes,
-		releaseLoadedNotes: props.releaseLoadedNotes,
+		currentNote: () => {
+			const summary = props.notes.find((note) => note.id === props.noteId);
+			return { id: props.noteId, title: props.noteTitle, updatedAt: summary?.updatedAt ?? 0, document: props.document };
+		},
+		notes: () => props.notes,
+		loadMediaCatalog: listNoteMedia,
 		t: props.t,
 		onClose: () => editor.setCatalogOpen(false),
 		onSelect: (media) => editor.insertMedia([media]),

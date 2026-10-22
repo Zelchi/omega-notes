@@ -281,68 +281,6 @@ fn opencode_v1_package_scripts(prefix: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{
-        opencode_v1_package_binaries, opencode_v1_package_scripts, opencode_v2_package_binaries,
-        opencode_v2_package_scripts, select_opencode_candidate, Executable,
-    };
-    use std::path::Path;
-
-    #[test]
-    fn opencode_detection_searches_v2_package_before_v1_fallback() {
-        let prefix = Path::new("C:/Users/test/AppData/Roaming/npm");
-        let v2_binaries = opencode_v2_package_binaries(prefix, "x64");
-        let v1_binaries = opencode_v1_package_binaries(prefix, "x64");
-        assert!(v2_binaries
-            .contains(&prefix.join("node_modules/@opencode/cli-win32-x64/bin/opencode.exe")));
-        assert!(v2_binaries.contains(&prefix.join("node_modules/@opencode/cli/bin/opencode.exe")));
-        assert!(v1_binaries.contains(&prefix.join("node_modules/opencode-ai/bin/opencode.exe")));
-        assert!(v1_binaries.contains(
-            &prefix.join(
-                "node_modules/opencode-ai/node_modules/opencode-windows-x64/bin/opencode.exe"
-            )
-        ));
-        assert!(v2_binaries.iter().all(|v2| !v1_binaries.contains(v2)));
-
-        let v2_scripts = opencode_v2_package_scripts(prefix);
-        let v1_scripts = opencode_v1_package_scripts(prefix);
-        assert!(v2_scripts.contains(&prefix.join("node_modules/@opencode/cli/bin/opencode")));
-        assert!(v1_scripts.contains(&prefix.join("node_modules/opencode-ai/bin/opencode")));
-    }
-
-    #[test]
-    fn opencode_detection_uses_the_windows_arm64_package_name() {
-        let prefix = Path::new("C:/Users/test/AppData/Roaming/npm");
-        let v2_binaries = opencode_v2_package_binaries(prefix, "arm64");
-        let v1_binaries = opencode_v1_package_binaries(prefix, "arm64");
-        assert!(v2_binaries
-            .contains(&prefix.join("node_modules/@opencode/cli-win32-arm64/bin/opencode.exe")));
-        assert!(v1_binaries
-            .contains(&prefix.join("node_modules/opencode-windows-arm64/bin/opencode.exe")));
-    }
-
-    #[test]
-    fn opencode_resolution_prefers_v2_then_uses_v1_as_fallback() {
-        let v1 = Executable {
-            program: Path::new("C:/tools/opencode-v1.exe").into(),
-            arguments: vec![],
-        };
-        let v2 = Executable {
-            program: Path::new("C:/tools/opencode-v2.exe").into(),
-            arguments: vec![],
-        };
-        let selected = select_opencode_candidate(vec![v1.clone(), v2.clone()], |candidate| {
-            Some(candidate.program == v2.program)
-        })
-        .unwrap();
-        assert_eq!(selected.program, v2.program);
-
-        let selected = select_opencode_candidate(vec![v1.clone()], |_| Some(false)).unwrap();
-        assert_eq!(selected.program, v1.program);
-    }
-}
-
 fn native_executable(name: &str) -> Option<PathBuf> {
     native_executable_candidates(name).into_iter().next()
 }
@@ -492,5 +430,67 @@ pub(super) fn output_with_timeout(
             }
             Ok(None) => std::thread::sleep(Duration::from_millis(25)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        opencode_v1_package_binaries, opencode_v1_package_scripts, opencode_v2_package_binaries,
+        opencode_v2_package_scripts, select_opencode_candidate, Executable,
+    };
+    use std::path::Path;
+
+    #[test]
+    fn opencode_detection_searches_v2_package_before_v1_fallback() {
+        let prefix = Path::new("C:/Users/test/AppData/Roaming/npm");
+        let v2_binaries = opencode_v2_package_binaries(prefix, "x64");
+        let v1_binaries = opencode_v1_package_binaries(prefix, "x64");
+        assert!(v2_binaries
+            .contains(&prefix.join("node_modules/@opencode/cli-win32-x64/bin/opencode.exe")));
+        assert!(v2_binaries.contains(&prefix.join("node_modules/@opencode/cli/bin/opencode.exe")));
+        assert!(v1_binaries.contains(&prefix.join("node_modules/opencode-ai/bin/opencode.exe")));
+        assert!(v1_binaries.contains(
+            &prefix.join(
+                "node_modules/opencode-ai/node_modules/opencode-windows-x64/bin/opencode.exe"
+            )
+        ));
+        assert!(v2_binaries.iter().all(|v2| !v1_binaries.contains(v2)));
+
+        let v2_scripts = opencode_v2_package_scripts(prefix);
+        let v1_scripts = opencode_v1_package_scripts(prefix);
+        assert!(v2_scripts.contains(&prefix.join("node_modules/@opencode/cli/bin/opencode")));
+        assert!(v1_scripts.contains(&prefix.join("node_modules/opencode-ai/bin/opencode")));
+    }
+
+    #[test]
+    fn opencode_detection_uses_the_windows_arm64_package_name() {
+        let prefix = Path::new("C:/Users/test/AppData/Roaming/npm");
+        let v2_binaries = opencode_v2_package_binaries(prefix, "arm64");
+        let v1_binaries = opencode_v1_package_binaries(prefix, "arm64");
+        assert!(v2_binaries
+            .contains(&prefix.join("node_modules/@opencode/cli-win32-arm64/bin/opencode.exe")));
+        assert!(v1_binaries
+            .contains(&prefix.join("node_modules/opencode-windows-arm64/bin/opencode.exe")));
+    }
+
+    #[test]
+    fn opencode_resolution_prefers_v2_then_uses_v1_as_fallback() {
+        let v1 = Executable {
+            program: Path::new("C:/tools/opencode-v1.exe").into(),
+            arguments: vec![],
+        };
+        let v2 = Executable {
+            program: Path::new("C:/tools/opencode-v2.exe").into(),
+            arguments: vec![],
+        };
+        let selected = select_opencode_candidate(vec![v1.clone(), v2.clone()], |candidate| {
+            Some(candidate.program == v2.program)
+        })
+        .unwrap();
+        assert_eq!(selected.program, v2.program);
+
+        let selected = select_opencode_candidate(vec![v1.clone()], |_| Some(false)).unwrap();
+        assert_eq!(selected.program, v1.program);
     }
 }

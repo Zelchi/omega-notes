@@ -45,10 +45,9 @@ const NoteEditor: Component<NoteEditorProps> = (props) => {
 			</div>
 			<NoteCanvasEditor
 				noteId={props.note.id}
+				noteTitle={props.note.title}
 				document={props.note.document}
 				notes={props.notes}
-				loadAllNotes={props.loadAllNotes}
-				releaseLoadedNotes={props.releaseLoadedNotes}
 				referenceTitles={props.referenceTitles}
 				mode={props.mode}
 				t={props.t}

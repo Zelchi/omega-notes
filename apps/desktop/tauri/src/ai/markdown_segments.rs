@@ -240,8 +240,7 @@ fn split_range(
             let newline = remaining[..length].rfind('\n').map(|index| index + 1);
             let whitespace = remaining[..length]
                 .char_indices()
-                .filter(|(_, character)| character.is_whitespace())
-                .last()
+                .rfind(|(_, character)| character.is_whitespace())
                 .map(|(index, character)| index + character.len_utf8());
             if let Some(boundary) = newline
                 .filter(|boundary| *boundary > length / 2)

@@ -38,7 +38,7 @@ fn uuid_v7_timestamp(id: &str) -> Option<u64> {
     let hexadecimal = id.replace('-', "");
     if hexadecimal.len() != 32
         || !hexadecimal.bytes().all(|byte| byte.is_ascii_hexdigit())
-        || hexadecimal.as_bytes().get(12)?.to_ascii_lowercase() != b'7'
+        || !hexadecimal.as_bytes().get(12)?.eq_ignore_ascii_case(&b'7')
     {
         return None;
     }

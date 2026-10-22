@@ -227,10 +227,8 @@ pub(crate) async fn prepare_study_context(
                     continue;
                 }
                 let content = source(&directory, id, generation)?;
-                if !tools::has_text(&content.text) {
-                    if id == &item.note_id {
-                        return Err("AI_STUDY_SOURCE_EMPTY".into());
-                    }
+                if !tools::has_text(&content.text) && id == &item.note_id {
+                    return Err("AI_STUDY_SOURCE_EMPTY".into());
                 }
                 bytes = bytes
                     .checked_add(

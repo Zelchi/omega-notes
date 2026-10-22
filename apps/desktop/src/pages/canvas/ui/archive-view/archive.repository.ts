@@ -69,8 +69,12 @@ export const readArchiveState = (vaultId: string): ArchiveState => {
 	}
 };
 
-export const saveArchiveState = (vaultId: string, state: ArchiveState): void => {
-	if (!vaultId || typeof window === "undefined") return;
-	try { localStorage.setItem(storageKey(vaultId), JSON.stringify(state)); }
-	catch { /* A organização continua disponível até esta visualização ser fechada. */ }
+export const saveArchiveState = (vaultId: string, state: ArchiveState): boolean => {
+	if (!vaultId || typeof window === "undefined") return false;
+	try {
+		localStorage.setItem(storageKey(vaultId), JSON.stringify(state));
+		return true;
+	} catch {
+		return false;
+	}
 };

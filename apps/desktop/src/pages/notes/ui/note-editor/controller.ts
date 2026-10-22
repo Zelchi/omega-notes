@@ -6,8 +6,6 @@ export type NoteEditorProps = {
 	onRegisterBeforeShutdown?: (save?: () => Promise<boolean>) => void;
 	note: StudyNote;
 	notes: NoteSummary[];
-	loadAllNotes: () => Promise<StudyNote[]>;
-	releaseLoadedNotes: () => void;
 	referenceTitles: Record<string, string>;
 	mode: "edit" | "view";
 	t: (key: TranslationKey) => string;
