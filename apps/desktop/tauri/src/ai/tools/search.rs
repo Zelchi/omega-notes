@@ -171,8 +171,8 @@ fn reconcile_cache(
             .collect::<HashMap<_, _>>();
         let deleted = current
             .entries
-            .iter()
-            .filter_map(|(id, _)| (!expected.contains_key(id.as_str())).then_some(id.clone()))
+            .keys()
+            .filter_map(|id| (!expected.contains_key(id.as_str())).then_some(id.clone()))
             .collect::<Vec<_>>();
         for id in deleted {
             current.remove_entry(&id);
@@ -367,10 +367,10 @@ impl SearchCache {
                 continue;
             };
             let matched = match &entry.state {
-                EntryState::Cached(indexed) => match indexed.folded.find(&folded_query) {
-                    Some(byte) => Some(make_match(&indexed.original, &indexed.folded, byte)),
-                    None => None,
-                },
+                EntryState::Cached(indexed) => indexed
+                    .folded
+                    .find(&folded_query)
+                    .map(|byte| make_match(&indexed.original, &indexed.folded, byte)),
                 EntryState::TooLarge => {
                     let path = self.directory.join(&entry.stamp.name);
                     let note = match super::read(&path) {

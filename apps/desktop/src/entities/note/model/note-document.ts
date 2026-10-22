@@ -1,4 +1,5 @@
 import { createUuidV7 } from "@/shared/lib/ids";
+import type { NoteMediaSource } from "./note";
 
 export type NoteTextAlignment = "left" | "center" | "justify" | "right";
 
@@ -53,6 +54,22 @@ export type NoteVideoElement = {
 export type NotePositionedElement = NoteImageElement | NoteAudioElement | NoteVideoElement;
 export type NoteMediaElement = NoteAudioElement | NoteVideoElement;
 export type NoteElement = NoteTextElement | NotePositionedElement;
+
+export const noteMediaSource = (element: NotePositionedElement): NoteMediaSource | undefined => {
+	if (element.type === "image") {
+		if (element.imageId) return { type: "image", imageId: element.imageId };
+		if (element.dataUrl) return { type: "image", dataUrl: element.dataUrl };
+		return undefined;
+	}
+	if (element.type === "audio") {
+		if (element.audioId) return { type: "audio", audioId: element.audioId, extension: element.extension };
+		if (element.dataUrl) return { type: "audio", dataUrl: element.dataUrl, extension: element.extension };
+		return undefined;
+	}
+	if (element.videoId) return { type: "video", videoId: element.videoId, extension: element.extension };
+	if (element.dataUrl) return { type: "video", dataUrl: element.dataUrl, extension: element.extension };
+	return undefined;
+};
 
 export type NoteDocument = {
 	format: "omega-document";

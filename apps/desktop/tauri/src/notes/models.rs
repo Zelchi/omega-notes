@@ -90,6 +90,27 @@ pub(crate) struct StudyNote {
     pub(crate) updated_at: u64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct NoteMediaCatalogItem {
+    pub(crate) note_id: String,
+    pub(crate) note_title: String,
+    pub(crate) element_id: String,
+    pub(crate) source: NoteMediaSource,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(
+    tag = "type",
+    rename_all = "lowercase",
+    rename_all_fields = "camelCase"
+)]
+pub(crate) enum NoteMediaSource {
+    Image { image_id: String },
+    Audio { audio_id: String, extension: String },
+    Video { video_id: String, extension: String },
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct NoteLoadIssue {

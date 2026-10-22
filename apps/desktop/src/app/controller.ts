@@ -19,11 +19,12 @@ import { useWindowControls } from "./model/window-controls.controller";
 import { useNoteNavigationController } from "./model/note-navigation.controller";
 import { useUpdatesController } from "@/features/check-for-updates/model/updates.controller";
 import type { AiChatController } from "@/features/chat-with-ai/model/ai-chat.controller";
-import { useTemporaryNoteReading } from "@/features/follow-note-link";
+import { useTemporaryNoteReading } from "@/features/temporary-note-reading";
 import { disposeSounds, prepareSounds } from "@/shared/ui/sound";
 import { useKanban } from "@/features/manage-kanban/model/controller";
 import { usePomodoro } from "@/features/pomodoro/model/controller";
 import { useGambiarraTerminal } from "@/features/gambiarra-terminal/model/controller";
+import { syncTerminalInstructions } from "@/features/gambiarra-terminal/api/terminal.repository";
 import type { SettingsCategory } from "@/features/change-preferences/model/preferences";
 
 const createLazyController = <T,>(loadModule: () => Promise<() => T>) => {
@@ -71,6 +72,7 @@ export const useAppController = () => {
 	};
 	const beforeShutdown = async () => {
 		if (!(await beforeAiRequest())) return false;
+		if (!(await kanban.flushSave())) return false;
 		if (!(await pomodoro.flushSave())) return false;
 		return saveStudies ? saveStudies() : true;
 	};
@@ -186,7 +188,7 @@ export const useAppController = () => {
 		const revision = ++terminalSyncRevision;
 		if (vault !== terminalVault || mode !== terminalMode) { setGambiarraChatOpen(false); aiChat.setOpen(false); }
 		terminalVault = vault; terminalMode = mode;
-		if (isTauriRuntime()) void import("@/features/gambiarra-terminal/api/terminal.repository").then(({ syncTerminalInstructions }) => {
+		if (isTauriRuntime()) void Promise.resolve().then(() => {
 			if (revision !== terminalSyncRevision) return;
 			return syncTerminalInstructions(vault, mode);
 		}).catch(error => console.warn("Could not update vault AI instructions", error));

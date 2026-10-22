@@ -33,6 +33,7 @@ const parentKey = (folderId?: string): string => folderId ?? "";
 const ArchiveView: Component<Props> = (props) => {
 	let root!: HTMLElement;
 	const [state, setState] = createSignal(readArchiveState(props.vaultId));
+	const [saveError, setSaveError] = createSignal(false);
 	const [path, setPath] = createSignal<string[]>([]);
 	const [folderEditor, setFolderEditor] = createSignal<FolderEditor>();
 	const [folderName, setFolderName] = createSignal("");
@@ -42,7 +43,8 @@ const ArchiveView: Component<Props> = (props) => {
 	const [draggedItem, setDraggedItem] = createSignal<ArchiveItem>();
 	const [contextMenu, setContextMenu] = createSignal<{ item: ArchiveItem; x: number; y: number }>();
 
-	createEffect(() => saveArchiveState(props.vaultId, state()));
+	const persistState = (): void => { setSaveError(!saveArchiveState(props.vaultId, state())); };
+	createEffect(persistState);
 	createEffect(() => {
 		if (!contextMenu()) return;
 		const outside = (event: PointerEvent) => {
@@ -299,6 +301,12 @@ const ArchiveView: Component<Props> = (props) => {
 						</Show>
 					</div>
 				</header>
+				<Show when={saveError()}>
+					<div class={styles.saveError} role="alert">
+						<span>{props.t("archiveSaveFailed")}</span>
+						<Button class={styles.actionButton} type="button" onClick={persistState}>{props.t("retry")}</Button>
+					</div>
+				</Show>
 
 				<Show when={folderEditor()}>
 					<form class={styles.folderForm} onSubmit={saveFolder}>

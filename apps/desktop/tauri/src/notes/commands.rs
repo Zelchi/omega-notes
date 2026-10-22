@@ -8,7 +8,8 @@ use std::{
 use tauri::{ipc::Channel, AppHandle};
 
 use super::models::{
-    NoteDocument, NoteLibrary, NoteLoadIssue, NoteSaveResult, NoteSummary, StudyNote,
+    NoteDocument, NoteLibrary, NoteLoadIssue, NoteMediaCatalogItem, NoteSaveResult, NoteSummary,
+    StudyNote,
 };
 
 use crate::app::{library, runtime};
@@ -17,6 +18,7 @@ const MAX_EXTERNAL_CHANGE_ITEMS: usize = 256;
 const MAX_EXTERNAL_OBSERVERS: usize = 32;
 const EXTERNAL_OBSERVER_TTL_SECONDS: u64 = 300;
 const FULL_RECONCILE_SECONDS: u64 = 300;
+type ExternalSnapshotChanges = (Vec<String>, Vec<String>, bool);
 
 #[derive(Clone, PartialEq, Eq)]
 struct ExternalFileStamp {
@@ -139,7 +141,7 @@ fn external_snapshot_diff(
     observer_id: &str,
     directory: &Path,
     current: &BTreeMap<String, ExternalFileStamp>,
-) -> Result<Option<(Vec<String>, Vec<String>, bool)>, String> {
+) -> Result<Option<ExternalSnapshotChanges>, String> {
     let now = Instant::now();
     let mut snapshots = EXTERNAL_SNAPSHOTS.lock().map_err(|_| "NOTE_READ_FAILED")?;
     snapshots.retain(|_, snapshot| {
@@ -518,6 +520,21 @@ pub(crate) async fn get_note(
             return Err("NOTE_LOAD_VAULT_CHANGED".into());
         }
         Ok(note)
+    })
+    .await
+    .map_err(|_| "NOTE_READ_FAILED".to_string())?
+}
+
+#[tauri::command]
+pub(crate) async fn list_note_media(app: AppHandle) -> Result<Vec<NoteMediaCatalogItem>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let _title_lock = library::lock_title_mutations()?;
+        let directory = runtime::notes_dir(&app)?;
+        let catalog = super::list_note_media(&directory)?;
+        if runtime::notes_dir(&app)? != directory {
+            return Err("NOTE_LOAD_VAULT_CHANGED".into());
+        }
+        Ok(catalog)
     })
     .await
     .map_err(|_| "NOTE_READ_FAILED".to_string())?

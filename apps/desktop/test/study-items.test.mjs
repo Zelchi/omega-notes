@@ -44,7 +44,6 @@ const setup = async (t, reply = call => Promise.resolve(material(call))) => {
         study = useStudies({
             vaultId: vault,
             notes: () => notes,
-            loadAllNotes: async () => notes,
             noteSummaries: () => notes.map(noteSummary),
             currentNote: () => notes[0],
             aiEnabled: enabled,

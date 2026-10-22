@@ -1,6 +1,6 @@
 import { createUuidV7 } from "@/shared/lib/ids";
-import type { NoteChangeSet, NoteLibrary, NoteLoadIssue, NoteSaveResult, NoteStorageStats, NoteSummary, NoteSummaryLibrary, StudyNote } from "../model/note";
-import { createEmptyDocument } from "../model/note-document";
+import type { NoteChangeSet, NoteLibrary, NoteLoadIssue, NoteMediaCatalogItem, NoteSaveResult, NoteStorageStats, NoteSummary, NoteSummaryLibrary, StudyNote } from "../model/note";
+import { createEmptyDocument, noteMediaSource } from "../model/note-document";
 import { summarizeNote } from "../model/note-summary";
 import { renameResolvedNoteLinks } from "../model/note-links";
 import { NOTE_TITLE_MAX_LENGTH } from "../model/note-titles";
@@ -118,6 +118,15 @@ export const getNote = async (_vaultId: string, noteId: string): Promise<StudyNo
 	if (!note) throw new Error("NOTE_NOT_FOUND");
 	return note;
 };
+
+// shortcut: o fallback web guarda notas em um único JSON; separar por nota para evitar esse parse.
+export const listNoteMedia = async (): Promise<NoteMediaCatalogItem[]> => readNotes().flatMap((note) =>
+	note.document.elements.flatMap((element) => {
+		if (element.type === "text") return [];
+		const source = noteMediaSource(element);
+		return source ? [{ noteId: note.id, noteTitle: note.title, elementId: element.id, source }] : [];
+	}),
+);
 
 export const createNote = async (title: string): Promise<StudyNote> => {
 	const existingNotes = readNotes();

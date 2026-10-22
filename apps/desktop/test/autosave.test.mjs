@@ -31,7 +31,7 @@ const setup = async (t, onSave) => {
     for (let attempt = 0; attempt < 50 && (!library.hasLoadedVault() || library.notes().length !== initial.length); attempt++) await settle();
     assert.equal(library.hasLoadedVault(), true);
     assert.equal(library.notes().length, initial.length);
-    await library.loadAllNotes();
+    await library.loadNote('a');
     const edit = (id, text) => library.updateDocument(id, note(id, text).document);
     return { library, writes, edit, setVault };
 };
@@ -52,6 +52,7 @@ test('failed old save cannot overwrite a newer queued save', async t => {
 });
 test('flush skips a stale snapshot when another note changes during persistence', async t => {
     const first = deferred(), f = await setup(t, (_args, count) => count === 1 ? first.promise : undefined);
+    await f.library.loadNote('b');
     f.edit('a', 'a1'); f.edit('b', 'b1'); const flush = f.library.flushSave(); await settle();
     f.edit('b', 'b2'); first.resolve(); assert.equal(await flush, true);
     assert.deepEqual(f.writes, [{ id: 'a', text: 'a1' }, { id: 'b', text: 'b2' }]);

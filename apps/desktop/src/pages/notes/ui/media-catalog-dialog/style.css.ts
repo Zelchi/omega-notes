@@ -79,6 +79,15 @@ export const styles = {
 		color: "var(--danger)",
 		fontSize: 11,
 	}),
+	loadError: style({
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "space-between",
+		gap: 8,
+		margin: "8px 0 2px",
+		color: "var(--danger)",
+		fontSize: 11,
+	}),
 	grid: style({
 		display: "grid",
 		flex: 1,

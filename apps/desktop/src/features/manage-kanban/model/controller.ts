@@ -54,6 +54,16 @@ export const useKanban = (vaultId: Accessor<string | undefined>) => {
 		});
 	};
 
+	const flushSave = async () => {
+		const id = vaultId();
+		if (!id) return true;
+		while (writes.has(id)) {
+			try { await writes.get(id); }
+			catch { return false; }
+		}
+		return !error();
+	};
+
 	const add = (title: string, status: KanbanStatus) => {
 		const id = vaultId();
 		const normalized = title.trim();
@@ -104,5 +114,5 @@ export const useKanban = (vaultId: Accessor<string | undefined>) => {
 		persist(id, items().filter((item) => item.id !== itemId));
 	};
 
-	return { open, setOpen, items, loading, error, add, rename, move, remove, view };
+	return { open, setOpen, items, loading, error, add, rename, move, remove, flushSave, view };
 };

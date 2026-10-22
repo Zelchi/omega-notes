@@ -112,19 +112,6 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		pendingLoads.set(key, request);
 		return request;
 	};
-	const loadAllNotes = async (): Promise<StudyNote[]> => {
-		const summaries = notes();
-		const loaded = new Array<StudyNote>(summaries.length);
-		let cursor = 0;
-		const workers = Array.from({ length: Math.min(4, summaries.length) }, async () => {
-			while (cursor < summaries.length) {
-				const index = cursor++;
-				loaded[index] = await loadNote(summaries[index].id);
-			}
-		});
-		await Promise.all(workers);
-		return loaded;
-	};
 	const releaseLoadedNotes = (...keepIds: (string | undefined)[]): void => {
 		const keep = new Set([...keepIds.filter((id): id is string => Boolean(id)), ...pendingSaves.keys(), ...latestSaves.keys()]);
 		setLoadedNotes((current) => new Map([...current].filter(([id]) => keep.has(id))));
@@ -541,7 +528,6 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		sortedNotes,
 		loadedNotes: fullNotes,
 		loadNote,
-		loadAllNotes,
 		releaseLoadedNotes,
 		loading,
 		hasLoadedVault,

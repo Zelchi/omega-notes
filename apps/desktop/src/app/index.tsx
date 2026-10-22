@@ -100,8 +100,6 @@ const App: Component = () => {
 											<Note
 												note={app.navigation.selectedNote()}
 												notes={app.notes.notes()}
-												loadAllNotes={app.notes.loadAllNotes}
-												releaseLoadedNotes={() => app.notes.releaseLoadedNotes(app.navigation.selectedNote()?.id)}
 												referenceTitles={app.notes.referenceTitles()}
 												mode={app.temporaryReading.mode()}
 												t={app.t}
@@ -289,7 +287,7 @@ const App: Component = () => {
 						<KanbanPanel kanban={app.kanban} t={app.t} />
 						</Suspense>
 					</Show>
-					<Show when={import.meta.env.DEV && pomodoroMounted()}>
+					<Show when={pomodoroMounted()}>
 						<Suspense fallback={null}>
 						<PomodoroPanel pomodoro={app.pomodoro} t={app.t} />
 						</Suspense>

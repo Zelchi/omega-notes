@@ -55,6 +55,8 @@ pub(crate) async fn ai_cli_models(app: AppHandle, provider_id: Provider) -> Resu
 pub(crate) async fn ai_cli_login(app: AppHandle, provider_id: Provider) -> Result<(), String> {
     blocking(move || client(&app, provider_id)?.login()).await
 }
+// O frontend envia os campos como argumentos nomeados do comando IPC.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub(crate) async fn ai_cli_send(
     app: AppHandle,

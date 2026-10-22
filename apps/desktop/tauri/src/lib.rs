@@ -106,6 +106,7 @@ pub fn run() {
             notes::commands::notes_changes,
             notes::commands::acknowledge_note_changes,
             notes::commands::get_note,
+            notes::commands::list_note_media,
             notes::commands::list_deleted_note_ids,
             notes::commands::create_note,
             notes::commands::save_note,

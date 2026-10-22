@@ -62,7 +62,7 @@ Ative **IA Features** nas configurações para exibir o ícone de chat na barra 
 A opção vem desativada por padrão. O recurso consulta
 os textos das notas e usa o serviço do provedor conectado, sujeito aos limites da sua
 conta. Atualmente, o provedor disponível é o Codex, instalado no computador
-e autenticado com sua conta ChatGPT. [Como conectar](docs/ai.md).
+e autenticado com sua conta ChatGPT. [Como conectar](docs/features/chat-with-ai.md).
 
 ## Escreva do seu jeito
 

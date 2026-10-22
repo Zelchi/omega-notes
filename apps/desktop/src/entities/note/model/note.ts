@@ -7,6 +7,21 @@ export type StudyNote = {
 	updatedAt: number;
 };
 
+export type NoteMediaSource =
+	| { type: "image"; imageId: string }
+	| { type: "image"; dataUrl: string }
+	| { type: "audio"; audioId: string; extension: string }
+	| { type: "audio"; dataUrl: string; extension: string }
+	| { type: "video"; videoId: string; extension: string }
+	| { type: "video"; dataUrl: string; extension: string };
+
+export type NoteMediaCatalogItem = {
+	noteId: string;
+	noteTitle: string;
+	elementId: string;
+	source: NoteMediaSource;
+};
+
 export type NoteSummary = {
 	id: string;
 	title: string;
