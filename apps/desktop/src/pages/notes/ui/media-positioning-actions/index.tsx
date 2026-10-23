@@ -10,7 +10,6 @@ const MediaPositioningActions: Component<{
     x: number;
     width: number;
     pageWidth: number;
-    audio?: boolean;
     t: (key: TranslationKey) => string;
     onConfirm: () => void;
     onDelete: () => void;
@@ -31,9 +30,9 @@ const MediaPositioningActions: Component<{
             <Icon name="check" size={18} />
         </Button>
         <Button class={styles.button} type="button" onPointerDown={props.onResize}
-            onKeyDown={props.onResizeKeyDown} style={{ cursor: props.audio ? "ew-resize" : "nwse-resize" }}
-            aria-label={props.t("resizeMedia")}>
-            <Icon name={props.audio ? "resizeHorizontal" : "resizeDiagonal"} size={16} />
+            onKeyDown={props.onResizeKeyDown} style={{ cursor: "nwse-resize" }}
+            aria-label={props.t("resizeImage")}>
+            <Icon name="resizeDiagonal" size={16} />
         </Button>
     </div>
 );

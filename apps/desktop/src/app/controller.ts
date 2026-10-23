@@ -10,6 +10,7 @@ import { useNotes, type NoteSummary } from "@/entities/note";
 import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner } from "solid-js";
 import { translate, type TranslationKey } from "@/shared/lib/i18n";
 import { configureTrayMenu, onTrayAction } from "./api/tray.repository";
+import { setWindowBackgroundColor } from "./api/window.repository";
 import { useVaults } from "@/features/manage-vault/model/vaults.controller";
 import type { Vault } from "@/entities/vault";
 import { matchesAiChatShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
@@ -95,6 +96,12 @@ export const useAppController = () => {
 		centerCanvasOnLaunch: preferences.centerCanvasOnLaunch,
 		beforeNavigate: async () => saveNoteTitle ? saveNoteTitle() : true,
 		t,
+	});
+	createEffect(() => {
+		const surface = navigation.route() === "canvas" ? "--board" : "--canvas";
+		preferences.theme();
+		const color = getComputedStyle(document.documentElement).getPropertyValue(surface).trim();
+		if (isTauriRuntime() && color) void setWindowBackgroundColor(color).catch(console.error);
 	});
 	const aiChatLazy = createLazyController<AiChatController>(() =>
 		Promise.all([
@@ -368,7 +375,7 @@ export const useAppController = () => {
 		if (!vaultId || !chatAvailable()) return;
 		setStudyReturn(undefined); studies.close();
 		try { await navigation.openNote(note); }
-		catch { /* Failed navigation returns to the preserved study below. */ }
+		catch { /* Se a navegação falhar, retorna ao estudo preservado abaixo. */ }
 		if (studyNavigationDisposed || revision !== studyNavigationRevision || vaultId !== vaults.activeVaultId() ||
 			!chatAvailable() || studies.open()) return;
 		if (navigation.route() === "note" && navigation.selectedNote()?.id === note.id) setStudyReturn({ vaultId, kind });
@@ -399,6 +406,7 @@ export const useAppController = () => {
 				case "pomodoro-reset": pomodoro.reset(); break;
 				case "pomodoro-next": pomodoro.next(); break;
 				case "update": void updates.activate(); break;
+				case "exit": void windowControls.exit(); break;
 			}
 		}).then(unlisten => { if (active) unlistenTray = unlisten; else unlisten(); }).catch(console.error);
 		onCleanup(() => { active = false; unlistenTray?.(); });

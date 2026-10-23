@@ -28,7 +28,12 @@ jobs:
       - name: Dependências do Linux
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev xdg-utils gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
+          sudo apt-get install -y cmake ninja-build libgtk-4-dev librsvg2-dev patchelf libssl-dev xdg-utils rpm
+      - name: Restaurar cache CEF pré-compilado
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/tauri-cef
+          key: cef-linux-x64-154.0.34-g14c5a08-chromium-154.0.8037.98
       - name: Instalar dependências JavaScript
         run: yarn install --frozen-lockfile --non-interactive
       - name: Verificar tipos
@@ -36,4 +41,4 @@ jobs:
       - name: Testar desktop
         run: yarn test:desktop
       - name: Testar backend Tauri
-        run: cargo test --locked --manifest-path apps/desktop/tauri/Cargo.toml
+        run: CEF_PATH="$HOME/.cache/tauri-cef" cargo test --locked --manifest-path apps/desktop/tauri/Cargo.toml

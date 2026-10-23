@@ -4,14 +4,13 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 use crate::notes::{
-    archive_deleted_note, audio_ids_in_document, delete_note_files, deleted_notes,
-    deleted_notes_directory, empty_document, existing_note, image_ids_in_document,
-    note_backup_exists, note_backup_path, note_from_path_with_id, note_path, prune_deleted_notes,
-    remove_deleted_note, validate_note_id, validate_note_title, video_ids_in_document, write_note,
-    NoteDocument, NoteLoadIssue, NoteSaveResult, StudyNote,
+    archive_deleted_note, delete_note_files, deleted_notes, deleted_notes_directory,
+    empty_document, existing_note, image_ids_in_document, note_backup_exists, note_backup_path,
+    note_from_path_with_id, note_path, prune_deleted_notes, remove_deleted_note, validate_note_id,
+    validate_note_title, write_note, NoteDocument, NoteLoadIssue, NoteSaveResult, StudyNote,
 };
 
-use super::cleanup::{cleanup_issue, collect_unreferenced_images, collect_unreferenced_media};
+use super::cleanup::{cleanup_issue, collect_unreferenced_images};
 
 pub(crate) fn create_note(
     resolve_directories: &impl Fn() -> Result<(PathBuf, PathBuf), String>,
@@ -59,19 +58,13 @@ pub(crate) fn save_note_checked(
         .map(|note| note.document.clone())
         .unwrap_or_else(empty_document);
     let mut previous_images = image_ids_in_document(&previous_document);
-    let mut previous_audio = audio_ids_in_document(&previous_document);
-    let mut previous_video = video_ids_in_document(&previous_document);
     let previous_backup = note_backup_path(&backups_directory, &note_id);
     if note_backup_exists(&backups_directory, &note_id) {
         if let Ok(document) = note_from_path_with_id(&previous_backup, &note_id) {
             previous_images.extend(image_ids_in_document(&document.document));
-            previous_audio.extend(audio_ids_in_document(&document.document));
-            previous_video.extend(video_ids_in_document(&document.document));
         }
     }
     let current_images = image_ids_in_document(&document);
-    let current_audio = audio_ids_in_document(&document);
-    let current_video = video_ids_in_document(&document);
     let saved = crate::notes::write_note_checked(
         &directory,
         &backups_directory,
@@ -96,26 +89,6 @@ pub(crate) fn save_note_checked(
             ),
         ));
     }
-    let removed_audio = previous_audio
-        .difference(&current_audio)
-        .cloned()
-        .collect::<HashSet<_>>();
-    let removed_video = previous_video
-        .difference(&current_video)
-        .cloned()
-        .collect::<HashSet<_>>();
-    if let Err(error) = collect_unreferenced_media(
-        &directory,
-        &backups_directory,
-        &removed_audio,
-        &removed_video,
-    ) {
-        cleanup_issues.push(cleanup_issue(
-            "Mídias",
-            format!("A nota foi salva, mas não foi possível limpar mídias sem referência: {error}"),
-        ));
-    }
-
     Ok(NoteSaveResult {
         note: saved,
         cleanup_issues,
@@ -136,15 +109,11 @@ pub(crate) fn delete_note(
     delete_note_files(&directory, &backups_directory, &note_id)?;
     super::remove_cached_note_summary(&directory, &note_id);
     let mut removed_images = image_ids_in_document(&previous_document);
-    let mut removed_audio = audio_ids_in_document(&previous_document);
-    let mut removed_video = video_ids_in_document(&previous_document);
     let mut cleanup_issues = Vec::new();
     match prune_deleted_notes(&directory) {
         Ok(documents) => {
             for document in documents {
                 removed_images.extend(image_ids_in_document(&document));
-                removed_audio.extend(audio_ids_in_document(&document));
-                removed_video.extend(video_ids_in_document(&document));
             }
         }
         Err(error) => cleanup_issues.push(cleanup_issue(".undo", error)),
@@ -155,19 +124,6 @@ pub(crate) fn delete_note(
             "images",
             format!(
                 "A nota foi apagada, mas não foi possível limpar imagens sem referência: {error}"
-            ),
-        ));
-    }
-    if let Err(error) = collect_unreferenced_media(
-        &directory,
-        &backups_directory,
-        &removed_audio,
-        &removed_video,
-    ) {
-        cleanup_issues.push(cleanup_issue(
-            "Mídias",
-            format!(
-                "A nota foi apagada, mas não foi possível limpar mídias sem referência: {error}"
             ),
         ));
     }

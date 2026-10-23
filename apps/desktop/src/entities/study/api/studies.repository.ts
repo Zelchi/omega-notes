@@ -9,7 +9,7 @@ type ReadOptions = { signal?: AbortSignal; onItem?: (item: StudySummary) => void
 type StudyEvent = { kind: "item"; item: unknown } | { kind: "invalidItem"; id: string; studyKind: StudyKind } | { kind: "complete"; total: number };
 const cancelled = () => Error("STUDY_READ_CANCELLED");
 
-/** Decode at most one saved question/card per task so a large library does not monopolize the WebView. */
+/** Decodifique no máximo uma questão/card salvo por tarefa, para que uma biblioteca grande não monopolize o WebView. */
 const streamStudies = (vaultId: string, options: ReadOptions): Promise<StudySummary[]> => new Promise((resolve, reject) => {
 	if (options.signal?.aborted) { reject(cancelled()); return; }
 	const items: StudySummary[] = [], ids = new Set<string>(), queue: StudyEvent[] = [];
@@ -142,7 +142,7 @@ export const deleteBrowserStudiesForVault = (vaultId: string): void => {
 	}
 	for (const name of names) localStorage.removeItem(name);
 };
-/** Update one saved item; a late progress save must never recreate a deleted item. */
+/** Atualize um item salvo; uma gravação tardia do progresso nunca deve recriar um item excluído. */
 export const saveStudyProgress = async (vaultId: string, studyId: string, kind: StudyKind, progress: import("../model/progress").StudyProgress): Promise<void> => {
 	try {
 		if (isTauriRuntime()) { await invoke("save_study_progress", { vaultId, studyId, kind, progress }); return; }

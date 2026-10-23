@@ -100,14 +100,10 @@ const SettingsDialog: Component<Props> = (props) => {
 									<KeyboardShortcutInput id="settings-canvasLayoutShortcut" label="canvasLayoutShortcut"
 										value={props.canvasLayoutShortcut} onChange={props.onCanvasLayoutShortcutChange} t={props.t} />
 								</div>
-								<Show when={props.aiFeaturesEnabled || props.gambiarraEnabled} fallback={
-									<p class={styles.helpText}>{props.t("settingsAiShortcutDisabled")}</p>
-								}>
-									<div class={styles.option}>
-										<label for="settings-aiChatShortcut">{props.t("aiChatShortcut")}</label>
-										<AiChatShortcutInput value={props.aiChatShortcut} onChange={props.onAiChatShortcutChange} t={props.t} />
-									</div>
-								</Show>
+								<div class={styles.option}>
+									<label for="settings-aiChatShortcut">{props.t("aiChatShortcut")}</label>
+									<AiChatShortcutInput value={props.aiChatShortcut} onChange={props.onAiChatShortcutChange} t={props.t} />
+								</div>
 							</Show>
 
 							<Show when={props.category() === "graphics"}>

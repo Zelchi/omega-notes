@@ -5,7 +5,7 @@ type Bounds = Point & NodeSize;
 const GAP = 12;
 const CELL_SIZE = 256;
 
-/** Keep the dragged/new notes first; only move other notes when their bounds collide. */
+/** Mantenha as notas arrastadas ou novas primeiro; mova as demais apenas quando os limites delas colidirem. */
 export const separateStaticNodes = (
 	positions: Record<string, Point>, nodes: StaticNode[], priority: ReadonlySet<string> = new Set(),
 ): Record<string, Point> => {

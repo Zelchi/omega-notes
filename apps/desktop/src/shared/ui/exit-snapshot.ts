@@ -4,7 +4,7 @@ type ExitKind = "bar" | "menu" | "dialog" | "card";
 type ExitOptions = { kind?: ExitKind; key?: string; enabled?: () => boolean };
 const activeExits = new Map<string, () => void>();
 
-/** Keep an inert visual copy alive after Solid disposes the interactive UI. */
+/** Mantenha uma cópia visual inerte depois que o Solid desmontar a interface interativa. */
 export const animateExitSnapshot = (
 	element: HTMLElement, duration: number, options: ExitOptions = {},
 ): (() => void) => {
@@ -88,7 +88,7 @@ export const animateExitSnapshot = (
 	return remove;
 };
 
-/** Call from a ref inside conditional content so cleanup runs when it disappears. */
+/** Chame a partir de uma ref dentro do conteúdo condicional para que a limpeza ocorra quando ele desaparecer. */
 export const registerExitSnapshot = (element: HTMLElement, options: ExitOptions): void => {
 	if (options.key) activeExits.get(options.key)?.();
 	onCleanup(() => {

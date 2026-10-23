@@ -9,7 +9,7 @@ export const externalLinkUrl = (value: string): string | undefined => {
     } catch { return; }
 };
 
-/** Read a named HTTP link, retaining balanced parentheses inside its destination. */
+/** Leia um link HTTP nomeado, preservando parênteses balanceados no destino. */
 export const readExternalMarkdownLink = (text: string, start: number): ExternalMarkdownLink | undefined => {
     if (text[start] !== "[" || text[start + 1] === "[" || ["!", "[", "\\"].includes(text[start - 1] ?? "")) return;
     let label = "", labelEnd = -1;

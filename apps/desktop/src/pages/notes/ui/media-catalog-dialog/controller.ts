@@ -32,9 +32,7 @@ const searchKey = (value: string): string => {
 };
 
 const sourceKey = (source: ImportedMedia, elementId: string): string => {
-	if (source.type === "image") return `image:${"imageId" in source ? source.imageId : elementId}`;
-	if (source.type === "audio") return `audio:${"audioId" in source ? source.audioId : elementId}`;
-	return `video:${"videoId" in source ? source.videoId : elementId}`;
+	return `image:${"imageId" in source ? source.imageId : elementId}`;
 };
 
 export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) => {
@@ -65,10 +63,11 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 			catalog.set(id, item);
 		};
 		for (const entry of entries) {
+			if (entry.source.type !== "image") continue;
 			if (entry.noteId !== currentNote.id) addMedia(entry.noteId, entry.noteTitle, entry.elementId, entry.source);
 		}
 		for (const element of currentNote.document.elements) {
-			if (element.type === "text") continue;
+			if (element.type !== "image") continue;
 			const source = noteMediaSource(element);
 			if (source) addMedia(currentNote.id, currentNote.title, element.id, source);
 		}
@@ -216,9 +215,7 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 			if (!accepted) return;
 			const result = await cleanupOrphanedMedia();
 			const message = props.t("cleanupMediaDone")
-				.replace("{images}", String(result.images))
-				.replace("{audio}", String(result.audio))
-				.replace("{video}", String(result.video));
+				.replace("{images}", String(result.images));
 			setCleanupStatus({ message, failed: false });
 		} catch (error) {
 			console.error(error);

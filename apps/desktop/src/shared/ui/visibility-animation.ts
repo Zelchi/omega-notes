@@ -1,6 +1,6 @@
 import { createEffect, onCleanup, type Accessor } from "solid-js";
 
-/** Reverse from the current visual state when an entrance or exit is interrupted. */
+/** Inverta a animação a partir do estado visual atual quando uma entrada ou saída for interrompida. */
 export const registerVisibilityAnimation = (
 	element: HTMLElement, exiting: Accessor<boolean>, kind: "bar" | "dialog" | "fade" | "panel" | "panel-left",
 ): void => {

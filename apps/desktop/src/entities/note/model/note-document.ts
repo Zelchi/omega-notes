@@ -26,48 +26,12 @@ export type NoteImageElement = {
 	dataUrl?: string;
 };
 
-export type NoteAudioElement = {
-	id: string;
-	type: "audio";
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-	volume: number;
-	audioId?: string;
-	extension: string;
-	dataUrl?: string;
-};
-
-export type NoteVideoElement = {
-	id: string;
-	type: "video";
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-	videoId?: string;
-	extension: string;
-	dataUrl?: string;
-};
-
-export type NotePositionedElement = NoteImageElement | NoteAudioElement | NoteVideoElement;
-export type NoteMediaElement = NoteAudioElement | NoteVideoElement;
+export type NotePositionedElement = NoteImageElement;
 export type NoteElement = NoteTextElement | NotePositionedElement;
 
 export const noteMediaSource = (element: NotePositionedElement): NoteMediaSource | undefined => {
-	if (element.type === "image") {
-		if (element.imageId) return { type: "image", imageId: element.imageId };
-		if (element.dataUrl) return { type: "image", dataUrl: element.dataUrl };
-		return undefined;
-	}
-	if (element.type === "audio") {
-		if (element.audioId) return { type: "audio", audioId: element.audioId, extension: element.extension };
-		if (element.dataUrl) return { type: "audio", dataUrl: element.dataUrl, extension: element.extension };
-		return undefined;
-	}
-	if (element.videoId) return { type: "video", videoId: element.videoId, extension: element.extension };
-	if (element.dataUrl) return { type: "video", dataUrl: element.dataUrl, extension: element.extension };
+	if (element.imageId) return { type: "image", imageId: element.imageId };
+	if (element.dataUrl) return { type: "image", dataUrl: element.dataUrl };
 	return undefined;
 };
 
@@ -79,8 +43,6 @@ export type NoteDocument = {
 };
 
 export const DEFAULT_PAGE_SIZE = { width: 794, height: 1123 };
-export const MIN_AUDIO_WIDTH = 340;
-export const DEFAULT_AUDIO_VOLUME = 0.5;
 
 export const createTextElement = (text = "", x = 32, y = 32, width = 728): NoteTextElement => {
 	const lines = Math.max(1, text.split("\n").length);
@@ -111,35 +73,6 @@ export const createImageElement = (
 		...source,
 	};
 };
-
-export const createAudioElement = (
-	source: { audioId: string; extension: string } | { dataUrl: string; extension: string },
-	x = 32,
-	y = 32,
-): NoteAudioElement => ({
-	id: createUuidV7(),
-	type: "audio",
-	x,
-	y,
-	width: 360,
-	height: 54,
-	volume: DEFAULT_AUDIO_VOLUME,
-	...source,
-});
-
-export const createVideoElement = (
-	source: { videoId: string; extension: string } | { dataUrl: string; extension: string },
-	x = 32,
-	y = 32,
-): NoteVideoElement => ({
-	id: createUuidV7(),
-	type: "video",
-	x,
-	y,
-	width: 360,
-	height: 203,
-	...source,
-});
 
 export const createEmptyDocument = (): NoteDocument => {
 	return {

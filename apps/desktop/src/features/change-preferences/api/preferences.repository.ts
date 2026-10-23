@@ -168,7 +168,7 @@ export const readCanvasLayout = (): CanvasLayout => {
 
 export const saveCanvasLayout = (layout: CanvasLayout): void => {
 	try { localStorage.setItem("omega-notes.canvas-layout", layout); }
-	catch { /* The layout can still be switched when storage is unavailable. */ }
+	catch { /* Ainda é possível trocar o layout quando o armazenamento estiver indisponível. */ }
 };
 
 export const readNoteMode = (): NoteMode => {

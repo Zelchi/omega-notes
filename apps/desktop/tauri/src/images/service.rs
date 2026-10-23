@@ -1,9 +1,18 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 
 use uuid::Uuid;
 
 use super::repository;
+
+static ASSET_MUTATION_LOCK: Mutex<()> = Mutex::new(());
+
+pub(crate) fn lock_asset_mutations() -> Result<MutexGuard<'static, ()>, String> {
+    ASSET_MUTATION_LOCK
+        .lock()
+        .map_err(|_| "Não foi possível acessar os arquivos de imagem.".to_string())
+}
 
 pub(super) fn import_note_image(
     resolve_notes_directory: &impl Fn() -> Result<PathBuf, String>,

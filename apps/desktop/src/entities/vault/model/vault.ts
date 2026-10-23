@@ -11,8 +11,6 @@ export type VaultLibrary = {
 export type VaultDetails = {
 	noteCount: number;
 	imageCount: number;
-	audioCount: number;
-	videoCount: number;
 	characterCount: number;
 	createdAt: number;
 	storageBytes: number;

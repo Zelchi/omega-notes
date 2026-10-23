@@ -73,20 +73,7 @@ struct MediaCatalogDocument {
 }
 
 enum MediaCatalogElement {
-    Image {
-        id: String,
-        image_id: String,
-    },
-    Audio {
-        id: String,
-        audio_id: String,
-        extension: String,
-    },
-    Video {
-        id: String,
-        video_id: String,
-        extension: String,
-    },
+    Image { id: String, image_id: String },
     Other,
 }
 
@@ -111,18 +98,12 @@ impl<'de> serde::Deserialize<'de> for MediaCatalogElement {
                 let mut kind = None;
                 let mut id = None;
                 let mut image_id = None;
-                let mut audio_id = None;
-                let mut video_id = None;
-                let mut extension = None;
 
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
                         "type" => kind = Some(map.next_value::<String>()?),
                         "id" => id = Some(map.next_value::<String>()?),
                         "imageId" => image_id = Some(map.next_value::<String>()?),
-                        "audioId" => audio_id = Some(map.next_value::<String>()?),
-                        "videoId" => video_id = Some(map.next_value::<String>()?),
-                        "extension" => extension = Some(map.next_value::<String>()?),
                         _ => {
                             map.next_value::<IgnoredAny>()?;
                         }
@@ -133,26 +114,6 @@ impl<'de> serde::Deserialize<'de> for MediaCatalogElement {
                     Some("image") => match (id, image_id) {
                         (Some(id), Some(image_id)) => {
                             Ok(MediaCatalogElement::Image { id, image_id })
-                        }
-                        _ => Ok(MediaCatalogElement::Other),
-                    },
-                    Some("audio") => match (id, audio_id, extension) {
-                        (Some(id), Some(audio_id), Some(extension)) => {
-                            Ok(MediaCatalogElement::Audio {
-                                id,
-                                audio_id,
-                                extension,
-                            })
-                        }
-                        _ => Ok(MediaCatalogElement::Other),
-                    },
-                    Some("video") => match (id, video_id, extension) {
-                        (Some(id), Some(video_id), Some(extension)) => {
-                            Ok(MediaCatalogElement::Video {
-                                id,
-                                video_id,
-                                extension,
-                            })
                         }
                         _ => Ok(MediaCatalogElement::Other),
                     },
@@ -231,41 +192,7 @@ pub(crate) fn list_note_media(directory: &Path) -> Result<Vec<NoteMediaCatalogIt
                 {
                     (id, NoteMediaSource::Image { image_id })
                 }
-                MediaCatalogElement::Audio {
-                    id,
-                    audio_id,
-                    extension,
-                } if Uuid::parse_str(&id).is_ok()
-                    && Uuid::parse_str(&audio_id).is_ok()
-                    && crate::media::is_supported_extension("audio", &extension) =>
-                {
-                    (
-                        id,
-                        NoteMediaSource::Audio {
-                            audio_id,
-                            extension,
-                        },
-                    )
-                }
-                MediaCatalogElement::Video {
-                    id,
-                    video_id,
-                    extension,
-                } if Uuid::parse_str(&id).is_ok()
-                    && Uuid::parse_str(&video_id).is_ok()
-                    && crate::media::is_supported_extension("video", &extension) =>
-                {
-                    (
-                        id,
-                        NoteMediaSource::Video {
-                            video_id,
-                            extension,
-                        },
-                    )
-                }
-                MediaCatalogElement::Image { .. }
-                | MediaCatalogElement::Audio { .. }
-                | MediaCatalogElement::Video { .. } => continue,
+                MediaCatalogElement::Image { .. } => continue,
                 MediaCatalogElement::Other => continue,
             };
             catalog.push(NoteMediaCatalogItem {
@@ -720,16 +647,12 @@ mod media_catalog_tests {
     }
 
     #[test]
-    fn catalog_includes_image_audio_and_video_references_from_every_note() {
+    fn catalog_ignores_legacy_audio_and_video_references() {
         let directory = TestDirectory::new();
         let first_note = Uuid::new_v4().to_string();
         let second_note = Uuid::new_v4().to_string();
         let shared_image = Uuid::new_v4().to_string();
         let image_element = Uuid::new_v4().to_string();
-        let audio_id = Uuid::new_v4().to_string();
-        let audio_element = Uuid::new_v4().to_string();
-        let video_id = Uuid::new_v4().to_string();
-        let video_element = Uuid::new_v4().to_string();
 
         write_note(
             &directory,
@@ -737,8 +660,8 @@ mod media_catalog_tests {
             "First",
             vec![
                 json!({ "type": "image", "id": image_element, "imageId": shared_image }),
-                json!({ "type": "audio", "id": audio_element, "audioId": audio_id, "extension": "mp3" }),
-                json!({ "type": "video", "id": video_element, "videoId": video_id, "extension": "mp4" }),
+                json!({ "type": "audio", "id": Uuid::new_v4().to_string(), "audioId": Uuid::new_v4().to_string(), "extension": "mp3" }),
+                json!({ "type": "video", "id": Uuid::new_v4().to_string(), "videoId": Uuid::new_v4().to_string(), "extension": "mp4" }),
                 json!({ "type": "text", "id": Uuid::new_v4().to_string(), "text": "A note body is not media." }),
             ],
         );
@@ -748,12 +671,12 @@ mod media_catalog_tests {
             "Second",
             vec![
                 json!({ "type": "image", "id": Uuid::new_v4().to_string(), "imageId": shared_image }),
-                json!({ "type": "audio", "id": Uuid::new_v4().to_string(), "audioId": Uuid::new_v4().to_string(), "extension": "exe" }),
+                json!({ "type": "audio", "id": Uuid::new_v4().to_string(), "audioId": Uuid::new_v4().to_string(), "extension": "mp3" }),
             ],
         );
 
         let catalog = list_note_media(&directory.0).unwrap();
-        assert_eq!(catalog.len(), 4);
+        assert_eq!(catalog.len(), 2);
         assert_eq!(
             catalog
                 .iter()
@@ -761,8 +684,9 @@ mod media_catalog_tests {
                 .count(),
             2
         );
-        assert!(catalog.iter().any(|item| matches!(&item.source, NoteMediaSource::Audio { audio_id: id, extension } if id == &audio_id && extension == "mp3")));
-        assert!(catalog.iter().any(|item| matches!(&item.source, NoteMediaSource::Video { video_id: id, extension } if id == &video_id && extension == "mp4")));
+        assert!(catalog
+            .iter()
+            .all(|item| matches!(item.source, NoteMediaSource::Image { .. })));
         assert!(catalog
             .iter()
             .all(|item| item.note_id == first_note || item.note_id == second_note));

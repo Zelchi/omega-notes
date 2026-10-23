@@ -87,50 +87,6 @@ pub(crate) fn validate_document(document: &NoteDocument) -> Result<(), String> {
                     return Err("Dimensões ou identificador de imagem inválidos.".to_string());
                 }
             }
-            NoteElement::Audio {
-                id,
-                x,
-                y,
-                width,
-                height,
-                audio_id,
-                extension,
-                volume,
-            } => {
-                if ![x, y, width, height, volume]
-                    .iter()
-                    .all(|value| value.is_finite())
-                    || *width <= 0.0
-                    || *height <= 0.0
-                    || !(0.0..=1.0).contains(volume)
-                    || Uuid::parse_str(id).is_err()
-                    || Uuid::parse_str(audio_id).is_err()
-                    || !crate::media::is_supported_extension("audio", extension)
-                {
-                    return Err(
-                        "Dimensões, volume ou identificador de áudio inválidos.".to_string()
-                    );
-                }
-            }
-            NoteElement::Video {
-                id,
-                x,
-                y,
-                width,
-                height,
-                video_id,
-                extension,
-            } => {
-                if ![x, y, width, height].iter().all(|value| value.is_finite())
-                    || *width <= 0.0
-                    || *height <= 0.0
-                    || Uuid::parse_str(id).is_err()
-                    || Uuid::parse_str(video_id).is_err()
-                    || !crate::media::is_supported_extension("video", extension)
-                {
-                    return Err("Dimensões ou identificador de vídeo inválidos.".to_string());
-                }
-            }
         }
     }
     Ok(())
@@ -142,35 +98,7 @@ pub(crate) fn image_ids_in_document(document: &NoteDocument) -> HashSet<String> 
         .iter()
         .filter_map(|element| match element {
             NoteElement::Image { image_id, .. } => Some(image_id.clone()),
-            NoteElement::Text { .. } | NoteElement::Audio { .. } | NoteElement::Video { .. } => {
-                None
-            }
-        })
-        .collect()
-}
-
-pub(crate) fn audio_ids_in_document(document: &NoteDocument) -> HashSet<String> {
-    document
-        .elements
-        .iter()
-        .filter_map(|element| match element {
-            NoteElement::Audio { audio_id, .. } => Some(audio_id.clone()),
-            NoteElement::Text { .. } | NoteElement::Image { .. } | NoteElement::Video { .. } => {
-                None
-            }
-        })
-        .collect()
-}
-
-pub(crate) fn video_ids_in_document(document: &NoteDocument) -> HashSet<String> {
-    document
-        .elements
-        .iter()
-        .filter_map(|element| match element {
-            NoteElement::Video { video_id, .. } => Some(video_id.clone()),
-            NoteElement::Text { .. } | NoteElement::Image { .. } | NoteElement::Audio { .. } => {
-                None
-            }
+            NoteElement::Text { .. } => None,
         })
         .collect()
 }

@@ -22,7 +22,7 @@ for (const text of ['', '  \n \t']) test('empty content is deleted without confi
     await fixture.state.request(fixture.notes()[0]);
     assert.deepEqual(fixture.removed, ['a']); assert.equal(fixture.state.target(), undefined);
 });
-for (const media of [[], [{ type: 'image', id: 'image' }], [{ type: 'audio', id: 'audio' }], [{ type: 'video', id: 'video' }]]) {
+for (const media of [[], [{ type: 'image', id: 'image' }]]) {
     test('text/media requires confirmation: ' + (media[0]?.type ?? 'text'), async t => {
         const f = setup(note('a', media.length ? '' : 'content', media)); t.after(f.dispose);
         await f.state.request(f.notes()[0]); assert.equal(f.removed.length, 0); assert.equal(f.state.target()?.id, 'a');

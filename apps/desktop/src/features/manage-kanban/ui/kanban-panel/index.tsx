@@ -6,7 +6,7 @@ import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import type { TranslationKey } from "@/shared/lib/i18n";
-import { kanbanStatusLabels, kanbanStatuses, maxKanbanPosition, type KanbanItem, type KanbanStatus } from "../../model/kanban";
+import { kanbanSlotCount, kanbanStatusLabels, kanbanStatuses, maxKanbanItems, type KanbanItem, type KanbanStatus } from "../../model/kanban";
 import type { useKanban } from "../../model/controller";
 import { styles } from "./style.css.ts";
 
@@ -34,9 +34,7 @@ const KanbanPanel: Component<Props> = (props) => {
 	const slotPositions = (status: KanbanStatus) => {
 		const positions = byStatus().get(status) ?? new Map<number, KanbanItem>();
 		const lastPosition = Math.max(-1, ...positions.keys());
-		const count = Math.max(5, lastPosition + 1);
-		const canAppend = count - 1 < maxKanbanPosition;
-		return Array.from({ length: count + (draggedId() && canAppend ? 1 : 0) }, (_, index) => index);
+		return Array.from({ length: kanbanSlotCount(lastPosition) }, (_, index) => index);
 	};
 	const isCollapsed = (status: KanbanStatus) => collapsedStatuses().has(status);
 	const setStatusCollapsed = (status: KanbanStatus, collapsed: boolean) => setCollapsedStatuses(current => {
@@ -77,7 +75,7 @@ const KanbanPanel: Component<Props> = (props) => {
 					event.dataTransfer.setData("text/plain", item.id);
 				}}
 				onDragEnd={() => { setDraggedId(undefined); setDropTarget(undefined); }}>
-				<Show when={editing() === item.id} fallback={<div class={styles.cardTitle} title={item.title}>{item.title}</div>}>
+				<Show when={editing() === item.id} fallback={<div class={styles.cardTitle}>{item.title}</div>}>
 					<form class={styles.cardEditor} onSubmit={(event) => submitEdit(event, item.id)}>
 						<input class={`${styles.cardInput} ${styles.cardEditorInput}`} value={editDraft()} maxLength={500}
 							aria-label={props.t("kanbanItemTitle")} onInput={(event) => setEditDraft(event.currentTarget.value)} />
@@ -88,10 +86,10 @@ const KanbanPanel: Component<Props> = (props) => {
 					</form>
 				</Show>
 				<div class={styles.cardMeta}>
-					<span class={styles.cardMetaLine} aria-label={`${props.t("kanbanCreatedAt")}: ${formatCardDate(item.createdAt)}`} title={`${props.t("kanbanCreatedAt")}: ${formatCardDate(item.createdAt)}`}>
+					<span class={styles.cardMetaLine} aria-label={`${props.t("kanbanCreatedAt")}: ${formatCardDate(item.createdAt)}`}>
 						<Icon name="calendar" size={11} />{formatCardDate(item.createdAt)}
 					</span>
-					<span class={styles.cardMetaLine} aria-label={`${props.t("kanbanUpdatedAt")}: ${formatCardDate(item.updatedAt)}`} title={`${props.t("kanbanUpdatedAt")}: ${formatCardDate(item.updatedAt)}`}>
+					<span class={styles.cardMetaLine} aria-label={`${props.t("kanbanUpdatedAt")}: ${formatCardDate(item.updatedAt)}`}>
 						<Icon name="clock" size={11} />{formatCardDate(item.updatedAt)}
 					</span>
 				</div>
@@ -136,6 +134,7 @@ const KanbanPanel: Component<Props> = (props) => {
 				</header>
 				<div class={styles.content}>
 					<Show when={props.kanban.error()}><p class={styles.error} role="alert">{props.t("kanbanStorageFailed")}</p></Show>
+					<Show when={props.kanban.items().length >= maxKanbanItems}><p class={styles.loading} role="status">{props.t("kanbanLimitReached")}</p></Show>
 					<Show when={props.kanban.loading()}><p class={styles.loading}>{props.t("kanbanLoading")}</p></Show>
 					<CustomScrollArea ariaLabel={props.t("kanbanTitle")} contentClass={styles.lanes} viewportStyle={{ padding: "2px 12px 12px 2px" }}>
 						<For each={kanbanStatuses}>{(status) => {
@@ -157,7 +156,8 @@ const KanbanPanel: Component<Props> = (props) => {
 											</Button>
 											<Button class={styles.iconButton} type="button"
 												aria-label={`${props.t("kanbanAddItem")} · ${props.t(kanbanStatusLabels[status])}`}
-												disabled={props.kanban.loading()} onClick={() => { setStatusCollapsed(status, false); setDraft(""); setAdding(status); }}>
+												disabled={props.kanban.loading() || props.kanban.items().length >= maxKanbanItems}
+												onClick={() => { setStatusCollapsed(status, false); setDraft(""); setAdding(status); }}>
 												<Icon name="add" size={15} />
 											</Button>
 										</div>
@@ -172,7 +172,7 @@ const KanbanPanel: Component<Props> = (props) => {
 											<div class={styles.formActions}>
 												<Button class={styles.formButton} type="button"
 													onClick={() => { setAdding(undefined); setDraft(""); }}>{props.t("cancel")}</Button>
-												<Button class={styles.formButton} type="submit" disabled={!draft().trim()}>{props.t("save")}</Button>
+												<Button class={styles.formButton} type="submit" disabled={!draft().trim() || props.kanban.items().length >= maxKanbanItems}>{props.t("save")}</Button>
 											</div>
 										</form>
 										</Show>
@@ -196,7 +196,7 @@ const KanbanPanel: Component<Props> = (props) => {
 														event.preventDefault();
 														event.stopPropagation();
 														const itemId = event.dataTransfer?.getData("text/plain") || draggedId();
-														if (itemId) props.kanban.move(itemId, status, position);
+														if (itemId) props.kanban.move(itemId, status, position, item()?.id);
 														setDraggedId(undefined);
 														setDropTarget(undefined);
 													}}>

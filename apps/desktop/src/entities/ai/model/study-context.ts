@@ -1,4 +1,4 @@
-/** References only: the host reads and deduplicates the actual note contents after saving edits. */
+/** Somente referências: o aplicativo host lê e elimina duplicatas do conteúdo real das notas depois de salvar as alterações. */
 export type StudyContextAssignment = {
 	itemId: string;
 	candidateId: string;

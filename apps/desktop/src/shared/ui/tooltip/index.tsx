@@ -3,7 +3,7 @@ import { Portal } from "solid-js/web";
 import { windowLayout } from "@/shared/ui/window-layout";
 import { tooltipStyle } from "./style.css";
 
-/** Labels the buttons inside a root without wrapping them or changing focus/selection. */
+/** Rotula os botões dentro do elemento raiz sem envolvê-los nem alterar foco ou seleção. */
 const Tooltip: Component<{ root: Accessor<HTMLElement | undefined>; enabled?: boolean; delay?: number }> = props => {
 	const id = `tooltip-${createUniqueId()}`;
 	const [mounted, setMounted] = createSignal(false);

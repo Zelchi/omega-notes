@@ -1,47 +1,17 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use super::super::document::{audio_ids_in_document, image_ids_in_document, video_ids_in_document};
+use super::super::document::image_ids_in_document;
 use super::super::models::NoteDocument;
 use super::super::repository::{
     note_from_path, note_from_path_with_id, note_id_from_backup, note_paths,
 };
-
-type ReferencedMediaIds = (HashSet<String>, HashSet<String>, HashSet<String>);
 
 pub(crate) fn referenced_image_ids(
     notes_directory: &Path,
     backups_directory: &Path,
 ) -> Result<HashSet<String>, String> {
     collect_references(notes_directory, backups_directory, image_ids_in_document)
-}
-
-pub(crate) fn referenced_audio_and_video_ids(
-    notes_directory: &Path,
-    backups_directory: &Path,
-) -> Result<(HashSet<String>, HashSet<String>), String> {
-    let mut audio_ids = HashSet::new();
-    let mut video_ids = HashSet::new();
-    visit_note_versions(notes_directory, backups_directory, |document| {
-        audio_ids.extend(audio_ids_in_document(document));
-        video_ids.extend(video_ids_in_document(document));
-    })?;
-    Ok((audio_ids, video_ids))
-}
-
-pub(crate) fn referenced_media_ids(
-    notes_directory: &Path,
-    backups_directory: &Path,
-) -> Result<ReferencedMediaIds, String> {
-    let mut image_ids = HashSet::new();
-    let mut audio_ids = HashSet::new();
-    let mut video_ids = HashSet::new();
-    visit_note_versions(notes_directory, backups_directory, |document| {
-        image_ids.extend(image_ids_in_document(document));
-        audio_ids.extend(audio_ids_in_document(document));
-        video_ids.extend(video_ids_in_document(document));
-    })?;
-    Ok((image_ids, audio_ids, video_ids))
 }
 
 fn collect_references(

@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 use crate::names::normalize_name;
 
+use super::media_migration::remove_legacy_media;
 use super::models::{Vault, VaultDeleteResult, VaultLibrary};
 use super::repository::{
     cleanup_vault_deletion, ensure_vault_directories, read_vault_registry, recover_vault_deletions,
@@ -41,6 +42,13 @@ pub(crate) fn initialize_active_vault(
     let directory = resolve_app_directory()?;
     let mut registry = read_vault_registry(&directory)?;
     recover_vault_deletions(&directory, &registry)?;
+    for vault in &registry.vaults {
+        let vault_directory = vault_directory(&directory, vault)?;
+        remove_legacy_media(
+            &vault_directory,
+            &vault_backups_directory(&directory, &vault.id),
+        )?;
+    }
     let active_directories = registry
         .active_vault_id
         .as_ref()

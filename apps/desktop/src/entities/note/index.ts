@@ -10,20 +10,15 @@ export { paragraphStarts, paragraphIndexAt, remapParagraphAlignments } from "./m
 export type { NoteLoadIssue, NoteMediaCatalogItem, NoteMediaSource, NoteSummary, StudyNote } from "./model/note";
 export { summarizeNote } from "./model/note-summary";
 export {
-	createAudioElement,
 	createImageElement,
 	createTextElement,
-	createVideoElement,
 	documentText,
 	noteMediaSource,
-	DEFAULT_AUDIO_VOLUME,
-	MIN_AUDIO_WIDTH,
 } from "./model/note-document";
 export type {
 	NoteDocument,
 	NoteElement,
 	NoteImageElement,
-	NoteMediaElement,
 	NotePositionedElement,
 	NoteTextElement,
 	NoteTextAlignment,

@@ -1,5 +1,6 @@
 pub(crate) mod commands;
 pub(crate) mod kanban;
+mod media_migration;
 mod models;
 pub(crate) mod pomodoro_tasks;
 mod repository;

@@ -1,4 +1,4 @@
-/** Keep punctuation and numbers significant; only case, diacritics and spacing are normalized. */
+/** Mantenha pontuação e números relevantes; normalize apenas maiúsculas/minúsculas, diacríticos e espaços. */
 export const normalizeClozeAnswer = (value: string): string => value.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().trim().replace(/\s+/gu, " ");
 export type ClozePart = { text: string; blankIndex?: number };
 export const splitClozeText = (text: string): ClozePart[] => {

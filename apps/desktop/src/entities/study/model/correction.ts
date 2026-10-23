@@ -1,6 +1,6 @@
 export type CorrectionSegment = { text: string; incorrect: boolean; correction?: string };
 
-/** Segments cover the entire passage; both true and false claims remain selectable. */
+/** Os segmentos cobrem todo o trecho; afirmações verdadeiras e falsas continuam selecionáveis. */
 export const decodeCorrectionSegments = (value: unknown): CorrectionSegment[] => {
 	const invalid = () => { throw Error("STUDY_INVALID_RESPONSE"); };
 	if (!Array.isArray(value) || value.length < 3 || value.length > 16) return invalid();

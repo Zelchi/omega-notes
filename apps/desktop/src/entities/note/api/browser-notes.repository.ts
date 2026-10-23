@@ -29,19 +29,27 @@ const parseNotes = (serialized: string, storageKey?: string): StudyNote[] => {
 			(element.type === "text" && element.paragraphAlignments !== undefined &&
 				(!Array.isArray(element.paragraphAlignments) ||
 					(element.paragraphAlignments.length > 0 && element.paragraphAlignments.length !== element.text.split("\n").length) ||
-					element.paragraphAlignments.some((alignment) => !["left", "center", "justify", "right"].includes(alignment)))) ||
-			(element.type === "audio" && (!Number.isFinite(element.volume) || element.volume < 0 || element.volume > 1)),
+				element.paragraphAlignments.some((alignment) => !["left", "center", "justify", "right"].includes(alignment)))),
 		);
 	})) {
 		throw new Error("Formato de nota Ômega Notes incompatível.");
 	}
-	let hadPreview = false;
+	let hadLegacyData = false;
 	const normalized = notes.map((note) => {
-		if (Object.hasOwn(note, "preview")) hadPreview = true;
+		if (Object.hasOwn(note, "preview")) hadLegacyData = true;
 		const { preview: _preview, ...withoutPreview } = note as StudyNote & { preview?: unknown };
+		const elements = withoutPreview.document.elements as unknown as Array<{ type?: string }>;
+		const retainedElements = elements.filter((element) => element.type !== "audio" && element.type !== "video");
+		if (retainedElements.length !== elements.length) {
+			hadLegacyData = true;
+			return {
+				...withoutPreview,
+				document: { ...withoutPreview.document, elements: retainedElements as StudyNote["document"]["elements"] },
+			};
+		}
 		return withoutPreview;
 	});
-	if (hadPreview && storageKey) {
+	if (hadLegacyData && storageKey) {
 		try { localStorage.setItem(storageKey, JSON.stringify(normalized)); }
 		catch { /* Mantém a leitura das notas se o cache antigo não puder ser regravado. */ }
 	}
@@ -227,8 +235,6 @@ export const getBrowserNotesStats = (vaultId: string): NoteStorageStats => {
 		return {
 			noteCount: 0,
 			imageCount: 0,
-			audioCount: 0,
-			videoCount: 0,
 			characterCount: 0,
 			storageBytes: 0,
 			lastModifiedAt: 0,
@@ -238,19 +244,11 @@ export const getBrowserNotesStats = (vaultId: string): NoteStorageStats => {
 	try {
 		const notes = parseNotes(serialized);
 		const imageIds = new Set<string>();
-		const audioIds = new Set<string>();
-		const videoIds = new Set<string>();
 		let characterCount = 0;
 		for (const note of notes) {
 			for (const element of note.document.elements) {
 				if (element.type === "image") {
 					imageIds.add(element.imageId ?? element.id);
-				}
-				if (element.type === "audio") {
-					audioIds.add(element.audioId ?? element.id);
-				}
-				if (element.type === "video") {
-					videoIds.add(element.videoId ?? element.id);
 				}
 				if (element.type === "text") characterCount += [...element.text].length;
 			}
@@ -258,8 +256,6 @@ export const getBrowserNotesStats = (vaultId: string): NoteStorageStats => {
 		return {
 			noteCount: notes.length,
 			imageCount: imageIds.size,
-			audioCount: audioIds.size,
-			videoCount: videoIds.size,
 			characterCount,
 			storageBytes: new Blob([serialized]).size,
 			lastModifiedAt: notes.reduce((latest, note) => Math.max(latest, note.updatedAt), 0),
@@ -268,8 +264,6 @@ export const getBrowserNotesStats = (vaultId: string): NoteStorageStats => {
 		return {
 			noteCount: 0,
 			imageCount: 0,
-			audioCount: 0,
-			videoCount: 0,
 			characterCount: 0,
 			storageBytes: 0,
 			lastModifiedAt: 0,

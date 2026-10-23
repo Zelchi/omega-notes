@@ -27,8 +27,6 @@ pub(crate) struct VaultLibrary {
 pub(crate) struct VaultDetails {
     pub(crate) note_count: usize,
     pub(crate) image_count: usize,
-    pub(crate) audio_count: usize,
-    pub(crate) video_count: usize,
     pub(crate) character_count: usize,
     pub(crate) created_at: u64,
     pub(crate) storage_bytes: u64,

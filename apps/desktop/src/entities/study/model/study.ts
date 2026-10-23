@@ -3,7 +3,7 @@ import { decodeClozeBlanks, fillClozeText } from "./cloze";
 import { decodeStudyProgress, type StudyProgress } from "./progress";
 export type StudyKind = "flashcards" | "quiz" | "written" | "cloze" | "correction";
 export type StudyItem = { question: string; answer: string; options: string[]; correctIndex?: number; explanation: string; sources: string[]; blanks?: string[][]; segments?: CorrectionSegment[] };
-/** Persisted records contain one item; controllers may combine records into an in-memory study run. */
+/** Os registros persistidos contêm um item; os controladores podem combiná-los em uma rodada de estudo mantida em memória. */
 export type StudyDeck = { id: string; kind: StudyKind; title: string; createdAt: number; sourceNoteId?: string; items: StudyItem[]; progress?: StudyProgress };
 
 const object = (value: unknown): Record<string, unknown> => {
@@ -64,7 +64,7 @@ export class StudyInsufficientContentError extends Error {
 	}
 }
 
-/** The response size limit applies to model output, not persisted learner reports. */
+/** O limite de tamanho da resposta se aplica à saída do modelo, não aos relatórios de aprendizagem persistidos. */
 export const parseStudyJson = (response: string): Record<string, unknown> => {
 	if (response.length > 512_000) throw Error("STUDY_INVALID_RESPONSE");
 	const content = response.trim().replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```$/, "");

@@ -4,7 +4,7 @@
 
 O painel é aberto pelo botão da barra ou pelo atalho `Ctrl+Shift+B`; abrir outro painel principal o oculta, sem desmontar o controlador. Cada vault tem itens em cinco colunas (`Backlog`, `To Do`, `In progress`, `Review`, `Finish`). Criar, editar, apagar ou arrastar um cartão atualiza o estado em memória e enfileira uma gravação.
 
-Cada cartão guarda título, etapa, posição, data de criação e data da última troca de etapa. Editar o título não altera a data de movimentação. Posições podem conter espaços; a interface mostra ao menos cinco espaços por coluna.
+Cada cartão guarda título, etapa, posição, data de criação e data da última troca de etapa. Soltar um cartão sobre outro troca as posições; em colunas diferentes, os cartões também trocam de etapa. Soltar em um espaço vazio move o cartão para aquela posição. A data de movimentação fica vazia até o primeiro movimento entre etapas; editar o título ou reordenar na mesma coluna não a altera. Dados antigos que repetiam a data de criação em `updatedAt` são normalizados como ainda não movidos. As cinco colunas começam expandidas, podem ser minimizadas individualmente e mostram ao menos cinco espaços. O limite de 1.000 cartões é igual ao limite do armazenamento.
 
 ## Persistência e risco
 

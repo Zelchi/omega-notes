@@ -60,7 +60,7 @@ pode localizar nos arquivos.
 | `notes/<id>.omega` | Uma nota por arquivo JSON UTF-8; não é Markdown puro. |
 | `notes/.undo/` | Cópias de notas excluídas para desfazer. Não são notas ativas. |
 | `notes/.reference-titles.json` | Mapa ID → último título conhecido de referências apagadas. |
-| `images/`, `audios/`, `videos/` | Mídias referenciadas pelos elementos das notas. |
+| `images/` | Imagens e GIFs referenciados pelas notas. |
 | `ia/` | Dados normais de IA; não armazene segredos aqui. |
 | `ia/studies/<tipo>/<id>.json` | Uma questão ou card salvo individualmente por arquivo. |
 | `ia/gambiarra/requests/<id>/` | Pedido temporário de geração ou avaliação iniciado na interface. |
@@ -265,7 +265,7 @@ Não é necessário MCP para esse fluxo.
 2. Leia `manifest.json`: `items` contém as atribuições, com `number`, `itemId`,
    `primarySourceId` e `supportingSourceIds`; `notes` identifica cada `sourceId`,
    seu título, `usedByItems` e segmentos com `headingPath`, `kind`, contagem de caracteres e nome
-   de arquivo. Elementos de imagem, vídeo e áudio não entram nos segmentos; tabelas
+   de arquivo. Elementos de imagem não entram nos segmentos; tabelas
    Markdown formam segmentos próprios.
 3. Escolha e leia os segmentos relevantes uma vez por arquivo compartilhado.
    Para o item de número 2, use somente fontes cujo `usedByItems` contenha `2`.

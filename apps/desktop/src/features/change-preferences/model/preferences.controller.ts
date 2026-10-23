@@ -60,9 +60,9 @@ export const usePreferences = () => {
 	};
 
 	const updateTheme = (value: Theme): void => {
-		setTheme(value);
 		document.documentElement.dataset.theme = value;
 		document.documentElement.style.colorScheme = value;
+		setTheme(value);
 		saveTheme(value);
 	};
 

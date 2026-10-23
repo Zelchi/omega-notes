@@ -1,10 +1,8 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import {
-	createAudioElement,
 	createEditableNoteReferences,
 	createImageElement,
-	createVideoElement,
 	type NoteDocument,
 	type NoteElement,
 	type NotePositionedElement,
@@ -46,8 +44,13 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 	let active = true;
 	onCleanup(() => { active = false; });
 	const [pasteError, setPasteError] = createSignal(false);
+	const [mediaImportError, setMediaImportError] = createSignal(false);
 	let pasteErrorTimer: ReturnType<typeof setTimeout> | undefined;
-	onCleanup(() => clearTimeout(pasteErrorTimer));
+	let mediaImportErrorTimer: ReturnType<typeof setTimeout> | undefined;
+	onCleanup(() => {
+		clearTimeout(pasteErrorTimer);
+		clearTimeout(mediaImportErrorTimer);
+	});
 	let paper!: HTMLDivElement;
 	let textFormatHandler: TextFormatHandler | undefined;
 	let textAlignmentHandler: ParagraphAlignmentHandler | undefined;
@@ -176,19 +179,9 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		const elements = sources.map((source, index) => {
 			const x = Math.max(0, Math.min(props.document.page.width - 360, position.x + index * 20));
 			const y = Math.max(0, Math.min(renderedPageHeight() - 200, position.y + index * 20));
-			if (source.type === "image") {
-				return "imageId" in source
-					? createImageElement({ imageId: source.imageId }, x, y)
-					: createImageElement({ dataUrl: source.dataUrl }, x, y);
-			}
-			if (source.type === "audio") {
-				return "audioId" in source
-					? createAudioElement({ audioId: source.audioId, extension: source.extension }, x, y)
-					: createAudioElement({ dataUrl: source.dataUrl, extension: source.extension }, x, y);
-			}
-			return "videoId" in source
-				? createVideoElement({ videoId: source.videoId, extension: source.extension }, x, y)
-				: createVideoElement({ dataUrl: source.dataUrl, extension: source.extension }, x, y);
+			return "imageId" in source
+				? createImageElement({ imageId: source.imageId }, x, y)
+				: createImageElement({ dataUrl: source.dataUrl }, x, y);
 		});
 		emitDocument({ ...base, elements: [...base.elements, ...elements] });
 		setPositioningQueue(elements.slice(1).map((element) => element.id));
@@ -262,8 +255,15 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 			pasteErrorTimer = setTimeout(() => setPasteError(false), 3000);
 		});
 	};
-	const importPaths = (paths: string[]): Promise<void> => {
-		return importMedia((canImport) => importMediaPaths(paths, canImport));
+	const importPaths = (paths: string[], position?: AttachmentPosition): Promise<void> => {
+		const noteId = props.noteId;
+		setMediaImportError(false);
+		return importMedia((canImport) => importMediaPaths(paths, canImport, () => {
+			if (!active || props.noteId !== noteId) return;
+			setMediaImportError(true);
+			clearTimeout(mediaImportErrorTimer);
+			mediaImportErrorTimer = setTimeout(() => setMediaImportError(false), 4000);
+		}), position);
 	};
 	const openExternalLink = (url: string): void => {
 		if (isTauriRuntime()) void openTauriExternalUrl(url).catch(() => undefined);
@@ -278,7 +278,7 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 				const bounds = paper.getBoundingClientRect();
 				if (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom) return;
 				const position = pointOnPage(x, y);
-				void importMedia((canImport) => importMediaPaths(paths, canImport), position).catch(console.error);
+				void importPaths(paths, position).catch(console.error);
 			})
 				.then((stop) => {
 					if (active) unlisten = stop;
@@ -338,6 +338,7 @@ export const useNoteCanvasEditorController = (props: NoteCanvasEditorProps) => {
 		importFiles,
 		pasteImages,
 		pasteError,
+		mediaImportError,
 		importPaths,
 	};
 };

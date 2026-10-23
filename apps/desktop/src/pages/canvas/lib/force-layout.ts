@@ -4,7 +4,7 @@ type Body = Point & { id: string; vx: number; vy: number; fixed?: Point };
 type Link = { source: string; target: string };
 const CELL_SIZE = 240;
 
-/** Local repulsion, link attraction and gravity; no permanent manual placement. */
+/** Repulsão local, atração pelas ligações e gravidade; não há posicionamento manual permanente. */
 export class ForceLayout {
 	private bodies = new Map<string, Body>();
 	private links: { source: Body; target: Body }[] = [];

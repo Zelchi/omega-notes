@@ -2,24 +2,14 @@ import { createImageObjectUrl } from "@/shared/lib/images";
 import { isTauriRuntime } from "@/shared/lib/tauri";
 import type { ImportedMedia } from "./media";
 import {
-	getNoteMediaStreamUrl,
 	importNoteImage,
 	importClipboardImage,
-	importNoteMedia,
 	readNoteImage,
 	selectMediaPaths,
 } from "../api/media.repository";
 
 const imageExtensions = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "avif"]);
-const audioExtensions = new Set(["aac", "flac", "m4a", "mp3", "oga", "ogg", "opus", "wav"]);
-const videoExtensions = new Set(["mp4", "ogv", "webm"]);
-
-const mediaTypeFromExtension = (extension: string): "image" | "audio" | "video" | undefined => {
-	if (imageExtensions.has(extension)) return "image";
-	if (audioExtensions.has(extension)) return "audio";
-	if (videoExtensions.has(extension)) return "video";
-	return undefined;
-};
+const clipboardImageTypes = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "image/avif"]);
 
 const extensionFromFileName = (fileName: string): string => fileName.split(".").pop()?.toLowerCase() ?? "";
 
@@ -37,14 +27,10 @@ export const attachMediaFiles = async (files: File[], canImport: () => boolean =
 	const media: ImportedMedia[] = [];
 	for (const file of files) {
 		if (!canImport()) return [];
-		const extension = extensionFromFileName(file.name);
-		const type = mediaTypeFromExtension(extension);
-		if (!type) continue;
+		if (!imageExtensions.has(extensionFromFileName(file.name))) continue;
 		try {
 			const dataUrl = await readAsDataUrl(file);
-			if (type === "image") media.push({ type, dataUrl });
-			else if (type === "audio") media.push({ type, dataUrl, extension });
-			else media.push({ type, dataUrl, extension });
+			media.push({ type: "image", dataUrl });
 		} catch (error) {
 			console.error(error);
 		}
@@ -56,7 +42,7 @@ export const importClipboardImages = async (files: File[], canImport: () => bool
 	const media: ImportedMedia[] = [];
 	for (const file of files) {
 		if (!canImport()) return [];
-		if (!file.type.startsWith("image/")) continue;
+		if (!clipboardImageTypes.has(file.type.toLowerCase())) continue;
 		if (isTauriRuntime()) {
 			const bytes = await file.arrayBuffer();
 			if (!canImport()) return [];
@@ -69,36 +55,31 @@ export const importClipboardImages = async (files: File[], canImport: () => bool
 	return media;
 };
 
-export const importMediaPaths = async (paths: string[], canImport: () => boolean = () => true): Promise<ImportedMedia[]> => {
+export const importMediaPaths = async (
+	paths: string[],
+	canImport: () => boolean = () => true,
+	onError: () => void = () => {},
+): Promise<ImportedMedia[]> => {
 	const media: ImportedMedia[] = [];
 	for (const sourcePath of paths) {
 		if (!canImport()) return [];
 		try {
 			const extension = extensionFromFileName(sourcePath);
-			const type = mediaTypeFromExtension(extension);
-			if (!type) throw new Error("Unsupported media format");
-			if (type === "image") {
-				const imageId = await importNoteImage(sourcePath);
-				media.push({ type, imageId });
-				continue;
-			}
-			const mediaId = await importNoteMedia(sourcePath, type);
-			media.push(type === "audio" ? { type, audioId: mediaId, extension } : { type, videoId: mediaId, extension });
+			if (!imageExtensions.has(extension)) throw new Error("Unsupported image format");
+			const imageId = await importNoteImage(sourcePath);
+			media.push({ type: "image", imageId });
 		} catch (error) {
 			console.error(error);
+			onError();
 		}
 	}
 	return media;
 };
 
 export const selectMediaFiles = (title: string): Promise<string[]> =>
-	selectMediaPaths(title, [...imageExtensions, ...audioExtensions, ...videoExtensions]);
+	selectMediaPaths(title, [...imageExtensions]);
 
 export const readImageSource = async (imageId: string): Promise<string> => {
 	const data = await readNoteImage(imageId);
 	return createImageObjectUrl(data);
-};
-
-export const readMediaSource = async (mediaId: string, mediaType: "audio" | "video"): Promise<string> => {
-	return getNoteMediaStreamUrl(mediaId, mediaType);
 };

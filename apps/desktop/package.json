@@ -1,24 +1,24 @@
 {
     "name": "omega-notes-desktop",
     "private": true,
-    "version": "0.4.9",
+    "version": "0.5.0",
     "type": "module",
     "scripts": {
         "dev": "vite --host 127.0.0.1 --port 1420",
         "typecheck": "tsc --noEmit",
         "test": "node --conditions=browser --import ./test/register.mjs --experimental-strip-types --test --test-isolation=none test/*.test.mjs",
         "build": "tsc --noEmit && vite build",
-        "tauri": "tauri"
+        "tauri": "node ../../scripts/tauri-cef.mjs"
     },
     "tauri": {
         "appPath": "tauri"
     },
     "dependencies": {
-        "@tauri-apps/api": "^2.11.1",
-        "@tauri-apps/plugin-dialog": "^2.8.2",
-        "@tauri-apps/plugin-opener": "^2.7.0",
-        "@tauri-apps/plugin-process": "~2.3.1",
-        "@tauri-apps/plugin-updater": "~2.11.0",
+        "@tauri-apps/api": "3.0.0-alpha.3",
+        "@tauri-apps/plugin-dialog": "3.0.0-alpha.4",
+        "@tauri-apps/plugin-opener": "3.0.0-alpha.3",
+        "@tauri-apps/plugin-process": "3.0.0-alpha.3",
+        "@tauri-apps/plugin-updater": "3.0.0-alpha.3",
         "@vanilla-extract/css": "^1.21.3",
         "@xterm/addon-fit": "^0.11.0",
         "@xterm/xterm": "^6.0.0",
@@ -26,7 +26,7 @@
         "solid-js": "^1.9.15"
     },
     "devDependencies": {
-        "@tauri-apps/cli": "^2.11.5",
+        "@tauri-apps/cli": "3.0.0-alpha.5",
         "@types/node": "^24.13.4",
         "@vanilla-extract/vite-plugin": "^5.2.6",
         "typescript": "~5.9.3",

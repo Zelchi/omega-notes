@@ -71,7 +71,7 @@ struct Entry {
     id: String,
     bytes: u64,
 }
-/** Scan only filenames and sizes when saving; other study items are untouched. */
+/** Ao salvar, verifique apenas nomes e tamanhos dos arquivos; os outros itens de estudo permanecem intactos. */
 fn entries(app: &AppHandle, vault_id: &str) -> Result<Vec<Entry>, String> {
     let base = root(app, vault_id)?;
     if !directory(&base, false)? {

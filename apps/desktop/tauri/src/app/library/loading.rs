@@ -14,7 +14,7 @@ use crate::notes::{
 };
 
 const SUMMARY_INDEX_FILE: &str = ".note-summaries.json";
-const SUMMARY_INDEX_VERSION: u8 = 5;
+const SUMMARY_INDEX_VERSION: u8 = 6;
 const SUMMARY_INDEX_MAX_BYTES: u64 = 64 * 1024 * 1024;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -42,8 +42,6 @@ struct SummaryEntry {
 struct IndexedContentStats {
     character_count: usize,
     image_ids: Vec<String>,
-    audio_ids: Vec<String>,
-    video_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -344,20 +342,10 @@ fn indexed_content_stats(note: &crate::notes::StudyNote) -> IndexedContentStats 
     let mut image_ids = crate::notes::image_ids_in_document(&note.document)
         .into_iter()
         .collect::<Vec<_>>();
-    let mut audio_ids = crate::notes::audio_ids_in_document(&note.document)
-        .into_iter()
-        .collect::<Vec<_>>();
-    let mut video_ids = crate::notes::video_ids_in_document(&note.document)
-        .into_iter()
-        .collect::<Vec<_>>();
     image_ids.sort();
-    audio_ids.sort();
-    video_ids.sort();
     IndexedContentStats {
         character_count,
         image_ids,
-        audio_ids,
-        video_ids,
     }
 }
 
@@ -377,8 +365,6 @@ pub(crate) fn content_stats_from_index(
         .collect::<HashMap<_, _>>();
     let mut note_count = 0;
     let mut image_ids = HashSet::new();
-    let mut audio_ids = HashSet::new();
-    let mut video_ids = HashSet::new();
     let mut character_count = 0_usize;
     for path in paths
         .iter()
@@ -393,14 +379,10 @@ pub(crate) fn content_stats_from_index(
         };
         character_count = character_count.saturating_add(stats.character_count);
         image_ids.extend(stats.image_ids.iter().cloned());
-        audio_ids.extend(stats.audio_ids.iter().cloned());
-        video_ids.extend(stats.video_ids.iter().cloned());
     }
     Ok(crate::notes::NoteContentStats {
         note_count,
         image_count: image_ids.len(),
-        audio_count: audio_ids.len(),
-        video_count: video_ids.len(),
         character_count,
     })
 }

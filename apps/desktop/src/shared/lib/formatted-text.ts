@@ -177,7 +177,7 @@ export const sliceTextRuns = (runs: TextRun[], start: number, end: number): Text
 	});
 };
 
-/** Apply changes to prose while retaining literal inline and fenced code. */
+/** Aplique alterações ao texto corrido preservando código literal inline e em blocos cercados. */
 export const mapTextOutsideCode = (text: string, transform: (text: string) => string): string => {
 	let fenceLength = 0;
 	let fenceMarker = "";
