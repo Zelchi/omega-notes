@@ -6,7 +6,7 @@
 - Ubuntu 22.04 ou mais recente x64: pacote `.deb`.
 - Fedora x64: pacote `.rpm`.
 
-Os pacotes Linux são nativos e declaram as dependências de GTK, WebKitGTK, GStreamer e autenticação do sistema. O build usa Ubuntu 22.04 como base para os dois formatos. O nome técnico do pacote é `omega-notes`; o nome exibido no menu e no aplicativo é Ômega Notes. A execução em Ubuntu e Fedora ainda precisa ser conferida com os instaladores produzidos pelo GitHub.
+Os pacotes Linux são nativos, usam GTK4 e declaram o fallback `zenity` para diálogos. O build usa Ubuntu 22.04 como base para os dois formatos. O nome técnico do pacote é `omega-notes`; o nome exibido no menu e no aplicativo é Ômega Notes. A execução em Ubuntu e Fedora ainda precisa ser conferida com os instaladores produzidos pelo GitHub.
 
 ## Configuração inicial do GitHub
 
@@ -40,7 +40,7 @@ Uma tag publicada deve apontar para o commit completo da versão. A preparação
 
 O workflow `.github/workflows/release.yml`:
 
-1. Confere a versão e a presença da chave privada nos secrets.
+1. Exige a variável de repositório `CEF_RUNTIME_ACCEPTED=true`, definida após validar os critérios em [Runtime CEF](../architecture/cef-runtime.md), e confere a versão e a presença da chave privada nos secrets.
 2. Cria um release em rascunho.
 3. Compila e assina os pacotes `.deb`, `.rpm` e o instalador Windows.
 4. Agrega `linux-x86_64-deb`, `linux-x86_64-rpm` e `windows-x86_64-nsis` no `latest.json`.
@@ -82,14 +82,12 @@ O arquivo `apps/desktop/tauri/tauri.release.conf.json` é gerado e está ignorad
 
 O CLI é chamado diretamente por Node para preservar o separador `--`, que encaminha `--locked` ao Cargo. O Yarn 1 pode consumir esse separador e alterar os argumentos do build.
 
-Referências: [atualizador do Tauri](https://v2.tauri.app/plugin/updater/), [tauri-action](https://github.com/tauri-apps/tauri-action) e [pacotes Debian](https://v2.tauri.app/distribute/debian/), [pacotes RPM](https://v2.tauri.app/distribute/rpm/) e [implementação dos instaladores Linux do atualizador](https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/updater/src/updater.rs).
+Referências: [Runtime CEF](../architecture/cef-runtime.md) e [tauri-action](https://github.com/tauri-apps/tauri-action).
 
 ## Primeira instalação no Linux
 
 No Ubuntu, baixe o `.deb` do release e instale pelo aplicativo de pacotes ou por `sudo apt install ./arquivo.deb`. No Fedora, baixe o `.rpm` e instale pelo aplicativo de pacotes ou por `sudo dnf install ./arquivo.rpm`. Esses gestores resolvem as dependências declaradas no pacote. Depois da primeira instalação, o aplicativo verifica as próximas versões ao iniciar.
 
-### Renderização no Wayland
+### Runtime CEF no Linux
 
-Antes de inicializar GTK/WebKitGTK, o executável detecta o driver NVIDIA proprietário e a sessão Wayland. Nesse caso, se o ambiente não tiver uma configuração gráfica explícita, define `WEBKIT_DISABLE_DMABUF_RENDERER=1`. O ajuste não altera o explicit sync e não desativa o DMA-BUF em outros ambientes. Variáveis de ambiente configuradas explicitamente são respeitadas.
-
-Essa configuração evita a piscada observada ao abrir modais e painéis em NVIDIA + Wayland. Ela muda o caminho de renderização do WebKitGTK; recursos que dependem de canvas WebGL devem ser conferidos nesse ambiente.
+O app usa CEF/Chromium no Linux. O runtime atual apresenta a janela via X11, inclusive em sessões Wayland por meio do XWayland; configurações de WebKitGTK como `WEBKIT_DISABLE_DMABUF_RENDERER` não se aplicam. Consulte os requisitos e limitações em [Runtime CEF](../architecture/cef-runtime.md).

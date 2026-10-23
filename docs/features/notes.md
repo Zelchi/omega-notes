@@ -12,7 +12,7 @@ Com Gambiarra habilitada, o app também observa alterações externas e reconcil
 
 ## Excluir, restaurar e mídia
 
-Excluir arquiva a nota para permitir recuperação/desfazer. Referências e métricas são reconstruídas pelo repositório. A limpeza de mídia só remove arquivos considerados sem referências em notas, backups e notas excluídas. A reutilização de mídia entre notas usa o [catálogo de mídias](media-catalog.md), que consulta metadados de referências sem chamar uma operação geral de carregar todos os documentos.
+Excluir arquiva a nota para permitir recuperação/desfazer. Referências e métricas são reconstruídas pelo repositório. A limpeza de imagens só remove arquivos sem referências em notas, backups e notas excluídas. A reutilização de imagens entre notas usa o [catálogo de mídias](media-catalog.md), que consulta metadados de referências sem chamar uma operação geral de carregar todos os documentos. Na primeira inicialização após remover áudio e vídeo, o desktop apaga as pastas antigas `audios/` e `videos/` e remove esses elementos de notas e cópias de recuperação.
 
 ## Cobertura
 

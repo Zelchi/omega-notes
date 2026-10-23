@@ -1,5 +1,22 @@
 # Histórico de atualizações
 
+## v0.5.0
+
+### Runtime desktop
+
+- O Linux usa CEF/Chromium e o Windows mantém WebView2, com Tauri 3 alpha.
+
+### Notas e mídia
+
+- Notas aceitam imagens e GIFs; importação e reprodução de áudio e vídeo foram removidas.
+- O catálogo de mídia busca anexos de outras notas sem carregar todos os documentos completos.
+
+### Janela e interface
+
+- A barra personalizada permite arrastar, redimensionar pelas bordas e maximizar com duplo clique.
+- O fundo nativo acompanha o canvas durante o redimensionamento da janela.
+- O painel Pomodoro e a lista de tarefas receberam ajustes de interação e apresentação.
+
 ## v0.4.9
 
 ### Arquivo e organização

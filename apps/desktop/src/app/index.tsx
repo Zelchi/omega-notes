@@ -4,6 +4,7 @@ import { createPresence } from "@/shared/lib/presence";
 
 import { formatAiChatShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
 import WindowTitlebar from "./ui/window-titlebar";
+import WindowResizeEdges from "./ui/window-resize-edges";
 import FloatingSearch from "./ui/floating-search";
 
 import { useAppController } from "./controller";
@@ -52,6 +53,7 @@ const App: Component = () => {
 				<div class={styles.shell} inert={app.updates.installing()} onContextMenu={(event) => event.preventDefault()} data-omega-app-shell>
 					<WindowTitlebar
 						maximized={app.windowControls.maximized()}
+						gnome={app.windowControls.gnome()}
 						backgroundTheme={app.preferences.backgroundTheme()}
 						vaultName={app.vaults.activeVault()?.name}
 						vaultDialogOpen={app.vaults.dialogOpen()}
@@ -292,6 +294,7 @@ const App: Component = () => {
 						<PomodoroPanel pomodoro={app.pomodoro} t={app.t} />
 						</Suspense>
 					</Show>
+					<WindowResizeEdges maximized={app.windowControls.maximized()} />
 				</div>
 				<Show when={app.updates.installing()}>
 					<div class={styles.updateOverlay} role="alert" aria-live="assertive">{app.t("installingUpdate")}</div>

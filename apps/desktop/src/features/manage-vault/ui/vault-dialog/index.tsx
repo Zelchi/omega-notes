@@ -141,18 +141,6 @@ const VaultDialog: Component<Props> = (props) => {
 													</div>
 													<div class={styles.metric}>
 														<strong class={styles.metricValue}>
-															{details()?.audioCount ?? ""}
-														</strong>
-														<span class={styles.metricLabel}>{props.t("vaultAudio")}</span>
-													</div>
-													<div class={styles.metric}>
-														<strong class={styles.metricValue}>
-															{details()?.videoCount ?? ""}
-														</strong>
-														<span class={styles.metricLabel}>{props.t("vaultVideo")}</span>
-													</div>
-													<div class={styles.metric}>
-														<strong class={styles.metricValue}>
 															{details()
 																? formatCount(
 																		details()!.characterCount,

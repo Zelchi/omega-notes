@@ -22,7 +22,20 @@ env:
   RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
+  cef-acceptance:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Exigir aceite do runtime experimental
+        env:
+          CEF_RUNTIME_ACCEPTED: ${{ vars.CEF_RUNTIME_ACCEPTED }}
+        run: |
+          if [[ "$CEF_RUNTIME_ACCEPTED" != "true" ]]; then
+            echo "::error::A publicação está bloqueada. Valide os critérios de docs/architecture/cef-runtime.md e defina CEF_RUNTIME_ACCEPTED=true nas variáveis do repositório."
+            exit 1
+          fi
+
   prepare:
+    needs: cef-acceptance
     runs-on: ubuntu-22.04
     outputs:
       release_id: ${{ steps.release.outputs.result }}
@@ -98,11 +111,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: 'apps/desktop/tauri -> target'
+      - name: Restaurar cache automático do CEF
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/tauri-cef
+          key: cef-${{ runner.os }}-154.0.34-g14c5a08-chromium-154.0.8037.98
       - name: Dependências do Linux
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev xdg-utils gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
+          sudo apt-get install -y cmake ninja-build libgtk-4-dev librsvg2-dev patchelf libssl-dev xdg-utils rpm zenity
       - name: Instalar dependências
         run: yarn install --frozen-lockfile
       - name: Configurar a fonte de atualizações
@@ -115,7 +134,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: 'apps/desktop'
-          tauriScript: node ${{ github.workspace }}/scripts/desktop.mjs
+          tauriScript: node ${{ github.workspace }}/scripts/tauri-cef.mjs
           releaseId: ${{ needs.prepare.outputs.release_id }}
           tagName: ${{ env.RELEASE_TAG }}
           releaseDraft: true
@@ -146,8 +165,18 @@ jobs:
             if (!response.ok) throw new Error('Não foi possível ler latest.json.');
             const data = await response.json();
             if (data.version.replace(/^v/, '') !== process.env.RELEASE_TAG.slice(1)) throw new Error('Versão do manifesto incorreta.');
-            for (const platform of ['linux-x86_64-deb', 'linux-x86_64-rpm', 'windows-x86_64-nsis']) {
+            const platforms = {
+              'linux-x86_64-deb': '.deb',
+              'linux-x86_64-rpm': '.rpm',
+              'windows-x86_64-nsis': '.exe',
+            };
+            for (const [platform, extension] of Object.entries(platforms)) {
               const artifact = data.platforms?.[platform];
               if (!artifact?.signature || !artifact?.url) throw new Error(`Atualização incompleta para ${platform}.`);
+              const assetName = decodeURIComponent(new URL(artifact.url).pathname.split('/').pop() || '');
+              const uploadedAsset = assets.find((asset) => asset.name === assetName);
+              if (!assetName.toLowerCase().endsWith(extension) || !uploadedAsset || uploadedAsset.size === 0) {
+                throw new Error(`Instalador ${extension} ausente nos assets da release: ${assetName || platform}.`);
+              }
             }
             await github.rest.repos.updateRelease({ owner, repo, release_id, draft: false, make_latest: 'true' });

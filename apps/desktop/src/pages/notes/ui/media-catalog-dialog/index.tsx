@@ -47,7 +47,6 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 								class={styles.action}
 								type="button"
 								aria-label={props.t("cleanupMedia")}
-								title={props.t("cleanupMedia")}
 								disabled={props.catalog.cleaning()}
 								onClick={() => void props.catalog.cleanOrphanedMedia()}
 							>
@@ -103,7 +102,7 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 				<Input
 					ref={props.catalog.setFileInput}
 					type="file"
-					accept="image/*,.aac,.flac,.m4a,.mp3,.oga,.ogg,.opus,.wav,.webm,.mp4,.ogv"
+					accept=".png,.jpg,.jpeg,.gif,.webp,.bmp,.avif"
 					multiple
 					style={{ display: "none" }}
 					onChange={props.catalog.importFiles}
@@ -138,56 +137,11 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 					<For each={props.catalog.filtered()}>
 						{(media) => (
 							<Button class={styles.item} type="button" onClick={() => props.catalog.selectMedia(media)}>
-								<Show
-									when={media.source.type === "image"}
-									fallback={
-										<Show
-											when={media.source.type === "video"}
-											fallback={
-												<div class={styles.mediaIcon} aria-hidden="true">
-													<svg
-														width="36"
-														height="36"
-														viewBox="0 0 24 24"
-														fill="none"
-														stroke="currentColor"
-														stroke-width="1.5"
-														stroke-linecap="round"
-														stroke-linejoin="round"
-													>
-														<path d="M11 5 6 9H3v6h3l5 4V5Z" />
-														<path d="M15.5 8.5a5 5 0 0 1 0 7m2.5-9.5a8 8 0 0 1 0 12" />
-													</svg>
-												</div>
-											}
-										>
-											<div class={styles.mediaIcon} aria-hidden="true">
-												<svg
-													width="36"
-													height="36"
-													viewBox="0 0 24 24"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.5"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-												>
-													<rect x="3" y="5" width="18" height="14" rx="2" />
-													<path d="m10 9 5 3-5 3V9Z" />
-												</svg>
-											</div>
-										</Show>
-									}
-								>
-									<img
-										class={styles.thumb}
-										src={
-											props.catalog.sources()[media.id] ??
-											("dataUrl" in media.source ? media.source.dataUrl : "")
-										}
-										alt=""
-									/>
-								</Show>
+								<img
+									class={styles.thumb}
+									src={props.catalog.sources()[media.id] ?? ("dataUrl" in media.source ? media.source.dataUrl : "")}
+									alt=""
+								/>
 							</Button>
 						)}
 					</For>

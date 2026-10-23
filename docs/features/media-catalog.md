@@ -2,15 +2,15 @@
 
 ## Ciclo de vida
 
-Ao abrir o catálogo na nota atual, o frontend pede uma lista de referências de mídia das notas do vault. No desktop, o backend varre arquivos `.omega`, extrai apenas referências de imagem, áudio e vídeo e não desserializa os demais elementos completos. Arquivos inválidos, inacessíveis ou sem um formato/ID compatível são ignorados. O fallback web lê o armazenamento JSON próprio.
+Ao abrir o catálogo na nota atual, o frontend pede uma lista de referências de imagem das notas do vault. No desktop, o backend varre arquivos `.omega`, extrai apenas referências de imagem e não desserializa os demais elementos completos. Arquivos inválidos, inacessíveis ou sem um ID compatível são ignorados. O fallback web lê o armazenamento JSON próprio.
 
-Referências repetidas ao mesmo ID são agrupadas e mostram os títulos das notas que usam aquela mídia. Imagens são carregadas em grupos de até quatro; áudio e vídeo mostram ícones. Selecionar uma mídia reutiliza seu ID na nota atual. Importar cria uma cópia gerenciada no armazenamento do vault. A limpeza de órfãos exige confirmação e considera referências, backups e notas excluídas.
+Referências repetidas ao mesmo ID são agrupadas e mostram os títulos das notas que usam aquela mídia. Imagens são carregadas em grupos de até quatro. Selecionar uma imagem reutiliza seu ID na nota atual. Importar cria uma cópia gerenciada no armazenamento do vault. A limpeza de órfãos exige confirmação e considera referências, backups e notas excluídas.
 
 ## Falhas e cobertura
 
 Enquanto a lista carrega, o catálogo mostra o estado de carregamento. Uma falha de leitura ou troca de vault aparece como erro com opção de tentar novamente; resultados atrasados de outro contexto são descartados. Erros ao carregar uma imagem ainda ficam somente no console.
 
-`media-catalog.test.mjs` cobre falha/repetição, troca de contexto, tipos de mídia e agrupamento de referências compartilhadas. O teste Rust em `repository.rs` cobre a extração de imagem, áudio e vídeo entre notas e ignora formatos de áudio não suportados.
+`media-catalog.test.mjs` cobre falha/repetição, troca de contexto, descarte de referências antigas de áudio/vídeo e agrupamento de imagens compartilhadas. O teste Rust em `repository.rs` cobre a extração de imagens e ignora referências antigas de áudio/vídeo.
 
 ## Código
 

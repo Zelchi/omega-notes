@@ -1,6 +1,6 @@
 import { createEffect, createSignal, onCleanup, untrack, type Accessor } from "solid-js";
 
-/** Keep content mounted while its exit animation finishes. */
+/** Mantenha o conteúdo montado enquanto a animação de saída termina. */
 export const createPresence = (visible: Accessor<boolean>, exitDuration: number) => {
 	const [present, setPresent] = createSignal(visible());
 	const preference = window.matchMedia("(prefers-reduced-motion: reduce)");

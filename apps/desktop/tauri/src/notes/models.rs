@@ -60,25 +60,6 @@ pub(crate) enum NoteElement {
         height: f64,
         image_id: String,
     },
-    Audio {
-        id: String,
-        x: f64,
-        y: f64,
-        width: f64,
-        height: f64,
-        audio_id: String,
-        extension: String,
-        volume: f64,
-    },
-    Video {
-        id: String,
-        x: f64,
-        y: f64,
-        width: f64,
-        height: f64,
-        video_id: String,
-        extension: String,
-    },
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -107,8 +88,6 @@ pub(crate) struct NoteMediaCatalogItem {
 )]
 pub(crate) enum NoteMediaSource {
     Image { image_id: String },
-    Audio { audio_id: String, extension: String },
-    Video { video_id: String, extension: String },
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -152,7 +131,5 @@ pub(crate) struct NoteSaveResult {
 pub(crate) struct NoteContentStats {
     pub(crate) note_count: usize,
     pub(crate) image_count: usize,
-    pub(crate) audio_count: usize,
-    pub(crate) video_count: usize,
     pub(crate) character_count: usize,
 }

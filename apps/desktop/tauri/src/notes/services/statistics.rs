@@ -16,9 +16,7 @@ pub(crate) fn content_stats(
 fn scan_content_stats(
     notes_directory: &Path,
 ) -> Result<super::super::models::NoteContentStats, String> {
-    use super::super::document::{
-        audio_ids_in_document, image_ids_in_document, video_ids_in_document,
-    };
+    use super::super::document::image_ids_in_document;
     use super::super::models::NoteElement;
     use super::super::repository::{note_from_path, note_paths};
 
@@ -29,8 +27,6 @@ fn scan_content_stats(
     }
     let mut note_count = 0;
     let mut image_ids = HashSet::new();
-    let mut audio_ids = HashSet::new();
-    let mut video_ids = HashSet::new();
     let mut character_count = 0;
     for path in paths {
         if path.extension().and_then(|extension| extension.to_str()) != Some("omega") {
@@ -48,16 +44,12 @@ fn scan_content_stats(
                 })
                 .sum::<usize>();
             image_ids.extend(image_ids_in_document(&note.document));
-            audio_ids.extend(audio_ids_in_document(&note.document));
-            video_ids.extend(video_ids_in_document(&note.document));
         }
     }
 
     Ok(super::super::models::NoteContentStats {
         note_count,
         image_count: image_ids.len(),
-        audio_count: audio_ids.len(),
-        video_count: video_ids.len(),
         character_count,
     })
 }

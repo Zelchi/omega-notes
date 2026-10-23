@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { Vault } from "@/entities/vault";
 
-/** Pointer events work in WebViews where native file drag/drop consumes HTML drag events. */
+/** Eventos de ponteiro funcionam em WebViews onde o arraste nativo de arquivos consome eventos de arraste HTML. */
 export const useVaultReorder = (options: {
 	vaults: () => Vault[];
 	enabled: () => boolean;

@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show, type Component } from "solid-js";
+import { createMemo, For, Show, type Component } from "solid-js";
 import Button from "@/shared/ui/button";
 import CustomScrollArea from "@/shared/ui/custom-scroll-area";
 import Icon from "@/shared/ui/icon";
@@ -16,11 +16,8 @@ const PomodoroPanel: Component<Props> = (props) => {
 	const presence = createPresence(props.pomodoro.open, 210);
 	const { draft, setDraft, showSettings, setShowSettings, focusDraft, setFocusDraft, shortBreakDraft,
 		setShortBreakDraft, longBreakDraft, setLongBreakDraft, cyclesDraft, setCyclesDraft, editingTaskId,
-		setEditingTaskId, editDraft, setEditDraft } = props.pomodoro.view;
-	const [draggedTaskId, setDraggedTaskId] = createSignal<string>();
-	const [dropTargetId, setDropTargetId] = createSignal<string>();
+		setEditingTaskId, taskActionsVisibleId, setTaskActionsVisibleId, editDraft, setEditDraft } = props.pomodoro.view;
 	const orderedTasks = createMemo(() => [...props.pomodoro.tasks()].sort((left, right) => left.position - right.position));
-	const completedCount = () => orderedTasks().filter(task => task.completed).length;
 	const phaseLabel = () => props.pomodoro.phase() === "focus" ? "pomodoroFocus"
 		: props.pomodoro.phase() === "shortBreak" ? "pomodoroShortBreak" : "pomodoroLongBreak";
 	const timeLabel = () => {
@@ -46,21 +43,11 @@ const PomodoroPanel: Component<Props> = (props) => {
 		const saved = props.pomodoro.setDurations(Number(focusDraft()), Number(shortBreakDraft()), Number(longBreakDraft()), Number(cyclesDraft()));
 		if (saved) setShowSettings(false);
 	};
-	const editTask = (task: PomodoroTask) => { setEditingTaskId(task.id); setEditDraft(task.title); };
+	const editTask = (task: PomodoroTask) => { setTaskActionsVisibleId(undefined); setEditingTaskId(task.id); setEditDraft(task.title); };
 	const saveTaskEdit = (event: SubmitEvent, id: string) => {
 		event.preventDefault();
-		if (props.pomodoro.renameTask(id, editDraft())) setEditingTaskId(undefined);
+		if (props.pomodoro.renameTask(id, editDraft())) { setEditingTaskId(undefined); setTaskActionsVisibleId(undefined); }
 	};
-	const dropTask = (event: DragEvent, targetId: string) => {
-		if (!draggedTaskId() || !event.dataTransfer) return;
-		event.preventDefault();
-		const sourceId = event.dataTransfer.getData("text/plain") || draggedTaskId();
-		const bounds = event.currentTarget instanceof HTMLElement ? event.currentTarget.getBoundingClientRect() : undefined;
-		if (sourceId && bounds) props.pomodoro.moveTask(sourceId, targetId, event.clientY > bounds.top + bounds.height / 2);
-		setDraggedTaskId(undefined);
-		setDropTargetId(undefined);
-	};
-
 	return <Show when={presence.present()}>
 		<aside id="pomodoro-panel" class={styles.panel} aria-labelledby="pomodoro-heading"
 			inert={presence.exiting()} aria-hidden={presence.exiting() ? "true" : undefined}
@@ -124,11 +111,7 @@ const PomodoroPanel: Component<Props> = (props) => {
 						<Show when={props.pomodoro.settingsError()}><p class={styles.error} role="alert">{props.t("pomodoroSettingsFailed")}</p></Show>
 					</section>
 
-					<section class={styles.tasks} aria-labelledby="pomodoro-tasks-heading">
-						<header class={styles.tasksHeader}>
-							<h3 id="pomodoro-tasks-heading" class={styles.tasksTitle}>{props.t("pomodoroTasks")}</h3>
-							<span class={styles.count}>{props.t("pomodoroTaskCount").replace("{done}", String(completedCount())).replace("{total}", String(orderedTasks().length))}</span>
-						</header>
+					<section class={styles.tasks} aria-label={props.t("pomodoroTasks")}>
 						<form class={styles.taskForm} onSubmit={submitTask}>
 							<input class={styles.taskInput} value={draft()} maxLength={500} placeholder={props.t("pomodoroTaskPlaceholder")}
 								aria-label={props.t("pomodoroTaskName")} disabled={props.pomodoro.loading() || props.pomodoro.readFailed() || orderedTasks().length >= 1000}
@@ -138,49 +121,43 @@ const PomodoroPanel: Component<Props> = (props) => {
 						</form>
 						<Show when={props.pomodoro.error()}><p class={styles.error} role="alert">{props.t("pomodoroStorageFailed")}</p></Show>
 						<Show when={props.pomodoro.loading()}><p class={styles.loading}>{props.t("pomodoroLoading")}</p></Show>
-						<CustomScrollArea ariaLabel={props.t("pomodoroTasks")} contentClass={styles.taskList} viewportStyle={{ padding: "2px 10px 10px 2px" }}>
-							<For each={orderedTasks()}>{(task, index) => (
-								<article class={styles.taskRow} classList={{ [styles.taskDragging]: draggedTaskId() === task.id, [styles.taskDropTarget]: dropTargetId() === task.id }}
-									onDragOver={(event) => {
-										if (!draggedTaskId() || draggedTaskId() === task.id || !event.dataTransfer) return;
+						<CustomScrollArea ariaLabel={props.t("pomodoroTasks")} contentClass={styles.taskList} viewportStyle={{ padding: "2px 20px 10px 10px" }}>
+							<For each={orderedTasks()}>{(task) => (
+								<article class={styles.taskRow}
+									onClick={(event) => {
+										if (props.pomodoro.readFailed() || editingTaskId() === task.id || event.target instanceof Element && event.target.closest(`input, .${styles.taskActions}`)) return;
+										editTask(task);
+									}}
+									onContextMenu={(event) => {
+										if (editingTaskId() === task.id) return;
 										event.preventDefault();
-										event.dataTransfer.dropEffect = "move";
-										setDropTargetId(task.id);
-									}}
-									onDragLeave={(event) => {
-										if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTargetId(undefined);
-									}}
-									onDrop={(event) => dropTask(event, task.id)}
-									onDragEnd={() => { setDraggedTaskId(undefined); setDropTargetId(undefined); }}>
-									<span class={styles.dragHandle} draggable={!props.pomodoro.readFailed() && editingTaskId() !== task.id}
-										aria-label={props.t("pomodoroDragTask")} title={props.t("pomodoroDragTask")}
-										onDragStart={(event) => {
-											if (!event.dataTransfer || props.pomodoro.readFailed()) { event.preventDefault(); return; }
-											setDraggedTaskId(task.id);
-											event.dataTransfer.effectAllowed = "move";
-											event.dataTransfer.setData("text/plain", task.id);
-										}}><Icon name="gripVertical" size={14} /></span>
+										event.stopPropagation();
+										setTaskActionsVisibleId(current => current === task.id ? undefined : task.id);
+									}}>
 									<input class={styles.checkbox} type="checkbox" checked={task.completed} disabled={props.pomodoro.readFailed()} aria-label={`${props.t("pomodoroCompleteTask")}: ${task.title}`}
 										onChange={() => props.pomodoro.toggleTask(task.id)} />
 									<Show when={editingTaskId() === task.id} fallback={<Button class={styles.taskTitle} classList={{ [styles.taskCompleted]: task.completed }} type="button"
-											aria-label={`${props.t("pomodoroEditTask")}: ${task.title}`} title={task.title} disabled={props.pomodoro.readFailed()} onClick={() => editTask(task)}>{task.title}</Button>}>
+											aria-label={`${props.t("pomodoroEditTask")}: ${task.title}`} disabled={props.pomodoro.readFailed()}>{task.title}</Button>}>
 										<form class={styles.taskEditor} onSubmit={(event) => saveTaskEdit(event, task.id)}>
 											<input class={styles.taskEditInput} value={editDraft()} maxLength={500} aria-label={props.t("pomodoroTaskName")}
 												onInput={event => setEditDraft(event.currentTarget.value)} onKeyDown={event => {
-												if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setEditingTaskId(undefined); }
+											if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setEditingTaskId(undefined); setTaskActionsVisibleId(undefined); }
 											}} />
 											<Button class={styles.iconButton} type="submit" disabled={!editDraft().trim()} aria-label={props.t("save")}><Icon name="check" size={13} /></Button>
-											<Button class={styles.iconButton} type="button" aria-label={props.t("cancel")} onClick={() => setEditingTaskId(undefined)}><Icon name="close" size={13} /></Button>
+											<Button class={styles.iconButton} type="button" aria-label={props.t("cancel")} onClick={() => { setEditingTaskId(undefined); setTaskActionsVisibleId(undefined); }}><Icon name="close" size={13} /></Button>
 										</form>
 									</Show>
 									<Show when={editingTaskId() !== task.id}>
 									<div class={styles.taskActions}>
-										<Button class={styles.iconButton} type="button" disabled={props.pomodoro.readFailed() || index() === 0} aria-label={props.t("pomodoroMoveTaskUp")}
-											onClick={() => { const target = orderedTasks()[index() - 1]; if (target) props.pomodoro.moveTask(task.id, target.id, false); }}><span class={styles.upIcon}><Icon name="chevronDown" size={13} /></span></Button>
-										<Button class={styles.iconButton} type="button" disabled={props.pomodoro.readFailed() || index() === orderedTasks().length - 1} aria-label={props.t("pomodoroMoveTaskDown")}
-											onClick={() => { const target = orderedTasks()[index() + 1]; if (target) props.pomodoro.moveTask(task.id, target.id, true); }}><Icon name="chevronDown" size={13} /></Button>
-										<Button class={`${styles.iconButton} ${styles.deleteButton}`} type="button" disabled={props.pomodoro.readFailed()} aria-label={`${props.t("pomodoroDeleteTask")}: ${task.title}`}
-											onClick={() => { if (editingTaskId() === task.id) setEditingTaskId(undefined); props.pomodoro.removeTask(task.id); }}><Icon name="delete" size={13} /></Button>
+										<Button class={styles.actionReveal} classList={{ [styles.actionRevealVisible]: taskActionsVisibleId() === task.id }}
+											type="button" disabled={taskActionsVisibleId() !== task.id || props.pomodoro.readFailed()} aria-hidden={taskActionsVisibleId() !== task.id} tabIndex={taskActionsVisibleId() === task.id ? 0 : -1}
+											aria-label={`${props.t("pomodoroEditTask")}: ${task.title}`}
+											onClick={() => editTask(task)}><Icon name="edit" size={13} /></Button>
+										<Button class={`${styles.deleteButton} ${styles.actionReveal} ${styles.actionRevealTrailing}`}
+											classList={{ [styles.actionRevealVisible]: taskActionsVisibleId() === task.id, [styles.actionRevealTrailingVisible]: taskActionsVisibleId() === task.id }}
+											type="button" disabled={taskActionsVisibleId() !== task.id || props.pomodoro.readFailed()} aria-hidden={taskActionsVisibleId() !== task.id} tabIndex={taskActionsVisibleId() === task.id ? 0 : -1}
+											aria-label={`${props.t("pomodoroDeleteTask")}: ${task.title}`}
+											onClick={() => { setTaskActionsVisibleId(undefined); props.pomodoro.removeTask(task.id); }}><Icon name="delete" size={13} /></Button>
 									</div>
 									</Show>
 								</article>

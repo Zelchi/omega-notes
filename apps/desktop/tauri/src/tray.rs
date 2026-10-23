@@ -39,12 +39,12 @@ impl Default for TrayLabels {
 
 struct TrayMenu {
     labels: TrayLabels,
-    visible: MenuItem<tauri::Wry>,
-    pomodoro: MenuItem<tauri::Wry>,
-    reset: MenuItem<tauri::Wry>,
-    next: MenuItem<tauri::Wry>,
-    update: MenuItem<tauri::Wry>,
-    exit: MenuItem<tauri::Wry>,
+    visible: MenuItem<tauri::DynRuntime>,
+    pomodoro: MenuItem<tauri::DynRuntime>,
+    reset: MenuItem<tauri::DynRuntime>,
+    next: MenuItem<tauri::DynRuntime>,
+    update: MenuItem<tauri::DynRuntime>,
+    exit: MenuItem<tauri::DynRuntime>,
 }
 
 fn menu_state(state: &TrayState) -> Result<std::sync::MutexGuard<'_, Option<TrayMenu>>, String> {
@@ -158,17 +158,7 @@ pub(crate) fn initialize(app: &tauri::App) -> tauri::Result<()> {
                     emit_action(app, "update");
                 }
             }
-            "exit" => {
-                if let Err(error) = set_window_visible(app, true) {
-                    eprintln!("Could not show the app before exit: {error}");
-                } else {
-                    if let Some(window) = app.get_webview_window("main") {
-                        if let Err(error) = window.close() {
-                            eprintln!("Could not close the app from the tray: {error}");
-                        }
-                    }
-                }
-            }
+            "exit" => emit_action(app, "exit"),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -190,6 +180,16 @@ pub(crate) fn initialize(app: &tauri::App) -> tauri::Result<()> {
 #[tauri::command]
 pub(crate) async fn hide_main_window(app: AppHandle) -> Result<(), String> {
     set_window_visible(&app, false)
+}
+
+#[tauri::command]
+pub(crate) async fn show_main_window(app: AppHandle) -> Result<(), String> {
+    set_window_visible(&app, true)
+}
+
+#[tauri::command]
+pub(crate) fn exit_main_app(app: AppHandle) {
+    app.exit(0);
 }
 
 #[tauri::command]

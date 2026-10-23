@@ -12,9 +12,7 @@ pub(crate) use deleted::{
     archive_deleted_note, deleted_notes, deleted_notes_directory, prune_deleted_notes,
     remove_deleted_note,
 };
-pub(crate) use document::{
-    audio_ids_in_document, empty_document, image_ids_in_document, video_ids_in_document,
-};
+pub(crate) use document::{empty_document, image_ids_in_document};
 pub(crate) use links::{note_reference_targets, note_title_indexes, rename_resolved_note_links};
 pub(crate) use models::{
     NoteContentStats, NoteDocument, NoteElement, NoteLibrary, NoteLoadIssue, NoteSaveResult,
@@ -28,7 +26,5 @@ pub(crate) use repository::{
     preserve_recovery_copy, read_file_bytes, recover_note_rename_journal, restore_file,
     rollback_note_rename_journal, write_note, write_note_checked, NoteRenameJournal,
 };
-pub(crate) use services::{
-    content_stats, referenced_audio_and_video_ids, referenced_image_ids, referenced_media_ids,
-};
+pub(crate) use services::{content_stats, referenced_image_ids};
 pub(crate) use validation::{validate_note_id, validate_note_title, validate_note_title_length};

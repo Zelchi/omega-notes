@@ -1,7 +1,7 @@
 export type TextRange = { start: number; end: number };
 type Change = TextRange & { length: number };
 
-/** Track asynchronous replacements without overwriting edits made while awaiting a result. */
+/** Acompanhe substituições assíncronas sem sobrescrever edições feitas enquanto o resultado era aguardado. */
 export const createAsyncTextReplacement = (options: {
     read: () => string;
     apply: (text: string, range: TextRange, kind: string) => void;

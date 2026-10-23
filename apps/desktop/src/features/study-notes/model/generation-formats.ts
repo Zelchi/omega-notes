@@ -1,6 +1,6 @@
 import type { StudyKind } from "@/entities/study";
 
-/** Wire examples and constraints belong to the method, independently of source selection. */
+/** Os exemplos e as restrições do protocolo pertencem ao método, independentemente da seleção de fontes. */
 export const generationFormats = {
 	flashcards: {
 		item: {"itemId": "copy exact manifest itemId", "question": "...", "answer": "...", "sources": ["N1"]},

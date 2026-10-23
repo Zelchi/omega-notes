@@ -1,10 +1,27 @@
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
-use crate::media;
-use crate::stream::MediaStream;
 use crate::vaults;
 
 use super::runtime;
+
+#[tauri::command]
+pub(crate) fn is_gnome_desktop() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        std::env::var("XDG_CURRENT_DESKTOP")
+            .unwrap_or_default()
+            .split(':')
+            .any(|desktop| {
+                let desktop = desktop.to_ascii_lowercase();
+                desktop == "gnome" || desktop.starts_with("gnome-")
+            })
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
+}
 
 #[derive(Debug)]
 pub(crate) struct SetupFailure(String);
@@ -22,18 +39,6 @@ pub(crate) fn initialize(app: AppHandle) -> Result<(), SetupFailure> {
         runtime::set_active_vault(&app, directory, message)
     })
     .map_err(SetupFailure)?;
-
-    let stream_app = app.clone();
-    let stream = MediaStream::start(move |media_id, media_type| {
-        let directory = runtime::notes_dir(&stream_app)?;
-        media::media_file_path(&directory, media_id, media_type)
-    })
-    .map_err(|error| {
-        SetupFailure(format!(
-            "Não foi possível iniciar o stream de mídia: {error}"
-        ))
-    })?;
-    app.manage(stream);
 
     Ok(())
 }

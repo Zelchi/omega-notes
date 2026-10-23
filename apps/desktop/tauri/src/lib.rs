@@ -1,17 +1,21 @@
 mod ai;
 mod app;
-mod graphics_compat;
+#[cfg(target_os = "linux")]
+mod cef_wayland_osr;
 mod images;
-mod media;
 mod names;
 mod notes;
 mod pomodoro;
 mod storage;
-mod stream;
 mod terminal;
 mod tray;
 mod vaults;
 mod web;
+mod window_background;
+mod window_drag;
+
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
+compile_error!("Ômega Notes oferece suporte apenas a Linux e Windows.");
 
 use std::sync::Mutex;
 
@@ -20,10 +24,27 @@ pub fn run() {
     if ai::run_if_requested() || terminal::run_if_requested() {
         return;
     }
-    graphics_compat::configure_nvidia_wayland();
     let builder = tauri::Builder::default();
     #[cfg(target_os = "linux")]
-    let builder = builder.plugin(tauri_plugin_wayland_nvidia_quirk::init());
+    let cef_runtime = if wayland_osr_enabled() {
+        let cache_base = std::env::var_os("XDG_CACHE_HOME")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".cache"))
+            })
+            .unwrap_or_else(std::env::temp_dir);
+        tauri_runtime_cef::Cef::default()
+            .root_cache_path(cache_base.join("com.omegastudy.app/cef-wayland-osr"))
+            .with_settings(|settings| {
+                settings.windowless_rendering_enabled = 1;
+            })
+    } else {
+        tauri_runtime_cef::Cef::default()
+    };
+    #[cfg(target_os = "linux")]
+    let builder = builder.runtime(cef_runtime);
+    #[cfg(target_os = "windows")]
+    let builder = builder.runtime(tauri_runtime_wry::Wry::default());
 
     builder
         .plugin(tauri_plugin_opener::init())
@@ -37,6 +58,26 @@ pub fn run() {
         .manage(tray::TrayState::default())
         .manage(ai::link_requests::LinkRequests::default())
         .setup(|app| {
+            #[cfg(target_os = "linux")]
+            if wayland_osr_enabled() {
+                let window_config = app
+                    .config()
+                    .app
+                    .windows
+                    .first()
+                    .ok_or("main window configuration is missing")?;
+                let mut window_builder =
+                    tauri::WebviewWindowBuilder::from_config(app, window_config)?;
+                use tauri_runtime_cef::AsCefWebviewAttributes;
+                if let Some(attributes) = window_builder
+                    .runtime_specific_attributes_mut()
+                    .as_cef_webview_attributes_mut()
+                {
+                    attributes.offscreen = Some(cef_wayland_osr::offscreen());
+                }
+                window_builder.build()?;
+            }
+
             app::setup::initialize(app.handle().clone())?;
             tray::initialize(app)?;
             Ok(())
@@ -100,7 +141,13 @@ pub fn run() {
             pomodoro::reset_pomodoro_timer,
             pomodoro::next_pomodoro_phase,
             tray::hide_main_window,
+            tray::show_main_window,
+            tray::exit_main_app,
             tray::configure_tray_menu,
+            app::setup::is_gnome_desktop,
+            window_background::set_window_background_color,
+            window_drag::start_window_drag,
+            window_drag::start_window_resize,
             notes::commands::list_notes,
             notes::commands::stream_note_summaries,
             notes::commands::notes_changes,
@@ -117,11 +164,18 @@ pub fn run() {
             images::commands::import_note_image,
             images::commands::import_clipboard_image,
             images::commands::read_note_image,
-            media::commands::import_note_media,
-            media::commands::cleanup_orphaned_media,
-            stream::commands::note_media_stream_url
+            images::commands::cleanup_orphaned_media
         ])
-        .build(tauri::generate_context!())
+        .build({
+            let mut context = tauri::generate_context!();
+            #[cfg(target_os = "linux")]
+            if wayland_osr_enabled() {
+                if let Some(window) = context.config_mut().app.windows.first_mut() {
+                    window.create = false;
+                }
+            }
+            context
+        })
         .expect("erro ao executar Ômega Notes")
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::Exit) {
@@ -130,4 +184,9 @@ pub fn run() {
                 app.state::<terminal::TerminalState>().shutdown();
             }
         });
+}
+
+#[cfg(target_os = "linux")]
+fn wayland_osr_enabled() -> bool {
+    std::env::var("OMEGA_CEF_WAYLAND_OSR").is_ok_and(|value| value == "1")
 }

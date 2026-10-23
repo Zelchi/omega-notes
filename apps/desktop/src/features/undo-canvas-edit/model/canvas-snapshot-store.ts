@@ -8,7 +8,7 @@ const copy = (snapshot: CanvasSnapshot): CanvasSnapshot => ({
 	positions: Object.fromEntries(Object.entries(snapshot.positions).map(([id, point]) => [id, { ...point }])),
 });
 
-/** Keep snapshots after leaving the canvas, without retaining unmounted component readers. */
+/** Mantenha as capturas após sair do canvas, sem reter leitores de componentes desmontados. */
 export class CanvasSnapshotStore {
 	private readers = new Map<string, () => CanvasSnapshot>();
 	private snapshots = new Map<string, Map<CanvasSnapshot["layout"], CanvasSnapshot>>();

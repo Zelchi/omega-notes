@@ -564,7 +564,7 @@ export const useAiChat = (options: {
             return false;
         }
     };
-    /** A bounded response outside the visible chat, coordinated with its connection and operation lock. */
+    /** Uma resposta limitada fora do chat visível, coordenada com a conexão e o bloqueio da operação. */
     const requestText = (prompt: string, signal: AbortSignal, context?: StudyContext, purpose: Exclude<AiTaskPurpose, "chat"> = "study-evaluation"): Promise<string> => {
         const vaultId = options.vaultId();
         if (disposed || signal.aborted || !options.enabled()) return Promise.reject(Error("AI_CANCELLED"));

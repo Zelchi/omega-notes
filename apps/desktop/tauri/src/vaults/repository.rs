@@ -105,7 +105,7 @@ pub(crate) fn existing_vault_notes_dir(
 }
 
 pub(super) fn ensure_vault_directories(path: &Path) -> Result<(), std::io::Error> {
-    for folder in ["notes", "images", "audios", "videos", "ia"] {
+    for folder in ["notes", "images", "ia"] {
         fs::create_dir_all(path.join(folder))?;
     }
     Ok(())

@@ -18,7 +18,6 @@ if ([packageJson.version, config.version, cargoVersion].some((value) => value !=
 if (!config.plugins?.updater?.pubkey?.trim()) throw new Error("A chave pública do atualizador não está configurada.");
 const endpoint = `https://github.com/${repository}/releases/latest/download/latest.json`;
 await writeFile(desktopFile("tauri/tauri.release.conf.json"), JSON.stringify({
-	bundle: { createUpdaterArtifacts: true },
 	plugins: { updater: { endpoints: [endpoint] } },
 }, null, 2) + "\n");
 console.log(`Versão ${version}; fonte de atualizações: ${endpoint}`);

@@ -41,7 +41,7 @@ test('catalog load failure is exposed and can be retried', async t => {
 	const f = await setup(t, async () => {
 		attempts += 1;
 		if (attempts === 1) throw Error('read failed');
-		return [{ noteId: 'other', noteTitle: 'Other note', elementId: 'audio-1', source: { type: 'audio', audioId: 'audio-id', extension: 'mp3' } }];
+		return [{ noteId: 'other', noteTitle: 'Other note', elementId: 'image-1', source: { type: 'image', imageId: 'image-id' } }];
 	});
 
 	assert.equal(f.catalog.loadError(), true);
@@ -65,12 +65,12 @@ test('media from an earlier vault context is discarded after a context change', 
 	oldLoad.resolve([{ noteId: 'old', noteTitle: 'Old vault', elementId: 'a', source: { type: 'audio', audioId: 'old-audio', extension: 'mp3' } }]);
 	await settle();
 	assert.deepEqual(f.catalog.filtered(), []);
-	newLoad.resolve([{ noteId: 'new', noteTitle: 'New vault', elementId: 'b', source: { type: 'video', videoId: 'new-video', extension: 'mp4' } }]);
+	newLoad.resolve([{ noteId: 'new', noteTitle: 'New vault', elementId: 'b', source: { type: 'image', imageId: 'new-image' } }]);
 	await settle();
 	assert.deepEqual(f.catalog.filtered().map(item => item.noteTitles), [['New vault']]);
 });
 
-test('shared media is deduplicated and keeps every referencing note title', async t => {
+test('catalog keeps shared images but ignores legacy audio and video', async t => {
 	const f = await setup(t, async () => [
 		{ noteId: 'first', noteTitle: 'First', elementId: 'image-a', source: { type: 'image', imageId: 'shared-image' } },
 		{ noteId: 'second', noteTitle: 'Second', elementId: 'image-b', source: { type: 'image', imageId: 'shared-image' } },
@@ -79,10 +79,9 @@ test('shared media is deduplicated and keeps every referencing note title', asyn
 	]);
 
 	const media = f.catalog.filtered();
-	assert.equal(media.length, 3);
+	assert.equal(media.length, 1);
 	assert.deepEqual(media.find(item => item.source.type === 'image').noteTitles, ['First', 'Second']);
-	assert.ok(media.some(item => item.source.type === 'audio'));
-	assert.ok(media.some(item => item.source.type === 'video'));
+	assert.ok(media.every(item => item.source.type === 'image'));
 });
 
 test('media catalog error state has a visible retry action', async () => {

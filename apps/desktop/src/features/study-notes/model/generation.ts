@@ -11,7 +11,7 @@ type Accepted = { item: StudyItem; title: string };
 export type GeneratedStudyItem = { assignment: StudyAssignment; item: StudyItem; title: string };
 const questionKey = (question: string) => question.normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ").trim();
 
-/** IDs, rather than response positions, bind partial or reordered output to its source scope. */
+/** IDs, em vez das posições na resposta, associam saídas parciais ou reordenadas ao escopo das fontes. */
 const parseBatch = (output: string, kind: StudyKind, batch: StudyAssignment[]) => {
 	const data = parseStudyJson(output);
 	const issues = new Map<string, Issue>(batch.map(item => [item.itemId, "missing-item"]));
@@ -43,7 +43,7 @@ const parseBatch = (output: string, kind: StudyKind, batch: StudyAssignment[]) =
 	return { values, issues, title };
 };
 
-/** Three rounds total; accepted items leave the plan, so each slot is requested at most three times. */
+/** São três rodadas no total; itens aceitos saem do plano, então cada posição é solicitada no máximo três vezes. */
 export const generateStudyMaterial = async (options: StudyEnvironment, settings: {
 	plan: StudyAssignment[]; kind: StudyKind; signal: AbortSignal; active: () => boolean;
 	onRequestStart?: (assignment: StudyAssignment) => void;

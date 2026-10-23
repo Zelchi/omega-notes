@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "@/shared/lib/tauri";
-import { kanbanStatuses, maxKanbanPosition, type KanbanItem, type KanbanStatus } from "../model/kanban";
+import { kanbanStatuses, maxKanbanItems, maxKanbanPosition, type KanbanItem, type KanbanStatus } from "../model/kanban";
 
 const key = (vaultId: string) => `omega-notes.kanban.v1.${vaultId}`;
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -13,7 +13,7 @@ const timestamp = (value: unknown): number | null => {
 };
 
 const decode = (value: unknown): KanbanItem[] => {
-	if (!Array.isArray(value) || value.length > 1000) throw Error("KANBAN_STORAGE_FAILED");
+	if (!Array.isArray(value) || value.length > maxKanbanItems) throw Error("KANBAN_STORAGE_FAILED");
 	const ids = new Set<string>();
 	const entries = value.map((entry) => {
 		if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw Error("KANBAN_STORAGE_FAILED");
@@ -23,6 +23,8 @@ const decode = (value: unknown): KanbanItem[] => {
 			|| !kanbanStatuses.includes(item.status as KanbanItem["status"])) throw Error("KANBAN_STORAGE_FAILED");
 		ids.add(item.id);
 		const status = item.status as KanbanStatus;
+		const createdAt = timestamp(item.createdAt);
+		const updatedAt = timestamp(item.updatedAt);
 		let position: number | undefined;
 		if (item.position !== undefined && item.position !== null) {
 			if (typeof item.position !== "number" || !Number.isSafeInteger(item.position)
@@ -34,8 +36,8 @@ const decode = (value: unknown): KanbanItem[] => {
 			title: item.title,
 			status,
 			position,
-			createdAt: timestamp(item.createdAt),
-			updatedAt: timestamp(item.updatedAt),
+			createdAt,
+			updatedAt: updatedAt === createdAt ? null : updatedAt,
 		};
 	});
 	const reserved = new Map<KanbanStatus, Set<number>>(kanbanStatuses.map((status) => [status, new Set()]));

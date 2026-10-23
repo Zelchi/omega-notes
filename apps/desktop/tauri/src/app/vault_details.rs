@@ -31,8 +31,6 @@ pub(crate) fn get_vault_details(
         return Ok(VaultDetails {
             note_count: 0,
             image_count: 0,
-            audio_count: 0,
-            video_count: 0,
             character_count: 0,
             created_at,
             storage_bytes: 0,
@@ -58,8 +56,6 @@ pub(crate) fn get_vault_details(
     Ok(VaultDetails {
         note_count: content.note_count,
         image_count: content.image_count,
-        audio_count: content.audio_count,
-        video_count: content.video_count,
         character_count: content.character_count,
         created_at,
         storage_bytes: vault_storage_bytes.saturating_add(backup_storage_bytes),

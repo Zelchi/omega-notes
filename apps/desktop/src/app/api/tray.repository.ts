@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isTauriRuntime } from "@/shared/lib/tauri";
 
-export type TrayAction = "pomodoro-toggle" | "pomodoro-reset" | "pomodoro-next" | "update";
+export type TrayAction = "pomodoro-toggle" | "pomodoro-reset" | "pomodoro-next" | "update" | "exit";
 export type TrayLabels = {
 	show: string;
 	hide: string;

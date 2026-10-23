@@ -3,23 +3,37 @@ import { isTauriRuntime } from "@/shared/lib/tauri";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import {
 	confirmCloseWithoutSaving,
+	closeWindow,
+	exitMainApp,
 	hideMainWindow,
+	isGnomeDesktop,
 	isWindowMaximized,
 	minimizeWindow,
 	onWindowCloseRequested,
 	onWindowResized,
+	showMainWindow,
 	toggleWindowMaximize,
 } from "../api/window.repository";
 
+const isLinux = typeof navigator !== "undefined" && navigator.platform.toLowerCase().startsWith("linux");
+
 export const useWindowControls = (beforeClose: () => Promise<boolean>, t: (key: TranslationKey) => string) => {
 	const [maximized, setMaximized] = createSignal(false);
+	const [gnome, setGnome] = createSignal<boolean | undefined>(isLinux ? undefined : false);
 	let unlistenResize: (() => void) | undefined;
 	let unlistenClose: (() => void) | undefined;
 	let closePending = false;
+	let exitAfterClose = false;
 	let active = true;
 
 	onMount(() => {
 		if (!isTauriRuntime()) return;
+		if (isLinux) {
+			void isGnomeDesktop().then(setGnome).catch((error) => {
+				console.error(error);
+				setGnome(false);
+			});
+		}
 		const syncMaximized = () => {
 			void isWindowMaximized().then(setMaximized).catch(console.error);
 		};
@@ -42,18 +56,28 @@ export const useWindowControls = (beforeClose: () => Promise<boolean>, t: (key: 
 						const confirmed = await confirmCloseWithoutSaving(t("closeUnsavedMessage"), t("appName"),
 							t("closeWithoutSaving"), t("keepEditing"));
 						if (!confirmed) {
+							exitAfterClose = false;
 							closePending = false;
 							return;
 						}
 					}
 					try {
-						await destroyWindow();
+						if (exitAfterClose) {
+							await exitMainApp();
+						} else if (isLinux) {
+							await hideMainWindow();
+							closePending = false;
+						} else {
+							await destroyWindow();
+						}
 					} catch (error) {
+						exitAfterClose = false;
 						closePending = false;
 						console.error(error);
 					}
 				})
 				.catch((error) => {
+					exitAfterClose = false;
 					closePending = false;
 					console.error(error);
 				});
@@ -64,6 +88,18 @@ export const useWindowControls = (beforeClose: () => Promise<boolean>, t: (key: 
 			})
 			.catch(console.error);
 	});
+
+	const exit = async (): Promise<void> => {
+		if (!isTauriRuntime() || closePending || exitAfterClose) return;
+		exitAfterClose = true;
+		try {
+			await showMainWindow();
+			await closeWindow();
+		} catch (error) {
+			exitAfterClose = false;
+			console.error(error);
+		}
+	};
 
 	onCleanup(() => {
 		active = false;
@@ -83,10 +119,12 @@ export const useWindowControls = (beforeClose: () => Promise<boolean>, t: (key: 
 
 	return {
 		maximized,
+		gnome,
 		minimize: () => {
 			if (isTauriRuntime()) void minimizeWindow().catch(console.error);
 		},
 		toggleMaximize,
+		exit,
 		close: () => {
 			if (isTauriRuntime()) void hideMainWindow().catch(console.error);
 		},

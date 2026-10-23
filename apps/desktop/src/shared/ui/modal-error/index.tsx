@@ -3,7 +3,7 @@ import { styles } from "./style.css.ts";
 
 type Props = { message?: string; id?: string; alignTo?: Accessor<HTMLElement | undefined> };
 
-/** The dialog remains centered; its error appears above without affecting layout. */
+/** A caixa de diálogo permanece centralizada; o erro aparece acima sem afetar o layout. */
 const ModalError: Component<Props> = (props) => {
 	const [visible, setVisible] = createSignal(false);
 	const [position, setPosition] = createSignal<JSX.CSSProperties>();

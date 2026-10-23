@@ -1,4 +1,4 @@
-# Keep the user's login environment and CLI configuration before setting our prompt.
+# Preserve o ambiente de login do usuário e a configuração da CLI antes de definir o prompt.
 if [[ -r /etc/profile ]]; then
     source /etc/profile
 fi

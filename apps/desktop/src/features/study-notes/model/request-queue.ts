@@ -11,7 +11,7 @@ type Request = {
 	resolve: (value: string) => void; reject: (failure: unknown) => void; cleanup: () => void;
 };
 
-/** All study methods share FIFO admission to the provider, including generation retries. */
+/** Todos os métodos de estudo compartilham uma fila FIFO para acesso ao provedor, inclusive nas novas tentativas de geração. */
 export const useStudyRequestQueue = (options: StudyEnvironment) => {
 	const waiting: Request[] = [];
 	const [revision, setRevision] = createSignal(0);

@@ -6,7 +6,7 @@
 
 ### Um espaço para escrever, estudar e conectar ideias.
 
-Organize suas notas em um canvas visual, combine texto com imagens, áudios e vídeos
+Organize suas notas em um canvas visual, combine texto com imagens e GIFs
 e mantenha seus arquivos no seu computador.
 
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%2F%2011-242426?style=flat-square)
@@ -61,8 +61,8 @@ interromper a resposta quando quiser.
 Ative **IA Features** nas configurações para exibir o ícone de chat na barra superior.
 A opção vem desativada por padrão. O recurso consulta
 os textos das notas e usa o serviço do provedor conectado, sujeito aos limites da sua
-conta. Atualmente, o provedor disponível é o Codex, instalado no computador
-e autenticado com sua conta ChatGPT. [Como conectar](docs/features/chat-with-ai.md).
+conta. Os provedores disponíveis são Codex, Claude Code, OpenCode e Antigravity,
+instalados e autenticados pelos CLIs correspondentes. [Como conectar](docs/features/chat-with-ai.md).
 
 ## Escreva do seu jeito
 
@@ -102,12 +102,10 @@ Inclua materiais que ajudem a explicar, lembrar ou revisar um assunto.
 
 | Conteúdo | O que você pode fazer |
 | --- | --- |
-| **Imagens** | Inserir, posicionar e redimensionar dentro da nota. |
-| **Áudios** | Ouvir sem sair da nota, controlar a reprodução e ajustar o volume. |
-| **Vídeos** | Assistir dentro da nota, avançar na reprodução, ajustar o volume e usar tela cheia. |
-| **Catálogo de mídias** | Encontrar mídias da biblioteca e inseri-las nas notas. |
+| **Imagens e GIFs** | Inserir, posicionar e redimensionar dentro da nota. |
+| **Catálogo de mídias** | Encontrar imagens da biblioteca e inseri-las nas notas. |
 
-Importe arquivos pelo seletor ou arraste-os para o aplicativo. Você também pode
+Importe imagens e GIFs pelo seletor ou arraste-os para o aplicativo. Você também pode
 colar imagens copiadas e capturas de tela com **Ctrl+V** dentro da nota em edição.
 
 ## Separe seus assuntos em vaults

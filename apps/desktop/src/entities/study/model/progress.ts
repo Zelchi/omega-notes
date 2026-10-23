@@ -1,5 +1,5 @@
 import { decodeWrittenReport, type WrittenReportEntry } from "./written-report";
-/** Item identity is its immutable position within a generated deck, scoped by deck ID. */
+/** A identidade do item é sua posição imutável dentro de um baralho gerado, associada ao ID do baralho. */
 export type StudyOutcome = "correct" | "wrong" | "timeout" | "skipped";
 export type FlashcardRating = "easy" | "medium" | "hard";
 export type ItemProgress = {
@@ -12,8 +12,8 @@ const DAY = 86_400_000;
 const MAX_COUNTER = 1_000_000;
 const increment = (value = 0) => Math.min(MAX_COUNTER, value + 1);
 
-/** Simple deterministic schedule: 1, 3, 7, 14, 30, 60, 120, then 180 days.
- * A missed card resets the streak and returns after ten minutes. */
+/** Intervalo determinístico simples: 1, 3, 7, 14, 30, 60, 120 e depois 180 dias.
+ * Um card errado zera a sequência e retorna após dez minutos. */
 export const recordStudyOutcome = (progress: StudyProgress | undefined, itemIndex: number, outcome: StudyOutcome, now: number): StudyProgress => {
 	const previous = progress?.items.find(item => item.itemIndex === itemIndex);
 	const streak = outcome === "correct" ? increment(previous?.streak) : 0;
@@ -27,7 +27,7 @@ export const recordStudyOutcome = (progress: StudyProgress | undefined, itemInde
 	};
 	return { ...progress, items: [...(progress?.items.filter(item => item.itemIndex !== itemIndex) ?? []), next] };
 };
-/** Difficulty changes scheduling independently of the quiz and essay rules. */
+/** A dificuldade altera o agendamento independentemente das regras do questionário e da redação. */
 export const flashcardInterval = (progress: StudyProgress | undefined, itemIndex: number, rating: FlashcardRating): number => {
 	if (rating === "hard") return 30 * 60_000;
 	const previous = progress?.items.find(item => item.itemIndex === itemIndex)?.intervalDays ?? 0;

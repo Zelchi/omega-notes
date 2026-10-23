@@ -1,4 +1,4 @@
-/** Provider errors are transient UI text, never part of saved conversations. */
+/** Erros dos provedores são mensagens temporárias da interface, nunca parte das conversas salvas. */
 export const formatAiErrorDetail = (detail?: string): string => {
     if (!detail) return "";
     const cleaned = detail
@@ -21,7 +21,7 @@ export const formatAiErrorDetail = (detail?: string): string => {
     return (lines.find((line) => /\berror\b/i.test(line)) ?? lines[0] ?? "").slice(0, 600);
 };
 
-/** Keep the provider code separate from its transient, redacted diagnostic. */
+/** Mantenha o código do provedor separado do diagnóstico temporário, com dados sensíveis removidos. */
 export class AiRequestError extends Error {
     readonly detail: string;
     constructor(code: string, detail?: string) {
@@ -37,6 +37,6 @@ export const readAiFailure = (failure: unknown): AiRequestError => {
         const value = JSON.parse(message);
         if (value && typeof value === "object" && typeof value.code === "string" && /^AI_[A-Z_]+$/.test(value.code))
             return new AiRequestError(value.code, typeof value.detail === "string" ? value.detail : undefined);
-    } catch { /* Plain provider codes are already valid error messages. */ }
+    } catch { /* Códigos simples do provedor já são mensagens de erro válidas. */ }
     return new AiRequestError(message);
 };

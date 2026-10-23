@@ -10,7 +10,7 @@ export type StudyResponse = {
 	feedback?: WrittenFeedback; outcome?: StudyOutcome; error?: string;
 };
 
-/** One provider request at a time; writing the next answer never waits for grading. */
+/** Uma solicitação ao provedor por vez; escrever a próxima resposta nunca espera pela avaliação. */
 export const useAnswerReview = (options: StudyEnvironment, session: {
 	active: Accessor<boolean>; canWrite: Accessor<boolean>;
 	current: Accessor<StudyItem | undefined>; itemIndex: Accessor<number | undefined>;

@@ -1,6 +1,6 @@
 import { decodeStudyItem, parseStudyJson, parseWrittenFeedback, type StudyItem, type StudyKind, type WrittenFeedback } from "@/entities/study";
 
-/** Wire references are local to a request; persisted models always use real note IDs. */
+/** As referências da requisição são locais a ela; os modelos persistidos sempre usam IDs reais de notas. */
 export const createSourceReferences = (ids: Iterable<string>): Map<string, string> => {
 	const seen = new Set<string>(), references = new Map<string, string>();
 	for (const id of ids) {
@@ -23,7 +23,7 @@ const sourceIds = (value: unknown, references: ReadonlyMap<string, string>, allo
 	});
 };
 
-/** Convert the AI's simple wire shape before invoking the shared internal validator. */
+/** Converta o formato simples da resposta da IA antes de chamar o validador interno compartilhado. */
 export const decodeGeneratedItem = (raw: Record<string, unknown>, kind: StudyKind,
 	references: ReadonlyMap<string, string>, allowedIds: ReadonlySet<string>): StudyItem => {
 	const value = { ...raw, sources: sourceIds(raw.sources, references, allowedIds) };
@@ -56,7 +56,7 @@ export const decodeGeneratedItem = (raw: Record<string, unknown>, kind: StudyKin
 	return decodeStudyItem(value, kind, allowedIds);
 };
 
-/** Keep persistence validation strict while deriving redundant values only at the wire boundary. */
+/** Mantenha rigorosa a validação da persistência e derive valores redundantes somente na fronteira do protocolo. */
 export const parseGeneratedFeedback = (response: string, references: ReadonlyMap<string, string>, blankCount?: number): WrittenFeedback => {
 	if (response.length > 64_000) return invalid();
 	const data = parseStudyJson(response), allowedIds = new Set(references.values());

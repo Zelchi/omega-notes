@@ -9,11 +9,7 @@ export type StudyNote = {
 
 export type NoteMediaSource =
 	| { type: "image"; imageId: string }
-	| { type: "image"; dataUrl: string }
-	| { type: "audio"; audioId: string; extension: string }
-	| { type: "audio"; dataUrl: string; extension: string }
-	| { type: "video"; videoId: string; extension: string }
-	| { type: "video"; dataUrl: string; extension: string };
+	| { type: "image"; dataUrl: string };
 
 export type NoteMediaCatalogItem = {
 	noteId: string;
@@ -68,8 +64,6 @@ export type NoteChangeSet = {
 export type NoteStorageStats = {
 	noteCount: number;
 	imageCount: number;
-	audioCount: number;
-	videoCount: number;
 	characterCount: number;
 	storageBytes: number;
 	lastModifiedAt: number;

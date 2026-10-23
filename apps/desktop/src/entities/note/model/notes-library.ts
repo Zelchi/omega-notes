@@ -71,7 +71,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 			while (cursor < ids.length) {
 				const id = ids[cursor++];
 				try { documents.set(id, await withDocumentReadSlot(() => getNoteRecord(vaultId, id))); }
-				catch { /* The file may have changed again while the summary stream was running. */ }
+				catch { /* O arquivo pode ter sido alterado novamente enquanto o fluxo de resumos era executado. */ }
 			}
 		});
 		await Promise.all(workers);

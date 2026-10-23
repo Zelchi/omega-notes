@@ -31,8 +31,9 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>) => {
 	const [longBreakDraft, setLongBreakDraft] = createSignal(String(initialSettings.longBreakMinutes));
 	const [cyclesDraft, setCyclesDraft] = createSignal(String(initialSettings.cyclesBeforeLongBreak));
 	const [editingTaskId, setEditingTaskId] = createSignal<string>();
+	const [taskActionsVisibleId, setTaskActionsVisibleId] = createSignal<string>();
 	const [editDraft, setEditDraft] = createSignal("");
-	const view = { draft, setDraft, showSettings, setShowSettings, focusDraft, setFocusDraft, shortBreakDraft, setShortBreakDraft, longBreakDraft, setLongBreakDraft, cyclesDraft, setCyclesDraft, editingTaskId, setEditingTaskId, editDraft, setEditDraft };
+	const view = { draft, setDraft, showSettings, setShowSettings, focusDraft, setFocusDraft, shortBreakDraft, setShortBreakDraft, longBreakDraft, setLongBreakDraft, cyclesDraft, setCyclesDraft, editingTaskId, setEditingTaskId, taskActionsVisibleId, setTaskActionsVisibleId, editDraft, setEditDraft };
 	let timer: ReturnType<typeof setInterval> | undefined;
 	let timerRevision = 0, timerReadPending = false, timerErrorLogged = false;
 	let loadRevision = 0, writeRevision = 0;
@@ -152,7 +153,7 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>) => {
 		const revision = ++loadRevision;
 		setOpen(false);
 		setTasks([]);
-		setDraft(""); setEditingTaskId(undefined); setEditDraft("");
+		setDraft(""); setEditingTaskId(undefined); setTaskActionsVisibleId(undefined); setEditDraft("");
 		setError(false);
 		setReadFailed(false);
 		setWriteFailed(false);
@@ -198,16 +199,6 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>) => {
 		persist(current.map(task => task.id === id ? { ...task, title: normalized } : task));
 		return true;
 	};
-	const moveTask = (id: string, targetId: string, after: boolean) => {
-		if (readFailed()) return;
-		const current = [...tasks()].sort((left, right) => left.position - right.position);
-		const from = current.findIndex(task => task.id === id);
-		if (from < 0 || id === targetId || !current.some(task => task.id === targetId)) return;
-		const [moved] = current.splice(from, 1);
-		const targetIndex = current.findIndex(task => task.id === targetId);
-		current.splice(targetIndex + Number(after), 0, moved);
-		persist(current.map((task, position) => ({ ...task, position })));
-	};
 	const removeTask = (id: string) => {
 		if (readFailed()) return;
 		persist(tasks().filter(task => task.id !== id)
@@ -221,7 +212,7 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>) => {
 
 	onCleanup(() => { timerRevision += 1; clearTimer(); });
 	return {
-		open, setOpen, tasks, loading, error, readFailed, settingsError, addTask, renameTask, toggleTask, moveTask, removeTask, flushSave, view, toggleSettings,
+		open, setOpen, tasks, loading, error, readFailed, settingsError, addTask, renameTask, toggleTask, removeTask, flushSave, view, toggleSettings,
 		phase, phaseSeconds, timerReady, focusMinutes, shortBreakMinutes, longBreakMinutes, cyclesBeforeLongBreak, seconds, running, start, pause, reset, next, setDurations,
 	};
 };

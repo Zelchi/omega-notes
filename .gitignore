@@ -1,20 +1,68 @@
+# Dependências e caches
 node_modules/
-dist/
-**/tauri/target/
-**/tauri/gen/
-*.log
-.DS_Store
-Thumbs.db
+.npm/
+.cache/
+.vite/
+.turbo/
 
-.keys/
-.key/
+# Builds e saídas geradas
+dist/
+target/
+gen/
+.astro/
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.vscode-test/
+
+# CEF local e arquivos grandes gerados
+.tauri-cef/
+.cef/
+
+# Dados locais e credenciais
 .env
 .env.*
 !.env.example
-**/tauri/tauri.release.conf.json
+.keys/
+.key/
+.aws/
+.ssh/
+.gnupg/
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
 
-.astro/
+# Estado local de ferramentas e agentes
+.codex/
+.superpowers/
+.idea/
+.fleet/
+.history/
 
+# Logs, temporários e arquivos de editor
+*.log
+*.pid
+*.seed
+*.pid.lock
+*.swp
+*.swo
+*.orig
+*.rej
+*~
+
+# Arquivos criados pelo sistema operacional
+.DS_Store
+.AppleDouble
+._*
+.Spotlight-V100/
+.Trashes/
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.directory
 /image.png
-
-.codex

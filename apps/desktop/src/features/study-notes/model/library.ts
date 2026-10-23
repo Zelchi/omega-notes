@@ -2,7 +2,7 @@ import { createEffect, createSignal, on, onCleanup } from "solid-js";
 import { readStudies, readStudy, saveStudy, deleteStudy, saveStudyProgress, type StudyDeck, type StudyKind, type StudySummary, type StudyProgress, type InvalidStudyItem } from "@/entities/study";
 import type { StudyEnvironment } from "./environment";
 
-/** All study methods share one vault library and serialize writes, including browser storage. */
+/** Todos os métodos de estudo compartilham uma biblioteca do vault e serializam gravações, inclusive no armazenamento do navegador. */
 export const useStudyLibrary = (options: StudyEnvironment) => {
 	const [decks, setDecks] = createSignal<StudySummary[]>([]);
 	const [invalidItems, setInvalidItems] = createSignal<InvalidStudyItem[]>([]);

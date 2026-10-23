@@ -8,7 +8,7 @@ const MIN_STUDY_CHARACTERS = 180;
 const MIN_STUDY_WORDS = 25;
 const MIN_STUDY_LINES = 3;
 
-/** Resolve up to three reference hops; empty notes may still lead to useful sources. */
+/** Percorre até três níveis de referências; notas vazias ainda podem levar a fontes úteis. */
 export const createStudySourceResolver = (notes: NoteSummary[]) => {
 	const ids = new Map(notes.map(note => [normalizeNoteTitle(note.id), note])), titles = createNoteTitleIndex(notes);
 	return (current: NoteSummary): NoteSummary[] => {

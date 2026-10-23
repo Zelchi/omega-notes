@@ -6,7 +6,6 @@ import {
 	createNoteTitleIndex,
 	normalizeNoteTitle,
 	type NoteImageElement,
-	type NoteMediaElement,
 	type NoteTextElement,
 } from "@/entities/note";
 import { renderNoteText } from "./render-text";
@@ -20,7 +19,6 @@ import { useMediaCatalogDialogController } from "../media-catalog-dialog/control
 
 const MediaCatalogDialog = lazy(() => import("../media-catalog-dialog"));
 const NoteImageNode = lazy(() => import("../note-image-node"));
-const NoteMediaNode = lazy(() => import("../note-media-node"));
 
 const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 	const editor = useNoteCanvasEditorController(props);
@@ -96,6 +94,9 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 				<Show when={editor.pasteError()}>
 					<p role="alert" class={styles.pasteError}>{props.t("pasteImageFailed")}</p>
 				</Show>
+				<Show when={editor.mediaImportError()}>
+					<p role="alert" class={styles.pasteError}>{props.t("mediaImportFailed")}</p>
+				</Show>
 				<Index each={editor.flowDocument().elements}>
 					{(element) => {
 						const getElement = () => element();
@@ -103,44 +104,21 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 							<Show
 								when={getElement().type === "text"}
 								fallback={
-									<Show
-										when={getElement().type === "image"}
-										fallback={
-											<Show when={getElement().type === "audio" || getElement().type === "video"}>
-												<Suspense fallback={null}>
-													<NoteMediaNode
-														element={() => getElement() as NoteMediaElement}
-														pageWidth={props.document.page.width}
-														pageHeight={editor.renderedPageHeight()}
-														editable={editor.editable()}
-														activePositioningId={editor.positioningElementId()}
-														t={props.t}
-														onChange={editor.updateElement}
-														onPreview={editor.setPreviewElement}
-														onContextMenu={editor.startMediaPositioning}
-														onConfirm={editor.placeElement}
-														onDelete={() => editor.removeElement(getElement().id)}
-													/>
-												</Suspense>
-											</Show>
-										}
-									>
-										<Suspense fallback={null}>
-											<NoteImageNode
-												element={() => getElement() as NoteImageElement}
-								pageWidth={props.document.page.width}
-								pageHeight={editor.renderedPageHeight()}
-								editable={editor.editable()}
-								activePositioningId={editor.positioningElementId()}
-								t={props.t}
-								onChange={editor.updateElement}
-								onPreview={editor.setPreviewElement}
-								onContextMenu={editor.startMediaPositioning}
-								onConfirm={editor.placeElement}
-								onDelete={() => editor.removeElement(getElement().id)}
-							/>
-										</Suspense>
-									</Show>
+									<Suspense fallback={null}>
+										<NoteImageNode
+										element={() => getElement() as NoteImageElement}
+										pageWidth={props.document.page.width}
+										pageHeight={editor.renderedPageHeight()}
+										editable={editor.editable()}
+										activePositioningId={editor.positioningElementId()}
+										t={props.t}
+										onChange={editor.updateElement}
+										onPreview={editor.setPreviewElement}
+										onContextMenu={editor.startMediaPositioning}
+										onConfirm={editor.placeElement}
+										onDelete={() => editor.removeElement(getElement().id)}
+									/>
+									</Suspense>
 								}
 							>
 								<NoteTextNode

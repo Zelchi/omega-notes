@@ -15,7 +15,7 @@ const decode = (value: unknown): StudyPreferences => {
 	};
 };
 
-/** Interface choices belong to this installation, independently of vault materials. */
+/** As preferências de interface pertencem a esta instalação, independentemente dos materiais dos vaults. */
 export const readStudyPreferences = (kind: StudyKind): StudyPreferences => {
 	try { return decode(JSON.parse(localStorage.getItem(key(kind)) ?? "null")); }
 	catch { return decode(undefined); }
@@ -40,7 +40,7 @@ const readGenerationTimes = (): GenerationTimes => {
 	} catch { return {}; }
 };
 
-/** Stores individual question/card generation times, separately for each study method. */
+/** Armazena os tempos individuais de geração de questões/cards, separados por método de estudo. */
 export const readStudyGenerationTimes = (kind: StudyKind): number[] => readGenerationTimes()[kind] ?? [];
 export const saveStudyGenerationTime = (kind: StudyKind, duration: number): void => {
 	if (!Number.isFinite(duration) || duration <= 0) return;
