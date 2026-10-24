@@ -12,5 +12,5 @@ Falha ao salvar, criar ou abrir deixa a edição sem navegação e mostra um err
 
 ## Código
 
-- [Controlador](../../apps/desktop/src/features/create-note-from-link/model/controller.ts)
-- [Normalização e vínculo](../../apps/desktop/src/entities/note/model/editable-note-references.ts)
+- [Controlador](../../apps/desktop/frontend/src/features/create-note-from-link/model/controller.ts)
+- [Normalização e vínculo](../../apps/desktop/frontend/src/entities/note/model/editable-note-references.ts)

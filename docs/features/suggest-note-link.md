@@ -12,6 +12,6 @@ As sugestões são derivadas do texto e da biblioteca; não são persistidas. O 
 
 ## Código
 
-- [Contexto no cursor](../../apps/desktop/src/features/suggest-note-link/model/link-context.ts)
-- [Busca e seleção](../../apps/desktop/src/features/suggest-note-link/model/suggestions.controller.ts)
-- [Integração com o editor](../../apps/desktop/src/pages/notes/ui/note-text-node/controller.ts)
+- [Contexto no cursor](../../apps/desktop/frontend/src/features/suggest-note-link/model/link-context.ts)
+- [Busca e seleção](../../apps/desktop/frontend/src/features/suggest-note-link/model/suggestions.controller.ts)
+- [Integração com o editor](../../apps/desktop/frontend/src/pages/notes/ui/note-text-node/controller.ts)

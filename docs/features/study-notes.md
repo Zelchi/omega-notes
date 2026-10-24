@@ -12,7 +12,7 @@ Falha por conteúdo insuficiente repete a preparação e geração até três te
 
 Itens e progresso pertencem ao vault; preferências de quantidade, vidas e tempo pertencem à instalação. Desligar Recursos de IA limpa históricos e workspaces dos provedores, mas mantém os itens de estudo e seus dados de progresso. Navegar de um estudo para uma nota mantém o controlador montado e retorna ao método anterior.
 
-Cobertura de regressão: [geração](../../apps/desktop/test/study-generation.test.mjs), [itens](../../apps/desktop/test/study-items.test.mjs), [fila](../../apps/desktop/test/study-queue.test.mjs) e [barra](../../apps/desktop/test/study-toolbar.test.mjs).
+Cobertura de regressão: [geração](../../apps/desktop/frontend/test/study-generation.test.mjs), [itens](../../apps/desktop/frontend/test/study-items.test.mjs), [fila](../../apps/desktop/frontend/test/study-queue.test.mjs) e [barra](../../apps/desktop/frontend/test/study-toolbar.test.mjs).
 
 ## Caminho usando Gambiarra
 

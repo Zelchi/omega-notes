@@ -12,5 +12,5 @@ O alinhamento fica no documento da nota, em `paragraphAlignments`, com o alinham
 
 ## Código
 
-- [Cálculo da seleção e atualização](../../apps/desktop/src/features/align-text/model/paragraph-alignment.ts)
-- [Editor da nota](../../apps/desktop/src/pages/notes/ui/note-text-node/controller.ts)
+- [Cálculo da seleção e atualização](../../apps/desktop/frontend/src/features/align-text/model/paragraph-alignment.ts)
+- [Editor da nota](../../apps/desktop/frontend/src/pages/notes/ui/note-text-node/controller.ts)

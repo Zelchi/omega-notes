@@ -12,6 +12,6 @@ A consulta de título é assíncrona e pode falhar por rede, redirecionamento ou
 
 ## Código
 
-- [Reconhecimento e resolução](../../apps/desktop/src/features/paste-url-link/model/pasted-link.ts)
-- [Busca do título no backend](../../apps/desktop/tauri/src/web/title.rs)
-- [Integração no editor](../../apps/desktop/src/pages/notes/ui/note-text-node/controller.ts)
+- [Reconhecimento e resolução](../../apps/desktop/frontend/src/features/paste-url-link/model/pasted-link.ts)
+- [Busca do título no backend](../../apps/desktop/backend/src/web/title.rs)
+- [Integração no editor](../../apps/desktop/frontend/src/pages/notes/ui/note-text-node/controller.ts)

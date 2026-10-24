@@ -5,9 +5,9 @@
 
 ## Contexto atual
 
-- O desktop tem 19 pastas em `apps/desktop/src/features`; o inventário e os testes conhecidos estão no [índice da documentação](../readme.md).
+- O desktop tem 19 pastas em `apps/desktop/frontend/src/features`; o inventário e os testes conhecidos estão no [índice da documentação](../readme.md).
 - `.github/workflows/quality.yml` executa typecheck, testes desktop e testes Rust em pull requests e pushes para `main`; release e publicação do site permanecem em workflows próprios.
-- A documentação está separada entre features, arquitetura e desenvolvimento. Cada feature tem um arquivo Markdown plano `docs/features/<slug>.md`, usando o slug de `apps/desktop/src/features/`; não criar `README.md` nem subpastas por feature.
+- A documentação está separada entre features, arquitetura e desenvolvimento. Cada feature tem um arquivo Markdown plano `docs/features/<slug>.md`, usando o slug de `apps/desktop/frontend/src/features/`; não criar `README.md` nem subpastas por feature.
 
 ## Princípios
 
@@ -48,7 +48,7 @@ Adicionar uma verificação de qualidade para pull requests e atualizações da 
 
 - `yarn typecheck`;
 - `yarn test:desktop`;
-- `cargo test --locked --manifest-path apps/desktop/tauri/Cargo.toml` para o backend Tauri, instalando as dependências de sistema Linux que o build já requer.
+- `cargo test --locked --manifest-path apps/desktop/backend/Cargo.toml` para o backend Rust.
 
 O workflow que implementa essa verificação é [quality.yml](../../.github/workflows/quality.yml). Ele não empacota instaladores; isso continua no workflow de release.
 

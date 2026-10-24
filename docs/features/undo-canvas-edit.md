@@ -8,9 +8,9 @@ Desfazer uma exclusão restaura a nota do armazenamento de excluídas; refazer a
 
 ## Estado e limites
 
-O histórico não é persistido entre reinicializações. O armazenamento de exclusões da nota é persistente e separado; falhas de leitura/remoção mantêm a ação no histórico para nova tentativa. Cobertura em [canvas-history.test.mjs](../../apps/desktop/test/canvas-history.test.mjs) e [canvas-state.test.mjs](../../apps/desktop/test/canvas-state.test.mjs).
+O histórico não é persistido entre reinicializações. O armazenamento de exclusões da nota é persistente e separado; falhas de leitura/remoção mantêm a ação no histórico para nova tentativa. Cobertura em [canvas-history.test.mjs](../../apps/desktop/frontend/test/canvas-history.test.mjs) e [canvas-state.test.mjs](../../apps/desktop/frontend/test/canvas-state.test.mjs).
 
 ## Código
 
-- [Controlador](../../apps/desktop/src/features/undo-canvas-edit/model/canvas-history.controller.ts)
-- [Snapshots de layouts](../../apps/desktop/src/features/undo-canvas-edit/model/canvas-snapshot-store.ts)
+- [Controlador](../../apps/desktop/frontend/src/features/undo-canvas-edit/model/canvas-history.controller.ts)
+- [Snapshots de layouts](../../apps/desktop/frontend/src/features/undo-canvas-edit/model/canvas-snapshot-store.ts)

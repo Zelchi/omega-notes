@@ -1,5 +1,27 @@
 # Histórico de atualizações
 
+## Unreleased
+
+### Notas e mídias
+
+- Áudio e vídeo voltam às notas, com catálogo compartilhado, reposicionamento e contagens por vault.
+- O desktop aceita áudio `aac`, `flac`, `m4a`, `mp3`, `oga`, `ogg`, `opus` e `wav`, e vídeo `mp4`, `ogv` e `webm`.
+- O backend mantém cópias gerenciadas em `audios/` e `videos/` e transmite os arquivos localmente para os players, sem transcodificação.
+- Notas e mídias antigas são preservadas; a limpeza remove somente arquivos sem referências em notas, backups, journals de renomeação, recuperação ou notas excluídas.
+
+## v0.5.0
+
+### Notas e mídia
+
+- Notas aceitam imagens e GIFs; importação e reprodução de áudio e vídeo foram removidas.
+- O catálogo de mídia busca anexos de outras notas sem carregar todos os documentos completos.
+
+### Janela e interface
+
+- A barra personalizada permite arrastar, redimensionar pelas bordas e maximizar com duplo clique.
+- O fundo nativo acompanha o canvas durante o redimensionamento da janela.
+- O painel Pomodoro e a lista de tarefas receberam ajustes de interação e apresentação.
+
 ## v0.4.9
 
 ### Arquivo e organização

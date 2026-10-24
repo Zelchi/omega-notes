@@ -1,0 +1,32 @@
+[package]
+name = "omega-notes-backend"
+version = "0.5.0"
+description = "Backend Rust do Ômega Notes"
+authors = ["Ômega Notes"]
+edition = "2021"
+rust-version = "1.95"
+
+[lib]
+name = "omega_notes_lib"
+crate-type = ["rlib"]
+
+[profile.dev]
+incremental = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "json"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+html5ever = "0.39"
+portable-pty = "0.9"
+uuid = { version = "1.27", features = ["v4", "v7"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "io-util", "sync", "macros"] }
+base64 = "0.22"
+minisign-verify = "0.2.5"
+semver = "1"
+tempfile = "3"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
