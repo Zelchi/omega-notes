@@ -22,7 +22,7 @@
         "build:web": "yarn workspace omega-notes-web build",
         "preview:web": "yarn workspace omega-notes-web preview",
         "dev:frontend": "yarn workspace omega-notes-desktop dev",
-        "test:electron": "cargo build --locked --manifest-path apps/desktop/backend/Cargo.toml && node --test --experimental-test-isolation=none apps/desktop/bridge/electron/test/*.test.mjs",
+        "test:electron": "cargo build --locked --manifest-path apps/desktop/backend/Cargo.toml && node --test apps/desktop/bridge/electron/test/*.test.mjs",
         "test:backend": "cargo test --locked --manifest-path apps/desktop/backend/Cargo.toml"
     }
 }
