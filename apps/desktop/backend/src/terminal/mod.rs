@@ -83,7 +83,7 @@ fn shell_command(app: &AppContext, arguments: &[String]) -> Result<CommandBuilde
         command
     };
     #[cfg(windows)]
-    let mut command = {
+    let command = {
         if resolved
             .iter()
             .any(|value| value.chars().any(char::is_control))
