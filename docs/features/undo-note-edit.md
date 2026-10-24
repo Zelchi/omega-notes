@@ -12,5 +12,5 @@ O histórico não persiste após reinício e não há teste dedicado. A lógica 
 
 ## Código
 
-- [Histórico de texto](../../apps/desktop/src/features/undo-note-edit/model/text-history.ts)
-- [Integração no editor](../../apps/desktop/src/pages/notes/ui/note-text-node/controller.ts)
+- [Histórico de texto](../../apps/desktop/frontend/src/features/undo-note-edit/model/text-history.ts)
+- [Integração no editor](../../apps/desktop/frontend/src/pages/notes/ui/note-text-node/controller.ts)

@@ -12,7 +12,7 @@ O formato persistido é texto Markdown, não uma árvore de rich text independen
 
 ## Código
 
-- [Transformações de seleção](../../apps/desktop/src/features/format-text/model/formatting.ts)
-- [Indentação](../../apps/desktop/src/features/format-text/model/indentation.ts)
-- [Parser de Markdown](../../apps/desktop/src/features/format-text/model/markdown.ts)
-- [Editor de texto](../../apps/desktop/src/pages/notes/ui/note-text-node/controller.ts)
+- [Transformações de seleção](../../apps/desktop/frontend/src/features/format-text/model/formatting.ts)
+- [Indentação](../../apps/desktop/frontend/src/features/format-text/model/indentation.ts)
+- [Parser de Markdown](../../apps/desktop/frontend/src/features/format-text/model/markdown.ts)
+- [Editor de texto](../../apps/desktop/frontend/src/pages/notes/ui/note-text-node/controller.ts)

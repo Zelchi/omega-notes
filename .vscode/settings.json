@@ -3,31 +3,28 @@
     "files.exclude": {
         "**/node_modules": true,
         "**/dist": true,
-        "**/tauri/target": true,
-        "**/tauri/gen": true,
         "**/.astro": true,
         "**/.superpowers": true,
         "**/.keys": true,
-        "**/.tauri-cef": true
+        "**/target": true,
+        "**/gen": true
     },
     "search.exclude": {
         "**/node_modules": true,
         "**/dist": true,
-        "**/tauri/target": true,
-        "**/tauri/gen": true,
         "**/.astro": true,
         "**/.superpowers": true,
         "**/.keys": true,
-        "**/.tauri-cef": true
+        "**/target": true,
+        "**/gen": true
     },
     "files.watcherExclude": {
         "**/node_modules/**": true,
         "**/dist/**": true,
-        "**/tauri/target/**": true,
-        "**/tauri/gen/**": true,
         "**/.astro/**": true,
         "**/.keys/**": true,
         "**/.superpowers": true,
-        "**/.tauri-cef/**": true
+        "**/target/**": true,
+        "**/gen/**": true
     }
 }

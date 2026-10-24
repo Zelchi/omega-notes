@@ -12,5 +12,5 @@ A busca não altera nem persiste a nota. O estado existe enquanto o controlador 
 
 ## Código
 
-- [Indexação e navegação](../../apps/desktop/src/features/find-in-note/model/controller.ts)
-- [Barra de busca](../../apps/desktop/src/features/find-in-note/ui/find-bar.tsx)
+- [Indexação e navegação](../../apps/desktop/frontend/src/features/find-in-note/model/controller.ts)
+- [Barra de busca](../../apps/desktop/frontend/src/features/find-in-note/ui/find-bar.tsx)

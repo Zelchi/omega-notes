@@ -1,93 +1,39 @@
-# Publicação e atualizações
+# Publicação e atualização desktop
 
-## Plataformas
+O desktop compartilha SolidJS e o crate Rust de backend. Linux x64 usa Electron e publica `.deb`/`.rpm`; Windows x64 usa Tauri e publica o instalador NSIS `.exe`. macOS e AppImage não fazem parte do produto.
 
-- Windows 10/11 x64: instalador NSIS (`.exe`).
-- Ubuntu 22.04 ou mais recente x64: pacote `.deb`.
-- Fedora x64: pacote `.rpm`.
+## Desenvolvimento e builds
 
-Os pacotes Linux são nativos, usam GTK4 e declaram o fallback `zenity` para diálogos. O build usa Ubuntu 22.04 como base para os dois formatos. O nome técnico do pacote é `omega-notes`; o nome exibido no menu e no aplicativo é Ômega Notes. A execução em Ubuntu e Fedora ainda precisa ser conferida com os instaladores produzidos pelo GitHub.
+`yarn dev:desktop` e `yarn build:desktop` escolhem o host pelo sistema operacional. No Fedora/Ubuntu, o fluxo usa Electron; no Windows, Tauri. Os comandos `*:electron` e `*:tauri` permitem selecionar o host manualmente.
 
-## Configuração inicial do GitHub
+As saídas Electron ficam em `apps/desktop/release`. O Tauri gera o instalador e seu pacote updater em `apps/desktop/bridge/tauri/target/release/bundle/nsis`.
 
-1. Envie este projeto para um repositório público do GitHub. As versões publicadas devem permitir download público.
-2. Abra **Settings → Secrets and variables → Actions → New repository secret**.
-3. Cadastre `TAURI_SIGNING_PRIVATE_KEY` com o conteúdo completo do arquivo local `.keys/updater.key`.
-4. A chave criada nesta configuração não tem senha. Nesse caso, deixe `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` ausente. Se gerar outra chave com senha, cadastre também esse segredo.
-5. Guarde uma cópia da chave privada fora do projeto. Ela assina as próximas versões aceitas pelos aplicativos já instalados. A chave pública está em `apps/desktop/tauri/tauri.conf.json` e deve ser enviada ao GitHub.
+## Atualizações
 
-A pasta `.keys/` está ignorada pelo Git. Não envie a chave privada para o repositório. A assinatura do atualizador é distinta de um certificado de assinatura de código do Windows.
+Os dois hosts consultam `native-latest.json`, mas cada um instala seu formato:
 
-O workflow identifica o próprio repositório e configura `https://github.com/<dono>/<repositorio>/releases/latest/download/latest.json` durante o build. Não é necessário colocar token ou endereço de atualização no frontend.
+- Linux: o backend baixa o `.deb` ou `.rpm` do gerenciador instalado, valida a assinatura Minisign e instala via APT/DNF com Polkit.
+- Windows: o plugin updater do Tauri valida e instala o `.nsis.zip` assinado. O `.exe` NSIS continua disponível para a instalação inicial.
 
-## Publicar uma versão
+O manifesto mantém `packages.linux-x86_64` para o updater Rust e `platforms.windows-x86_64` para o updater Tauri. O Tauri exige HTTPS e assinatura; a chave pública embutida fica em `bridge/tauri/tauri.conf.json` e é sincronizada por `yarn release:prepare`. Nenhuma chave privada entra nos pacotes.
 
-A numeração do projeto usa componentes de 0 a 9. Depois de `0.3.9`, a próxima versão é `0.4.0`; depois de `0.9.9`, é `1.0.0`.
+No Linux, o fluxo segue o Techdoro: assinatura verificada antes e depois do download e instalação pelo gerenciador do sistema. No Windows, o Tauri verifica a assinatura e encerra o app ao iniciar o instalador; o frontend espera os salvamentos antes de chamar a instalação.
 
-1. Use a mesma versão em `apps/desktop/package.json`, `apps/desktop/tauri/Cargo.toml` e `apps/desktop/tauri/tauri.conf.json`.
-2. Atualize os arquivos de lock junto com as dependências e a versão do pacote Rust. Registre as novidades em `changelog.md`, em uma seção `## vX.Y.Z`; o workflow usa essa seção na descrição da release.
-3. Faça commit, crie uma tag com essa versão e envie ao GitHub. Substitua `X.Y.Z` pela versão preparada nos manifests:
+## CI e publicação
 
-```sh
-git add -A
-git commit -m "chore(release): prepara vX.Y.Z"
-git tag vX.Y.Z
-git push origin HEAD
-git push origin vX.Y.Z
-```
+O workflow exige `HYBRID_DESKTOP_RUNTIME_ACCEPTED=true` nas variáveis do repositório. Configure-a somente depois de validar Electron em Linux e Tauri em Windows.
 
-Uma tag publicada deve apontar para o commit completo da versão. A preparação recusa uma tag que não corresponda aos arquivos do projeto.
+Atualize a versão em `apps/desktop/package.json`, nos dois `Cargo.toml` e em `bridge/tauri/tauri.conf.json`; acrescente `## vX.Y.Z` em `changelog.md` e envie uma nova tag. O workflow:
 
-O workflow `.github/workflows/release.yml`:
+1. Gera `.deb`/`.rpm` com Electron no Linux e NSIS `.exe`/`.nsis.zip` com Tauri no Windows.
+2. Assina os pacotes Linux com `cargo-packager`; verifica também a assinatura Tauri do `.nsis.zip` usando o backend.
+3. Gera um manifesto comum com os campos Linux e Windows.
+4. Cria uma release em rascunho, envia os instaladores, assinaturas e manifesto, e publica ao final.
 
-1. Exige a variável de repositório `CEF_RUNTIME_ACCEPTED=true`, definida após validar os critérios em [Runtime CEF](../architecture/cef-runtime.md), e confere a versão e a presença da chave privada nos secrets.
-2. Cria um release em rascunho.
-3. Compila e assina os pacotes `.deb`, `.rpm` e o instalador Windows.
-4. Agrega `linux-x86_64-deb`, `linux-x86_64-rpm` e `windows-x86_64-nsis` no `latest.json`.
-5. Publica somente quando os dois builds, os três instaladores e o manifesto estão completos.
+Use `CARGO_PACKAGER_SIGN_PRIVATE_KEY` para assinar os pacotes Linux e `TAURI_SIGNING_PRIVATE_KEY` para criar o artefato updater Windows. Ambos podem apontar para a mesma chave Minisign. As variáveis `*_PASSWORD` correspondentes são opcionais. A chave deve corresponder a `apps/desktop/bridge/electron/updater-public-key.txt`; `OMEGA_UPDATER_PUBLIC_KEY` pode substituir a chave pública no build coordenado.
 
-Em caso de falha, a versão permanece em rascunho. Se a correção modificar o código ou o workflow, faça commit e atualize a tag ainda não publicada para esse commit antes de iniciar outra execução. Reexecutar o job antigo usa o workflow antigo. Para uma versão já publicada, crie uma nova tag com versão maior.
+Uma release publicada não deve receber pacotes novos. Crie uma versão maior; o workflow permite repetir uma release que ainda esteja em rascunho.
 
-Também é possível executar **Actions → Publicar versão → Run workflow**, informando uma tag existente.
+## Aceite gráfico
 
-## Atualização do aplicativo
-
-No aplicativo empacotado, a verificação ocorre ao iniciar. Quando há uma versão mais recente, o botão das configurações informa a versão disponível. O download e a instalação só começam depois de clicar no botão; abrir as configurações não inicia a atualização. A assinatura do pacote é verificada pelo Tauri. O aplicativo bloqueia a edição durante a instalação, conclui os salvamentos pendentes, instala e reinicia. Se o salvamento falhar, a instalação é interrompida. Se um diálogo ou uma operação de vault impedir a instalação depois do download, o pacote é mantido e o botão volta a indicar a atualização disponível; é necessário clicar novamente quando a operação terminar.
-
-O botão no final das configurações continua permitindo conferir uma versão e instalar uma atualização disponível. O texto indica verificação, versão disponível, download, instalação ou falha. O aviso “Verificação indisponível” dura dois segundos.
-
-No navegador, em `npm run dev:desktop` e em builds sem endpoint de release, a atualização permanece indisponível. No Linux, o atualizador seleciona o mesmo formato em que o aplicativo foi instalado: `.deb` usa `dpkg`, e `.rpm` usa `rpm`. A instalação pode solicitar autenticação do sistema por `pkexec`. A versão instalada do plugin já implementa esses dois formatos. A detecção usa o tipo do pacote gravado pelo Tauri no executável.
-
-## Builds locais com atualização habilitada
-
-### Dados de desenvolvimento
-
-O diretório de dados é definido pelo perfil de compilação:
-
-- Desenvolvimento (`npm run dev:desktop`, `npm run tauri -- dev` ou builds com `--debug`): `Documentos/Ômega Notes Dev`.
-- Produção (builds release, incluindo os instaladores): `Documentos/Ômega Notes`.
-
-Cada diretório contém seu próprio `vaults.json`, vaults, notas, mídias e pasta `.temp`. O desenvolvimento começa com uma biblioteca independente. Os dados existentes não são movidos nem copiados. A seleção é feita no Rust em tempo de compilação, antes de qualquer leitura ou escrita dos vaults.
-
-### Compilar para publicação
-
-Execute os comandos na raiz do repositório. Depois de configurar a versão e o repositório, no Linux:
-
-```sh
-GITHUB_REPOSITORY=dono/repositorio RELEASE_TAG=vX.Y.Z node scripts/prepare-release.mjs
-TAURI_SIGNING_PRIVATE_KEY="$PWD/.keys/updater.key" npm run tauri -- build --bundles deb,rpm --config tauri/tauri.release.conf.json -- --locked
-```
-
-O arquivo `apps/desktop/tauri/tauri.release.conf.json` é gerado e está ignorado pelo Git. Para Windows, use `--bundles nsis` em uma máquina Windows e forneça `TAURI_SIGNING_PRIVATE_KEY` no ambiente.
-
-O CLI é chamado diretamente por Node para preservar o separador `--`, que encaminha `--locked` ao Cargo. O Yarn 1 pode consumir esse separador e alterar os argumentos do build.
-
-Referências: [Runtime CEF](../architecture/cef-runtime.md) e [tauri-action](https://github.com/tauri-apps/tauri-action).
-
-## Primeira instalação no Linux
-
-No Ubuntu, baixe o `.deb` do release e instale pelo aplicativo de pacotes ou por `sudo apt install ./arquivo.deb`. No Fedora, baixe o `.rpm` e instale pelo aplicativo de pacotes ou por `sudo dnf install ./arquivo.rpm`. Esses gestores resolvem as dependências declaradas no pacote. Depois da primeira instalação, o aplicativo verifica as próximas versões ao iniciar.
-
-### Runtime CEF no Linux
-
-O app usa CEF/Chromium no Linux. O runtime atual apresenta a janela via X11, inclusive em sessões Wayland por meio do XWayland; configurações de WebKitGTK como `WEBKIT_DISABLE_DMABUF_RENDERER` não se aplicam. Consulte os requisitos e limitações em [Runtime CEF](../architecture/cef-runtime.md).
+Confira edição e salvamento, seleção de vault, importação/drag-drop/clipboard de imagens e GIFs, estudos e IA, terminal e cancelamento, timer, bandeja, janela, teclado, mudança de monitor, escala e retomada de suspensão. Valide atualização com Polkit no Fedora/Ubuntu e com o updater Tauri no Windows, incluindo cancelamento de senha e falha de salvamento. O smoke Electron cobre somente a inicialização e a bridge Linux; ele não substitui esses testes interativos.

@@ -12,5 +12,5 @@ O modo é efêmero e não altera o documento. Não há teste dedicado; a integra
 
 ## Código
 
-- [Controlador](../../apps/desktop/src/features/temporary-note-reading/model/temporary-reading.controller.ts)
-- [Integração com o app](../../apps/desktop/src/app/controller.ts)
+- [Controlador](../../apps/desktop/frontend/src/features/temporary-note-reading/model/temporary-reading.controller.ts)
+- [Integração com o app](../../apps/desktop/frontend/src/app/controller.ts)

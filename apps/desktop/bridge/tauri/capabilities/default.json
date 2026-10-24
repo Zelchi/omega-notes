@@ -1,0 +1,20 @@
+{
+	"identifier": "desktop-capability",
+	"description": "Permissões para o host desktop Windows.",
+	"windows": ["main"],
+	"permissions": [
+		"core:default",
+		"core:window:allow-close",
+		"core:window:allow-destroy",
+		"core:window:allow-hide",
+		"core:window:allow-show",
+		"core:window:allow-minimize",
+		"core:window:allow-is-maximized",
+		"core:window:allow-toggle-maximize",
+		"core:window:allow-set-background-color",
+		"core:webview:allow-set-webview-background-color",
+		"dialog:default",
+		"opener:default",
+		"updater:default"
+	]
+}

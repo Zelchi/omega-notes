@@ -12,11 +12,11 @@ No desktop, os cartões ficam em `.kanban.json` dentro do vault; no fallback web
 
 Se uma gravação pendente falhar, `flushSave` retorna `false` e o fluxo que fecharia o app ou alteraria o vault é interrompido. O painel mantém o erro visível; uma nova edição tenta salvar novamente o estado completo.
 
-Os testes de regressão estão em [kanban.test.mjs](../../apps/desktop/test/kanban.test.mjs).
+Os testes de regressão estão em [kanban.test.mjs](../../apps/desktop/frontend/test/kanban.test.mjs).
 
 ## Código
 
-- [Controlador e fila de gravação](../../apps/desktop/src/features/manage-kanban/model/controller.ts)
-- [Validação do repositório web](../../apps/desktop/src/features/manage-kanban/api/kanban.repository.ts)
-- [Persistência desktop](../../apps/desktop/tauri/src/vaults/kanban.rs)
-- [Painel e arraste](../../apps/desktop/src/features/manage-kanban/ui/kanban-panel/index.tsx)
+- [Controlador e fila de gravação](../../apps/desktop/frontend/src/features/manage-kanban/model/controller.ts)
+- [Validação do repositório web](../../apps/desktop/frontend/src/features/manage-kanban/api/kanban.repository.ts)
+- [Persistência desktop](../../apps/desktop/backend/src/vaults/kanban.rs)
+- [Painel e arraste](../../apps/desktop/frontend/src/features/manage-kanban/ui/kanban-panel/index.tsx)

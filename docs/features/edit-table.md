@@ -12,5 +12,5 @@ O rascunho da tabela pertence ao editor aberto; o conteúdo persistido continua 
 
 ## Código
 
-- [Conversão entre Markdown e células](../../apps/desktop/src/features/edit-table/model/table.ts)
-- [Editor](../../apps/desktop/src/features/edit-table/ui/table-editor/index.tsx)
+- [Conversão entre Markdown e células](../../apps/desktop/frontend/src/features/edit-table/model/table.ts)
+- [Editor](../../apps/desktop/frontend/src/features/edit-table/ui/table-editor/index.tsx)

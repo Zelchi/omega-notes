@@ -8,7 +8,7 @@ A lista To Do é independente do timer e pertence ao vault. Criar, concluir, ren
 
 ## Disponibilidade e riscos
 
-O botão da barra abre o painel em builds de desenvolvimento e produção. A lista To Do continua vinculada ao vault ativo, enquanto o timer permanece global à instalação. A disponibilidade em produção é coberta por [production-features.test.mjs](../../apps/desktop/test/production-features.test.mjs).
+O botão da barra abre o painel em builds de desenvolvimento e produção. A lista To Do continua vinculada ao vault ativo, enquanto o timer permanece global à instalação. A disponibilidade em produção é coberta por [production-features.test.mjs](../../apps/desktop/frontend/test/production-features.test.mjs).
 
 O teste protege o contrato de montagem da interface; a abertura da janela nativa em instaladores ainda requer smoke test manual no Windows e no Linux.
 
@@ -16,8 +16,8 @@ Configurações do timer ficam no armazenamento local da instalação, estado do
 
 ## Código
 
-- [Controlador](../../apps/desktop/src/features/pomodoro/model/controller.ts)
-- [Armazenamento de tarefas](../../apps/desktop/src/features/pomodoro/api/tasks.repository.ts)
-- [Estado nativo do timer](../../apps/desktop/tauri/src/pomodoro.rs)
-- [Tarefas por vault](../../apps/desktop/tauri/src/vaults/pomodoro_tasks.rs)
-- [Acesso pela bandeja](../../apps/desktop/tauri/src/tray.rs)
+- [Controlador](../../apps/desktop/frontend/src/features/pomodoro/model/controller.ts)
+- [Armazenamento de tarefas](../../apps/desktop/frontend/src/features/pomodoro/api/tasks.repository.ts)
+- [Estado nativo do timer](../../apps/desktop/backend/src/pomodoro.rs)
+- [Tarefas por vault](../../apps/desktop/backend/src/vaults/pomodoro_tasks.rs)
+- [Acesso pela bandeja](../../apps/desktop/backend/src/tray.rs)
