@@ -12,6 +12,6 @@ O desktop mantém registro, diretórios e notas isolados por vault. A exclusão 
 
 ## Código
 
-- [Controlador](../../apps/desktop/src/features/manage-vault/model/vaults.controller.ts)
-- [Entidade e repositórios](../../apps/desktop/src/entities/vault/)
-- [Comandos desktop](../../apps/desktop/tauri/src/vaults/commands.rs)
+- [Controlador](../../apps/desktop/frontend/src/features/manage-vault/model/vaults.controller.ts)
+- [Entidade e repositórios](../../apps/desktop/frontend/src/entities/vault/)
+- [Comandos desktop](../../apps/desktop/backend/src/vaults/commands.rs)

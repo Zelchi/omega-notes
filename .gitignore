@@ -17,10 +17,6 @@ test-results/
 *.tsbuildinfo
 .vscode-test/
 
-# CEF local e arquivos grandes gerados
-.tauri-cef/
-.cef/
-
 # Dados locais e credenciais
 .env
 .env.*
@@ -66,3 +62,6 @@ ehthumbs.db
 Desktop.ini
 .directory
 /image.png
+
+# Pacotes Electron
+/apps/desktop/release/

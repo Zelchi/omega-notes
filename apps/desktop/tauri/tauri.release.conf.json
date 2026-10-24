@@ -1,9 +1,0 @@
-{
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://github.com/Zelchi/omega-notes/releases/latest/download/latest.json"
-      ]
-    }
-  }
-}

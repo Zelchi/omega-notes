@@ -10,17 +10,23 @@ Edições atualizam o documento em memória e entram numa fila de autosave. Ante
 
 Com Gambiarra habilitada, o app também observa alterações externas e reconcilia os documentos carregados. Ao desabilitar o modo ou trocar vault, a observação anterior deixa de valer.
 
+## Áudio e vídeo
+
+O desktop importa áudio `aac`, `flac`, `m4a`, `mp3`, `oga`, `ogg`, `opus` e `wav`, além de vídeo `mp4`, `ogv` e `webm`. O backend guarda cópias com UUID nas pastas `audios/` e `videos/` da raiz do vault. A interface usa os players do Chromium e recebe os dados por streaming HTTP local com suporte a solicitações por faixa, sem mandar o arquivo inteiro pela bridge e sem transcodificação. O preview web mantém os dados como `dataUrl`.
+
+Elementos A/V antigos continuam sendo lidos e salvos com seus IDs, extensão, volume e posição. Abrir um vault não remove esses elementos nem suas pastas. A disponibilidade de reprodução depende dos codecs incluídos na versão do Electron.
+
 ## Excluir, restaurar e mídia
 
-Excluir arquiva a nota para permitir recuperação/desfazer. Referências e métricas são reconstruídas pelo repositório. A limpeza de imagens só remove arquivos sem referências em notas, backups e notas excluídas. A reutilização de imagens entre notas usa o [catálogo de mídias](media-catalog.md), que consulta metadados de referências sem chamar uma operação geral de carregar todos os documentos. Na primeira inicialização após remover áudio e vídeo, o desktop apaga as pastas antigas `audios/` e `videos/` e remove esses elementos de notas e cópias de recuperação.
+Excluir arquiva a nota para permitir recuperação/desfazer. Referências e métricas são reconstruídas pelo repositório. A limpeza remove imagens, áudios e vídeos sem referências em notas ativas, backups, snapshots de renomeação, cópias de recuperação e notas excluídas. A reutilização entre notas usa o [catálogo de mídias](media-catalog.md), que consulta metadados das referências sem carregar todos os documentos completos.
 
 ## Cobertura
 
-Os contratos de autosave, mudanças externas e leituras concorrentes estão em [autosave.test.mjs](../../apps/desktop/test/autosave.test.mjs), [notes-external.test.mjs](../../apps/desktop/test/notes-external.test.mjs) e [notes-read-concurrency.test.mjs](../../apps/desktop/test/notes-read-concurrency.test.mjs). Exclusão e recuperação são exercitadas em [deletion.test.mjs](../../apps/desktop/test/deletion.test.mjs). Não há teste dedicado para o novo extrator do catálogo de mídias.
+Os contratos de autosave, mudanças externas e leituras concorrentes estão em [autosave.test.mjs](../../apps/desktop/frontend/test/autosave.test.mjs), [notes-external.test.mjs](../../apps/desktop/frontend/test/notes-external.test.mjs) e [notes-read-concurrency.test.mjs](../../apps/desktop/frontend/test/notes-read-concurrency.test.mjs). Exclusão e recuperação são exercitadas em [deletion.test.mjs](../../apps/desktop/frontend/test/deletion.test.mjs). Não há teste dedicado para o novo extrator do catálogo de mídias.
 
 ## Código
 
-- [Estado/cache de notas](../../apps/desktop/src/entities/note/model/notes-library.ts)
-- [Interface do repositório](../../apps/desktop/src/entities/note/api/notes.repository.ts)
-- [Persistência e concorrência Rust](../../apps/desktop/tauri/src/notes/repository.rs)
-- [Comandos](../../apps/desktop/tauri/src/notes/commands.rs)
+- [Estado/cache de notas](../../apps/desktop/frontend/src/entities/note/model/notes-library.ts)
+- [Interface do repositório](../../apps/desktop/frontend/src/entities/note/api/notes.repository.ts)
+- [Persistência e concorrência Rust](../../apps/desktop/backend/src/notes/repository.rs)
+- [Comandos](../../apps/desktop/backend/src/notes/commands.rs)

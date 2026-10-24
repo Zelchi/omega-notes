@@ -6,17 +6,23 @@
         "apps/*"
     ],
     "scripts": {
-        "dev": "yarn workspace omega-notes-desktop dev",
-        "tauri": "node scripts/tauri-cef.mjs",
+        "dev": "node scripts/desktop.mjs dev",
         "typecheck": "yarn workspace omega-notes-desktop typecheck",
         "test:desktop": "yarn workspace omega-notes-desktop test",
         "build": "yarn workspace omega-notes-desktop build",
-        "dev:desktop": "node scripts/tauri-cef.mjs dev",
-        "build:desktop": "node scripts/tauri-cef.mjs build",
-        "release:prepare": "node scripts/prepare-release.mjs",
+        "dev:desktop": "node scripts/desktop.mjs dev",
+        "build:desktop": "node scripts/desktop.mjs build",
+        "dev:desktop:electron": "node scripts/desktop.mjs electron dev",
+        "build:desktop:electron": "node scripts/desktop.mjs electron build",
+        "dev:desktop:tauri": "node scripts/desktop.mjs tauri dev",
+        "build:desktop:tauri": "node scripts/desktop.mjs tauri build",
+        "release:prepare": "node scripts/desktop-release.mjs prepare",
         "dev:web": "yarn workspace omega-notes-web dev",
         "check:web": "yarn workspace omega-notes-web run check",
         "build:web": "yarn workspace omega-notes-web build",
-        "preview:web": "yarn workspace omega-notes-web preview"
+        "preview:web": "yarn workspace omega-notes-web preview",
+        "dev:frontend": "yarn workspace omega-notes-desktop dev",
+        "test:electron": "cargo build --locked --manifest-path apps/desktop/backend/Cargo.toml && node --test --test-isolation=none apps/desktop/bridge/electron/test/*.test.mjs",
+        "test:backend": "cargo test --locked --manifest-path apps/desktop/backend/Cargo.toml"
     }
 }

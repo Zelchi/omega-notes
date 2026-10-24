@@ -8,12 +8,12 @@ Recursos de IA e Gambiarra são mutuamente exclusivos. Idioma, tema, cursor, vol
 
 ## Limites observados
 
-O layout Arquivo pode ser selecionado e salvo em builds de produção. A leitura preserva uma preferência `archive` já existente. O contrato de persistência está coberto por [preferences.test.mjs](../../apps/desktop/test/preferences.test.mjs).
+O layout Arquivo pode ser selecionado e salvo em builds de produção. A leitura preserva uma preferência `archive` já existente. O contrato de persistência está coberto por [preferences.test.mjs](../../apps/desktop/frontend/test/preferences.test.mjs).
 
 Falhas de gravação de preferências são registradas no console, mas a interface continua usando o valor em memória até reiniciar. Não há teste dedicado.
 
 ## Código
 
-- [Controlador](../../apps/desktop/src/features/change-preferences/model/preferences.controller.ts)
-- [Leitura e gravação](../../apps/desktop/src/features/change-preferences/api/preferences.repository.ts)
-- [Configurações](../../apps/desktop/src/features/change-preferences/ui/settings-dialog/index.tsx)
+- [Controlador](../../apps/desktop/frontend/src/features/change-preferences/model/preferences.controller.ts)
+- [Leitura e gravação](../../apps/desktop/frontend/src/features/change-preferences/api/preferences.repository.ts)
+- [Configurações](../../apps/desktop/frontend/src/features/change-preferences/ui/settings-dialog/index.tsx)

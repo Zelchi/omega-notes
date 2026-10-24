@@ -10,12 +10,12 @@ Atalhos e controles de navegação alteram a visualização; criar, mover e excl
 
 ## Falhas e cobertura
 
-Falhas de gravação de posições mantêm o Canvas utilizável em memória, mas o estado pode sumir ao remontar. No Arquivo, a falha de `localStorage` é mostrada com uma ação de nova tentativa; a alteração permanece na memória enquanto a visualização está aberta. Testes de grafo, estado, histórico e persistência do Arquivo estão em [graph.test.mjs](../../apps/desktop/test/graph.test.mjs), [canvas-state.test.mjs](../../apps/desktop/test/canvas-state.test.mjs), [canvas-history.test.mjs](../../apps/desktop/test/canvas-history.test.mjs) e [archive.test.mjs](../../apps/desktop/test/archive.test.mjs).
+Falhas de gravação de posições mantêm o Canvas utilizável em memória, mas o estado pode sumir ao remontar. No Arquivo, a falha de `localStorage` é mostrada com uma ação de nova tentativa; a alteração permanece na memória enquanto a visualização está aberta. Testes de grafo, estado, histórico e persistência do Arquivo estão em [graph.test.mjs](../../apps/desktop/frontend/test/graph.test.mjs), [canvas-state.test.mjs](../../apps/desktop/frontend/test/canvas-state.test.mjs), [canvas-history.test.mjs](../../apps/desktop/frontend/test/canvas-history.test.mjs) e [archive.test.mjs](../../apps/desktop/frontend/test/archive.test.mjs).
 
 ## Código
 
-- [Seleção de layout](../../apps/desktop/src/pages/canvas/ui/canvas/index.tsx)
-- [Canvas Estático](../../apps/desktop/src/pages/canvas/ui/graph-canvas/)
-- [Grafo Dinâmico](../../apps/desktop/src/pages/canvas/ui/dynamic-graph/)
-- [Arquivo](../../apps/desktop/src/pages/canvas/ui/archive-view/)
-- [Armazenamento de posições](../../apps/desktop/src/pages/canvas/api/graph.repository.ts)
+- [Seleção de layout](../../apps/desktop/frontend/src/pages/canvas/ui/canvas/index.tsx)
+- [Canvas Estático](../../apps/desktop/frontend/src/pages/canvas/ui/graph-canvas/)
+- [Grafo Dinâmico](../../apps/desktop/frontend/src/pages/canvas/ui/dynamic-graph/)
+- [Arquivo](../../apps/desktop/frontend/src/pages/canvas/ui/archive-view/)
+- [Armazenamento de posições](../../apps/desktop/frontend/src/pages/canvas/api/graph.repository.ts)

@@ -205,7 +205,7 @@ Desativar Recursos de IA remove esse estado de desfazer, mas mantém os links j�
 
 ## Ferramentas de consulta
 
-O catálogo e as descrições ficam em `apps/desktop/tauri/src/ai/tools/catalog.rs`.
+O catálogo e as descrições ficam em `apps/desktop/backend/src/ai/tools/catalog.rs`.
 Codex recebe esse catálogo como ferramentas dinâmicas; Claude, OpenCode e Antigravity o consultam
 pelo MCP. As permissões desses dois provedores são geradas a partir do catálogo.
 Todas as consultas são de leitura e usam somente o vault autorizado.
@@ -246,11 +246,11 @@ Rótulos de títulos de seção e destinos sem referência são limitados a 600 
 com `titleTruncated` ou `targetTruncated` indicando cortes. A leitura da seção ou
 da nota de origem permite consultar o conteúdo completo.
 
-Os testes geram vaults temporários e ficam em `apps/desktop/tauri/test/ai_tools.rs`
-e `apps/desktop/tauri/test/ai_provider_tools.rs`:
+Os testes geram vaults temporários e ficam em `apps/desktop/backend/test/ai_tools.rs`
+e `apps/desktop/backend/test/ai_provider_tools.rs`:
 
 ```sh
-CCACHE_DIR=/tmp/omega-notes-ccache cargo test --locked --manifest-path apps/desktop/tauri/Cargo.toml --lib
+CCACHE_DIR=/tmp/omega-notes-ccache cargo test --locked --manifest-path apps/desktop/backend/Cargo.toml --lib
 ```
 
 ## Dados e conta
@@ -273,25 +273,25 @@ exigirá um fluxo próprio de revisão e confirmação das alterações.
 
 ## Código
 
-- `apps/desktop/src/entities/ai`: tipos comuns de modelos, provedores e conversas.
-- `apps/desktop/src/features/chat-with-ai`: estado das conversas e painel lateral genérico.
-- `apps/desktop/src/features/chat-with-ai/api/ai-provider.ts`: contrato para integrações de IA.
-- `apps/desktop/src/features/chat-with-ai/api/providers/codex.ts`: adaptador específico do Codex.
-- `apps/desktop/src/features/chat-with-ai/api/chat.repository.ts`: armazenamento comum dos dados do Chat.
-- `apps/desktop/src/app`: compõe a feature com o vault ativo e o salvamento pendente.
-- `apps/desktop/tauri/src/ai/commands.rs`: comandos IPC; trabalho bloqueante fora da interface.
-- `apps/desktop/tauri/src/ai/state.rs`: estado e encerramento da conexão de IA.
-- `apps/desktop/tauri/src/ai/providers/codex.rs`: processo `codex app-server`, JSON-RPC, threads e eventos.
-- `apps/desktop/tauri/src/ai/providers/cli.rs`: conexões Claude/OpenCode/Antigravity, sessões, respostas e cancelamento.
-- `apps/desktop/tauri/src/ai/providers/antigravity.rs`: autenticação existente, modelos, configuração isolada, MCP e erros do Antigravity CLI.
-- `apps/desktop/tauri/src/ai/providers/claude.rs`: validação de versão, autenticação, comando restrito e identificação dos erros do Claude.
-- `apps/desktop/tauri/src/ai/providers/process.rs`: descoberta dos CLIs e controle dos processos.
-- `apps/desktop/tauri/src/ai/providers/protocol.rs`: normalização dos eventos dos provedores.
-- `apps/desktop/tauri/src/ai/mcp.rs`: consultas de notas por MCP, restritas ao vault autorizado.
-- `apps/desktop/tauri/src/ai/repository.rs`: leitura e gravação atômica dos dados de IA por vault.
-- `apps/desktop/tauri/src/ai/tools.rs`: resolução do vault, validação e despacho das consultas.
-- `apps/desktop/tauri/src/ai/tools/`: catálogo, leitura, seções, consultas ao grafo e validação de vínculos.
-- `apps/desktop/tauri/src/ai/link_requests.rs`: aplicação pelo frontend e ponte temporária para processos MCP.
+- `apps/desktop/frontend/src/entities/ai`: tipos comuns de modelos, provedores e conversas.
+- `apps/desktop/frontend/src/features/chat-with-ai`: estado das conversas e painel lateral genérico.
+- `apps/desktop/frontend/src/features/chat-with-ai/api/ai-provider.ts`: contrato para integrações de IA.
+- `apps/desktop/frontend/src/features/chat-with-ai/api/providers/codex.ts`: adaptador específico do Codex.
+- `apps/desktop/frontend/src/features/chat-with-ai/api/chat.repository.ts`: armazenamento comum dos dados do Chat.
+- `apps/desktop/frontend/src/app`: compõe a feature com o vault ativo e o salvamento pendente.
+- `apps/desktop/backend/src/ai/commands.rs`: comandos IPC; trabalho bloqueante fora da interface.
+- `apps/desktop/backend/src/ai/state.rs`: estado e encerramento da conexão de IA.
+- `apps/desktop/backend/src/ai/providers/codex.rs`: processo `codex app-server`, JSON-RPC, threads e eventos.
+- `apps/desktop/backend/src/ai/providers/cli.rs`: conexões Claude/OpenCode/Antigravity, sessões, respostas e cancelamento.
+- `apps/desktop/backend/src/ai/providers/antigravity.rs`: autenticação existente, modelos, configuração isolada, MCP e erros do Antigravity CLI.
+- `apps/desktop/backend/src/ai/providers/claude.rs`: validação de versão, autenticação, comando restrito e identificação dos erros do Claude.
+- `apps/desktop/backend/src/ai/providers/process.rs`: descoberta dos CLIs e controle dos processos.
+- `apps/desktop/backend/src/ai/providers/protocol.rs`: normalização dos eventos dos provedores.
+- `apps/desktop/backend/src/ai/mcp.rs`: consultas de notas por MCP, restritas ao vault autorizado.
+- `apps/desktop/backend/src/ai/repository.rs`: leitura e gravação atômica dos dados de IA por vault.
+- `apps/desktop/backend/src/ai/tools.rs`: resolução do vault, validação e despacho das consultas.
+- `apps/desktop/backend/src/ai/tools/`: catálogo, leitura, seções, consultas ao grafo e validação de vínculos.
+- `apps/desktop/backend/src/ai/link_requests.rs`: aplicação pelo frontend e ponte temporária para processos MCP.
 
 Na integração Codex, não é aberto um servidor HTTP. As ferramentas são registradas diretamente no
 App Server por `dynamicTools`, uma API experimental. A implementação segue o

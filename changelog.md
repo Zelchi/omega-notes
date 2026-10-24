@@ -1,10 +1,15 @@
 # Histórico de atualizações
 
+## Unreleased
+
+### Notas e mídias
+
+- Áudio e vídeo voltam às notas, com catálogo compartilhado, reposicionamento e contagens por vault.
+- O desktop aceita áudio `aac`, `flac`, `m4a`, `mp3`, `oga`, `ogg`, `opus` e `wav`, e vídeo `mp4`, `ogv` e `webm`.
+- O backend mantém cópias gerenciadas em `audios/` e `videos/` e transmite os arquivos localmente para os players, sem transcodificação.
+- Notas e mídias antigas são preservadas; a limpeza remove somente arquivos sem referências em notas, backups, journals de renomeação, recuperação ou notas excluídas.
+
 ## v0.5.0
-
-### Runtime desktop
-
-- O Linux usa CEF/Chromium e o Windows mantém WebView2, com Tauri 3 alpha.
 
 ### Notas e mídia
 

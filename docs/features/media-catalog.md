@@ -2,19 +2,19 @@
 
 ## Ciclo de vida
 
-Ao abrir o catálogo na nota atual, o frontend pede uma lista de referências de imagem das notas do vault. No desktop, o backend varre arquivos `.omega`, extrai apenas referências de imagem e não desserializa os demais elementos completos. Arquivos inválidos, inacessíveis ou sem um ID compatível são ignorados. O fallback web lê o armazenamento JSON próprio.
+Ao abrir o catálogo na nota atual, o frontend pede as referências de imagens, áudios e vídeos do vault. No desktop, o backend varre arquivos `.omega` e extrai os IDs e extensões necessários sem desserializar os demais elementos completos. Arquivos inválidos, inacessíveis ou sem IDs/extensões compatíveis são ignorados. O fallback web lê o armazenamento JSON próprio.
 
-Referências repetidas ao mesmo ID são agrupadas e mostram os títulos das notas que usam aquela mídia. Imagens são carregadas em grupos de até quatro. Selecionar uma imagem reutiliza seu ID na nota atual. Importar cria uma cópia gerenciada no armazenamento do vault. A limpeza de órfãos exige confirmação e considera referências, backups e notas excluídas.
+Referências repetidas ao mesmo tipo e ID são agrupadas e mostram os títulos das notas que usam aquela mídia. Imagens são carregadas em grupos de até quatro; áudio e vídeo aparecem com seus ícones no catálogo. Selecionar qualquer item reutiliza seu ID na nota atual. Importar cria uma cópia gerenciada em `images/`, `audios/` ou `videos/`. Os players de áudio e vídeo recebem uma URL do servidor local Rust, que permite busca por faixa. A limpeza de órfãos exige confirmação e considera notas ativas, backups, snapshots de renomeação, cópias de recuperação e notas excluídas.
 
 ## Falhas e cobertura
 
-Enquanto a lista carrega, o catálogo mostra o estado de carregamento. Uma falha de leitura ou troca de vault aparece como erro com opção de tentar novamente; resultados atrasados de outro contexto são descartados. Erros ao carregar uma imagem ainda ficam somente no console.
+Enquanto a lista carrega, o catálogo mostra o estado de carregamento. Uma falha de leitura ou troca de vault aparece como erro com opção de tentar novamente; resultados atrasados de outro contexto são descartados. Falhas de reprodução de áudio ou vídeo aparecem no player.
 
-`media-catalog.test.mjs` cobre falha/repetição, troca de contexto, descarte de referências antigas de áudio/vídeo e agrupamento de imagens compartilhadas. O teste Rust em `repository.rs` cobre a extração de imagens e ignora referências antigas de áudio/vídeo.
+`media-catalog.test.mjs` cobre falha/repetição, troca de contexto e agrupamento de referências compartilhadas de imagem, áudio e vídeo. O teste Rust em `repository.rs` cobre a extração dos três tipos e a rejeição de extensões não suportadas.
 
 ## Código
 
-- [Controlador do catálogo](../../apps/desktop/src/pages/notes/ui/media-catalog-dialog/controller.ts)
-- [Lista de referências no frontend](../../apps/desktop/src/entities/note/api/notes.repository.ts)
-- [Extração no backend](../../apps/desktop/tauri/src/notes/repository.rs)
-- [Carregamento/limpeza da mídia](../../apps/desktop/src/pages/notes/api/media.repository.ts)
+- [Controlador do catálogo](../../apps/desktop/frontend/src/pages/notes/ui/media-catalog-dialog/controller.ts)
+- [Lista de referências no frontend](../../apps/desktop/frontend/src/entities/note/api/notes.repository.ts)
+- [Extração no backend](../../apps/desktop/backend/src/notes/repository.rs)
+- [Carregamento/limpeza da mídia](../../apps/desktop/frontend/src/pages/notes/api/media.repository.ts)

@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="apps/desktop/public/icon.png" alt="Ícone do Ômega Notes" width="112" />
+<img src="apps/desktop/frontend/public/icon.png" alt="Ícone do Ômega Notes" width="112" />
 
 # Ômega Notes
 
 ### Um espaço para escrever, estudar e conectar ideias.
 
-Organize suas notas em um canvas visual, combine texto com imagens e GIFs
+Organize suas notas em um canvas visual, combine texto com imagens, áudio e vídeo
 e mantenha seus arquivos no seu computador.
 
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%2F%2011-242426?style=flat-square)
@@ -16,6 +16,8 @@ e mantenha seus arquivos no seu computador.
 [**Baixar o aplicativo**](https://github.com/Zelchi/omega-notes/releases/latest) · [Novidades](changelog.md) · [Reportar um problema](https://github.com/Zelchi/omega-notes/issues)
 
 </div>
+
+> A branch `experiment/electron-rust` organiza SolidJS compartilhado com Electron no Linux, Tauri no Windows e backend Rust compartilhado. Desenvolvimento e build: [guia do repositório](docs/development/repository.md). A primeira instalação é manual.
 
 ---
 
@@ -103,10 +105,13 @@ Inclua materiais que ajudem a explicar, lembrar ou revisar um assunto.
 | Conteúdo | O que você pode fazer |
 | --- | --- |
 | **Imagens e GIFs** | Inserir, posicionar e redimensionar dentro da nota. |
-| **Catálogo de mídias** | Encontrar imagens da biblioteca e inseri-las nas notas. |
+| **Áudio** | Inserir e reproduzir arquivos dentro da nota. |
+| **Vídeo** | Inserir, reproduzir, posicionar e redimensionar dentro da nota. |
+| **Catálogo de mídias** | Encontrar imagens, áudios e vídeos da biblioteca e inseri-los nas notas. |
 
-Importe imagens e GIFs pelo seletor ou arraste-os para o aplicativo. Você também pode
-colar imagens copiadas e capturas de tela com **Ctrl+V** dentro da nota em edição.
+Importe imagens, GIFs, áudios e vídeos pelo seletor ou arraste-os para o aplicativo.
+Você também pode colar imagens copiadas e capturas de tela com **Ctrl+V** dentro
+da nota em edição.
 
 ## Separe seus assuntos em vaults
 
