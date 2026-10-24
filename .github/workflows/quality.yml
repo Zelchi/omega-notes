@@ -1,20 +1,19 @@
 name: Verificações de qualidade
-
 on:
   pull_request:
   push:
-    branches: [main]
-
+    branches: [main, experiment/electron-rust]
 permissions:
   contents: read
-
 concurrency:
   group: quality-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   desktop:
-    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,18 +21,29 @@ jobs:
           node-version: '22'
           cache: yarn
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: 'apps/desktop/tauri -> target'
-      - name: Dependências do Linux
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev xdg-utils gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
-      - name: Instalar dependências JavaScript
-        run: yarn install --frozen-lockfile --non-interactive
-      - name: Verificar tipos
-        run: yarn typecheck
-      - name: Testar desktop
-        run: yarn test:desktop
-      - name: Testar backend Tauri
-        run: cargo test --locked --manifest-path apps/desktop/tauri/Cargo.toml
+          workspaces: |
+            apps/desktop/backend -> target
+            apps/desktop/bridge/tauri -> target
+      - if: runner.os == 'Windows'
+        run: cargo install tauri-cli --version 2.12.3 --locked
+      - run: yarn install --frozen-lockfile --non-interactive
+      - run: yarn typecheck
+      - run: yarn test:desktop
+      - run: cargo fmt --all --manifest-path apps/desktop/backend/Cargo.toml -- --check
+      - run: cargo fmt --manifest-path apps/desktop/bridge/tauri/Cargo.toml -- --check
+      - run: cargo clippy --locked --manifest-path apps/desktop/backend/Cargo.toml --all-targets -- -D warnings
+      - run: yarn test:backend
+      - run: yarn test:electron
+      - run: yarn build
+      - if: runner.os == 'Windows'
+        run: yarn build:desktop:tauri --ci --no-bundle
+      - name: Instalar bibliotecas para smoke Electron
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2 libgbm1
+      - name: Smoke Electron com biblioteca temporária
+        if: runner.os == 'Linux'
+        run: xvfb-run -a node node_modules/electron/cli.js apps/desktop/bridge/electron/smoke.mjs

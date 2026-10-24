@@ -1,0 +1,68 @@
+import { windowLayout } from "@/shared/ui/window-layout";
+import { style } from "@vanilla-extract/css";
+
+const button = style({
+	display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
+	minHeight: 32, padding: "6px 10px", border: "1px solid var(--border-strong)", borderRadius: 5,
+	background: "var(--surface-input)", color: "var(--ink)", fontSize: 12, cursor: "pointer",
+	selectors: { "&:hover": { background: "var(--surface-hover)" }, "&:disabled": { opacity: .45, cursor: "default" } },
+});
+const taskRow = style({
+	display: "flex", alignItems: "center", gap: 0, minWidth: 0, minHeight: 36, padding: "0 12px 0 0", border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-controls)", cursor: "pointer", transition: "opacity 120ms ease, border-color 120ms ease",
+});
+const taskActions = style({ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0, flexShrink: 0 });
+
+export const styles = {
+	button,
+	panel: style({ position: "fixed", isolation: "isolate", top: windowLayout.titlebarHeight + 1, left: 1, bottom: 1, zIndex: 8,
+		width: "min(420px, calc(100% - 24px))", background: "var(--surface-panel)", borderRight: "1px solid var(--border-strong)", overflow: "hidden" }),
+	body: style({ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 16, gap: 14, minHeight: 0 }),
+	header: style({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 14, borderBottom: "1px solid var(--border-soft)" }),
+	title: style({ margin: 0, fontSize: 15, fontWeight: 600 }),
+	closeButton: style([button, { boxSizing: "border-box", width: 32, height: 32, minWidth: 32, padding: 0, flexShrink: 0 }]),
+	content: style({ display: "flex", flex: 1, flexDirection: "column", minHeight: 0, gap: 12 }),
+	timer: style({ display: "flex", flexDirection: "column", flexShrink: 0, gap: 10, paddingBottom: 14, borderBottom: "1px solid var(--border-soft)" }),
+	timerHeader: style({ display: "grid", gridTemplateColumns: "30px minmax(0, 1fr) 30px", alignItems: "center", minHeight: 30 }),
+	phase: style({ color: "var(--muted)", fontSize: 13, fontWeight: 600, textAlign: "center" }),
+	clock: style({ color: "var(--ink)", fontSize: 52, fontWeight: 650, lineHeight: 1.12, textAlign: "center", fontVariantNumeric: "tabular-nums", letterSpacing: "0.04em" }),
+	progress: style({ alignSelf: "center", width: "55%", height: 8, overflow: "hidden", borderRadius: 99, background: "var(--border-strong)" }),
+	progressFill: style({ display: "block", height: "100%", background: "var(--ink)", transition: "width 250ms linear" }),
+	timerActions: style({ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }),
+	primaryButton: style([button, { color: "var(--button-confirm-fg)", background: "var(--button-confirm-bg)", borderColor: "var(--button-confirm-bg)", selectors: { "&:hover": { opacity: .88, background: "var(--button-confirm-bg)" } } }]),
+	iconButton: style([button, { boxSizing: "border-box", width: 30, minWidth: 30, minHeight: 30, height: 30, padding: 0 }]),
+	settings: style({ display: "grid", gridTemplateColumns: "1fr 1fr", alignItems: "end", gap: 8, padding: 10, border: "1px solid var(--border-soft)", borderRadius: 5, background: "var(--surface-input)" }),
+	setting: style({ display: "grid", gap: 4, minWidth: 0, color: "var(--muted)", fontSize: 11 }),
+	numberInput: style({ boxSizing: "border-box", width: "100%", minWidth: 0, height: 30, padding: "5px 8px", border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-panel)", color: "var(--ink)", font: "inherit", fontSize: 12 }),
+	formButton: style([button, { gridColumn: "1 / -1", minHeight: 30, padding: "5px 8px" }]),
+	tasks: style({ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, gap: 8 }),
+	taskForm: style({ display: "flex", gap: 6 }),
+	taskInput: style({ boxSizing: "border-box", flex: 1, minWidth: 0, height: 36, padding: "8px 12px", border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-input)", color: "var(--ink)", font: "inherit", fontSize: 13, outline: "none", selectors: { "&:focus-visible": { borderColor: "var(--ink)" } } }),
+	addButton: style([button, { width: 36, minWidth: 36, height: 36, minHeight: 36, padding: 0, color: "var(--button-confirm-fg)", background: "var(--button-confirm-bg)", borderColor: "var(--button-confirm-bg)" }]),
+	taskList: style({ display: "grid", alignContent: "start", gap: 8, width: "100%", minHeight: "100%", boxSizing: "border-box", paddingTop: 2 }),
+	taskRow,
+	checkbox: style({
+		appearance: "none", display: "grid", placeItems: "center", alignSelf: "stretch", flexShrink: 0, width: 34, height: "auto", margin: 0, padding: 0,
+		border: 0, borderRight: "1px solid var(--border-soft)", borderRadius: "4px 0 0 4px", background: "var(--surface-controls)", color: "var(--button-confirm-fg)", cursor: "pointer",
+		transition: "background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease",
+		selectors: {
+			"&::after": { width: 6, height: 11, border: "solid currentColor", borderWidth: "0 2px 2px 0", content: "", transform: "rotate(45deg) scale(0)", transition: "transform 140ms cubic-bezier(0.2, 0.7, 0.3, 1)" },
+			"&:checked": { background: "var(--button-confirm-bg)" },
+			"&:checked::after": { transform: "rotate(45deg) scale(1)" },
+			"&:hover:not(:disabled):not(:checked)": { background: "var(--surface-hover)" },
+			"&:focus-visible": { outline: "2px solid var(--ink)", outlineOffset: -3 },
+			"&:disabled": { cursor: "default", opacity: .65 },
+		},
+	}),
+	taskTitle: style({ flex: 1, minWidth: 0, overflow: "hidden", marginInlineStart: 12, padding: 0, border: 0, background: "transparent", color: "var(--ink)", fontSize: 13, textAlign: "left", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer", selectors: { "&:hover": { background: "transparent" } } }),
+	taskCompleted: style({ color: "var(--muted)", textDecoration: "line-through" }),
+	taskActions,
+	actionReveal: style([button, { boxSizing: "border-box", flexShrink: 0, width: 0, minWidth: 0, height: 30, minHeight: 0, padding: 0, borderWidth: 0, overflow: "hidden", opacity: 0, pointerEvents: "none", transition: "width 150ms ease-in, opacity 130ms ease-in, border-width 150ms ease-in", selectors: { "&:disabled": { opacity: 0 } } }]),
+	actionRevealVisible: style({ width: 30, minHeight: 30, borderWidth: 1, opacity: 1, pointerEvents: "auto", transition: "width 210ms cubic-bezier(0.2, 0.7, 0.3, 1), opacity 180ms ease-out, border-width 210ms ease-out", selectors: { "&:disabled": { opacity: 0.45 } } }),
+	actionRevealTrailing: style({ marginInlineStart: 0, transition: "margin-inline-start 210ms cubic-bezier(0.2, 0.7, 0.3, 1)" }),
+	actionRevealTrailingVisible: style({ marginInlineStart: 5 }),
+	taskEditor: style({ display: "flex", flex: 1, minWidth: 0, gap: 4, marginInlineStart: 12 }),
+	taskEditInput: style({ boxSizing: "border-box", flex: 1, minWidth: 0, height: 30, padding: "5px 7px", border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-input)", color: "var(--ink)", font: "inherit", fontSize: 12, outline: "none", selectors: { "&:focus-visible": { borderColor: "var(--ink)" } } }),
+	deleteButton: style({ color: "var(--danger)" }),
+	error: style({ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--danger)" }),
+	loading: style({ margin: 0, fontSize: 12, color: "var(--muted)" }),
+};

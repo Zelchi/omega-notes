@@ -1,18 +1,22 @@
-import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const desktopDirectory = fileURLToPath(new URL("../apps/desktop/", import.meta.url));
-const tauriCli = fileURLToPath(new URL("../node_modules/@tauri-apps/cli/tauri.js", import.meta.url));
+const requested = process.argv[2] || 'dev';
+const explicitRuntime = ['electron', 'tauri'].includes(requested);
+const runtime = explicitRuntime ? requested : process.platform === 'linux' ? 'electron' : process.platform === 'win32' ? 'tauri' : null;
+const command = explicitRuntime ? process.argv[3] || 'dev' : requested;
+const args = explicitRuntime ? process.argv.slice(4) : process.argv.slice(3);
 
-const child = spawn(process.execPath, [tauriCli, ...process.argv.slice(2)], {
-    cwd: desktopDirectory,
-    stdio: "inherit",
-    env: process.env,
-});
-child.on("error", (error) => {
-    console.error("Não foi possível iniciar o Tauri:", error.message);
-    process.exitCode = 1;
-});
-child.on("exit", (code, signal) => {
-    process.exitCode = code ?? (signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : 1);
-});
+if (!runtime) throw new Error(`Runtime desktop não configurado para ${process.platform}.`);
+if (!['dev', 'build'].includes(command)) throw new Error('Use: desktop.mjs [electron|tauri] dev|build [argumentos]');
+
+let child;
+if (runtime === 'tauri') {
+	if (process.platform !== 'win32') throw new Error('O host Tauri está configurado para Windows; no Linux, use Electron.');
+	child = spawn('cargo', ['tauri', command, ...args], { cwd: fileURLToPath(new URL('../apps/desktop/bridge/tauri/', import.meta.url)), stdio: 'inherit' });
+} else {
+	child = spawn(process.execPath, [fileURLToPath(new URL('./desktop-electron.mjs', import.meta.url)), command, ...args], { stdio: 'inherit' });
+}
+
+child.once('error', error => { console.error(error); process.exitCode = 1; });
+child.once('close', (code, signal) => { process.exitCode = code ?? (signal ? 1 : 0); });

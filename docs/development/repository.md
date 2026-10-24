@@ -1,79 +1,39 @@
 # Organização do repositório
 
 ```text
-apps/
-  desktop/          Aplicativo desktop (SolidJS, Vite e Tauri)
-    src/            Frontend com Feature-Sliced Design
-    tauri/          Backend Rust, configuração e ícones do aplicativo
-    lang/           Traduções do aplicativo
-    public/         Arquivos públicos do frontend desktop
-  web/              Site de divulgação em Astro
-    src/            Páginas, layouts, componentes e estilos do site
-    public/         Arquivos públicos do site
-docs/               Documentação do repositório
-scripts/            Preparação de versões e tarefas do repositório
-.github/            GitHub Actions
-package.json        Workspaces e comandos da raiz
-yarn.lock           Lockfile único para os workspaces
-changelog.md        Histórico das versões do aplicativo
-readme.md           Apresentação do produto
+apps/desktop/
+  frontend/                  SolidJS, componentes, recursos, assets e traduções
+  backend/                   Serviços Rust, protocolo, armazenamento e atualizador
+  bridge/
+    electron/                Main, preload, transporte, ícones e chave pública
+    tauri/                   Host Windows Tauri e configuração do updater
+apps/web/                    Site Astro independente
+scripts/                     Desenvolvimento, build e preparação de releases
+docs/                        Documentação do produto e desenvolvimento
 ```
 
-## Dependências e comandos
-
-Use Node.js 22.12 ou superior e Yarn 1. Para executar o desktop, também é necessário
-ter Rust e as dependências de sistema do Tauri instaladas.
-
-Execute na raiz do repositório:
+Use Node.js 22.12+, Yarn 1, Rust 1.95+ e Tauri CLI 2.12.3. O frontend continua em SolidJS; não existe backend Node para os dados do usuário. Linux usa Electron e um processo backend Rust; Windows usa Tauri e o mesmo crate Rust em processo.
 
 ```sh
 yarn install --frozen-lockfile
-npm run dev:desktop
+yarn dev:desktop
 ```
 
-Os comandos são definidos no `package.json` da raiz. O projeto não usa Makefile.
+`yarn dev:desktop` escolhe Electron no Linux e Tauri no Windows. Os comandos `dev:desktop:electron` e `dev:desktop:tauri` selecionam um host explicitamente. A interface tem HMR; alterações Rust exigem reiniciar o host. `yarn dev:frontend` abre somente o frontend no navegador, com os fallbacks existentes.
 
 | Comando | Função |
 | --- | --- |
-| `npm run dev:desktop` | Inicia o aplicativo Tauri e seu frontend Vite. |
-| `yarn dev` | Inicia apenas o frontend desktop em `http://127.0.0.1:1420`. |
-| `yarn typecheck` | Confere os tipos do frontend desktop. |
-| `yarn build` | Gera o frontend em `apps/desktop/dist`. |
-| `npm run build:desktop` | Compila e empacota o aplicativo nativo. |
-| `npm run tauri -- <argumentos>` | Executa o CLI do Tauri dentro de `apps/desktop`. |
+| `yarn typecheck` | Tipos do frontend |
+| `yarn test:desktop` | Testes Solid/TypeScript |
+| `yarn test:backend` | Testes dos serviços Rust |
+| `yarn test:electron` | Build Rust e testes reais de RPC/bridge |
+| `yarn build` | Build do frontend |
+| `yarn build:desktop` | Seleciona o host e empacota para o sistema atual |
+| `yarn build:desktop:electron --dir` | Empacota Electron sem instalador |
+| `yarn build:desktop:tauri --no-bundle` | Compila o host Tauri sem instalador |
 
-Os pacotes nativos ficam em `apps/desktop/tauri/target/release/bundle`.
-Para gerar pacotes com o atualizador habilitado, siga [Publicação e atualizações](releases.md).
+As saídas Electron ficam em `apps/desktop/release` e incluem .deb/.rpm. O Tauri gera NSIS .exe e artefatos de atualização em `apps/desktop/bridge/tauri/target/release/bundle/nsis`. A versão precisa coincidir em `apps/desktop/package.json`, nos dois `Cargo.toml` e em `bridge/tauri/tauri.conf.json`; cada crate Rust mantém seu lock Cargo e o lock Yarn é único na raiz.
 
-As dependências pertencem ao `package.json` de cada aplicativo. O Yarn gerencia
-os workspaces e usa um lockfile único, com dependências instaladas na raiz.
-A versão do aplicativo é definida em `apps/desktop/package.json`,
-`apps/desktop/tauri/Cargo.toml`, `apps/desktop/tauri/Cargo.lock` e
-`apps/desktop/tauri/tauri.conf.json`.
+O site Astro mantém seus comandos `yarn dev:web`, `check:web`, `build:web` e `preview:web`. Sua publicação pelo workflow Pages é independente do desktop.
 
-O site usa Astro e possui build estático independente. Na raiz, use:
-
-- `yarn dev:web`: servidor do site na porta 4321.
-- `yarn check:web`: tipos e arquivos Astro.
-- `yarn build:web`: build do site em `apps/web/dist`.
-- `yarn preview:web`: prévia do site gerado.
-
-Ao adicionar dependências, execute `yarn install` na raiz e inclua `yarn.lock`
-no commit. Depois disso, instalações reproduzíveis usam `--frozen-lockfile`.
-
-Veja [o guia do site](../../apps/web/readme.md) para a estrutura do Astro.
-
-Desktop e web usam `@/` para imports a partir do `src` de cada aplicativo.
-As configurações e os componentes pertencem ao respectivo workspace.
-
-## Publicação
-
-O workflow de release usa `apps/desktop` como diretório do aplicativo. O script
-`scripts/prepare-release.mjs` permanece na raiz e resolve os arquivos do desktop
-pelo próprio caminho do script, independentemente do diretório do terminal.
-
-Leia [Publicação e atualizações](releases.md) para gerar uma release.
-
-O site usa `.github/workflows/pages.yml` e é publicado no GitHub Pages a partir
-da branch `main`. A configuração inicial e o endereço estão no
-[guia do site](../../apps/web/readme.md#publicação-no-github-pages).
+Veja [arquitetura desktop](../architecture/desktop-runtime.md) e [releases](releases.md).

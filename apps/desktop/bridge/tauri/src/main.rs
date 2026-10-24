@@ -1,0 +1,318 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use omega_notes_lib::DesktopBackend;
+use serde_json::{json, Value};
+use std::{io, io::Write, sync::Mutex};
+use tauri::{
+    menu::{Menu, MenuItem, PredefinedMenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Emitter, Manager, State,
+};
+
+struct BackendEventWriter {
+    app: AppHandle,
+    buffer: Vec<u8>,
+}
+
+#[derive(Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TrayLabels {
+    show: String,
+    hide: String,
+    start: String,
+    pause: String,
+    reset: String,
+    next: String,
+    update: String,
+    exit: String,
+}
+
+struct TrayMenuState {
+    labels: Mutex<TrayLabels>,
+    pomodoro_running: Mutex<bool>,
+    visibility: MenuItem<tauri::Wry>,
+    pomodoro: MenuItem<tauri::Wry>,
+    reset: MenuItem<tauri::Wry>,
+    next: MenuItem<tauri::Wry>,
+    update: MenuItem<tauri::Wry>,
+    exit: MenuItem<tauri::Wry>,
+}
+
+impl TrayMenuState {
+    fn refresh(&self, app: &AppHandle) -> Result<(), String> {
+        let labels = self
+            .labels
+            .lock()
+            .map_err(|_| "Tray menu unavailable")?
+            .clone();
+        let running = *self
+            .pomodoro_running
+            .lock()
+            .map_err(|_| "Tray menu unavailable")?;
+        let visible = app
+            .get_webview_window("main")
+            .is_some_and(|window| window.is_visible().unwrap_or(true));
+        self.visibility
+            .set_text(if visible { labels.hide } else { labels.show })
+            .map_err(|error| error.to_string())?;
+        self.pomodoro
+            .set_text(if running { labels.pause } else { labels.start })
+            .map_err(|error| error.to_string())?;
+        self.reset
+            .set_text(labels.reset)
+            .map_err(|error| error.to_string())?;
+        self.next
+            .set_text(labels.next)
+            .map_err(|error| error.to_string())?;
+        self.update
+            .set_text(labels.update)
+            .map_err(|error| error.to_string())?;
+        self.exit
+            .set_text(labels.exit)
+            .map_err(|error| error.to_string())?;
+        Ok(())
+    }
+}
+
+impl Write for BackendEventWriter {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.buffer.extend_from_slice(bytes);
+        while let Some(end) = self.buffer.iter().position(|byte| *byte == b'\n') {
+            let line: Vec<_> = self.buffer.drain(..=end).collect();
+            let message: Value =
+                serde_json::from_slice(&line[..line.len() - 1]).map_err(io::Error::other)?;
+            let event = if let Some(name) = message.get("event") {
+                Some((
+                    "omega:event",
+                    json!({"event":name,"payload":message.get("payload")}),
+                ))
+            } else if let Some(id) = message.get("channel") {
+                Some((
+                    "omega:channel",
+                    json!({"id":id,"payload":message.get("payload")}),
+                ))
+            } else {
+                None
+            };
+            if let Some((name, payload)) = event {
+                self.app.emit(name, payload).map_err(io::Error::other)?;
+            }
+        }
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+async fn desktop_dispatch(
+    backend: State<'_, DesktopBackend>,
+    command: String,
+    args: Value,
+) -> Result<Value, String> {
+    backend.invoke(command, args).await
+}
+
+#[tauri::command]
+fn configure_tray_menu(
+    app: AppHandle,
+    tray: State<'_, TrayMenuState>,
+    labels: TrayLabels,
+    pomodoro_running: bool,
+) -> Result<(), String> {
+    if [
+        &labels.show,
+        &labels.hide,
+        &labels.start,
+        &labels.pause,
+        &labels.reset,
+        &labels.next,
+        &labels.update,
+        &labels.exit,
+    ]
+    .iter()
+    .any(|label| label.trim().is_empty() || label.len() > 160)
+    {
+        return Err("Invalid tray configuration".into());
+    }
+    *tray.labels.lock().map_err(|_| "Tray menu unavailable")? = labels;
+    *tray
+        .pomodoro_running
+        .lock()
+        .map_err(|_| "Tray menu unavailable")? = pomodoro_running;
+    tray.refresh(&app)
+}
+
+#[tauri::command]
+fn exit_app(app: AppHandle) {
+    app.exit(0);
+}
+
+fn emit_tray_action(app: &AppHandle, action: &str) {
+    let _ = app.emit(
+        "omega:event",
+        json!({"event":"omega-tray-action","payload":action}),
+    );
+}
+
+fn show_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+fn main() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            let documents = app.path().document_dir()?;
+            let cache = app.path().app_cache_dir()?;
+            let backend = DesktopBackend::new(
+                documents,
+                cache,
+                Box::new(BackendEventWriter {
+                    app: app.handle().clone(),
+                    buffer: Vec::new(),
+                }),
+            )
+            .map_err(io::Error::other)?;
+            app.manage(backend);
+
+            let visibility = MenuItem::with_id(app, "visibility", "Show", true, None::<&str>)?;
+            let pomodoro = MenuItem::with_id(app, "pomodoro", "Start", true, None::<&str>)?;
+            let reset = MenuItem::with_id(app, "reset", "Reset", true, None::<&str>)?;
+            let next = MenuItem::with_id(app, "next", "Next", true, None::<&str>)?;
+            let update = MenuItem::with_id(app, "update", "Update", true, None::<&str>)?;
+            let exit = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;
+            let first_separator = PredefinedMenuItem::separator(app)?;
+            let second_separator = PredefinedMenuItem::separator(app)?;
+            let third_separator = PredefinedMenuItem::separator(app)?;
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &visibility,
+                    &first_separator,
+                    &pomodoro,
+                    &reset,
+                    &next,
+                    &second_separator,
+                    &update,
+                    &third_separator,
+                    &exit,
+                ],
+            )?;
+            let tray_state = TrayMenuState {
+                labels: Mutex::new(TrayLabels {
+                    show: "Show".into(),
+                    hide: "Hide".into(),
+                    start: "Start".into(),
+                    pause: "Pause".into(),
+                    reset: "Reset".into(),
+                    next: "Next".into(),
+                    update: "Update".into(),
+                    exit: "Exit".into(),
+                }),
+                pomodoro_running: Mutex::new(false),
+                visibility: visibility.clone(),
+                pomodoro: pomodoro.clone(),
+                reset: reset.clone(),
+                next: next.clone(),
+                update: update.clone(),
+                exit: exit.clone(),
+            };
+            app.manage(tray_state);
+            let icon = app
+                .default_window_icon()
+                .ok_or_else(|| io::Error::other("Tauri window icon is missing"))?
+                .clone();
+            TrayIconBuilder::new()
+                .icon(icon)
+                .tooltip("Ômega Notes")
+                .menu(&menu)
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "visibility" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            if window.is_visible().unwrap_or(false) {
+                                let _ = window.hide();
+                            } else {
+                                show_window(app);
+                            }
+                        }
+                        if let Some(tray) = app.try_state::<TrayMenuState>() {
+                            let _ = tray.refresh(app);
+                        }
+                    }
+                    "pomodoro" => {
+                        if let Some(tray) = app.try_state::<TrayMenuState>() {
+                            if let Ok(mut running) = tray.pomodoro_running.lock() {
+                                *running = !*running;
+                            }
+                            let _ = tray.refresh(app);
+                        }
+                        emit_tray_action(app, "pomodoro-toggle");
+                    }
+                    "reset" => emit_tray_action(app, "pomodoro-reset"),
+                    "next" => emit_tray_action(app, "pomodoro-next"),
+                    "update" => {
+                        show_window(app);
+                        emit_tray_action(app, "update");
+                    }
+                    "exit" => {
+                        show_window(app);
+                        emit_tray_action(app, "exit");
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if matches!(
+                        event,
+                        TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        }
+                    ) {
+                        if let Some(window) = tray.app_handle().get_webview_window("main") {
+                            if window.is_visible().unwrap_or(false) {
+                                let _ = window.hide();
+                            } else {
+                                show_window(tray.app_handle());
+                            }
+                        }
+                        if let Some(menu) = tray.app_handle().try_state::<TrayMenuState>() {
+                            let _ = menu.refresh(tray.app_handle());
+                        }
+                    }
+                })
+                .build(app)?;
+            Ok(())
+        })
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                api.prevent_close();
+                let _ = window.emit(
+                    "omega:event",
+                    json!({"event":"window-close-requested","payload":null}),
+                );
+            }
+            tauri::WindowEvent::Resized(_) => {
+                let _ = window.emit(
+                    "omega:event",
+                    json!({"event":"window-resized","payload":null}),
+                );
+            }
+            _ => {}
+        })
+        .invoke_handler(tauri::generate_handler![
+            desktop_dispatch,
+            exit_app,
+            configure_tray_menu
+        ])
+        .run(tauri::generate_context!())
+        .expect("erro ao iniciar o host Tauri");
+}

@@ -1,0 +1,66 @@
+appId: com.omegastudy.app
+productName: Ômega Notes
+copyright: Copyright Ômega Notes
+asar: true
+npmRebuild: false
+artifactName: omega-notes-${version}-${arch}.${ext}
+directories:
+  output: release
+  buildResources: bridge/electron/icons
+files:
+  - frontend/dist/**
+  - bridge/electron/**
+  - "!bridge/electron/test/**"
+  - "!bridge/electron/smoke.mjs"
+  - "!bridge/electron/electron-builder.yml"
+  - package.json
+  - "!node_modules/**"
+extraMetadata:
+  name: omega-notes
+  main: bridge/electron/main.mjs
+  desktopName: com.omegastudy.app.desktop
+extraResources:
+  - from: backend/target/release
+    to: bin
+    filter:
+      - omega-notes-backend
+linux:
+  executableName: omega-notes
+  syncDesktopName: true
+  target:
+    - deb
+    - rpm
+  category: Education
+  icon: bridge/electron/icons
+  desktop:
+    entry:
+      StartupWMClass: omega-notes
+      Categories: Education;Utility;
+deb:
+  packageName: omega-notes
+  depends:
+    - libgtk-3-0 | libgtk-3-0t64
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0 | libatspi2.0-0t64
+    - libuuid1
+    - libsecret-1-0
+    - pkexec
+    - polkitd
+rpm:
+  packageName: omega-notes
+  depends:
+    - gtk3
+    - libnotify
+    - nss
+    - libXScrnSaver
+    - libXtst
+    - xdg-utils
+    - at-spi2-core
+    - libuuid
+    - polkit
+    - dnf
+publish: null
