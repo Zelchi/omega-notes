@@ -468,7 +468,7 @@ pub(crate) fn begin_note_rename_journal(
 
     let result = (|| -> Result<(), String> {
         let mut entries = Vec::with_capacity(note_ids.len());
-        for (note_id, pair) in note_ids.iter().zip(snapshots.chunks_exact(2)) {
+        for (note_id, pair) in note_ids.iter().zip(snapshots.as_chunks::<2>().0) {
             validate_note_id(note_id)?;
             let note_exists = pair[0].contents.is_some();
             let backup_exists = pair[1].contents.is_some();
