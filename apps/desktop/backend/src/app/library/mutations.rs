@@ -4,11 +4,11 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 use crate::notes::{
-    archive_deleted_note, delete_note_files, deleted_notes, deleted_notes_directory,
-    audio_ids_in_document, empty_document, existing_note, image_ids_in_document,
-    note_backup_exists, note_backup_path, note_from_path_with_id, note_path,
-    prune_deleted_notes, remove_deleted_note, validate_note_id, validate_note_title,
-    video_ids_in_document, write_note, NoteDocument, NoteLoadIssue, NoteSaveResult, StudyNote,
+    archive_deleted_note, audio_ids_in_document, delete_note_files, deleted_notes,
+    deleted_notes_directory, empty_document, existing_note, image_ids_in_document,
+    note_backup_exists, note_backup_path, note_from_path_with_id, note_path, prune_deleted_notes,
+    remove_deleted_note, validate_note_id, validate_note_title, video_ids_in_document, write_note,
+    NoteDocument, NoteLoadIssue, NoteSaveResult, StudyNote,
 };
 
 use super::cleanup::{
@@ -169,7 +169,9 @@ pub(crate) fn delete_note(
     ) {
         cleanup_issues.push(cleanup_issue(
             "media",
-            format!("A nota foi apagada, mas não foi possível limpar mídias sem referência: {error}"),
+            format!(
+                "A nota foi apagada, mas não foi possível limpar mídias sem referência: {error}"
+            ),
         ));
     }
     Ok(cleanup_issues)

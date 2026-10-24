@@ -6,7 +6,7 @@
     "scripts": {
         "dev": "vite frontend --config frontend/vite.config.ts --host 127.0.0.1 --port 1420",
         "typecheck": "tsc --project frontend/tsconfig.json --noEmit",
-        "test": "node --conditions=browser --import ./frontend/test/register.mjs --experimental-strip-types --test --test-isolation=none frontend/test/*.test.mjs",
+        "test": "node --conditions=browser --import ./frontend/test/register.mjs --experimental-strip-types --test --experimental-test-isolation=none frontend/test/*.test.mjs",
         "build": "tsc --project frontend/tsconfig.json --noEmit && vite build frontend --config frontend/vite.config.ts"
     },
     "dependencies": {

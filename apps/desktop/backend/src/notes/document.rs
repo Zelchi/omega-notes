@@ -108,7 +108,7 @@ pub(crate) fn validate_document(document: &NoteDocument) -> Result<(), String> {
                     || !crate::media::is_supported_extension("audio", extension)
                 {
                     return Err(
-                        "Dimensões, volume ou identificador de áudio inválidos.".to_string(),
+                        "Dimensões, volume ou identificador de áudio inválidos.".to_string()
                     );
                 }
             }
@@ -144,7 +144,9 @@ pub(crate) fn audio_ids_in_document(document: &NoteDocument) -> HashSet<String> 
             NoteElement::Audio { audio_id, .. } => {
                 Uuid::parse_str(audio_id).ok().map(|uuid| uuid.to_string())
             }
-            NoteElement::Text { .. } | NoteElement::Image { .. } | NoteElement::Video { .. } => None,
+            NoteElement::Text { .. } | NoteElement::Image { .. } | NoteElement::Video { .. } => {
+                None
+            }
         })
         .collect()
 }
@@ -157,7 +159,9 @@ pub(crate) fn video_ids_in_document(document: &NoteDocument) -> HashSet<String> 
             NoteElement::Video { video_id, .. } => {
                 Uuid::parse_str(video_id).ok().map(|uuid| uuid.to_string())
             }
-            NoteElement::Text { .. } | NoteElement::Image { .. } | NoteElement::Audio { .. } => None,
+            NoteElement::Text { .. } | NoteElement::Image { .. } | NoteElement::Audio { .. } => {
+                None
+            }
         })
         .collect()
 }
@@ -168,7 +172,9 @@ pub(crate) fn image_ids_in_document(document: &NoteDocument) -> HashSet<String> 
         .iter()
         .filter_map(|element| match element {
             NoteElement::Image { image_id, .. } => Some(image_id.clone()),
-            NoteElement::Text { .. } | NoteElement::Audio { .. } | NoteElement::Video { .. } => None,
+            NoteElement::Text { .. } | NoteElement::Audio { .. } | NoteElement::Video { .. } => {
+                None
+            }
         })
         .collect()
 }

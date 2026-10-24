@@ -16,7 +16,9 @@ pub(crate) fn content_stats(
 fn scan_content_stats(
     notes_directory: &Path,
 ) -> Result<super::super::models::NoteContentStats, String> {
-    use super::super::document::{audio_ids_in_document, image_ids_in_document, video_ids_in_document};
+    use super::super::document::{
+        audio_ids_in_document, image_ids_in_document, video_ids_in_document,
+    };
     use super::super::models::NoteElement;
     use super::super::repository::{note_from_path, note_paths};
 

@@ -50,7 +50,9 @@ fn media_entries(folder: &Path) -> Result<Vec<fs::DirEntry>, String> {
     }
     fs::read_dir(folder)
         .map_err(|error| format!("Não foi possível ler a pasta de mídia: {error}"))?
-        .map(|entry| entry.map_err(|error| format!("Não foi possível ler a pasta de mídia: {error}")))
+        .map(|entry| {
+            entry.map_err(|error| format!("Não foi possível ler a pasta de mídia: {error}"))
+        })
         .collect()
 }
 
@@ -152,8 +154,8 @@ pub(super) fn media_path(
     media_id: &str,
     media_type: &str,
 ) -> Result<PathBuf, String> {
-    let uuid = Uuid::parse_str(media_id)
-        .map_err(|_| "Identificador de mídia inválido.".to_string())?;
+    let uuid =
+        Uuid::parse_str(media_id).map_err(|_| "Identificador de mídia inválido.".to_string())?;
     if uuid.to_string() != media_id {
         return Err("Identificador de mídia inválido.".to_string());
     }
@@ -166,8 +168,8 @@ pub(super) fn remove_media(
     media_id: &str,
     media_type: &str,
 ) -> Result<usize, String> {
-    let uuid = Uuid::parse_str(media_id)
-        .map_err(|_| "Identificador de mídia inválido.".to_string())?;
+    let uuid =
+        Uuid::parse_str(media_id).map_err(|_| "Identificador de mídia inválido.".to_string())?;
     if uuid.to_string() != media_id {
         return Err("Identificador de mídia inválido.".to_string());
     }

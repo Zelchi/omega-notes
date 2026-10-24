@@ -10,6 +10,8 @@ use super::super::repository::{
 };
 use crate::notes::validate_note_id;
 
+type ReferencedMediaIds = (HashSet<String>, HashSet<String>, HashSet<String>);
+
 pub(crate) fn referenced_image_ids(
     notes_directory: &Path,
     backups_directory: &Path,
@@ -20,7 +22,7 @@ pub(crate) fn referenced_image_ids(
 pub(crate) fn referenced_media_ids(
     notes_directory: &Path,
     backups_directory: &Path,
-) -> Result<(HashSet<String>, HashSet<String>, HashSet<String>), String> {
+) -> Result<ReferencedMediaIds, String> {
     let mut images = HashSet::new();
     let mut audio = HashSet::new();
     let mut video = HashSet::new();
