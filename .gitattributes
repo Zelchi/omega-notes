@@ -1,0 +1,2 @@
+# Minisign protects the exact fixture bytes, so checkout must not rewrite its line endings.
+apps/desktop/backend/test/fixtures/update.txt -text
