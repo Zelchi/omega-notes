@@ -1,5 +1,5 @@
-mod formats;
 pub(crate) mod commands;
+mod formats;
 mod repository;
 mod service;
 mod stream;

@@ -73,7 +73,10 @@ struct MediaCatalogDocument {
 }
 
 enum MediaCatalogElement {
-    Image { id: String, image_id: String },
+    Image {
+        id: String,
+        image_id: String,
+    },
     Audio {
         id: String,
         audio_id: String,
@@ -261,8 +264,7 @@ pub(crate) fn list_note_media(directory: &Path) -> Result<Vec<NoteMediaCatalogIt
                         },
                     )
                 }
-                MediaCatalogElement::Audio { .. }
-                | MediaCatalogElement::Video { .. } => continue,
+                MediaCatalogElement::Audio { .. } | MediaCatalogElement::Video { .. } => continue,
                 MediaCatalogElement::Other => continue,
             };
             catalog.push(NoteMediaCatalogItem {

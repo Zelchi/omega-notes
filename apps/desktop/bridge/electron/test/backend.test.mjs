@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { Backend } from '../backend.mjs';
 const directory = dirname(fileURLToPath(import.meta.url));
-const executable = join(directory, '../../backend/target/debug', `omega-notes-backend${process.platform === 'win32' ? '.exe' : ''}`);
+const executable = join(directory, '../../../backend/target/debug', `omega-notes-backend${process.platform === 'win32' ? '.exe' : ''}`);
 
 test('real Rust process preserves vaults, notes, streams, images and errors across RPC', async t => {
     const temp = await mkdtemp(join(tmpdir(), 'omega-electron-test-'));

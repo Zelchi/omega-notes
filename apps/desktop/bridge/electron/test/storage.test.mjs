@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateStorageSnapshot } from '../storage.mjs';
-import { applyStorageSnapshot } from '../../src/shared/lib/storage-import.ts';
+import { applyStorageSnapshot } from '../../../frontend/src/shared/lib/storage-import.ts';
 
 test('settings import preserves archive organization and rolls back a failed write', () => {
     const archive = JSON.stringify({ folders: [{ id:'folder', name:'Math' }], noteFolders: { note:'folder' }, itemOrder:{} });

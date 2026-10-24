@@ -5,8 +5,7 @@ use crate::runtime::AppContext;
 
 use super::{service, stream::MediaStream};
 
-static MEDIA_STREAM: LazyLock<Mutex<Option<MediaStream>>> =
-    LazyLock::new(|| Mutex::new(None));
+static MEDIA_STREAM: LazyLock<Mutex<Option<MediaStream>>> = LazyLock::new(|| Mutex::new(None));
 
 pub(crate) async fn import_note_media(
     app: AppContext,
@@ -44,13 +43,16 @@ pub(crate) async fn note_media_stream_url(
                     let notes_directory = runtime::notes_dir(&stream_app)?;
                     service::media_file_path(&notes_directory, id, kind)
                 })
-                .map_err(|error| format!("Não foi possível iniciar o servidor de mídia: {error}"))?,
+                .map_err(|error| {
+                    format!("Não foi possível iniciar o servidor de mídia: {error}")
+                })?,
             );
         }
-        Ok(stream
-            .as_ref()
-            .expect("media stream initialized")
-            .url(&media_type, &media_id, extension))
+        Ok(stream.as_ref().expect("media stream initialized").url(
+            &media_type,
+            &media_id,
+            extension,
+        ))
     })
     .await
     .map_err(|error| format!("Não foi possível preparar a reprodução: {error}"))?

@@ -39,8 +39,7 @@ pub(crate) fn remove_orphaned_media_files(
     candidates: &std::collections::HashSet<String>,
 ) -> Result<usize, String> {
     candidates.iter().try_fold(0, |removed, media_id| {
-        repository::remove_media(notes_directory, media_id, media_type)
-            .map(|count| removed + count)
+        repository::remove_media(notes_directory, media_id, media_type).map(|count| removed + count)
     })
 }
 

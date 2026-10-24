@@ -12,7 +12,9 @@ pub(crate) use deleted::{
     archive_deleted_note, deleted_notes, deleted_notes_directory, prune_deleted_notes,
     remove_deleted_note,
 };
-pub(crate) use document::{audio_ids_in_document, empty_document, image_ids_in_document, video_ids_in_document};
+pub(crate) use document::{
+    audio_ids_in_document, empty_document, image_ids_in_document, video_ids_in_document,
+};
 pub(crate) use links::{note_reference_targets, note_title_indexes, rename_resolved_note_links};
 pub(crate) use models::{
     NoteContentStats, NoteDocument, NoteElement, NoteLibrary, NoteLoadIssue, NoteSaveResult,

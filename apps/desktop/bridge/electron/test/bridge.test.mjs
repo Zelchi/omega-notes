@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Channel, invoke, listen } from '../../src/shared/lib/desktop.ts';
+import { Channel, invoke, listen } from '../../../frontend/src/shared/lib/desktop.ts';
 
 test('renderer channels cross a serializable bridge and subscriptions can be removed', async t => {
     const previous = globalThis.window;
