@@ -4,6 +4,10 @@
 
 ## v0.5.0
 
+### Conversa com IA
+
+- A aplicação de vínculos entre notas se recupera de conflitos de edição relendo as notas e recalculando os trechos antes de tentar novamente, com limite de três tentativas e sem expor erros técnicos na conversa.
+
 ### Notas e mídias
 
 - Notas aceitam imagens, GIFs, áudio e vídeo.

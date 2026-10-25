@@ -65,7 +65,10 @@ fn claude_studies_allow_only_the_prepared_context() {
         let value = |flag: &str| &args[args.iter().position(|arg| arg == flag).unwrap() + 1];
         assert_eq!(value("--allowedTools"), "mcp__omega__read_study_context");
         assert_eq!(value("--tools"), "");
-        assert_eq!(value("--system-prompt"), purpose.instructions());
+        assert_eq!(
+            value("--system-prompt").as_str(),
+            purpose.instructions().as_str()
+        );
         let tools = crate::ai::tools::definitions_for(purpose);
         assert_eq!(tools.as_array().unwrap().len(), 1);
         assert_eq!(tools[0]["name"], "read_study_context");

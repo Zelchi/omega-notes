@@ -56,8 +56,8 @@ pub(super) fn configure(
             "--allowedTools",
             allowed.as_str(),
             "--system-prompt",
-            purpose.instructions(),
         ])
+        .arg(purpose.instructions())
         .env("CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1")
         .arg("--mcp-config")
         .arg(mcp.to_string());

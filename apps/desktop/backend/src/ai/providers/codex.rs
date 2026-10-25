@@ -63,6 +63,7 @@ struct Conversation {
     vault_id: String,
     directory: PathBuf,
     request_id: String,
+    link_retry_budget: Arc<crate::ai::link_requests::LinkRetryBudget>,
     turn_id: Option<String>,
     busy: bool,
     cancelled: bool,
@@ -391,6 +392,9 @@ impl Client {
                             vault_id: vault_id.into(),
                             directory,
                             request_id: String::new(),
+                            link_retry_budget: Arc::new(
+                                crate::ai::link_requests::LinkRetryBudget::default(),
+                            ),
                             turn_id: None,
                             busy: false,
                             cancelled: false,
@@ -418,6 +422,8 @@ impl Client {
             conversation.busy = true;
             conversation.cancelled = false;
             conversation.request_id = request_id.into();
+            conversation.link_retry_budget =
+                Arc::new(crate::ai::link_requests::LinkRetryBudget::default());
         }
         let result = self.request(
             "turn/start",
@@ -574,6 +580,7 @@ impl Client {
                     let request_id = session.request_id.clone();
                     let directory = session.directory.clone();
                     let purpose = session.purpose;
+                    let link_retry_budget = session.link_retry_budget.clone();
                     drop(sessions);
                     let tool = params["tool"].as_str().unwrap_or_default();
                     if !tools::allowed_for(purpose, tool) {
@@ -585,6 +592,7 @@ impl Client {
                             &vault_id,
                             &self.connection_id,
                             &request_id,
+                            &link_retry_budget,
                             &params["arguments"],
                         )
                     } else {

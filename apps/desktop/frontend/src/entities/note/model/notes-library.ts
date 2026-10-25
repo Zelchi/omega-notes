@@ -506,8 +506,12 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		if (!vaultId || vaultId !== activeVaultId()) throw "NOTE_LINK_VAULT_CHANGED";
 		if (!stillValid()) throw "AI_CANCELLED";
 		const current = loadedNotes().get(patch.noteId);
-		if (!current || current.title !== patch.title || documentSignature(current.document) !== documentSignature(patch.expectedDocument)) throw "AI_NOTE_CHANGED";
-		if (patch.links.some((link) => !notes().some((note) => note.id === link.id))) throw "AI_NOTE_CHANGED";
+		if (!current || current.title !== patch.title || documentSignature(current.document) !== documentSignature(patch.expectedDocument)) {
+			throw "AI_NOTE_EDITOR_CHANGED: The open note changed after it was read. Read the latest note and recompute the mention text and offsets.";
+		}
+		if (patch.links.some((link) => !notes().some((note) => note.id === link.id))) {
+			throw "AI_LINK_TARGET_NOT_FOUND: A target note is no longer present in the current vault.";
+		}
 		const before = new Map(current.document.elements.filter((element) => element.type === "text").map((element) => [element.id, element.text]));
 		const after = new Map(patch.document.elements.flatMap((element) => element.type === "text" && before.get(element.id) !== element.text ? [[element.id, element.text] as const] : []));
 		updateDocument(current.id, { ...current.document, elements: current.document.elements.map((element) => element.type === "text" && after.has(element.id) ? { ...element, text: after.get(element.id)! } : element) });

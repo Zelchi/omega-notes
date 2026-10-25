@@ -101,12 +101,13 @@ impl OpenCodeSession {
             .stderr(Stdio::null())
             .env("OPENCODE_SERVER_USERNAME", &username)
             .env("OPENCODE_SERVER_PASSWORD", &password);
+        let instructions = crate::ai::task::Purpose::Chat.instructions();
         opencode::configure_server(
             &mut command,
             &binary,
             &root,
             mcp_command,
-            crate::ai::task::Purpose::Chat.instructions(),
+            &instructions,
             port,
         )?;
         let child = command.spawn().map_err(|_| "AI_START_FAILED")?;
