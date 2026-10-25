@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.5.1
+
+### Correções
+
+- O seletor de vault no centro da barra não inicia mais o arrasto da janela.
+
 ## v0.5.0
 
 ### Conversa com IA

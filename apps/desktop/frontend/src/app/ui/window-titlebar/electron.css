@@ -1,1 +1,2 @@
 [data-omega-drag-region] { -webkit-app-region: drag; user-select: none; }
+[data-omega-titlebar] button { -webkit-app-region: no-drag; }
