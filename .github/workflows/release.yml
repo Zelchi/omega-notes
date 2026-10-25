@@ -96,8 +96,7 @@ jobs:
       - name: Assinar, verificar e montar manifesto
         run: node scripts/desktop-release.mjs sign release-assets
         env:
-          CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY || secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD || secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           OMEGA_UPDATER_PUBLIC_KEY: ${{ vars.OMEGA_UPDATER_PUBLIC_KEY }}
       - name: Publicar release completa
         shell: bash
