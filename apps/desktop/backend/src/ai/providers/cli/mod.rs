@@ -802,12 +802,13 @@ impl Client {
             }
             let mut mcp_command = vec![json!(binary)];
             mcp_command.extend(mcp_args.as_array().unwrap().iter().cloned());
+            let instructions = purpose.instructions();
             opencode::configure(
                 &mut command,
                 &self.binary,
                 &root,
                 mcp_command,
-                purpose.instructions(),
+                &instructions,
                 model,
             )?;
         }

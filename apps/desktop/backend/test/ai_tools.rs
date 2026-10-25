@@ -610,14 +610,28 @@ fn note_results_include_ready_to_copy_clickable_references() {
         vault.call("find_unresolved_links", json!({"noteId":a}))["links"][0]["sourceReference"],
         reference
     );
-    let instructions = crate::ai::instructions::VAULT_INSTRUCTIONS;
+    let instructions = crate::ai::task::Purpose::Chat.instructions();
     assert!(instructions.contains("Every conversational mention"));
     assert!(instructions.contains("short confirmations"));
     assert!(instructions.contains("plain or bold note title"));
+    assert!(instructions
+        .contains("MUST perform this recovery instead of stopping after the first error"));
+    assert!(instructions.contains("at most three retries after the initial failed mutation"));
     for tool in tools::definitions().as_array().unwrap() {
         assert!(tool["description"]
             .as_str()
             .unwrap()
             .contains("clickable [[id]] link"));
     }
+    let definitions = tools::definitions();
+    let link_tool = definitions
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|tool| tool["name"] == "link_note_mentions")
+        .unwrap();
+    assert!(link_tool["description"]
+        .as_str()
+        .unwrap()
+        .contains("You MUST recover instead of stopping after the first error"));
 }

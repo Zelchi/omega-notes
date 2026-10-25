@@ -295,7 +295,6 @@ export const useAiChat = (options: {
                     });
                 } catch (failure) {
                     error = String(failure);
-                    if (!disposed && request.vaultId === options.vaultId() && error !== "AI_CANCELLED") setError(error === "AI_NOTE_CHANGED" ? options.t("aiNoteChanged") : describe(error));
                 }
                 await completeLinkRequest(request.ticket, error).catch(console.error);
             })();
