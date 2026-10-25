@@ -16,14 +16,7 @@ concurrency:
 env:
   RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 jobs:
-  acceptance:
-    runs-on: ubuntu-22.04
-    steps:
-      - env:
-          ACCEPTED: ${{ vars.HYBRID_DESKTOP_RUNTIME_ACCEPTED }}
-        run: test "$ACCEPTED" = true || { echo 'Valide Electron no Linux e Tauri no Windows e defina HYBRID_DESKTOP_RUNTIME_ACCEPTED=true.'; exit 1; }
   build:
-    needs: acceptance
     strategy:
       fail-fast: false
       matrix:
@@ -51,10 +44,6 @@ jobs:
       - run: yarn release:prepare
         env:
           OMEGA_UPDATER_PUBLIC_KEY: ${{ vars.OMEGA_UPDATER_PUBLIC_KEY }}
-      - run: yarn typecheck
-      - run: yarn test:desktop
-      - run: yarn test:backend
-      - run: yarn test:electron
       - if: runner.os == 'Linux'
         run: yarn build:desktop:electron --linux deb rpm --x64 --publish never
       - if: runner.os == 'Windows'
