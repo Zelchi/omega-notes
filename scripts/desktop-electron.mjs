@@ -1,34 +1,3 @@
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { createRequire } from 'node:module';
-import { createServer } from 'vite';
-const require = createRequire(import.meta.url);
-const desktop = fileURLToPath(new URL('../apps/desktop/', import.meta.url));
-const frontend = join(desktop, 'frontend');
-const manifest = fileURLToPath(new URL('../apps/desktop/backend/Cargo.toml', import.meta.url));
-const command = process.argv[2] || 'dev';
-process.env.VITE_DESKTOP_RUNTIME = 'electron';
-const run = (executable, args, options = {}) => new Promise((resolve, reject) => {
-    const child = spawn(executable, args, { cwd: desktop, stdio: 'inherit', ...options });
-    child.once('error', reject);
-    child.once('close', (code, signal) => code === 0 ? resolve() : reject(new Error(`${executable} exited (${signal || code})`)));
-});
-try {
-    if (!['dev', 'build'].includes(command)) throw new Error('Use: desktop-electron.mjs dev|build [electron-builder arguments]');
-    await run('cargo', ['build', '--manifest-path', manifest, '--locked', ...(command === 'build' ? ['--release'] : [])]);
-    if (command === 'dev') {
-        const server = await createServer({ root: frontend, configFile: join(frontend, 'vite.config.ts') });
-        await server.listen();
-        const electron = spawn(require('electron'), ['.'], { cwd: desktop, stdio: 'inherit', detached: process.platform === 'linux', env: { ...process.env, OMEGA_DEV_URL: 'http://127.0.0.1:1420/' } });
-        const stop = () => electron.kill('SIGTERM');
-        process.once('SIGINT', stop); process.once('SIGTERM', stop);
-        const code = await new Promise((resolve, reject) => { electron.once('error', reject); electron.once('close', resolve); });
-        await server.close();
-        process.exitCode = code ?? 1;
-    } else {
-        await run(process.execPath, [require.resolve('typescript/bin/tsc'), '--project', 'frontend/tsconfig.json', '--noEmit']);
-        await run(process.execPath, [join(dirname(require.resolve('vite/package.json')), 'bin/vite.js'), 'build', frontend, '--config', join(frontend, 'vite.config.ts')]);
-        await run(process.execPath, [require.resolve('electron-builder/cli.js'), '--config', 'bridge/electron/electron-builder.yml', ...process.argv.slice(3)]);
-    }
-} catch (error) { console.error(error); process.exitCode = 1; }
+import{spawn as f}from"node:child_process";import{fileURLToPath as v}from"node:url";import{dirname as u,join as c}from"node:path";import{createRequire as g}from"node:module";import{createServer as h}from"vite";const i=g(import.meta.url),p=v(new URL("../apps/desktop/",import.meta.url)),n=c(p,"frontend"),b=v(new URL("../apps/desktop/backend/Cargo.toml",import.meta.url)),d=process.argv[2]||"dev";process.env.VITE_DESKTOP_RUNTIME="electron";const a=(e,o,r={})=>new Promise((l,t)=>{const s=f(e,o,{cwd:p,stdio:"inherit",...r});s.once("error",t),s.once("close",(m,w)=>m===0?l():t(new Error(`${e} exited (${w||m})`)))});try{if(!["dev","build"].includes(d))throw new Error("Use: desktop-electron.mjs dev|build [electron-builder arguments]");if(await a("cargo",["build","--manifest-path",b,"--locked",...d===
+"build"?["--release"]:[]]),d==="dev"){const e=await h({root:n,configFile:c(n,"vite.config.ts")});await e.listen();const o=f(i("electron"),["."],{cwd:p,stdio:"inherit",detached:process.platform==="linux",env:{...process.env,OMEGA_DEV_URL:"http://127.0.0.1:1420/"}}),r=()=>o.kill("SIGTERM");process.once("SIGINT",r),process.once("SIGTERM",r);const l=await new Promise((t,s)=>{o.once("error",s),o.once("close",t)});await e.close(),process.exitCode=l??1}else await a(process.execPath,[i.resolve("typescript/bin/tsc"),"--project","frontend/tsconfig.json","--noEmit"]),await a(process.execPath,[c(u(i.resolve("vite/package.json")),"bin/vite.js"),"build",n,"--config",c(n,"vite.config.ts")]),await a(process.execPath,[i.resolve("electron-builder/cli.js"),"--config","bridge/electron/electron-builder.yml",...process.
+argv.slice(3)])}catch(e){console.error(e),process.exitCode=1}
