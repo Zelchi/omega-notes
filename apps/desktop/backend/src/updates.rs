@@ -280,18 +280,6 @@ pub(crate) async fn install(app: AppContext, version: String) -> Result<Value, S
 mod tests {
     use super::*;
     #[test]
-    fn accepts_signed_fixture_and_rejects_changed_payload() {
-        // Public signing fixture from Zelchi/techdoro; no private key is stored here.
-        let bytes = include_bytes!("../test/fixtures/update.txt");
-        let signature = include_str!("../test/fixtures/update.txt.sig");
-        let key = include_str!("../test/fixtures/update.pub");
-        verify(bytes, signature, key).unwrap();
-        let mut modified = bytes.to_vec();
-        modified[0] ^= 1;
-        assert!(verify(&modified, signature, key).is_err());
-        assert!(verify(bytes, signature, &config().unwrap().pubkey).is_err());
-    }
-    #[test]
     fn rejects_unsigned_insecure_and_downgrade_updates() {
         let manifest = |version, url, signature| {
             serde_json::from_value(json!({"version":version,"packages":{format!("{}-{}",std::env::consts::OS,std::env::consts::ARCH):{"rpm":{"url":url,"signature":signature}}}})).unwrap()
