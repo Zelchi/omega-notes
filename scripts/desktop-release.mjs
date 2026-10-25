@@ -1,79 +1,9 @@
-import { readFile, readdir, writeFile } from 'node:fs/promises';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { basename, join } from 'node:path';
-const desktop = fileURLToPath(new URL('../apps/desktop/', import.meta.url));
-const mode = process.argv[2] || 'prepare';
-const repository = process.env.GITHUB_REPOSITORY;
-const tag = process.env.RELEASE_TAG;
-if (!repository || !/^[\w.-]+\/[\w.-]+$/.test(repository)) throw new Error('GITHUB_REPOSITORY deve usar dono/repositorio.');
-if (!tag || !/^v\d+\.\d+\.\d+$/.test(tag)) throw new Error('RELEASE_TAG deve usar vX.Y.Z.');
-const version = tag.slice(1);
-const metadata = JSON.parse(await readFile(join(desktop, 'package.json'), 'utf8'));
-const cargo = await readFile(join(desktop, 'backend/Cargo.toml'), 'utf8');
-const tauriCargo = await readFile(join(desktop, 'bridge/tauri/Cargo.toml'), 'utf8');
-const tauriConfig = JSON.parse(await readFile(join(desktop, 'bridge/tauri/tauri.conf.json'), 'utf8'));
-if (metadata.version !== version || /^version\s*=\s*"([^"]+)"/m.exec(cargo)?.[1] !== version || /^version\s*=\s*"([^"]+)"/m.exec(tauriCargo)?.[1] !== version || tauriConfig.version !== version) throw new Error('Os manifestos desktop e a tag precisam ter a mesma versão.');
-const publicKey = (process.env.OMEGA_UPDATER_PUBLIC_KEY || await readFile(join(desktop, 'bridge/electron/updater-public-key.txt'), 'utf8')).trim();
-if (!publicKey) throw new Error('Chave pública ausente.');
-if (mode === 'prepare') {
-    await writeFile(join(desktop, 'bridge/electron/updater.json'), JSON.stringify({ endpoint: `https://github.com/${repository}/releases/latest/download/native-latest.json`, pubkey: publicKey }, null, 2) + '\n');
-    tauriConfig.plugins.updater.pubkey = publicKey;
-    tauriConfig.plugins.updater.endpoints = [`https://github.com/${repository}/releases/latest/download/native-latest.json`];
-    await writeFile(join(desktop, 'bridge/tauri/tauri.conf.json'), JSON.stringify(tauriConfig, null, '\t') + '\n');
-} else if (mode === 'sign') {
-    const directory = process.argv[3] || join(desktop, 'release');
-    const names = await readdir(directory);
-    const artifact = (suffix, description) => {
-        const matches = names.filter(name => name.endsWith(suffix));
-        if (matches.length !== 1) throw new Error(`Exatamente ${description} é obrigatório.`);
-        return matches[0];
-    };
-    const linuxPackages = ['deb', 'rpm'].map(extension => artifact(`.${extension}`, `um pacote .${extension}`));
-    const windowsInstaller = artifact('.exe', 'um instalador .exe');
-    const windowsArchive = artifact('.nsis.zip', 'um pacote updater .nsis.zip');
-    const key = process.env.CARGO_PACKAGER_SIGN_PRIVATE_KEY || process.env.TAURI_SIGNING_PRIVATE_KEY;
-    if (!key) throw new Error('Configure CARGO_PACKAGER_SIGN_PRIVATE_KEY.');
-    const env = { ...process.env, CARGO_PACKAGER_SIGN_PRIVATE_KEY: key, CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: process.env.CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD || process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' };
-    const packages = {};
-    for (const name of linuxPackages) {
-        const path = join(directory, name);
-        if (!(await readFile(path)).length) throw new Error(`Pacote vazio: ${name}`);
-        const signed = spawnSync('cargo', ['packager', 'signer', 'sign', path], { env, stdio: ['ignore', 'pipe', 'pipe'] });
-        if (signed.status !== 0) throw new Error(`Não foi possível assinar ${name}. Confira a configuração do signer.`);
-        const signature = (await readFile(path + '.sig', 'utf8')).trim();
-        const verifier = join(desktop, 'backend/target/release/omega-notes-backend');
-        const verified = spawnSync(verifier, ['--verify-update', path, path + '.sig'], { stdio: ['ignore', 'pipe', 'pipe'] });
-        if (verified.status !== 0) throw new Error(`A assinatura de ${name} não corresponde à chave pública do app.`);
-        packages[name.split('.').at(-1)] = { url: `https://github.com/${repository}/releases/download/${tag}/${encodeURIComponent(basename(name))}`, signature };
-    }
-    if (!(await readFile(join(directory, windowsInstaller))).length) throw new Error(`Pacote vazio: ${windowsInstaller}`);
-    const windowsSignaturePath = join(directory, `${windowsArchive}.sig`);
-    const windowsSignature = (await readFile(windowsSignaturePath, 'utf8')).trim();
-    if (!windowsSignature) throw new Error(`Assinatura Tauri ausente: ${windowsArchive}.sig`);
-    const verifier = join(desktop, 'backend/target/release/omega-notes-backend');
-    const verified = spawnSync(verifier, ['--verify-update', join(directory, windowsArchive), windowsSignaturePath], { stdio: ['ignore', 'pipe', 'pipe'] });
-    if (verified.status !== 0) throw new Error(`A assinatura Tauri de ${windowsArchive} não corresponde à chave pública do app.`);
-    const changelog = await readFile(new URL('../changelog.md', import.meta.url), 'utf8');
-    const marker = `## ${tag}`;
-    const start = changelog.indexOf(marker + '\n');
-    if (start < 0) throw new Error(`Notas ausentes para ${tag}.`);
-    const rest = changelog.slice(start + marker.length).trimStart();
-    const next = rest.indexOf('\n## ');
-    const notes = (next < 0 ? rest : rest.slice(0, next)).trim();
-    if (!notes) throw new Error('Notas vazias.');
-    const manifest = {
-        version,
-        notes,
-        pub_date: new Date().toISOString(),
-        packages: { 'linux-x86_64': { deb: packages.deb, rpm: packages.rpm } },
-        platforms: {
-            'linux-x86_64': packages.deb,
-            'windows-x86_64': {
-                url: `https://github.com/${repository}/releases/download/${tag}/${encodeURIComponent(basename(windowsArchive))}`,
-                signature: windowsSignature,
-            },
-        },
-    };
-    await writeFile(join(directory, 'native-latest.json'), JSON.stringify(manifest, null, 2) + '\n');
-} else throw new Error('Use prepare ou sign.');
+import{readFile as r,readdir as U,writeFile as m}from"node:fs/promises";import{spawnSync as E}from"node:child_process";import{fileURLToPath as Y}from"node:url";import{basename as C,join as e}from"node:path";const o=Y(new URL("../apps/desktop/",import.meta.url)),T=process.argv[2]||"prepare",p=process.env.GITHUB_REPOSITORY,n=process.env.RELEASE_TAG;if(!p||!/^[\w.-]+\/[\w.-]+$/.test(p))throw new Error("GITHUB_REPOSITORY deve usar dono/repositorio.");if(!n||!/^v\d+\.\d+\.\d+$/.test(n))throw new Error("RELEASE_TAG deve usar vX.Y.Z.");const u=n.slice(1),j=JSON.parse(await r(e(o,"package.json"),"utf8")),V=await r(e(o,"backend/Cargo.toml"),"utf8"),D=await r(e(o,"bridge/tauri/Cargo.toml"),"utf8"),l=JSON.parse(await r(e(o,"bridge/tauri/tauri.conf.json"),"utf8"));if(j.version!==u||/^version\s*=\s*"([^"]+)"/m.
+exec(V)?.[1]!==u||/^version\s*=\s*"([^"]+)"/m.exec(D)?.[1]!==u||l.version!==u)throw new Error("Os manifestos desktop e a tag precisam ter a mesma vers\xE3o.");const v=(process.env.OMEGA_UPDATER_PUBLIC_KEY||await r(e(o,"bridge/electron/updater-public-key.txt"),"utf8")).trim();if(!v)throw new Error("Chave p\xFAblica ausente.");if(T==="prepare")await m(e(o,"bridge/electron/updater.json"),JSON.stringify({endpoint:`https://github.com/${p}/releases/latest/download/native-latest.json`,pubkey:v},null,2)+`
+`),l.plugins.updater.pubkey=v,l.plugins.updater.endpoints=[`https://github.com/${p}/releases/latest/download/native-latest.json`],await m(e(o,"bridge/tauri/tauri.conf.json"),JSON.stringify(l,null,"	")+`
+`);else if(T==="sign"){const i=process.argv[3]||e(o,"release"),_=[],h=async(t,s="")=>{for(const a of await U(t,{withFileTypes:!0})){const c=e(s,a.name);a.isDirectory()?await h(e(t,a.name),c):a.isFile()&&_.push(c)}};await h(i);const g=(t,s)=>{const a=_.filter(c=>c.endsWith(t));if(a.length!==1)throw new Error(`Exatamente ${s} \xE9 obrigat\xF3rio.`);return a[0]},k=["deb","rpm"].map(t=>g(`.${t}`,`um pacote .${t}`)),A=g(".exe","um instalador .exe"),d=g(".nsis.zip","um pacote updater .nsis.zip"),R=process.env.CARGO_PACKAGER_SIGN_PRIVATE_KEY||process.env.TAURI_SIGNING_PRIVATE_KEY;if(!R)throw new Error("Configure CARGO_PACKAGER_SIGN_PRIVATE_KEY.");const y={...process.env,CARGO_PACKAGER_SIGN_PRIVATE_KEY:R,CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD:process.env.CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD||
+process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD||""},w={};for(const t of k){const s=e(i,t);if(!(await r(s)).length)throw new Error(`Pacote vazio: ${t}`);if(E("cargo",["packager","signer","sign",s],{env:y,stdio:["ignore","pipe","pipe"]}).status!==0)throw new Error(`N\xE3o foi poss\xEDvel assinar ${t}. Confira a configura\xE7\xE3o do signer.`);const c=(await r(s+".sig","utf8")).trim(),K=e(o,"backend/target/release/omega-notes-backend");if(E(K,["--verify-update",s,s+".sig"],{stdio:["ignore","pipe","pipe"]}).status!==0)throw new Error(`A assinatura de ${t} n\xE3o corresponde \xE0 chave p\xFAblica do app.`);w[t.split(".").at(-1)]={url:`https://github.com/${p}/releases/download/${n}/${encodeURIComponent(C(t))}`,signature:c}}if(!(await r(e(i,A))).length)throw new Error(`Pacote vazio: ${A}`);const b=e(
+i,`${d}.sig`),S=(await r(b,"utf8")).trim();if(!S)throw new Error(`Assinatura Tauri ausente: ${d}.sig`);const N=e(o,"backend/target/release/omega-notes-backend");if(E(N,["--verify-update",e(i,d),b],{stdio:["ignore","pipe","pipe"]}).status!==0)throw new Error(`A assinatura Tauri de ${d} n\xE3o corresponde \xE0 chave p\xFAblica do app.`);const I=await r(new URL("../changelog.md",import.meta.url),"utf8"),G=`## ${n}`,P=I.indexOf(G+`
+`);if(P<0)throw new Error(`Notas ausentes para ${n}.`);const f=I.slice(P+G.length).trimStart(),O=f.indexOf(`
+## `),$=(O<0?f:f.slice(0,O)).trim();if(!$)throw new Error("Notas vazias.");const x={version:u,notes:$,pub_date:new Date().toISOString(),packages:{"linux-x86_64":{deb:w.deb,rpm:w.rpm}},platforms:{"linux-x86_64":w.deb,"windows-x86_64":{url:`https://github.com/${p}/releases/download/${n}/${encodeURIComponent(C(d))}`,signature:S}}};await m(e(i,"native-latest.json"),JSON.stringify(x,null,2)+`
+`)}else throw new Error("Use prepare ou sign.");

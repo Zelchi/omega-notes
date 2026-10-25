@@ -1,22 +1,2 @@
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-
-const requested = process.argv[2] || 'dev';
-const explicitRuntime = ['electron', 'tauri'].includes(requested);
-const runtime = explicitRuntime ? requested : process.platform === 'linux' ? 'electron' : process.platform === 'win32' ? 'tauri' : null;
-const command = explicitRuntime ? process.argv[3] || 'dev' : requested;
-const args = explicitRuntime ? process.argv.slice(4) : process.argv.slice(3);
-
-if (!runtime) throw new Error(`Runtime desktop não configurado para ${process.platform}.`);
-if (!['dev', 'build'].includes(command)) throw new Error('Use: desktop.mjs [electron|tauri] dev|build [argumentos]');
-
-let child;
-if (runtime === 'tauri') {
-	if (process.platform !== 'win32') throw new Error('O host Tauri está configurado para Windows; no Linux, use Electron.');
-	child = spawn('cargo', ['tauri', command, ...args], { cwd: fileURLToPath(new URL('../apps/desktop/bridge/tauri/', import.meta.url)), stdio: 'inherit' });
-} else {
-	child = spawn(process.execPath, [fileURLToPath(new URL('./desktop-electron.mjs', import.meta.url)), command, ...args], { stdio: 'inherit' });
-}
-
-child.once('error', error => { console.error(error); process.exitCode = 1; });
-child.once('close', (code, signal) => { process.exitCode = code ?? (signal ? 1 : 0); });
+import{spawn as i}from"node:child_process";import{fileURLToPath as n}from"node:url";const o=process.argv[2]||"dev",s=["electron","tauri"].includes(o),c=s?o:process.platform==="linux"?"electron":process.platform==="win32"?"tauri":null,t=s?process.argv[3]||"dev":o,a=s?process.argv.slice(4):process.argv.slice(3);if(!c)throw new Error(`Runtime desktop n\xE3o configurado para ${process.platform}.`);if(!["dev","build"].includes(t))throw new Error("Use: desktop.mjs [electron|tauri] dev|build [argumentos]");let e;if(c==="tauri"){if(process.platform!=="win32")throw new Error("O host Tauri est\xE1 configurado para Windows; no Linux, use Electron.");e=i("cargo",["tauri",t,...a],{cwd:n(new URL("../apps/desktop/bridge/tauri/",import.meta.url)),stdio:"inherit"})}else e=i(process.execPath,[n(new URL("./d\
+esktop-electron.mjs",import.meta.url)),t,...a],{stdio:"inherit"});e.once("error",r=>{console.error(r),process.exitCode=1}),e.once("close",(r,p)=>{process.exitCode=r??(p?1:0)});
