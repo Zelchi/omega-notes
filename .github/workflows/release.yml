@@ -42,15 +42,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y rpm
       - run: yarn install --frozen-lockfile --non-interactive
       - run: yarn release:prepare
-        env:
-          OMEGA_UPDATER_PUBLIC_KEY: ${{ vars.OMEGA_UPDATER_PUBLIC_KEY }}
       - if: runner.os == 'Linux'
         run: yarn build:desktop:electron --linux deb rpm --x64 --publish never
       - if: runner.os == 'Windows'
         run: yarn build:desktop:tauri --ci --config tauri.release.conf.json
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.UPDATER_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.UPDATER_PRIVATE_PASSWORD }}
       - if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
@@ -89,15 +87,13 @@ jobs:
           path: release-assets
           merge-multiple: true
       - run: yarn release:prepare
-        env:
-          OMEGA_UPDATER_PUBLIC_KEY: ${{ vars.OMEGA_UPDATER_PUBLIC_KEY }}
       - run: cargo build --release --locked --manifest-path apps/desktop/backend/Cargo.toml
       - run: cargo install cargo-packager --version 0.11.8 --locked
       - name: Assinar, verificar e montar manifesto
         run: node scripts/desktop-release.mjs sign release-assets
         env:
-          CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          OMEGA_UPDATER_PUBLIC_KEY: ${{ vars.OMEGA_UPDATER_PUBLIC_KEY }}
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.UPDATER_PRIVATE_KEY }}
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: ${{ secrets.UPDATER_PRIVATE_PASSWORD }}
       - name: Publicar release completa
         shell: bash
         env:
