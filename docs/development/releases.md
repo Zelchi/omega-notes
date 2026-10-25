@@ -21,7 +21,7 @@ No Linux, o fluxo segue o Techdoro: assinatura verificada antes e depois do down
 
 ## CI e publicação
 
-O workflow exige `HYBRID_DESKTOP_RUNTIME_ACCEPTED=true` nas variáveis do repositório. Configure-a somente depois de validar Electron em Linux e Tauri em Windows.
+Ao enviar uma tag `vX.Y.Z`, o GitHub Actions compila os pacotes Linux e Windows, assina os instaladores, gera o manifesto do updater e publica a release. O workflow não executa testes nem exige aceite manual.
 
 Atualize a versão em `apps/desktop/package.json`, nos dois `Cargo.toml` e em `bridge/tauri/tauri.conf.json`; acrescente `## vX.Y.Z` em `changelog.md` e envie uma nova tag. O workflow:
 
@@ -34,6 +34,6 @@ Use `CARGO_PACKAGER_SIGN_PRIVATE_KEY` para assinar os pacotes Linux e `TAURI_SIG
 
 Uma release publicada não deve receber pacotes novos. Crie uma versão maior; o workflow permite repetir uma release que ainda esteja em rascunho.
 
-## Aceite gráfico
+## Checklist manual opcional
 
-Confira edição e salvamento, seleção de vault, importação/drag-drop/clipboard de imagens e GIFs, estudos e IA, terminal e cancelamento, timer, bandeja, janela, teclado, mudança de monitor, escala e retomada de suspensão. Valide atualização com Polkit no Fedora/Ubuntu e com o updater Tauri no Windows, incluindo cancelamento de senha e falha de salvamento. O smoke Electron cobre somente a inicialização e a bridge Linux; ele não substitui esses testes interativos.
+Este checklist fica fora do workflow de publicação. Se quiser validar a experiência manualmente, confira edição e salvamento, seleção de vault, importação/drag-drop/clipboard de imagens e GIFs, estudos e IA, terminal e cancelamento, timer, bandeja, janela, teclado, mudança de monitor, escala e retomada de suspensão. Também valide atualização com Polkit no Fedora/Ubuntu e com o updater Tauri no Windows, incluindo cancelamento de senha e falha de salvamento.
