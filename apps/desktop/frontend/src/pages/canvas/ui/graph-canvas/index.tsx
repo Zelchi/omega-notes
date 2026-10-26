@@ -19,7 +19,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 				class={styles.board}
 				ref={board}
 				style={{
-					cursor: props.mode === "edit" ? "default" : "grab",
+					cursor: graph.zipTieMode() ? "crosshair" : props.mode === "edit" ? "default" : "grab",
 					"background-position": `${graph.view().x}px ${graph.view().y}px`,
 					"background-size": `${21 * graph.view().scale}px ${21 * graph.view().scale}px`,
 				}}
@@ -45,8 +45,18 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 						viewBox={`0 0 ${HOME_WIDTH} ${HOME_HEIGHT}`}
 						aria-hidden="true"
 					>
-						<For each={graph.edges()}>
-							{(edge) => <path class={styles.edge} d={graph.edgePath(edge)} />}
+						<For each={graph.edges()}>{(edge) => <path class={styles.edge} d={graph.edgePath(edge)} />}</For>
+						<For each={graph.renderedZipTies()}>
+							{({ tie, placement }) => <g
+								class={props.mode === "edit" && graph.zipTieMode() ? styles.zipTieInteractive : styles.zipTiePassive}
+								transform={`translate(${placement.x} ${placement.y}) rotate(${placement.angle})`}
+								onPointerDown={(event) => graph.beginZipTieDrag(tie.id, event)}
+								onContextMenu={(event) => graph.releaseZipTie(tie.id, event)}
+							>
+								<rect class={styles.zipTieBand} x={-placement.width / 2} y={-5} width={placement.width} height={10} rx={3} />
+								<rect class={styles.zipTieHead} x={-4} y={-7} width={8} height={14} rx={2} />
+								<path class={styles.zipTieTooth} d="M-2 -3h4M-2 0h4M-2 3h4" />
+							</g>}
 						</For>
 					</svg>
 
@@ -84,6 +94,12 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 						}}
 					</For>
 				</div>
+				<Show when={graph.zipTieStroke()}>
+					{(stroke) => <svg class={styles.zipTieStrokeOverlay}>
+						<line class={styles.zipTieStrokeLine} x1={stroke().start.x} y1={stroke().start.y}
+							x2={stroke().current.x} y2={stroke().current.y} />
+					</svg>}
+				</Show>
 
 				<Show when={graph.selectionBox()}>
 					{(box) => <div class={styles.selectionBox} aria-hidden="true" style={{

@@ -149,7 +149,7 @@ export const useCanvasHistory = (options: {
 		restored: () => setRestoration(undefined),
 		created: (vaultId: string, note: StudyNote, before: CanvasSnapshot, after: CanvasSnapshot) => rememberAction(vaultId, { kind: "create", noteId: note.id, before, after }),
 		moved: (vaultId: string, before: CanvasSnapshot, after: CanvasSnapshot) => {
-			if (JSON.stringify(before.positions) !== JSON.stringify(after.positions)) rememberAction(vaultId, { kind: "move", before, after });
+			if (JSON.stringify(before) !== JSON.stringify(after)) rememberAction(vaultId, { kind: "move", before, after });
 		},
 	};
 };

@@ -25,6 +25,23 @@ test('canvas positions and camera are isolated by vault and layout', t => {
         const saved = readGraphState(vault, layout); assert.equal(saved.positions.note.x, x); assert.equal(saved.view.x, x);
     }
 });
+test('zip ties persist only in their vault static canvas state', t => {
+    storage(t);
+    const zipTies = [{ id:'tie', members:[{ edgeKey:'["a","b"]', t:.25 }, { edgeKey:'["c","d"]', t:.75 }] }];
+    saveGraphState('a', { positions:{}, zipTies });
+    assert.deepEqual(readGraphState('a').zipTies, zipTies);
+    assert.equal(readGraphState('b').zipTies, undefined);
+    assert.equal(readGraphState('a', 'dynamic').zipTies, undefined);
+});
+test('invalid persisted zip ties are discarded', t => {
+    const data = storage(t);
+    data.set('omega-notes.graph.a.static', JSON.stringify({ positions:{}, zipTies:[
+        { id:'bad-single-wire', members:[{ edgeKey:'a', t:.5 }] },
+        { id:'bad-position', members:[{ edgeKey:'a', t:NaN }, { edgeKey:'b', t:.5 }] },
+        { id:'good', members:[{ edgeKey:'a', t:.2 }, { edgeKey:'b', t:.8 }] },
+    ] }));
+    assert.deepEqual(readGraphState('a').zipTies, [{ id:'good', members:[{ edgeKey:'a', t:.2 }, { edgeKey:'b', t:.8 }] }]);
+});
 test('saving another vault does not remove existing positions', t => {
     storage(t); saveGraphState('a', snapshot(42)); saveGraphState('b', { positions: {} });
     assert.equal(readGraphState('a').positions.note.x, 42);
@@ -51,6 +68,15 @@ test('snapshots are copied before saving and returning', () => {
     const store = new CanvasSnapshotStore(), initial = snapshot(42); store.remember('a', initial);
     initial.positions.note.x = 999; const read = store.read('a'); read.positions.note.x = 777;
     assert.equal(store.read('a').positions.note.x, 42);
+});
+test('canvas history snapshots deeply copy zip ties', () => {
+    const store = new CanvasSnapshotStore();
+    const original = { layout:'static', positions:{}, zipTies:[{ id:'tie', members:[{ edgeKey:'a-b', t:.5 }, { edgeKey:'c-d', t:.6 }] }] };
+    store.remember('a', original);
+    original.zipTies[0].members[0].t = .9;
+    const read = store.read('a');
+    read.zipTies[0].members[1].edgeKey = 'changed';
+    assert.deepEqual(store.read('a').zipTies, [{ id:'tie', members:[{ edgeKey:'a-b', t:.5 }, { edgeKey:'c-d', t:.6 }] }]);
 });
 test('unmount of one vault preserves another vault snapshot', () => {
     const store = new CanvasSnapshotStore(); const unregisterA = store.register('a', () => snapshot(1));

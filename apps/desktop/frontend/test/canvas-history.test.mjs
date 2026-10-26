@@ -118,3 +118,11 @@ test('a final move from an unmounting canvas stays in its original vault', async
     f.setVault('vault-a'); await settle(); await f.shortcut();
     assert.deepEqual(f.history.restoration(), { ...snapshot(10), vaultId: 'vault-a', revision: 1 });
 });
+test('zip-tie changes are undoable and redoable', async t => {
+    const f = setup(t); await settle();
+    const before = { ...snapshot(), zipTies:[] };
+    const zipTies = [{ id:'tie', members:[{ edgeKey:'a-b', t:.4 }, { edgeKey:'c-d', t:.6 }] }];
+    f.history.moved('vault-a', before, { ...snapshot(), zipTies });
+    await f.shortcut(); assert.deepEqual(f.history.restoration().zipTies, []);
+    await f.shortcut('y'); assert.deepEqual(f.history.restoration().zipTies, zipTies);
+});

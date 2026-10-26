@@ -15,6 +15,14 @@ export const readGraphState = (vaultId: string, layout: GraphLayout = "static"):
 
 		const minimumScale = layout === "static" ? 0.55 : 0.15;
 		const maximumScale = layout === "static" ? 1.5 : 2.5;
+		const zipTies = layout === "static" && Array.isArray(parsed.zipTies)
+			? parsed.zipTies.slice(0, 500).flatMap((tie) => {
+				if (!tie || typeof tie.id !== "string" || !tie.id || tie.id.length > 100 || !Array.isArray(tie.members)) return [];
+				const members = tie.members.slice(0, 500).filter((member) => member && typeof member.edgeKey === "string" && member.edgeKey.length <= 512 && Number.isFinite(member.t) && member.t >= 0 && member.t <= 1);
+				const uniqueMembers = [...new Map(members.map((member) => [member.edgeKey, { edgeKey: member.edgeKey, t: member.t }])).values()];
+				return uniqueMembers.length >= 2 ? [{ id: tie.id, members: uniqueMembers }] : [];
+			})
+			: undefined;
 		return {
 			positions: Object.fromEntries(
 				Object.entries(parsed.positions).filter(
@@ -29,6 +37,7 @@ export const readGraphState = (vaultId: string, layout: GraphLayout = "static"):
 				parsed.view.scale >= minimumScale && parsed.view.scale <= maximumScale
 					? parsed.view
 					: undefined,
+			...(zipTies?.length ? { zipTies } : {}),
 		};
 	} catch {
 		return { positions: {} };
