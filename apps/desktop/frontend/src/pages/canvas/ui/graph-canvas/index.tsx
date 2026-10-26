@@ -19,7 +19,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 				class={styles.board}
 				ref={board}
 				style={{
-					cursor: graph.zipTieMode() ? "crosshair" : props.mode === "edit" ? "default" : "grab",
+					cursor: props.mode === "edit" ? "default" : "grab",
 					"background-position": `${graph.view().x}px ${graph.view().y}px`,
 					"background-size": `${21 * graph.view().scale}px ${21 * graph.view().scale}px`,
 				}}
@@ -48,7 +48,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 						<For each={graph.edges()}>{(edge) => <path class={styles.edge} d={graph.edgePath(edge)} />}</For>
 						<For each={graph.renderedZipTies()}>
 							{({ tie, placement }) => <g
-								class={props.mode === "edit" && graph.zipTieMode() ? styles.zipTieInteractive : styles.zipTiePassive}
+								class={props.mode === "edit" ? styles.zipTieInteractive : styles.zipTiePassive}
 								transform={`translate(${placement.x} ${placement.y}) rotate(${placement.angle})`}
 								onPointerDown={(event) => graph.beginZipTieDrag(tie.id, event)}
 								onContextMenu={(event) => graph.releaseZipTie(tie.id, event)}

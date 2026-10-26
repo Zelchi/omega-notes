@@ -5,12 +5,6 @@ import type { TranslationKey } from "@/shared/lib/i18n";
 
 export type { Edge, GraphState, NodeSize, Point, View, ZipTie } from "../../model/graph";
 
-export type ZipTieToolbarState = {
-	active: boolean;
-	disabled: boolean;
-	toggle: () => void;
-};
-
 export type GraphCanvasProps = {
 	vaultId: string;
 	mode: "edit" | "view";
@@ -29,7 +23,6 @@ export type GraphCanvasProps = {
 	centerOnMount: boolean;
 	onCanvasMount: () => void;
 	hideCanvasControls: boolean;
-	onZipTieToolbarChange?: (state: ZipTieToolbarState | undefined) => void;
 	t: (key: TranslationKey) => string;
 };
 

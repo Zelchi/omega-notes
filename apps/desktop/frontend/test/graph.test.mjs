@@ -89,6 +89,15 @@ test('a small note movement keeps its wire attached to the zip tie', () => {
 	const next = zipTiesAfterNodeMove([tie], new Map(edges.map(edge => [graphEdgeKey(edge), edge])), before, after, 4, new Set(['c']));
 	assert.equal(next[0].members.length, 3);
 });
+test('a wire stays tied through a substantial move before it diverges from the bundle', () => {
+	const [shared, a, b, c] = ['z', 'a', 'b', 'c'].map(id => summarizeNote(note(id)));
+	const edges = [a, b, c].map(target => ({ source:shared, target }));
+	const before = { z:{x:0,y:100}, a:{x:500,y:0}, b:{x:500,y:50}, c:{x:500,y:100} };
+	const after = { ...before, c:{x:500,y:460} };
+	const tie = { id:'tie', members:edges.map(edge => ({ edgeKey:graphEdgeKey(edge), t:.5 })) };
+	const next = zipTiesAfterNodeMove([tie], new Map(edges.map(edge => [graphEdgeKey(edge), edge])), before, after, 4, new Set(['c']));
+	assert.equal(next[0].members.length, 3);
+});
 test('moving a shared note does not detach wires that move together', () => {
 	const [shared, a, b, c] = ['z', 'a', 'b', 'c'].map(id => summarizeNote(note(id)));
 	const edges = [a, b, c].map(target => ({ source:shared, target }));

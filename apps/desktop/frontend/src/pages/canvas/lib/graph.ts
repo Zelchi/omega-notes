@@ -203,8 +203,8 @@ export const graphEdgesCrossedByStroke = (
 export type ZipTiePlacement = Point & { angle: number; width: number };
 const ZIP_TIE_WIRE_SPACING = 6;
 const ZIP_TIE_MARGIN = 12;
-// shortcut: 36-unit increase in bundle offset, use path-distance clustering if non-drag layout changes must detach wires.
-const ZIP_TIE_DETACH_DISTANCE = ZIP_TIE_WIRE_SPACING * 6;
+// Keep wires bound until they diverge by almost a full note width.
+const ZIP_TIE_DETACH_DISTANCE = 192;
 
 type ZipTieGeometry = {
 	placement: ZipTiePlacement;

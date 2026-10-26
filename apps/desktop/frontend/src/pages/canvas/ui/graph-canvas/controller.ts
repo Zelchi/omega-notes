@@ -22,8 +22,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	const [contextMenu, setContextMenu] = createSignal<ContextMenu>();
 	const [createdNoteId, setCreatedNoteId] = createSignal<string>();
 	const [selectedIds, setSelectedIds] = createSignal<Set<string>>(new Set<string>());
-	const [zipTieMode, setZipTieMode] = createSignal(false);
-	const [zipTieStroke, setZipTieStroke] = createSignal<{ pointerId: number; start: Point; current: Point }>();
+	const [zipTieStroke, setZipTieStroke] = createSignal<{ pointerId: number; start: Point; current: Point; noteId?: string }>();
 	const [selectionBox, setSelectionBox] = createSignal<SelectionBox>();
 	const [measuredSizes, setMeasuredSizes] = createSignal<Map<string, NodeSize>>(new Map());
 	const nodeElements = new Map<string, HTMLButtonElement>();
@@ -145,7 +144,6 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			if (gesture) flushPendingMove(gesture.pointerId);
 			recordMove(gesture);
 			setSelectedIds(new Set<string>());
-			setZipTieMode(false);
 			setZipTieStroke(undefined);
 			if (zipTieDrag) {
 				const drag = zipTieDrag;
@@ -168,7 +166,6 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			recordZipTieChange(drag.before);
 		}
 		unregisterHistory?.();
-		props.onZipTieToolbarChange?.(undefined);
 		if (graphSaveTimer !== undefined) saveGraphState();
 		clearTimeout(creationTimer);
 		if (moveFrame !== undefined) cancelAnimationFrame(moveFrame);
@@ -226,7 +223,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 				setContextMenu(undefined);
 		};
 		const closeOnEscape = (event: KeyboardEvent) => {
-			if (isTerminalTarget(event.target) || event.key !== "Escape" || (!contextMenu() && !selectedIds().size && !gesture && !zipTieMode() && !zipTieStroke() && !zipTieDrag)) return;
+			if (isTerminalTarget(event.target) || event.key !== "Escape" || (!contextMenu() && !selectedIds().size && !gesture && !zipTieStroke() && !zipTieDrag)) return;
 			if (Array.from(document.querySelectorAll('[aria-modal="true"]')).some((dialog) => !dialog.closest("[inert]"))) return;
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -236,7 +233,6 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			gesture = undefined;
 			setSelectionBox(undefined);
 			setSelectedIds(new Set<string>());
-			setZipTieMode(false);
 			setZipTieStroke(undefined);
 			if (zipTieDrag) {
 				const drag = zipTieDrag;
@@ -261,18 +257,19 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		const currentView = view();
 		return { x: (point.x - currentView.x) / currentView.scale, y: (point.y - currentView.y) / currentView.scale };
 	};
-	const beginZipTieStroke = (event: PointerEvent): void => {
-		if (props.mode !== "edit" || props.busy || !zipTieMode() || event.button !== 0 || gesture || zipTieDrag) return;
+	const beginZipTieStroke = (event: PointerEvent, noteId?: string): void => {
+		if (props.mode !== "edit" || props.busy || event.button !== 0 || gesture || zipTieDrag || zipTieStroke()) return;
 		event.preventDefault();
 		event.stopPropagation();
+		setContextMenu(undefined);
 		const point = boardPoint(event);
-		setZipTieStroke({ pointerId: event.pointerId, start: point, current: point });
+		setZipTieStroke({ pointerId: event.pointerId, start: point, current: point, noteId });
 		getBoard().setPointerCapture(event.pointerId);
 	};
 
 	const beginPan = (event: PointerEvent & { currentTarget: HTMLElement }): void => {
 		if (props.busy || gesture || (event.button !== 0 && event.button !== 1 && event.button !== 2)) return;
-		if (zipTieMode() && event.button === 0) { beginZipTieStroke(event); return; }
+		if (props.mode === "edit" && event.button === 0 && event.shiftKey && !event.ctrlKey && !event.metaKey) { beginZipTieStroke(event); return; }
 		event.preventDefault();
 		setContextMenu(undefined);
 		event.currentTarget.setPointerCapture(event.pointerId);
@@ -309,11 +306,6 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 
 	const beginNodeDrag = (event: PointerEvent & { currentTarget: HTMLButtonElement }, note: NoteSummary): void => {
 		if (props.busy || gesture) return;
-		if (zipTieMode()) {
-			if (event.button === 0) beginZipTieStroke(event);
-			else { event.preventDefault(); event.stopPropagation(); }
-			return;
-		}
 		if (event.button === 2 || event.button === 1) {
 			event.preventDefault();
 			event.stopPropagation();
@@ -325,6 +317,10 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		event.stopPropagation();
 		setContextMenu(undefined);
 		if (props.mode === "view") return;
+		if (event.shiftKey && !event.ctrlKey && !event.metaKey) {
+			beginZipTieStroke(event, note.id);
+			return;
+		}
 		if (event.ctrlKey || event.metaKey || event.shiftKey) {
 			setSelectedIds((current) => {
 				const next = new Set(current);
@@ -403,7 +399,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	};
 
 	const finishZipTieStroke = (start: Point, end: Point): void => {
-		if (props.busy || props.mode !== "edit" || !zipTieMode() || Math.hypot(end.x - start.x, end.y - start.y) < 12) return;
+		if (props.busy || props.mode !== "edit" || Math.hypot(end.x - start.x, end.y - start.y) < 12) return;
 		const currentView = view();
 		const routes = routedGraph().routesByKey;
 		const members = graphEdgesCrossedByStroke(edges(), positions(), props.notes.length, worldPoint(start), worldPoint(end), 12 / currentView.scale, routes);
@@ -420,8 +416,9 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	const beginZipTieDrag = (id: string, event: PointerEvent): void => {
 		event.stopPropagation();
 		if (event.button !== 0) return;
+		if (event.shiftKey && !event.ctrlKey && !event.metaKey) { beginZipTieStroke(event); return; }
 		event.preventDefault();
-		if (props.mode !== "edit" || props.busy || !zipTieMode() || zipTieDrag || zipTieStroke()) return;
+		if (props.mode !== "edit" || props.busy || zipTieDrag || zipTieStroke()) return;
 		const tie = zipTies().find((item) => item.id === id);
 		if (!tie) return;
 		const tieIndex = zipTies().findIndex((item) => item.id === id);
@@ -439,7 +436,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 
 	const moveZipTieDrag = (event: PointerEvent): void => {
 		const drag = zipTieDrag;
-		if (!drag || drag.pointerId !== event.pointerId || props.mode !== "edit" || props.busy || !zipTieMode()) return;
+		if (!drag || drag.pointerId !== event.pointerId || props.mode !== "edit" || props.busy) return;
 		const currentView = view();
 		const pointer = worldPoint(boardPoint(event));
 		const dx = pointer.x - drag.start.x, dy = pointer.y - drag.start.y;
@@ -461,7 +458,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	};
 
 	const releaseZipTie = (id: string, event: MouseEvent): void => {
-		if (props.mode !== "edit" || props.busy || !zipTieMode()) return;
+		if (props.mode !== "edit" || props.busy) return;
 		event.preventDefault();
 		event.stopPropagation();
 		removeZipTie(id);
@@ -498,7 +495,19 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		const stroke = zipTieStroke();
 		if (stroke?.pointerId === event.pointerId) {
 			setZipTieStroke(undefined);
-			finishZipTieStroke(stroke.start, boardPoint(event));
+			const end = boardPoint(event);
+			const distance = Math.hypot(end.x - stroke.start.x, end.y - stroke.start.y);
+			if (stroke.noteId || distance >= 4) suppressClickUntil = Date.now() + 200;
+			if (stroke.noteId) {
+				const noteId = stroke.noteId;
+				if (distance < 4) setSelectedIds((current) => {
+					const next = new Set(current);
+					if (next.has(noteId)) next.delete(noteId);
+					else next.add(noteId);
+					return next;
+				});
+			}
+			finishZipTieStroke(stroke.start, end);
 			return;
 		}
 		if (finishZipTieDrag(event)) return;
@@ -586,13 +595,6 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		zoomTo(view().scale * Math.exp(-delta * 0.001), event.clientX - rect.left, event.clientY - rect.top);
 	};
 
-	const toggleZipTieMode = (): void => {
-		if (props.busy) return;
-		setZipTieMode((current) => !current);
-		setZipTieStroke(undefined);
-		setContextMenu(undefined);
-	};
-
 	const removeZipTie = (id: string): void => {
 		if (props.busy || props.mode !== "edit") return;
 		const before = snapshot();
@@ -602,19 +604,6 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		saveGraphState(positions(), view(), next);
 		props.onNotesMoved(vaultId, before, { layout: "static", positions: positions(), zipTies: next });
 	};
-
-	createEffect(() => {
-		const onChange = props.onZipTieToolbarChange;
-		if (!onChange || props.mode !== "edit") {
-			onChange?.(undefined);
-			return;
-		}
-		onChange({
-			active: zipTieMode(),
-			disabled: props.busy,
-			toggle: toggleZipTieMode,
-		});
-	});
 
 	const openContextMenu = (event: MouseEvent, note: NoteSummary): void => {
 		event.preventDefault();
@@ -640,7 +629,6 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		},
 		createdNoteId,
 		selectedIds,
-		zipTieMode,
 		zipTieStroke,
 		renderedZipTies,
 		selectionBox,
@@ -659,12 +647,11 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		cancelGesture,
 		zoomWithWheel,
 		zoomBy,
-		toggleZipTieMode,
 		beginZipTieDrag,
 		releaseZipTie,
 		removeZipTie,
 		openContextMenu,
-		shouldIgnoreClick: (event: MouseEvent) => zipTieMode() || Date.now() < suppressClickUntil || (props.mode === "edit" && (event.ctrlKey || event.metaKey || event.shiftKey || selectedIds().size > 1)),
+		shouldIgnoreClick: (event: MouseEvent) => Date.now() < suppressClickUntil || (props.mode === "edit" && (event.ctrlKey || event.metaKey || event.shiftKey || selectedIds().size > 1)),
 		clearContextMenu: () => setContextMenu(undefined),
 	};
 };

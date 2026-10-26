@@ -45,7 +45,6 @@ export const toolbarStyles = {
 			"&:active:not(:disabled)": { transform: "scale(0.94)" },
 		},
 	}),
-	activeButton: style({ color: "var(--ink)", backgroundColor: "var(--surface-hover)" }),
 	divider: style({
 		width: 1,
 		flexShrink: 0,
