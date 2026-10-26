@@ -19,6 +19,15 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
                 organize notas e pastas em colunas no modo Arquivo. As três
                 visualizações trabalham com as mesmas notas.
             </p>
+            <figure class="feature-demo">
+                <img
+                    src={`${base}explore-modes-demo.gif`}
+                    alt="Animação: a mesma biblioteca alterna entre os modos Estático, Dinâmico e Arquivo."
+                    width="640"
+                    height="360"
+                    loading="lazy"
+                />
+            </figure>
         </article>
         <article>
             <h3>Agrupe fios com uma presilha</h3>
@@ -28,7 +37,7 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
                 alternando a seleção múltipla; arraste uma presilha existente sem
                 Shift para movê-la.
             </p>
-            <figure class="zip-tie-demo">
+            <figure class="feature-demo">
                 <img
                     src={`${base}zip-tie-demo.gif`}
                     alt="Animação: Shift pressionado enquanto o ponteiro atravessa os fios e cria uma presilha."
@@ -45,6 +54,15 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
                 destaque de sintaxe. Formate pela barra de edição e ajuste o
                 alinhamento de cada parágrafo.
             </p>
+            <figure class="feature-demo">
+                <img
+                    src={`${base}rich-text-demo.gif`}
+                    alt="Animação: uma nota recebe título, lista, citação e código formatado."
+                    width="640"
+                    height="360"
+                    loading="lazy"
+                />
+            </figure>
         </article>
         <article>
             <h3>Links que conectam assuntos</h3>
@@ -53,6 +71,15 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
                 exibido no link e abra a referência para continuar estudando. Ao
                 colar uma URL, o título da página pode virar o nome do link.
             </p>
+            <figure class="feature-demo">
+                <img
+                    src={`${base}note-links-demo.gif`}
+                    alt="Animação: uma sugestão transforma o texto em referência para outra nota, que pode ser aberta."
+                    width="640"
+                    height="360"
+                    loading="lazy"
+                />
+            </figure>
         </article>
         <article>
             <h3>Organize tarefas no Kanban</h3>
@@ -60,6 +87,15 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
                 Acompanhe cartões em etapas verticais, mova-os por arraste e
                 mantenha uma organização independente para cada vault.
             </p>
+            <figure class="feature-demo">
+                <img
+                    src={`${base}kanban-demo.gif`}
+                    alt="Animação: um cartão de estudo é arrastado para a coluna Em andamento."
+                    width="640"
+                    height="360"
+                    loading="lazy"
+                />
+            </figure>
         </article>
         <article>
             <h3>Imagens e GIFs</h3>
@@ -67,6 +103,15 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
                 Importe imagens, arraste-as para a nota ou cole uma captura de
                 tela. Posicione e redimensione o conteúdo dentro do aplicativo.
             </p>
+            <figure class="feature-demo">
+                <img
+                    src={`${base}media-in-notes-demo.gif`}
+                    alt="Animação: uma imagem é inserida na nota e redimensionada."
+                    width="640"
+                    height="360"
+                    loading="lazy"
+                />
+            </figure>
         </article>
         <article>
             <h3>Uma IA para sua biblioteca</h3>
@@ -75,6 +120,15 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
                 conversar sobre suas notas. O Chat fica ao lado do trabalho,
                 com contexto e histórico separados por vault e por provedor.
             </p>
+            <figure class="feature-demo">
+                <img
+                    src={`${base}ai-notes-demo.gif`}
+                    alt="Animação: o Chat responde uma pergunta usando o contexto da nota aberta."
+                    width="640"
+                    height="360"
+                    loading="lazy"
+                />
+            </figure>
         </article>
         <article>
             <h3>Seus arquivos, no seu computador</h3>
@@ -83,6 +137,15 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
                 com o salvamento automático. Desfaça alterações no texto e
                 movimentos, criações ou exclusões no canvas.
             </p>
+            <figure class="feature-demo">
+                <img
+                    src={`${base}local-vault-demo.gif`}
+                    alt="Animação: a busca encontra uma nota em um vault local, que é salva no dispositivo."
+                    width="640"
+                    height="360"
+                    loading="lazy"
+                />
+            </figure>
         </article>
     </div>
 </section>
@@ -151,10 +214,10 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
         font-size: 0.9em;
         white-space: nowrap;
     }
-    .zip-tie-demo {
+    .feature-demo {
         margin: 20px 0 0;
     }
-    .zip-tie-demo img {
+    .feature-demo img {
         display: block;
         width: 100%;
         height: auto;
