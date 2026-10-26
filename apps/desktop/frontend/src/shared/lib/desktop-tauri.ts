@@ -42,6 +42,7 @@ const invoke = async <T>(command: string, args: Record<string, unknown>): Promis
 			return await tauriInvoke('configure_tray_menu', {
 				labels: args.labels,
 				pomodoroRunning: args.pomodoroRunning,
+				musicPlaying: args.musicPlaying,
 			}) as T;
 		case 'window_is_maximized': return await webviewWindow.isMaximized() as T;
 		case 'window_toggle_maximize': return await webviewWindow.toggleMaximize() as T;

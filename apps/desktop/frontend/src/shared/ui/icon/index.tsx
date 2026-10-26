@@ -13,6 +13,12 @@ export type IconName =
 	| "gripVertical"
 	| "calendar"
 	| "clock"
+	| "music"
+	| "volume"
+	| "volumeMuted"
+	| "play"
+	| "pause"
+	| "skipNext"
 	| "chat"
 	| "copy"
 	| "send"
@@ -88,6 +94,12 @@ const paths: Record<IconName, Component> = {
 	gripVertical: () => <path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01" />,
 	calendar: () => <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18M8 14h2m4 0h2M8 17h2" /></>,
 	clock: () => <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+	music: () => <><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></>,
+	volume: () => <><path d="M4 9v6h4l5 4V5L8 9H4Z" /><path d="M16 9a5 5 0 0 1 0 6M18.5 6.5a8.5 8.5 0 0 1 0 11" /></>,
+	volumeMuted: () => <><path d="M4 9v6h4l5 4V5L8 9H4Z" /><path d="m16 9 5 6m0-6-5 6" /></>,
+	play: () => <path d="m7 4 13 8-13 8V4Z" />,
+	pause: () => <><path d="M7 5h4v14H7zM15 5h4v14h-4z" /></>,
+	skipNext: () => <><path d="M5 4v16l11-8-11-8Z" /><path d="M19 5v14" /></>,
 	chat: () => <path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2ZM7 9h10M7 13h7" />,
 	copy: () => <><rect x="8" y="8" width="13" height="13" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></>,
 	send: () => <path d="m3 3 19 9-19 9 4-9-4-9Zm4 9h15" />,

@@ -57,3 +57,33 @@ pub(crate) async fn note_media_stream_url(
     .await
     .map_err(|error| format!("Não foi possível preparar a reprodução: {error}"))?
 }
+
+pub(crate) async fn music_stream_url(
+    app: AppContext,
+    source_url: String,
+) -> Result<String, String> {
+    let source = crate::web::parse_public_https_url(&source_url)?;
+    crate::runtime::spawn_blocking(move || {
+        let mut stream = MEDIA_STREAM
+            .lock()
+            .map_err(|_| "Não foi possível acessar o servidor de mídia.".to_string())?;
+        if stream.is_none() {
+            let stream_app = app.clone();
+            *stream = Some(
+                MediaStream::start(move |id, kind| {
+                    let notes_directory = runtime::notes_dir(&stream_app)?;
+                    service::media_file_path(&notes_directory, id, kind)
+                })
+                .map_err(|error| {
+                    format!("Não foi possível iniciar o servidor de mídia: {error}")
+                })?,
+            );
+        }
+        stream
+            .as_ref()
+            .ok_or_else(|| "Não foi possível preparar a estação.".to_string())?
+            .remote_url(source)
+    })
+    .await
+    .map_err(|error| format!("Não foi possível preparar a estação: {error}"))?
+}

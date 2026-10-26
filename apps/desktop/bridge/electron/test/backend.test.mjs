@@ -45,6 +45,9 @@ test('real Rust process preserves vaults, notes, streams, images and errors acro
     await assert.rejects(backend.invoke('save_note', { vaultId, noteId: original.id, noteTitle: original.title, document: original.document, expectedNote: { title: original.title, document: original.document } }), /CONFLICT|ALTERAD|changed/i);
     await assert.rejects(backend.invoke('not_a_command'), /Unknown backend command/);
     await assert.rejects(backend.invoke('get_note', { vaultId }), /Invalid argument noteId/);
+    await assert.rejects(backend.invoke('music_stream_url', { url: 'https://127.0.0.1/live.mp3' }), /MUSIC_URL_INVALID/);
+    const musicUrl = await backend.invoke('music_stream_url', { url: 'https://radio.example/live.mp3' });
+    assert.match(musicUrl, /^http:\/\/127\.0\.0\.1:\d+\/music\//);
     const results = await Promise.all(Array.from({ length: 12 }, () => backend.invoke('get_note', { vaultId, noteId: original.id })));
     assert.ok(results.every(value => value.document.elements[0].text === 'Saved through Electron IPC'));
     const files = await readFile(join(temp, 'Ômega Notes Dev', 'vaults.json'), 'utf8');

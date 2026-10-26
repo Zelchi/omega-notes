@@ -22,7 +22,9 @@ struct TrayLabels {
     start: String,
     pause: String,
     reset: String,
-    next: String,
+    music_play: String,
+    music_pause: String,
+    music_next: String,
     update: String,
     exit: String,
 }
@@ -30,10 +32,12 @@ struct TrayLabels {
 struct TrayMenuState {
     labels: Mutex<TrayLabels>,
     pomodoro_running: Mutex<bool>,
+    music_playing: Mutex<bool>,
     visibility: MenuItem<tauri::Wry>,
     pomodoro: MenuItem<tauri::Wry>,
     reset: MenuItem<tauri::Wry>,
-    next: MenuItem<tauri::Wry>,
+    music_play_pause: MenuItem<tauri::Wry>,
+    music_next: MenuItem<tauri::Wry>,
     update: MenuItem<tauri::Wry>,
     exit: MenuItem<tauri::Wry>,
 }
@@ -49,6 +53,10 @@ impl TrayMenuState {
             .pomodoro_running
             .lock()
             .map_err(|_| "Tray menu unavailable")?;
+        let music_playing = *self
+            .music_playing
+            .lock()
+            .map_err(|_| "Tray menu unavailable")?;
         let visible = app
             .get_webview_window("main")
             .is_some_and(|window| window.is_visible().unwrap_or(true));
@@ -61,8 +69,15 @@ impl TrayMenuState {
         self.reset
             .set_text(labels.reset)
             .map_err(|error| error.to_string())?;
-        self.next
-            .set_text(labels.next)
+        self.music_play_pause
+            .set_text(if music_playing {
+                labels.music_pause
+            } else {
+                labels.music_play
+            })
+            .map_err(|error| error.to_string())?;
+        self.music_next
+            .set_text(labels.music_next)
             .map_err(|error| error.to_string())?;
         self.update
             .set_text(labels.update)
@@ -121,6 +136,7 @@ fn configure_tray_menu(
     tray: State<'_, TrayMenuState>,
     labels: TrayLabels,
     pomodoro_running: bool,
+    music_playing: bool,
 ) -> Result<(), String> {
     if [
         &labels.show,
@@ -128,7 +144,9 @@ fn configure_tray_menu(
         &labels.start,
         &labels.pause,
         &labels.reset,
-        &labels.next,
+        &labels.music_play,
+        &labels.music_pause,
+        &labels.music_next,
         &labels.update,
         &labels.exit,
     ]
@@ -142,6 +160,10 @@ fn configure_tray_menu(
         .pomodoro_running
         .lock()
         .map_err(|_| "Tray menu unavailable")? = pomodoro_running;
+    *tray
+        .music_playing
+        .lock()
+        .map_err(|_| "Tray menu unavailable")? = music_playing;
     tray.refresh(&app)
 }
 
@@ -186,12 +208,16 @@ fn main() {
             let visibility = MenuItem::with_id(app, "visibility", "Show", true, None::<&str>)?;
             let pomodoro = MenuItem::with_id(app, "pomodoro", "Start", true, None::<&str>)?;
             let reset = MenuItem::with_id(app, "reset", "Reset", true, None::<&str>)?;
-            let next = MenuItem::with_id(app, "next", "Next", true, None::<&str>)?;
+            let music_play_pause =
+                MenuItem::with_id(app, "music-play-pause", "Play music", true, None::<&str>)?;
+            let music_next =
+                MenuItem::with_id(app, "music-next", "Next station", true, None::<&str>)?;
             let update = MenuItem::with_id(app, "update", "Update", true, None::<&str>)?;
             let exit = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;
             let first_separator = PredefinedMenuItem::separator(app)?;
             let second_separator = PredefinedMenuItem::separator(app)?;
             let third_separator = PredefinedMenuItem::separator(app)?;
+            let fourth_separator = PredefinedMenuItem::separator(app)?;
             let menu = Menu::with_items(
                 app,
                 &[
@@ -199,10 +225,12 @@ fn main() {
                     &first_separator,
                     &pomodoro,
                     &reset,
-                    &next,
                     &second_separator,
-                    &update,
+                    &music_play_pause,
+                    &music_next,
                     &third_separator,
+                    &update,
+                    &fourth_separator,
                     &exit,
                 ],
             )?;
@@ -210,18 +238,22 @@ fn main() {
                 labels: Mutex::new(TrayLabels {
                     show: "Show".into(),
                     hide: "Hide".into(),
-                    start: "Start".into(),
-                    pause: "Pause".into(),
-                    reset: "Reset".into(),
-                    next: "Next".into(),
+                    start: "Start timer".into(),
+                    pause: "Pause timer".into(),
+                    reset: "Reset timer".into(),
+                    music_play: "Play music".into(),
+                    music_pause: "Pause music".into(),
+                    music_next: "Next station".into(),
                     update: "Update".into(),
                     exit: "Exit".into(),
                 }),
                 pomodoro_running: Mutex::new(false),
+                music_playing: Mutex::new(false),
                 visibility: visibility.clone(),
                 pomodoro: pomodoro.clone(),
                 reset: reset.clone(),
-                next: next.clone(),
+                music_play_pause: music_play_pause.clone(),
+                music_next: music_next.clone(),
                 update: update.clone(),
                 exit: exit.clone(),
             };
@@ -257,7 +289,8 @@ fn main() {
                         emit_tray_action(app, "pomodoro-toggle");
                     }
                     "reset" => emit_tray_action(app, "pomodoro-reset"),
-                    "next" => emit_tray_action(app, "pomodoro-next"),
+                    "music-play-pause" => emit_tray_action(app, "music-play-pause"),
+                    "music-next" => emit_tray_action(app, "music-next"),
                     "update" => {
                         show_window(app);
                         emit_tray_action(app, "update");

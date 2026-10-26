@@ -88,9 +88,15 @@ test('catalog groups shared image, audio, and video references by media id', asy
 
 test('media catalog exposes retry and supports selecting all media types', async () => {
 	const source = await readFile(new URL('../src/pages/notes/ui/media-catalog-dialog/index.tsx', import.meta.url), 'utf8');
+	const styles = await readFile(new URL('../src/pages/notes/ui/media-catalog-dialog/style.css.ts', import.meta.url), 'utf8');
 	assert.match(source, /props\.catalog\.loadError\(\)/);
 	assert.match(source, /props\.catalog\.retryLoad/);
 	assert.match(source, /styles\.mediaIcon/);
 	assert.match(source, /media\.source\.type === "image" \|\| \(media\.source\.type === "video" && !!props\.catalog\.sources\(\)\[media\.id\]\)/);
+	assert.match(source, /<Portal mount=\{document\.querySelector\("\[data-omega-main\]"\) \?\? document\.body\}><div/);
+	assert.doesNotMatch(source, /cleanupMedia|cleanOrphanedMedia/);
 	assert.match(source, /accept="[^\"]*\.aac[^\"]*\.mp4[^\"]*\.webm/);
+	assert.match(styles, /height: "min\(680px, calc\(100dvh - 80px\)\)"/);
+	assert.match(styles, /maxHeight: "min\(680px, calc\(100dvh - 80px\)\)"/);
+	assert.match(styles, /gridTemplateColumns: "repeat\(3, minmax\(0, 1fr\)\)"/);
 });

@@ -4,7 +4,7 @@
 
 Ao abrir o catálogo na nota atual, o frontend pede as referências de imagens, áudios e vídeos do vault. No desktop, o backend varre arquivos `.omega` e extrai os IDs e extensões necessários sem desserializar os demais elementos completos. Arquivos inválidos, inacessíveis ou sem IDs/extensões compatíveis são ignorados. O fallback web lê o armazenamento JSON próprio.
 
-Referências repetidas ao mesmo tipo e ID são agrupadas e mostram os títulos das notas que usam aquela mídia. Imagens são carregadas em grupos de até quatro; áudio e vídeo aparecem com seus ícones no catálogo. Selecionar qualquer item reutiliza seu ID na nota atual. Importar cria uma cópia gerenciada em `images/`, `audios/` ou `videos/`. Os players de áudio e vídeo recebem uma URL do servidor local Rust, que permite busca por faixa. A limpeza de órfãos exige confirmação e considera notas ativas, backups, snapshots de renomeação, cópias de recuperação e notas excluídas.
+Referências repetidas ao mesmo tipo e ID são agrupadas e mostram os títulos das notas que usam aquela mídia. Imagens são carregadas em grupos de até quatro; áudio e vídeo aparecem com seus ícones no catálogo. Selecionar qualquer item reutiliza seu ID na nota atual. Importar cria uma cópia gerenciada em `images/`, `audios/` ou `videos/`. Os players de áudio e vídeo recebem uma URL do servidor local Rust, que permite busca por faixa. Ao salvar alterações ou excluir notas, arquivos de mídia candidatos só são removidos se não forem referenciados por notas, backups, snapshots de renomeação, cópias de recuperação ou notas excluídas.
 
 ## Falhas e cobertura
 
