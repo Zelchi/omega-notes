@@ -53,25 +53,111 @@ export const graphEdgeKey = (edge: Edge): string => JSON.stringify([edge.source.
 
 type EdgeCurve = { start: Point; control1: Point; control2: Point; end: Point };
 type EdgePoint = { point: Point; tangent: Point; speed: number };
+type EdgePorts = { start: EdgePoint; end: EdgePoint };
+type PortReference = { toward: Point; orderBy: Point };
+type EdgePortReferences = Partial<Record<keyof EdgePorts, PortReference>>;
 export type RoutedEdgeSegment = EdgeCurve & { startT: number; endT: number };
 type RouteAnchor = { t: number; point: Point; tangent: Point; speed: number };
 
-const edgeCurve = (edge: Edge, positions: Record<string, Point>, total: number): EdgeCurve => {
+const noteBoundary = (size: NodeSize, position: Point, toward: Point): EdgePoint => {
+	const center = { x: position.x + size.width / 2, y: position.y + size.height / 2 };
+	const dx = toward.x - center.x;
+	const dy = toward.y - center.y;
+	if (dx === 0 && dy === 0)
+		return { point: { x: center.x + size.width / 2, y: center.y }, tangent: { x: 1, y: 0 }, speed: 0 };
+	if (Math.abs(dx) >= Math.abs(dy)) {
+		const side = Math.sign(dx);
+		const y = Math.max(position.y, Math.min(position.y + size.height, center.y + dy * size.width / (2 * Math.abs(dx))));
+		return { point: { x: center.x + side * size.width / 2, y }, tangent: { x: side, y: 0 }, speed: 0 };
+	}
+	const side = Math.sign(dy);
+	const x = Math.max(position.x, Math.min(position.x + size.width, center.x + dx * size.height / (2 * Math.abs(dy))));
+	return { point: { x, y: center.y + side * size.height / 2 }, tangent: { x: 0, y: side }, speed: 0 };
+};
+
+const edgeBoundaryPorts = (
+	edges: Edge[],
+	positions: Record<string, Point>,
+	total: number,
+	references: ReadonlyMap<string, EdgePortReferences> = new Map(),
+): Map<string, EdgePorts> => {
+	type Side = "left" | "right" | "top" | "bottom";
+	type Port = { edgeKey: string; endpoint: keyof EdgePorts; side: Side; position: Point; size: NodeSize; port: EdgePoint; orderBy: Point };
+	const ports = new Map<string, EdgePorts>();
+	const groups = new Map<string, Port[]>();
+	const add = (edgeKey: string, endpoint: keyof EdgePorts, note: NoteSummary, position: Point, size: NodeSize, port: EdgePoint, orderBy: Point): void => {
+		const side: Side = Math.abs(port.tangent.x) >= Math.abs(port.tangent.y)
+			? port.tangent.x < 0 ? "left" : "right"
+			: port.tangent.y < 0 ? "top" : "bottom";
+		const key = JSON.stringify([note.id, side]);
+		const members = groups.get(key) ?? [];
+		members.push({ edgeKey, endpoint, side, position, size, port, orderBy });
+		groups.set(key, members);
+	};
+	for (const edge of edges) {
+		const edgeKey = graphEdgeKey(edge);
+		const sourceSize = nodeSize(edge.source), targetSize = nodeSize(edge.target);
+		const source = positions[edge.source.id] ?? defaultPosition(0, total, sourceSize);
+		const target = positions[edge.target.id] ?? defaultPosition(0, total, targetSize);
+		const sourceCenter = { x: source.x + sourceSize.width / 2, y: source.y + sourceSize.height / 2 };
+		const targetCenter = { x: target.x + targetSize.width / 2, y: target.y + targetSize.height / 2 };
+		const edgeReferences = references.get(edgeKey);
+		const startReference = edgeReferences?.start ?? { toward: targetCenter, orderBy: targetCenter };
+		const endReference = edgeReferences?.end ?? { toward: sourceCenter, orderBy: sourceCenter };
+		const start = noteBoundary(sourceSize, source, startReference.toward), end = noteBoundary(targetSize, target, endReference.toward);
+		ports.set(edgeKey, { start, end });
+		add(edgeKey, "start", edge.source, source, sourceSize, start, startReference.orderBy);
+		add(edgeKey, "end", edge.target, target, targetSize, end, endReference.orderBy);
+	}
+	for (const members of groups.values()) {
+		const side = members[0].side;
+		const vertical = side === "left" || side === "right";
+		members.sort((left, right) => (vertical ? left.orderBy.y - right.orderBy.y : left.orderBy.x - right.orderBy.x) || left.edgeKey.localeCompare(right.edgeKey));
+		const length = vertical ? members[0].size.height : members[0].size.width;
+		const spacing = Math.min(6, length / (members.length + 1));
+		const margin = (length - spacing * (members.length - 1)) / 2;
+		members.forEach(({ edgeKey, endpoint, position, size }, index) => {
+			const offset = margin + spacing * index;
+			const point = side === "left" ? { x: position.x, y: position.y + offset }
+				: side === "right" ? { x: position.x + size.width, y: position.y + offset }
+				: side === "top" ? { x: position.x + offset, y: position.y }
+				: { x: position.x + offset, y: position.y + size.height };
+			const tangent = side === "left" ? { x: -1, y: 0 }
+				: side === "right" ? { x: 1, y: 0 }
+				: side === "top" ? { x: 0, y: -1 }
+				: { x: 0, y: 1 };
+			const edgePorts = ports.get(edgeKey)!;
+			edgePorts[endpoint] = { point, tangent, speed: edgePorts[endpoint].speed };
+		});
+	}
+	return ports;
+};
+
+const safeHandle = (start: Point, end: Point, tangent: Point, requested: number): number => {
+	const dx = end.x - start.x, dy = end.y - start.y;
+	const distance = Math.hypot(dx, dy);
+	if (!distance || tangent.x * dx + tangent.y * dy <= 0) return 0;
+	return Math.min(requested, distance * 0.45);
+};
+
+const edgeCurve = (edge: Edge, positions: Record<string, Point>, total: number, ports?: EdgePorts): EdgeCurve => {
 	const sourceSize = nodeSize(edge.source);
 	const targetSize = nodeSize(edge.target);
 	const source = positions[edge.source.id] ?? defaultPosition(0, total, sourceSize);
 	const target = positions[edge.target.id] ?? defaultPosition(0, total, targetSize);
-	const startX = source.x + sourceSize.width / 2;
-	const startY = source.y + sourceSize.height / 2;
-	const endX = target.x + targetSize.width / 2;
-	const endY = target.y + targetSize.height / 2;
-	const curve = Math.max(55, Math.abs(endX - startX) * 0.35);
-	const direction = endX >= startX ? 1 : -1;
+	const sourceCenter = { x: source.x + sourceSize.width / 2, y: source.y + sourceSize.height / 2 };
+	const targetCenter = { x: target.x + targetSize.width / 2, y: target.y + targetSize.height / 2 };
+	const start = ports?.start ?? noteBoundary(sourceSize, source, targetCenter);
+	const end = ports?.end ?? noteBoundary(targetSize, target, sourceCenter);
+	const distance = Math.hypot(end.point.x - start.point.x, end.point.y - start.point.y);
+	const startHandle = safeHandle(start.point, end.point, start.tangent, distance * 0.35);
+	const endTangent = { x: -end.tangent.x, y: -end.tangent.y };
+	const endHandle = safeHandle(start.point, end.point, endTangent, distance * 0.35);
 	return {
-		start: { x: startX, y: startY },
-		control1: { x: startX + curve * direction, y: startY },
-		control2: { x: endX - curve * direction, y: endY },
-		end: { x: endX, y: endY },
+		start: start.point,
+		control1: { x: start.point.x + start.tangent.x * startHandle, y: start.point.y + start.tangent.y * startHandle },
+		control2: { x: end.point.x + end.tangent.x * endHandle, y: end.point.y + end.tangent.y * endHandle },
+		end: end.point,
 	};
 };
 
@@ -108,9 +194,8 @@ const routeCurve = (curve: EdgeCurve, anchors: readonly RouteAnchor[]): RoutedEd
 	return unique.slice(1).map((end, index) => {
 		const start = unique[index];
 		const span = end.t - start.t;
-		const distance = Math.hypot(end.point.x - start.point.x, end.point.y - start.point.y);
-		const startHandle = Math.min(start.speed * span / 3, distance * 0.55);
-		const endHandle = Math.min(end.speed * span / 3, distance * 0.55);
+		const startHandle = safeHandle(start.point, end.point, start.tangent, start.speed * span / 3);
+		const endHandle = safeHandle(start.point, end.point, end.tangent, end.speed * span / 3);
 		return {
 			startT: start.t,
 			endT: end.t,
@@ -208,9 +293,9 @@ const ZIP_TIE_DETACH_DISTANCE = 192;
 
 type ZipTieGeometry = {
 	placement: ZipTiePlacement;
-	direction: Point;
 	slots: Map<string, Point>;
 	samples: Map<string, EdgePoint>;
+	tangents: Map<string, Point>;
 };
 
 const zipTieGeometry = (
@@ -219,36 +304,63 @@ const zipTieGeometry = (
 	positions: Record<string, Point>,
 	total: number,
 	routeFor: (edgeKey: string) => readonly RoutedEdgeSegment[] | undefined = () => undefined,
+	curveFor: (edge: Edge) => EdgeCurve = (edge) => edgeCurve(edge, positions, total),
 ): ZipTieGeometry | undefined => {
 	if (tie.members.length < 2) return;
 	const samples = new Map<string, EdgePoint>();
 	for (const { edgeKey, t } of tie.members) {
 		const edge = edgesByKey.get(edgeKey);
 		if (!edge || !Number.isFinite(t) || t < 0 || t > 1) return;
-		samples.set(edgeKey, edgePointOnRoute(edgeCurve(edge, positions, total), routeFor(edgeKey), t));
+		samples.set(edgeKey, edgePointOnRoute(curveFor(edge), routeFor(edgeKey), t));
 	}
 	const points = [...samples.values()];
 	const center = points.reduce((sum, sample) => ({ x: sum.x + sample.point.x / points.length, y: sum.y + sample.point.y / points.length }), { x: 0, y: 0 });
 	const reference = samples.get([...samples.keys()].sort()[0]!)!.tangent;
-	const aligned = points.map(({ tangent }) => {
+	const aligned = [...samples].map(([edgeKey, { tangent }]) => {
 		const dot = tangent.x * reference.x + tangent.y * reference.y;
-		return dot < 0 ? { x: -tangent.x, y: -tangent.y } : tangent;
+		// A near-perpendicular fan is not evidence that a wire runs backward.
+		const sign = dot < -0.1 ? -1 : 1;
+		return { edgeKey, sign, tangent: { x: tangent.x * sign, y: tangent.y * sign } };
 	});
-	const direction = aligned.reduce((sum, tangent) => ({ x: sum.x + tangent.x, y: sum.y + tangent.y }), { x: 0, y: 0 });
+	const direction = aligned.reduce((sum, { tangent }) => ({ x: sum.x + tangent.x, y: sum.y + tangent.y }), { x: 0, y: 0 });
 	const directionLength = Math.hypot(direction.x, direction.y) || 1;
-	const normalizedDirection = { x: direction.x / directionLength, y: direction.y / directionLength };
+	let normalizedDirection = { x: direction.x / directionLength, y: direction.y / directionLength };
+	const reverseDirection = normalizedDirection.x < -1e-6 || (Math.abs(normalizedDirection.x) <= 1e-6 && normalizedDirection.y > 0);
+	if (reverseDirection)
+		normalizedDirection = { x: -normalizedDirection.x, y: -normalizedDirection.y };
+	const tangents = new Map(aligned.map(({ edgeKey, sign }) => {
+		const directionSign = sign * (reverseDirection ? -1 : 1);
+		return [edgeKey, { x: normalizedDirection.x * directionSign, y: normalizedDirection.y * directionSign }] as const;
+	}));
 	const normal = { x: -normalizedDirection.y, y: normalizedDirection.x };
-	const orderedKeys = [...samples.keys()].sort();
+	const projection = (point: Point): number => point.x * normal.x + point.y * normal.y;
+	const neighboringNoteProjection = (edgeKey: string): number => {
+		const edge = edgesByKey.get(edgeKey)!;
+		const sample = samples.get(edgeKey)!.point;
+		const center = (note: NoteSummary): Point => {
+			const position = positions[note.id] ?? defaultPosition(0, total, nodeSize(note));
+			const size = nodeSize(note);
+			return { x: position.x + size.width / 2, y: position.y + size.height / 2 };
+		};
+		const source = center(edge.source), target = center(edge.target);
+		return projection(Math.hypot(sample.x - source.x, sample.y - source.y) <= Math.hypot(sample.x - target.x, sample.y - target.y) ? source : target);
+	};
+	const orderedKeys = [...samples.keys()].sort((leftKey, rightKey) => {
+		const difference = projection(samples.get(rightKey)!.point) - projection(samples.get(leftKey)!.point);
+		if (Math.abs(difference) > 1e-4) return difference;
+		const noteDifference = neighboringNoteProjection(rightKey) - neighboringNoteProjection(leftKey);
+		return Math.abs(noteDifference) > 1e-4 ? noteDifference : leftKey.localeCompare(rightKey);
+	});
 	const slots = new Map(orderedKeys.map((edgeKey, index) => {
-		const offset = (index - (orderedKeys.length - 1) / 2) * ZIP_TIE_WIRE_SPACING;
+		const offset = ((orderedKeys.length - 1) / 2 - index) * ZIP_TIE_WIRE_SPACING;
 		return [edgeKey, { x: center.x + normal.x * offset, y: center.y + normal.y * offset }];
 	}));
 	const width = Math.max(18, (orderedKeys.length - 1) * ZIP_TIE_WIRE_SPACING + ZIP_TIE_MARGIN);
 	return {
 		placement: { ...center, angle: Math.atan2(normalizedDirection.y, normalizedDirection.x) * 180 / Math.PI + 90, width },
-		direction: normalizedDirection,
 		slots,
 		samples,
+		tangents,
 	};
 };
 
@@ -286,35 +398,57 @@ export const routeGraphEdges = (
 	ties: ZipTie[],
 ): { routesByKey: Map<string, RoutedEdgeSegment[]>; zipTies: { tie: ZipTie; placement: ZipTiePlacement }[] } => {
 	const edgesByKey = new Map(edges.map((edge) => [graphEdgeKey(edge), edge]));
-	const anchorsByKey = new Map<string, RouteAnchor[]>();
-	const routesByKey = new Map<string, RoutedEdgeSegment[]>();
-	const routeFor = (edgeKey: string): readonly RoutedEdgeSegment[] | undefined => {
-		const edge = edgesByKey.get(edgeKey);
-		if (!edge) return;
-		let route = routesByKey.get(edgeKey);
-		if (!route) {
-			route = routeCurve(edgeCurve(edge, positions, total), anchorsByKey.get(edgeKey) ?? []);
-			routesByKey.set(edgeKey, route);
+	type TieReference = { t: number; center: Point; slot: Point };
+	const buildRoutes = (boundaryPorts: Map<string, EdgePorts>) => {
+		const curveFor = (edge: Edge): EdgeCurve => edgeCurve(edge, positions, total, boundaryPorts.get(graphEdgeKey(edge)));
+		const anchorsByKey = new Map<string, RouteAnchor[]>();
+		const routesByKey = new Map<string, RoutedEdgeSegment[]>();
+		const tieReferencesByEdge = new Map<string, TieReference[]>();
+		const routeFor = (edgeKey: string): readonly RoutedEdgeSegment[] | undefined => {
+			const edge = edgesByKey.get(edgeKey);
+			if (!edge) return;
+			let route = routesByKey.get(edgeKey);
+			if (!route) {
+				route = routeCurve(curveFor(edge), anchorsByKey.get(edgeKey) ?? []);
+				routesByKey.set(edgeKey, route);
+			}
+			return route;
+		};
+		const zipTies: { tie: ZipTie; placement: ZipTiePlacement }[] = [];
+		for (const tie of ties) {
+			const geometry = zipTieGeometry(tie, edgesByKey, positions, total, routeFor, curveFor);
+			if (!geometry) continue;
+			zipTies.push({ tie, placement: geometry.placement });
+			for (const { edgeKey, t } of tie.members) {
+				const slot = geometry.slots.get(edgeKey);
+				const sample = geometry.samples.get(edgeKey);
+				const tangent = geometry.tangents.get(edgeKey);
+				if (!slot || !sample || !tangent) continue;
+				const anchors = anchorsByKey.get(edgeKey) ?? [];
+				anchors.push({ t, point: slot, tangent, speed: sample.speed });
+				anchorsByKey.set(edgeKey, anchors);
+				routesByKey.delete(edgeKey);
+				const references = tieReferencesByEdge.get(edgeKey) ?? [];
+				references.push({ t, center: geometry.placement, slot });
+				tieReferencesByEdge.set(edgeKey, references);
+			}
 		}
-		return route;
+		for (const edge of edges) routeFor(graphEdgeKey(edge));
+		return { routesByKey, zipTies, tieReferencesByEdge };
 	};
-	const renderedZipTies: { tie: ZipTie; placement: ZipTiePlacement }[] = [];
-	for (const tie of ties) {
-		const geometry = zipTieGeometry(tie, edgesByKey, positions, total, routeFor);
-		if (!geometry) continue;
-		renderedZipTies.push({ tie, placement: geometry.placement });
-		for (const { edgeKey, t } of tie.members) {
-			const point = geometry.slots.get(edgeKey);
-			const sample = geometry.samples.get(edgeKey);
-			if (!point || !sample) continue;
-			const anchors = anchorsByKey.get(edgeKey) ?? [];
-			anchors.push({ t, point, tangent: geometry.direction, speed: sample.speed });
-			anchorsByKey.set(edgeKey, anchors);
-			routesByKey.delete(edgeKey);
-		}
+	const initial = buildRoutes(edgeBoundaryPorts(edges, positions, total));
+	if (!ties.length) return { routesByKey: initial.routesByKey, zipTies: initial.zipTies };
+	const references = new Map<string, EdgePortReferences>();
+	for (const [edgeKey, entries] of initial.tieReferencesByEdge) {
+		const nearestToStart = entries.reduce((nearest, entry) => entry.t < nearest.t ? entry : nearest);
+		const nearestToEnd = entries.reduce((nearest, entry) => entry.t > nearest.t ? entry : nearest);
+		references.set(edgeKey, {
+			start: { toward: nearestToStart.center, orderBy: nearestToStart.slot },
+			end: { toward: nearestToEnd.center, orderBy: nearestToEnd.slot },
+		});
 	}
-	for (const edge of edges) routeFor(graphEdgeKey(edge));
-	return { routesByKey, zipTies: renderedZipTies };
+	const final = buildRoutes(edgeBoundaryPorts(edges, positions, total, references));
+	return { routesByKey: final.routesByKey, zipTies: final.zipTies };
 };
 
 export const zipTiesAfterNodeMove = (
