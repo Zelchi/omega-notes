@@ -8,7 +8,12 @@ import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { StudiesController } from "../model/controller";
 
-const StudyToolbar: Component<{ study: StudiesController; visible: boolean; aiEnabled: boolean; t: (key: TranslationKey) => string }> = props => {
+const StudyToolbar: Component<{
+	study: StudiesController;
+	visible: boolean;
+	aiEnabled: boolean;
+	t: (key: TranslationKey) => string;
+}> = props => {
 	const presence = createPresence(() => props.visible, 220);
 	let root: HTMLDivElement | undefined;
 	return <Show when={presence.present()}>

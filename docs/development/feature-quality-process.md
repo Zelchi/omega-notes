@@ -5,7 +5,7 @@
 
 ## Contexto atual
 
-- O desktop tem 19 pastas em `apps/desktop/frontend/src/features`; o inventário e os testes conhecidos estão no [índice da documentação](../readme.md).
+- O desktop tem 20 pastas em `apps/desktop/frontend/src/features`; o inventário e os testes conhecidos estão no [índice da documentação](../readme.md).
 - `.github/workflows/quality.yml` executa typecheck, testes desktop e testes Rust em pull requests e pushes para `main`; release e publicação do site permanecem em workflows próprios.
 - A documentação está separada entre features, arquitetura e desenvolvimento. Cada feature tem um arquivo Markdown plano `docs/features/<slug>.md`, usando o slug de `apps/desktop/frontend/src/features/`; não criar `README.md` nem subpastas por feature.
 

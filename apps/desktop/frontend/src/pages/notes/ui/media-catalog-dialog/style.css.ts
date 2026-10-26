@@ -19,8 +19,10 @@ export const styles = {
 		isolation: "isolate",
 		display: "flex",
 		flexDirection: "column",
-		width: "min(760px, 100%)",
-		minHeight: 340,
+		boxSizing: "border-box",
+		width: "min(640px, 100%)",
+		height: "min(680px, calc(100dvh - 80px))",
+		minHeight: 0,
 		maxHeight: "min(680px, calc(100dvh - 80px))",
 		padding: 16,
 		backgroundColor: "var(--surface-panel)",
@@ -69,14 +71,9 @@ export const styles = {
 			"&::placeholder": { color: "var(--subtle)" },
 		},
 	}),
-	cleanupStatus: style({
+	catalogStatus: style({
 		margin: "8px 0 2px",
 		color: "var(--text-control)",
-		fontSize: 11,
-	}),
-	cleanupError: style({
-		margin: "8px 0 2px",
-		color: "var(--danger)",
 		fontSize: 11,
 	}),
 	loadError: style({
@@ -90,11 +87,11 @@ export const styles = {
 	}),
 	grid: style({
 		display: "grid",
-		flex: 1,
+		flex: "1 1 auto",
 		width: "100%",
 		minWidth: 0,
 		minHeight: 0,
-		gridTemplateColumns: "repeat(auto-fill, minmax(132px, 1fr))",
+		gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
 		alignContent: "start",
 		gap: 8,
 		marginTop: 4,

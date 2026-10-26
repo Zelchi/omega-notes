@@ -45,6 +45,7 @@ export const toolbarStyles = {
 			"&:active:not(:disabled)": { transform: "scale(0.94)" },
 		},
 	}),
+	status: style({ maxWidth: 180, paddingInline: 5, color: "var(--text-control)", fontSize: 10, lineHeight: 1.25 }),
 	divider: style({
 		width: 1,
 		flexShrink: 0,

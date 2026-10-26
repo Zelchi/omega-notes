@@ -39,7 +39,7 @@ const NoteAudioPlayer: Component<NoteAudioPlayerProps> = (props) => {
 				onEmptied={player.reset}
 				onDurationChange={player.sync}
 				onTimeUpdate={player.sync}
-				onError={() => player.setFailed(true)}
+				onError={() => { player.setFailed(true); player.setPlaying(false); }}
 				onPlay={() => { player.setPlaying(true); player.setFailed(false); }}
 				onPause={() => player.setPlaying(false)}
 				onEnded={() => player.setPlaying(false)}

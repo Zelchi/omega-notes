@@ -42,6 +42,10 @@ pub(super) fn is_safe_target_url(url: &Url) -> bool {
         })
 }
 
+pub(super) fn is_safe_https_target_url(url: &Url) -> bool {
+    url.scheme() == "https" && is_safe_target_url(url)
+}
+
 pub(super) fn is_public_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(ip) => {
@@ -99,6 +103,24 @@ pub(super) fn build_client() -> Result<Client, reqwest::Error> {
     });
     Client::builder()
         .timeout(Duration::from_secs(8))
+        .connect_timeout(Duration::from_secs(4))
+        .no_proxy()
+        .redirect(redirects)
+        .dns_resolver(PublicNetworkResolver)
+        .user_agent(concat!("OmegaNotes/", env!("CARGO_PKG_VERSION")))
+        .build()
+}
+
+pub(super) fn build_media_stream_client() -> Result<Client, reqwest::Error> {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let redirects = Policy::custom(|attempt| {
+        if attempt.previous().len() > 5 || !is_safe_https_target_url(attempt.url()) {
+            attempt.error(io::Error::other("Unsafe media stream redirect"))
+        } else {
+            attempt.follow()
+        }
+    });
+    Client::builder()
         .connect_timeout(Duration::from_secs(4))
         .no_proxy()
         .redirect(redirects)

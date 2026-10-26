@@ -53,7 +53,7 @@ const NoteVideoPlayer: Component<NoteVideoPlayerProps> = (props) => {
 				tabIndex={-1}
 				onLoadedMetadata={(event) => { player.sync(); props.onLoadedMetadata(event); }}
 				onEmptied={player.reset}
-				onError={() => player.setFailed(true)}
+				onError={() => { player.setFailed(true); player.setPlaying(false); }}
 				onDurationChange={player.sync}
 				onTimeUpdate={player.sync}
 				onPlay={() => { player.setPlaying(true); player.setFailed(false); }}

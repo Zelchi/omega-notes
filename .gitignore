@@ -34,6 +34,7 @@ test-results/
 *.keystore
 
 # Estado local de ferramentas e agentes
+/AGENTS.md
 .codex/
 .superpowers/
 .idea/

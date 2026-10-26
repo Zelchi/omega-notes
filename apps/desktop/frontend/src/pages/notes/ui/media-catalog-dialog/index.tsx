@@ -1,19 +1,21 @@
 import Button from "@/shared/ui/button";
 import Input from "@/shared/ui/input";
+import Tooltip from "@/shared/ui/tooltip";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { For, Show, type Component } from "solid-js";
+import { Portal } from "solid-js/web";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
-import { isDesktopRuntime } from "@/shared/lib/desktop";
 import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import type { MediaCatalogViewProps } from "./controller";
 import { styles } from "./style.css.ts";
 
 const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 	const backdropDismiss = createBackdropDismiss(() => props.catalog.close());
+	let mediaGrid: HTMLDivElement | undefined;
 
 	return (
-		<div
+		<Portal mount={document.querySelector("[data-omega-main]") ?? document.body}><div
 			class={styles.backdrop}
 			inert={props.exiting} aria-hidden={props.exiting || undefined}
 			ref={(element) => {
@@ -42,32 +44,6 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 						{props.t("mediaCatalog")}
 					</h2>
 					<div class={styles.actions}>
-						<Show when={isDesktopRuntime()}>
-							<Button
-								class={styles.action}
-								type="button"
-								aria-label={props.t("cleanupMedia")}
-								disabled={props.catalog.cleaning()}
-								onClick={() => void props.catalog.cleanOrphanedMedia()}
-							>
-								<svg
-									aria-hidden="true"
-									width="16"
-									height="16"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="1.7"
-									stroke-linecap="round"
-									stroke-linejoin="round"
-								>
-									<path d="m3 21 9-9" />
-									<path d="M8 16 4 12l6-6 4 4" />
-									<path d="m14 8 2-2 4 4-2 2" />
-									<path d="m13 5 2-2 6 6-2 2" />
-								</svg>
-							</Button>
-						</Show>
 						<Button
 							class={styles.action}
 							type="button"
@@ -115,15 +91,8 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 					aria-label={props.t("searchMedia")}
 					autofocus
 				/>
-				<Show when={props.catalog.cleanupStatus()}>
-					{(status) => (
-						<p class={status().failed ? styles.cleanupError : styles.cleanupStatus} role="status">
-							{status().message}
-						</p>
-					)}
-				</Show>
 				<Show when={props.catalog.loadingCatalog()}>
-					<p class={styles.cleanupStatus} role="status">{props.t("mediaCatalogLoading")}</p>
+					<p class={styles.catalogStatus} role="status">{props.t("mediaCatalogLoading")}</p>
 				</Show>
 				<Show when={props.catalog.loadError()}>
 					<div class={styles.loadError} role="alert">
@@ -133,14 +102,13 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 						</Button>
 					</div>
 				</Show>
-				<div class={styles.grid}>
+				<div class={styles.grid} ref={(element) => { mediaGrid = element; }}>
 					<For each={props.catalog.filtered()}>
 						{(media) => (
 							<Button
 								class={styles.item}
 								type="button"
 								aria-label={`${props.t(media.source.type === "audio" ? "audioMedia" : media.source.type === "video" ? "videoMedia" : "imageMedia")}: ${media.noteTitles.join(", ")}`}
-								title={media.noteTitles.join(", ")}
 								onClick={() => props.catalog.selectMedia(media)}
 							>
 								<Show
@@ -166,8 +134,9 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 						)}
 					</For>
 				</div>
+				<Tooltip root={() => mediaGrid} enabled={!props.exiting} />
 			</section>
-		</div>
+		</div></Portal>
 	);
 };
 

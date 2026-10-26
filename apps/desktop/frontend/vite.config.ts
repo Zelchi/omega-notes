@@ -9,7 +9,7 @@ export default defineConfig({
         name: "desktop-csp",
         transformIndexHtml(html, context) {
             if (context.server) return html;
-            return [{ tag: "meta", attrs: { "http-equiv": "Content-Security-Policy", content: "default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob: data: http://127.0.0.1:*; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'" }, injectTo: "head" }];
+            return [{ tag: "meta", attrs: { "http-equiv": "Content-Security-Policy", content: "default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob: data: http://127.0.0.1:*; font-src 'self' data:; connect-src 'self' https://*.api.radio-browser.info https://api.somafm.com; object-src 'none'; base-uri 'none'; frame-src 'none'" }, injectTo: "head" }];
         },
     }],
 	resolve: {

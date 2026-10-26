@@ -59,6 +59,39 @@ pub(crate) async fn fetch_url_title(url: String) -> Result<Option<String>, Strin
         .map_err(|_| "URL_FETCH_FAILED".to_string())
 }
 
+pub(crate) fn parse_public_https_url(value: &str) -> Result<Url, String> {
+    let url = Url::parse(value).map_err(|_| "MUSIC_URL_INVALID".to_string())?;
+    if !client::is_safe_https_target_url(&url) {
+        return Err("MUSIC_URL_INVALID".into());
+    }
+    Ok(url)
+}
+
+pub(crate) async fn fetch_audio_stream(url: Url) -> Result<reqwest::Response, String> {
+    if !client::is_safe_https_target_url(&url) {
+        return Err("MUSIC_URL_INVALID".into());
+    }
+    static CLIENT: OnceLock<Client> = OnceLock::new();
+    let client = if let Some(client) = CLIENT.get() {
+        client.clone()
+    } else {
+        let client = client::build_media_stream_client().map_err(|_| "MUSIC_STREAM_FAILED")?;
+        let _ = CLIENT.set(client.clone());
+        client
+    };
+    let response = client
+        .get(url)
+        .header(header::ACCEPT, "audio/mpeg")
+        .send()
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .map_err(|_| "MUSIC_STREAM_FAILED".to_string())?;
+    if !response.status().is_success() {
+        return Err("MUSIC_STREAM_FAILED".into());
+    }
+    Ok(response)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,5 +168,19 @@ mod tests {
         let private = "192.168.1.1:0".parse().unwrap();
         assert!(client::validate_public_addresses(vec![public]).is_ok());
         assert!(client::validate_public_addresses(vec![public, private]).is_err());
+    }
+
+    #[test]
+    fn music_stream_urls_must_be_public_https_targets() {
+        assert!(parse_public_https_url("https://radio.example/live.mp3").is_ok());
+        for value in [
+            "http://radio.example/live.mp3",
+            "https://127.0.0.1/live.mp3",
+            "https://192.168.1.1/live.mp3",
+            "https://user:pass@radio.example/live.mp3",
+            "file:///etc/passwd",
+        ] {
+            assert!(parse_public_https_url(value).is_err(), "{value}");
+        }
     }
 }

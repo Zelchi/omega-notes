@@ -1,5 +1,6 @@
 import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
 import { DEFAULT_AUDIO_VOLUME } from "@/entities/note";
+import { setNoteMediaPlaying } from "@/shared/lib/note-media-playback";
 
 const clampVolume = (volume: number): number =>
 	Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : DEFAULT_AUDIO_VOLUME;
@@ -22,10 +23,14 @@ export const useMediaPlayerController = (
 	const [duration, setDuration] = createSignal(0);
 	const [volume, setVolume] = createSignal(clampVolume(initialVolume()));
 	const [muted, setMuted] = createSignal(volume() === 0);
-	const [playing, setPlaying] = createSignal(false);
+	const [playing, setPlayingState] = createSignal(false);
 	const [failed, setFailed] = createSignal(false);
 	const [volumeControlOpen, setVolumeControlOpen] = createSignal(false);
 	let media: HTMLMediaElement | undefined;
+	const setPlaying = (next: boolean): void => {
+		setPlayingState(next);
+		if (media) setNoteMediaPlaying(media, next);
+	};
 
 	createEffect(() => {
 		const storedVolume = clampVolume(initialVolume());
@@ -75,7 +80,11 @@ export const useMediaPlayerController = (
 		onVolumeChange(Number(event.currentTarget.value));
 	};
 
-	onCleanup(() => media?.pause());
+	onCleanup(() => {
+		if (!media) return;
+		media.pause();
+		setPlaying(false);
+	});
 
 	return {
 		failed,
@@ -94,6 +103,10 @@ export const useMediaPlayerController = (
 		volumeControlOpen,
 		formatTime,
 		setMedia: (element: HTMLMediaElement) => {
+			if (media && media !== element) {
+				media.pause();
+				setPlaying(false);
+			}
 			media = element;
 			const storedVolume = clampVolume(initialVolume());
 			media.volume = storedVolume;

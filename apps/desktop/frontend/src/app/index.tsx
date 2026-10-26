@@ -9,6 +9,7 @@ import FloatingSearch from "./ui/floating-search";
 import { useAppController } from "./controller";
 import { styles } from "./style.css.ts";
 import { BackgroundThemeProvider } from "@/shared/ui/ascii-backdrop";
+import { LofiPlayerProvider } from "@/features/lofi-player/model/player";
 
 const StudyToolbar = lazy(() => import("@/features/study-notes/ui/study-toolbar"));
 const Canvas = lazy(() => import("@/pages/canvas/ui/canvas"));
@@ -33,7 +34,7 @@ const mountOnFirstOpen = (isOpen: () => boolean) => {
 	return mounted;
 };
 
-const App: Component = () => {
+const AppView: Component = () => {
 	const app = useAppController();
 	const studyToolbarVisible = () => Boolean(app.vaults.activeVaultId()) && !app.notes.loading() && app.navigation.mode() === "view" && !app.navigation.navigating();
 	const studyToolbarMounted = mountOnFirstOpen(studyToolbarVisible);
@@ -48,7 +49,7 @@ const App: Component = () => {
 
 	return (
 		<BackgroundThemeProvider value={app.preferences.backgroundTheme}>
-			<>
+				<>
 				<div class={styles.shell} inert={app.updates.installing()} onContextMenu={(event) => event.preventDefault()} data-omega-app-shell>
 					<WindowTitlebar
 						maximized={app.windowControls.maximized()}
@@ -133,9 +134,9 @@ const App: Component = () => {
 											mode={app.navigation.mode()}
 											t={app.t}
 											centerOnMount={app.navigation.canvasCenterOnMount()}
-											onCanvasMount={() => app.navigation.setCenteredAtLaunch(true)}
-											hideCanvasControls={app.preferences.hideCanvasControls()}
-										/>
+							onCanvasMount={() => app.navigation.setCenteredAtLaunch(true)}
+							hideCanvasControls={app.preferences.hideCanvasControls()}
+						/>
 									</Show>
 								</Suspense>
 							</div>
@@ -298,9 +299,11 @@ const App: Component = () => {
 				<Show when={app.updates.installing()}>
 					<div class={styles.updateOverlay} role="alert" aria-live="assertive">{app.t("installingUpdate")}</div>
 				</Show>
-			</>
+				</>
 		</BackgroundThemeProvider>
 	);
 };
+
+const App: Component = () => <LofiPlayerProvider><AppView /></LofiPlayerProvider>;
 
 export default App;

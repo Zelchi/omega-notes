@@ -25,7 +25,8 @@ let backend;
 let quitting = false;
 let shutdown;
 let trayRunning = false;
-let trayLabels = { show: 'Show', hide: 'Hide', start: 'Start', pause: 'Pause', reset: 'Reset', next: 'Next', update: 'Update', exit: 'Exit' };
+let trayMusicPlaying = false;
+let trayLabels = { show: 'Show', hide: 'Hide', start: 'Start timer', pause: 'Pause timer', reset: 'Reset timer', musicPlay: 'Play music', musicPause: 'Pause music', musicNext: 'Next station', update: 'Update', exit: 'Exit' };
 const emit = (event, payload) => { if (window && !window.isDestroyed()) window.webContents.send('omega:event', event, payload); };
 const show = () => { if (window.isMinimized()) window.restore(); window.show(); window.focus(); refreshTray(); };
 const hide = () => { if (tray) window.hide(); else window.minimize(); refreshTray(); };
@@ -36,7 +37,9 @@ function refreshTray() {
         { type: 'separator' },
         { label: trayRunning ? trayLabels.pause : trayLabels.start, click: () => emit('omega-tray-action', 'pomodoro-toggle') },
         { label: trayLabels.reset, click: () => emit('omega-tray-action', 'pomodoro-reset') },
-        { label: trayLabels.next, click: () => emit('omega-tray-action', 'pomodoro-next') },
+        { type: 'separator' },
+        { label: trayMusicPlaying ? trayLabels.musicPause : trayLabels.musicPlay, click: () => emit('omega-tray-action', 'music-play-pause') },
+        { label: trayLabels.musicNext, click: () => emit('omega-tray-action', 'music-next') },
         { type: 'separator' },
         { label: trayLabels.update, click: () => { show(); emit('omega-tray-action', 'update'); } },
         { type: 'separator' },
@@ -91,8 +94,8 @@ async function invoke(command, args) {
             if (typeof args.color !== 'string' || !/^#[\da-f]{6}([\da-f]{2})?$/i.test(args.color)) throw new Error('Invalid window color');
             window.setBackgroundColor(args.color); return;
         case 'configure_tray_menu':
-            if (!args.labels || Object.keys(trayLabels).some(key => typeof args.labels[key] !== 'string' || !args.labels[key].trim() || args.labels[key].length > 160) || typeof args.pomodoroRunning !== 'boolean') throw new Error('Invalid tray configuration');
-            trayLabels = args.labels; trayRunning = args.pomodoroRunning; refreshTray(); return;
+            if (!args.labels || Object.keys(trayLabels).some(key => typeof args.labels[key] !== 'string' || !args.labels[key].trim() || args.labels[key].length > 160) || typeof args.pomodoroRunning !== 'boolean' || typeof args.musicPlaying !== 'boolean') throw new Error('Invalid tray configuration');
+            trayLabels = args.labels; trayRunning = args.pomodoroRunning; trayMusicPlaying = args.musicPlaying; refreshTray(); return;
         case 'dialog_confirm': {
             if (typeof args.message !== 'string' || args.message.length > 32_000) throw new Error('Invalid dialog message');
             const options = args.options || {};

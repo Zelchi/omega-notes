@@ -24,6 +24,7 @@ import { useTemporaryNoteReading } from "@/features/temporary-note-reading";
 import { disposeSounds, prepareSounds } from "@/shared/ui/sound";
 import { useKanban } from "@/features/manage-kanban/model/controller";
 import { usePomodoro } from "@/features/pomodoro/model/controller";
+import { useLofiPlayer } from "@/features/lofi-player/model/player";
 import { useGambiarraTerminal } from "@/features/gambiarra-terminal/model/controller";
 import { syncTerminalInstructions } from "@/features/gambiarra-terminal/api/terminal.repository";
 import type { SettingsCategory } from "@/features/change-preferences/model/preferences";
@@ -55,6 +56,7 @@ const createLazyController = <T,>(loadModule: () => Promise<() => T>) => {
 };
 
 export const useAppController = () => {
+	const lofiPlayer = useLofiPlayer();
 	const vaults = useVaults();
 	const preferences = usePreferences();
 	const kanban = useKanban(vaults.activeVaultId);
@@ -81,14 +83,16 @@ export const useAppController = () => {
 	createEffect(() => {
 		void configureTrayMenu({
 			show: t("trayShow"),
-		hide: t("trayHide"),
-			start: t("pomodoroStart"),
-			pause: t("pomodoroPause"),
-			reset: t("pomodoroReset"),
-			next: t("trayNext"),
+			hide: t("trayHide"),
+			start: t("trayPomodoroStart"),
+			pause: t("trayPomodoroPause"),
+			reset: t("trayPomodoroReset"),
+			musicPlay: t("musicPlayerPlay"),
+			musicPause: t("musicPlayerPause"),
+			musicNext: t("musicPlayerNext"),
 			update: t("updateAction"),
 			exit: t("trayExit"),
-		}, pomodoro.running()).catch(console.error);
+		}, pomodoro.running(), lofiPlayer.isActive()).catch(console.error);
 	});
 	const navigation = useNoteNavigationController({
 		notes,
@@ -395,6 +399,12 @@ export const useAppController = () => {
 		onCleanup(() => cancelAnimationFrame(frame));
 	});
 
+	const toggleTrayMusic = () => {
+		if (lofiPlayer.isActive()) { lofiPlayer.toggleMute(); return; }
+		if (lofiPlayer.muted()) lofiPlayer.toggleMute();
+		lofiPlayer.togglePlayback();
+	};
+
 	onMount(() => {
 		prepareSounds();
 		onCleanup(disposeSounds);
@@ -404,7 +414,8 @@ export const useAppController = () => {
 			switch (action) {
 				case "pomodoro-toggle": pomodoro.running() ? pomodoro.pause() : pomodoro.start(); break;
 				case "pomodoro-reset": pomodoro.reset(); break;
-				case "pomodoro-next": pomodoro.next(); break;
+				case "music-play-pause": toggleTrayMusic(); break;
+				case "music-next": lofiPlayer.nextSource(); break;
 				case "update": void updates.activate(); break;
 				case "exit": void windowControls.exit(); break;
 			}

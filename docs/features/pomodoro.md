@@ -2,9 +2,11 @@
 
 ## Ciclo de vida
 
-O timer é global à instalação: foco, pausa curta, pausa longa, ciclos, restante e prazo absoluto ficam no estado nativo do app. Ao iniciar, o backend persiste o prazo; ao reabrir, calcula o tempo restante e avança a fase se o prazo expirou. A interface consulta o timer enquanto está rodando e a bandeja pode iniciar, pausar, reiniciar ou avançar a fase.
+O timer é global à instalação: foco, pausa curta, pausa longa, ciclos, restante e prazo absoluto ficam no estado nativo do app. Ao iniciar, o backend persiste o prazo; ao reabrir, calcula o tempo restante e avança a fase se o prazo expirou. A interface consulta o timer enquanto está rodando e a bandeja pode iniciar, pausar e reiniciar o relógio. A bandeja também oferece mute/unmute da Rádio lo-fi e troca de estação.
 
 A lista To Do é independente do timer e pertence ao vault. Criar, concluir, renomear, reordenar e remover itens salvam uma lista validada por vault. Ocultar o painel preserva timer e tarefas.
+
+A Rádio lo-fi fica embutida no topo do painel, antes do timer; sua reprodução é global ao app e continua ao fechar o Pomodoro.
 
 ## Disponibilidade e riscos
 
@@ -20,4 +22,4 @@ Configurações do timer ficam no armazenamento local da instalação, estado do
 - [Armazenamento de tarefas](../../apps/desktop/frontend/src/features/pomodoro/api/tasks.repository.ts)
 - [Estado nativo do timer](../../apps/desktop/backend/src/pomodoro.rs)
 - [Tarefas por vault](../../apps/desktop/backend/src/vaults/pomodoro_tasks.rs)
-- [Acesso pela bandeja](../../apps/desktop/backend/src/tray.rs)
+- [Acesso pela bandeja Electron](../../apps/desktop/bridge/electron/main.mjs) e [integração Tauri](../../apps/desktop/bridge/tauri/src/main.rs)

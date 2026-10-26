@@ -239,6 +239,10 @@ pub(crate) async fn dispatch(
             .await?,
         )
         .map_err(|error| error.to_string()),
+        "music_stream_url" => serde_json::to_value(
+            crate::media::commands::music_stream_url(app.clone(), argument(&args, "url")?).await?,
+        )
+        .map_err(|error| error.to_string()),
         "read_note_image" => serde_json::to_value(
             crate::images::commands::read_note_image(
                 app.clone(),

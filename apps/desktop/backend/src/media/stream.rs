@@ -1,3 +1,4 @@
+use reqwest::Url;
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::net::{Ipv4Addr, TcpListener, TcpStream};
@@ -5,7 +6,6 @@ use std::path::PathBuf;
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-
 use uuid::Uuid;
 
 const MAX_REQUEST_BYTES: usize = 16 * 1024;
@@ -17,6 +17,7 @@ const RESPONSE_WRITE_TIMEOUT: Duration = Duration::from_secs(15);
 pub(crate) struct MediaStream {
     port: u16,
     token: String,
+    remote_source: Arc<Mutex<Option<(String, Url)>>>,
 }
 
 impl MediaStream {
@@ -27,6 +28,7 @@ impl MediaStream {
         let port = listener.local_addr()?.port();
         let token = Uuid::new_v4().to_string();
         let server_token = token.clone();
+        let remote_source = Arc::new(Mutex::new(None));
         let resolve_media_path = Arc::new(resolve_media_path);
         let (sender, receiver) = mpsc::sync_channel::<TcpStream>(MAX_QUEUED_REQUESTS);
         let receiver = Arc::new(Mutex::new(receiver));
@@ -34,6 +36,7 @@ impl MediaStream {
         for worker_id in 0..(REQUEST_WORKERS + 1) {
             let receiver = Arc::clone(&receiver);
             let resolve_media_path = Arc::clone(&resolve_media_path);
+            let remote_source = Arc::clone(&remote_source);
             let token = server_token.clone();
             thread::Builder::new()
                 .name(format!("omega-media-request-{worker_id}"))
@@ -45,7 +48,8 @@ impl MediaStream {
                     let Ok(mut stream) = connection else {
                         break;
                     };
-                    let _ = serve_request(&mut stream, &*resolve_media_path, &token);
+                    let _ =
+                        serve_request(&mut stream, &*resolve_media_path, &remote_source, &token);
                 })?;
         }
 
@@ -62,7 +66,11 @@ impl MediaStream {
                 }
             })?;
 
-        Ok(Self { port, token })
+        Ok(Self {
+            port,
+            token,
+            remote_source,
+        })
     }
 
     pub(crate) fn url(&self, media_type: &str, media_id: &str, extension: &str) -> String {
@@ -71,11 +79,25 @@ impl MediaStream {
             self.port, self.token,
         )
     }
+
+    pub(crate) fn remote_url(&self, source: Url) -> Result<String, String> {
+        let id = Uuid::new_v4().to_string();
+        *self
+            .remote_source
+            .lock()
+            .map_err(|_| "Não foi possível preparar a estação.".to_string())? =
+            Some((id.clone(), source));
+        Ok(format!(
+            "http://127.0.0.1:{}/music/{}/{id}",
+            self.port, self.token
+        ))
+    }
 }
 
 fn serve_request(
     stream: &mut TcpStream,
     resolve_media_path: &impl Fn(&str, &str) -> Result<PathBuf, String>,
+    remote_source: &Mutex<Option<(String, Url)>>,
     token: &str,
 ) -> io::Result<()> {
     stream.set_write_timeout(Some(RESPONSE_WRITE_TIMEOUT))?;
@@ -92,10 +114,7 @@ fn serve_request(
         }
         Err(error) => return Err(error),
     };
-    let request = match std::str::from_utf8(&request) {
-        Ok(request) => request,
-        Err(_) => return respond_empty(stream, "400 Bad Request", &[]),
-    };
+    let request = String::from_utf8_lossy(&request);
     let mut lines = request.split("\r\n");
     let mut request_line = lines.next().unwrap_or_default().split_ascii_whitespace();
     let method = request_line.next().unwrap_or_default();
@@ -129,6 +148,19 @@ fn serve_request(
         if name.eq_ignore_ascii_case("range") && range_header.replace(value.trim()).is_some() {
             return respond_empty(stream, "400 Bad Request", &[]);
         }
+    }
+
+    if let Some(source_id) = parse_music_path(path, token) {
+        let source = remote_source.lock().ok().and_then(|current| {
+            current
+                .as_ref()
+                .filter(|(id, _)| id == source_id)
+                .map(|(_, url)| url.clone())
+        });
+        let Some(source) = source else {
+            return respond_empty(stream, "404 Not Found", &[]);
+        };
+        return serve_remote_audio(stream, source, method == "HEAD");
     }
 
     let Some((media_type, media_id, extension)) = parse_media_path(path, token) else {
@@ -195,6 +227,49 @@ fn serve_request(
         let mut file = file;
         file.seek(SeekFrom::Start(start))?;
         io::copy(&mut file.take(length), stream)?;
+    }
+    Ok(())
+}
+
+fn serve_remote_audio(stream: &mut TcpStream, source: Url, head: bool) -> io::Result<()> {
+    let mut response = match crate::runtime::block_on(crate::web::fetch_audio_stream(source)) {
+        Ok(response) => response,
+        Err(_) => return respond_empty(stream, "502 Bad Gateway", &[]),
+    };
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("audio/mpeg");
+    let content_length = response.content_length();
+    write!(
+        stream,
+        "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nConnection: close\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n"
+    )?;
+    if let Some(length) = content_length {
+        write!(stream, "Content-Length: {length}\r\n")?;
+    } else {
+        write!(stream, "Transfer-Encoding: chunked\r\n")?;
+    }
+    stream.write_all(b"\r\n")?;
+    if head {
+        return Ok(());
+    }
+
+    while let Some(chunk) = crate::runtime::block_on(response.chunk())
+        .map_err(|error| io::Error::other(error.to_string()))?
+    {
+        if content_length.is_none() {
+            write!(stream, "{:X}\r\n", chunk.len())?;
+            stream.write_all(&chunk)?;
+            stream.write_all(b"\r\n")?;
+        } else {
+            stream.write_all(&chunk)?;
+        }
+        stream.flush()?;
+    }
+    if content_length.is_none() {
+        stream.write_all(b"0\r\n\r\n")?;
     }
     Ok(())
 }
@@ -271,6 +346,20 @@ fn parse_media_path<'a>(path: &'a str, token: &str) -> Option<(&'a str, &'a str,
     let (media_id, extension) = filename.rsplit_once('.')?;
     Uuid::parse_str(media_id).ok()?;
     Some((media_type, media_id, extension))
+}
+
+fn parse_music_path<'a>(path: &'a str, token: &str) -> Option<&'a str> {
+    let path = path.split('?').next()?;
+    let mut segments = path.strip_prefix("/music/")?.split('/');
+    if segments.next()? != token {
+        return None;
+    }
+    let source_id = segments.next()?;
+    if segments.next().is_some() {
+        return None;
+    }
+    Uuid::parse_str(source_id).ok()?;
+    Some(source_id)
 }
 
 fn media_content_type(media_type: &str, extension: &str) -> Option<&'static str> {
@@ -362,6 +451,34 @@ mod tests {
     }
 
     #[test]
+    fn music_path_requires_the_token_and_a_source_id() {
+        const SOURCE_ID: &str = "018f4f1a-7b2c-7abc-8def-0123456789ab";
+        assert_eq!(
+            parse_music_path(&format!("/music/{TOKEN}/{SOURCE_ID}?player=1"), TOKEN),
+            Some(SOURCE_ID),
+        );
+        assert!(parse_music_path(&format!("/music/wrong-token/{SOURCE_ID}"), TOKEN).is_none());
+        assert!(parse_music_path(&format!("/music/{TOKEN}/not-a-uuid"), TOKEN).is_none());
+        assert!(parse_music_path(&format!("/music/{TOKEN}/{SOURCE_ID}/extra"), TOKEN).is_none());
+    }
+
+    #[test]
+    fn remote_sources_are_exposed_only_through_the_local_tokenized_server() {
+        let source = Url::parse("https://radio.example/live.mp3").unwrap();
+        let stream = MediaStream {
+            port: 1234,
+            token: TOKEN.into(),
+            remote_source: Arc::new(Mutex::new(None)),
+        };
+        let local_url = Url::parse(&stream.remote_url(source.clone()).unwrap()).unwrap();
+        let source_id = parse_music_path(local_url.path(), TOKEN).unwrap();
+        let registered = stream.remote_source.lock().unwrap().clone();
+        assert_eq!(local_url.host_str(), Some("127.0.0.1"));
+        assert_eq!(local_url.port(), Some(1234));
+        assert_eq!(registered, Some((source_id.to_string(), source)));
+    }
+
+    #[test]
     fn parses_single_byte_ranges_and_rejects_invalid_ranges() {
         for (header, expected) in [
             ("bytes=0-2", Some((0, 2))),
@@ -384,7 +501,7 @@ mod tests {
     }
 
     #[test]
-    fn serves_the_requested_bytes_with_partial_content_headers() {
+    fn serves_media_when_user_agent_contains_non_utf8_bytes() {
         let directory = tempfile::tempdir().unwrap();
         let media_path = directory.path().join("sample.mp4");
         std::fs::write(&media_path, b"0123456789").unwrap();
@@ -403,6 +520,7 @@ mod tests {
                         Err("media not found".into())
                     }
                 },
+                &Mutex::new(None),
                 &token,
             )
             .unwrap();
@@ -412,11 +530,15 @@ mod tests {
         client
             .set_read_timeout(Some(RESPONSE_WRITE_TIMEOUT))
             .unwrap();
-        write!(
-            client,
-            "GET /media/{TOKEN}/video/{MEDIA_ID}.mp4 HTTP/1.1\r\nHost: localhost\r\nRange: bytes=2-5\r\n\r\n"
-        )
-        .unwrap();
+        client
+            .write_all(
+                b"GET /media/stream-token/video/018f4f1a-7b2c-7abc-8def-0123456789ab.mp4 HTTP/1.1\r\nHost: localhost\r\nUser-Agent: ",
+            )
+            .unwrap();
+        client.write_all(&[0xd4]).unwrap();
+        client
+            .write_all(b"megaNotes/0.5.1\r\nRange: bytes=2-5\r\n\r\n")
+            .unwrap();
         let mut response = Vec::new();
         client.read_to_end(&mut response).unwrap();
         server.join().unwrap();
