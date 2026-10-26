@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## v0.5.2
+
+### Canvas
+
+- Crie, edite, mova e desfaça alterações em presilhas para organizar os fios; as conexões passam pela presilha mais próxima.
+
+### Música e estudos
+
+- Rádio lo-fi com estações alternativas, controles no painel Pomodoro e na bandeja, e áudio integrado ao volume das mídias das notas.
+- Ajustes no painel Pomodoro e nos fluxos do catálogo e da importação de mídias, incluindo prévias de vídeo pelo ponto médio.
+
+### Atualizações
+
+- O Electron reabre o aplicativo ao concluir a instalação de uma atualização.
+
+### Site
+
+- Demonstrações animadas para os cards de recursos, incluindo canvas, edição de notas, vínculos, Kanban, mídias, Chat com IA e vault local.
+
 ## v0.5.1
 
 ### Correções
