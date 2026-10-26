@@ -91,5 +91,6 @@ test('media catalog exposes retry and supports selecting all media types', async
 	assert.match(source, /props\.catalog\.loadError\(\)/);
 	assert.match(source, /props\.catalog\.retryLoad/);
 	assert.match(source, /styles\.mediaIcon/);
+	assert.match(source, /media\.source\.type === "image" \|\| \(media\.source\.type === "video" && !!props\.catalog\.sources\(\)\[media\.id\]\)/);
 	assert.match(source, /accept="[^\"]*\.aac[^\"]*\.mp4[^\"]*\.webm/);
 });

@@ -121,3 +121,80 @@ export const readImageSource = async (imageId: string): Promise<string> => {
 
 export const readMediaSource = (mediaId: string, mediaType: "audio" | "video"): Promise<string> =>
 	getNoteMediaStreamUrl(mediaId, mediaType);
+
+const waitForVideoEvent = (
+	video: HTMLVideoElement,
+	eventName: "loadedmetadata" | "loadeddata" | "seeked",
+	signal: AbortSignal,
+	readyState = 0,
+	start?: () => void,
+): Promise<void> => new Promise((resolve, reject) => {
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	const finish = (error?: Error): void => {
+		if (timeout) clearTimeout(timeout);
+		video.removeEventListener(eventName, loaded);
+		video.removeEventListener("error", failed);
+		signal.removeEventListener("abort", aborted);
+		if (error) reject(error);
+		else resolve();
+	};
+	const loaded = (): void => finish();
+	const failed = (): void => finish(new Error("Could not decode video thumbnail"));
+	const aborted = (): void => finish(new Error("Video thumbnail loading was cancelled"));
+	video.addEventListener(eventName, loaded);
+	video.addEventListener("error", failed);
+	signal.addEventListener("abort", aborted, { once: true });
+	timeout = setTimeout(() => finish(new Error("Timed out loading video thumbnail")), 15_000);
+	if (signal.aborted) aborted();
+	else if (readyState && video.readyState >= readyState) finish();
+	else {
+		try {
+			start?.();
+		} catch (error) {
+			finish(error instanceof Error ? error : new Error(String(error)));
+		}
+	}
+});
+
+export const readVideoThumbnailSource = async (
+	source: Extract<ImportedMedia, { type: "video" }>,
+	signal: AbortSignal,
+): Promise<string> => {
+	const stored = "videoId" in source;
+	const mediaUrl = stored ? await readMediaSource(source.videoId, "video") : source.dataUrl;
+	if (signal.aborted) throw new Error("Video thumbnail loading was cancelled");
+
+	const video = document.createElement("video");
+	video.preload = "metadata";
+	video.muted = true;
+	video.playsInline = true;
+	if (stored) video.crossOrigin = "anonymous";
+
+	try {
+		await waitForVideoEvent(video, "loadedmetadata", signal, 1, () => {
+			video.src = mediaUrl;
+			video.load();
+		});
+		if (Number.isFinite(video.duration) && video.duration > 0) {
+			await waitForVideoEvent(video, "seeked", signal, 0, () => { video.currentTime = video.duration / 2; });
+		}
+		if (video.readyState < 2) await waitForVideoEvent(video, "loadeddata", signal, 2);
+
+		if (!video.videoWidth || !video.videoHeight) throw new Error("Video has no preview frame");
+		const scale = Math.min(1, 320 / video.videoWidth, 240 / video.videoHeight);
+		const canvas = document.createElement("canvas");
+		canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+		canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+		const context = canvas.getContext("2d");
+		if (!context) throw new Error("Could not create video thumbnail canvas");
+		context.drawImage(video, 0, 0, canvas.width, canvas.height);
+		const blob = await new Promise<Blob>((resolve, reject) => {
+			canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Could not encode video thumbnail")), "image/jpeg", 0.82);
+		});
+		return URL.createObjectURL(blob);
+	} finally {
+		video.pause();
+		video.removeAttribute("src");
+		video.load();
+	}
+};
