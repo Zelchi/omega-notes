@@ -11,3 +11,19 @@ test('study methods are directly available in the main reading toolbar', async (
 	}
 	assert.doesNotMatch(source, /studySubbar|studyMenu/);
 });
+
+test('zip ties are managed from the edit toolbar instead of reading or zoom controls', async () => {
+	const [readingToolbar, editToolbar, canvas, app] = await Promise.all([
+		readFile(new URL('../src/features/study-notes/ui/study-toolbar.tsx', import.meta.url), 'utf8'),
+		readFile(new URL('../src/pages/canvas/ui/graph-canvas/edit-toolbar.tsx', import.meta.url), 'utf8'),
+		readFile(new URL('../src/pages/canvas/ui/graph-canvas/index.tsx', import.meta.url), 'utf8'),
+		readFile(new URL('../src/app/index.tsx', import.meta.url), 'utf8'),
+	]);
+	assert.match(editToolbar, /zipTie\(\)\.toggle/);
+	assert.match(editToolbar, /name="link"/);
+	assert.doesNotMatch(editToolbar, /zipTieDrawHint|props\.t/);
+	assert.doesNotMatch(editToolbar, /zipTieCreate|name="check"/);
+	assert.doesNotMatch(readingToolbar, /zipTieTool|zipTieCreate/);
+	assert.doesNotMatch(canvas, /zipTieTool|zipTieCreate/);
+	assert.match(app, /canvasEditToolbarVisible[\s\S]*mode\(\) === "edit"/);
+});

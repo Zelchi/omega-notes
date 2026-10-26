@@ -9,8 +9,10 @@ import FloatingSearch from "./ui/floating-search";
 import { useAppController } from "./controller";
 import { styles } from "./style.css.ts";
 import { BackgroundThemeProvider } from "@/shared/ui/ascii-backdrop";
+import type { ZipTieToolbarState } from "@/pages/canvas/ui/graph-canvas/types";
 
 const StudyToolbar = lazy(() => import("@/features/study-notes/ui/study-toolbar"));
+const CanvasEditToolbar = lazy(() => import("@/pages/canvas/ui/graph-canvas/edit-toolbar"));
 const Canvas = lazy(() => import("@/pages/canvas/ui/canvas"));
 const Note = lazy(() => import("@/pages/notes/ui/note"));
 const SettingsDialog = lazy(() => import("@/features/change-preferences/ui/settings-dialog"));
@@ -35,7 +37,9 @@ const mountOnFirstOpen = (isOpen: () => boolean) => {
 
 const App: Component = () => {
 	const app = useAppController();
+	const [zipTieToolbar, setZipTieToolbar] = createSignal<ZipTieToolbarState>();
 	const studyToolbarVisible = () => Boolean(app.vaults.activeVaultId()) && !app.notes.loading() && app.navigation.mode() === "view" && !app.navigation.navigating();
+	const canvasEditToolbarVisible = () => Boolean(app.vaults.activeVaultId()) && !app.notes.loading() && app.navigation.route() === "canvas" && app.navigation.mode() === "edit" && app.preferences.canvasLayout() === "static" && !app.navigation.navigating();
 	const studyToolbarMounted = mountOnFirstOpen(studyToolbarVisible);
 	const settingsMounted = createPresence(app.settingsOpen, 210).present;
 	const vaultDialogMounted = createPresence(app.vaults.dialogOpen, 210).present;
@@ -135,6 +139,7 @@ const App: Component = () => {
 											centerOnMount={app.navigation.canvasCenterOnMount()}
 											onCanvasMount={() => app.navigation.setCenteredAtLaunch(true)}
 											hideCanvasControls={app.preferences.hideCanvasControls()}
+											onZipTieToolbarChange={setZipTieToolbar}
 										/>
 									</Show>
 								</Suspense>
@@ -166,6 +171,11 @@ const App: Component = () => {
 						<Show when={studyToolbarMounted()}>
 							<Suspense fallback={null}>
 								<StudyToolbar study={app.studies} t={app.t} aiEnabled={app.chatAvailable()} visible={studyToolbarVisible()} />
+							</Suspense>
+						</Show>
+						<Show when={canvasEditToolbarVisible()}>
+							<Suspense fallback={null}>
+								<CanvasEditToolbar zipTie={zipTieToolbar()} />
 							</Suspense>
 						</Show>
 					</main>

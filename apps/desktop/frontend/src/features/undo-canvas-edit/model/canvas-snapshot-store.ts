@@ -1,11 +1,15 @@
+export type CanvasZipTie = { id: string; members: { edgeKey: string; t: number }[] };
+
 export type CanvasSnapshot = {
 	layout: "static" | "dynamic";
 	positions: Record<string, { x: number; y: number }>;
+	zipTies?: CanvasZipTie[];
 };
 
 const copy = (snapshot: CanvasSnapshot): CanvasSnapshot => ({
 	layout: snapshot.layout,
 	positions: Object.fromEntries(Object.entries(snapshot.positions).map(([id, point]) => [id, { ...point }])),
+	...(snapshot.zipTies ? { zipTies: snapshot.zipTies.map(tie => ({ ...tie, members: tie.members.map(member => ({ ...member })) })) } : {}),
 });
 
 /** Mantenha as capturas após sair do canvas, sem reter leitores de componentes desmontados. */

@@ -1,26 +1,29 @@
 import { isTerminalTarget } from "@/shared/lib/terminal-focus";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import type { NoteSummary } from "@/entities/note";
-import type { ContextMenu, Gesture, PendingMove, Point, NodeSize, SelectionBox, View } from "./types";
-import { defaultPosition, graphEdgePath, graphEdges, HOME_HEIGHT, HOME_WIDTH, nodeSize } from "../../lib/graph";
+import type { ContextMenu, Gesture, PendingMove, Point, NodeSize, SelectionBox, View, ZipTie } from "./types";
+import { defaultPosition, graphEdgeKey, graphEdgePath, graphEdges, graphEdgesCrossedByStroke, HOME_HEIGHT, HOME_WIDTH, nodeSize, routeGraphEdges, slideZipTie, zipTiesAfterNodeMove, zipTieClearOfNotes, zipTiePlacement } from "../../lib/graph";
 import { separateStaticNodes } from "../../lib/static-layout";
 import { readGraphState, saveGraphState as persistGraphState } from "../../api/graph.repository";
 import type { GraphCanvasProps } from "./types";
 
 export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivElement) => {
 	const vaultId = props.vaultId;
-	let unregisterHistory: (() => void) | undefined;
-	const snapshot = () => ({ layout: "static" as const, positions: positions() });
-	const recordMove = (finished?: Gesture) => {
-		if (finished?.kind === "node" && finished.moved && finished.beforePositions)
-			props.onNotesMoved(vaultId, { layout: "static", positions: finished.beforePositions }, snapshot());
-	};
 	const storedState = readGraphState(vaultId);
 	const [positions, setPositions] = createSignal<Record<string, Point>>(storedState.positions);
 	const [view, setView] = createSignal<View>(storedState.view ?? { x: 0, y: 0, scale: 1 });
+	const [zipTies, setZipTies] = createSignal<ZipTie[]>(storedState.zipTies ?? []);
+	let unregisterHistory: (() => void) | undefined;
+	const snapshot = () => ({ layout: "static" as const, positions: positions(), zipTies: zipTies() });
+	const recordMove = (finished?: Gesture) => {
+		if (finished?.kind === "node" && finished.moved && finished.beforeSnapshot)
+			props.onNotesMoved(vaultId, finished.beforeSnapshot, snapshot());
+	};
 	const [contextMenu, setContextMenu] = createSignal<ContextMenu>();
 	const [createdNoteId, setCreatedNoteId] = createSignal<string>();
 	const [selectedIds, setSelectedIds] = createSignal<Set<string>>(new Set<string>());
+	const [zipTieMode, setZipTieMode] = createSignal(false);
+	const [zipTieStroke, setZipTieStroke] = createSignal<{ pointerId: number; start: Point; current: Point }>();
 	const [selectionBox, setSelectionBox] = createSignal<SelectionBox>();
 	const [measuredSizes, setMeasuredSizes] = createSignal<Map<string, NodeSize>>(new Map());
 	const nodeElements = new Map<string, HTMLButtonElement>();
@@ -31,19 +34,30 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	let creationTimer: ReturnType<typeof setTimeout> | undefined;
 	let disposed = false;
 	const edges = createMemo(() => graphEdges(props.notes));
+	const edgesByKey = createMemo(() => new Map(edges().map((edge) => [graphEdgeKey(edge), edge])));
+	const routedGraph = createMemo(() => routeGraphEdges(edges(), positions(), props.notes.length, zipTies()));
+	const renderedZipTies = createMemo(() => routedGraph().zipTies);
 
 	let gesture: Gesture | undefined;
 	let pendingMove: PendingMove | undefined;
 	let moveFrame: number | undefined;
 	let graphSaveTimer: ReturnType<typeof setTimeout> | undefined;
 	let suppressClickUntil = 0;
+	let zipTieDrag: { pointerId: number; tieId: string; start: Point; members: ZipTie["members"]; routes: ReturnType<typeof routeGraphEdges>["routesByKey"]; before: ReturnType<typeof snapshot> } | undefined;
 
-	const saveGraphState = (nextPositions = positions(), nextView = view()): void => {
+	const saveGraphState = (nextPositions = positions(), nextView = view(), nextZipTies = zipTies()): void => {
 		if (graphSaveTimer !== undefined) {
 			clearTimeout(graphSaveTimer);
 			graphSaveTimer = undefined;
 		}
-		persistGraphState(vaultId, { positions: nextPositions, view: nextView });
+		persistGraphState(vaultId, { positions: nextPositions, view: nextView, zipTies: nextZipTies });
+	};
+
+	const recordZipTieChange = (before: ReturnType<typeof snapshot>): void => {
+		const after = snapshot();
+		if (JSON.stringify(before) === JSON.stringify(after)) return;
+		saveGraphState();
+		props.onNotesMoved(vaultId, before, after);
 	};
 
 	const scheduleGraphSave = (): void => {
@@ -58,7 +72,22 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	createEffect(() => {
 		positions();
 		view();
+		zipTies();
 		scheduleGraphSave();
+	});
+
+	createEffect(() => {
+		const validEdges = edgesByKey();
+		setZipTies((current) => {
+			let changed = false;
+			const next = current.flatMap((tie) => {
+				const members = tie.members.filter((member) => validEdges.has(member.edgeKey));
+				if (members.length === tie.members.length) return [tie];
+				changed = true;
+				return members.length >= 2 ? [{ ...tie, members }] : [];
+			});
+			return changed ? next : current;
+		});
 	});
 
 	createEffect(() => {
@@ -102,6 +131,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			pendingMove = undefined;
 			setSelectionBox(undefined);
 			setContextMenu(undefined);
+			setZipTies(restore.zipTies ?? []);
 			const ids = new Set(props.notes.map((note) => note.id));
 			setPositions(separateStaticNodes(Object.fromEntries(Object.entries({ ...positions(), ...restore.positions }).filter(([id]) => ids.has(id))), layoutNodes()));
 			saveGraphState();
@@ -115,6 +145,13 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			if (gesture) flushPendingMove(gesture.pointerId);
 			recordMove(gesture);
 			setSelectedIds(new Set<string>());
+			setZipTieMode(false);
+			setZipTieStroke(undefined);
+			if (zipTieDrag) {
+				const drag = zipTieDrag;
+				zipTieDrag = undefined;
+				setZipTies((current) => current.map((tie) => tie.id === drag.tieId ? { ...tie, members: drag.members } : tie));
+			}
 			setSelectionBox(undefined);
 			gesture = undefined;
 		});
@@ -124,7 +161,14 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		disposed = true;
 		if (gesture) flushPendingMove(gesture.pointerId);
 		recordMove(gesture);
+		setZipTieStroke(undefined);
+		if (zipTieDrag) {
+			const drag = zipTieDrag;
+			zipTieDrag = undefined;
+			recordZipTieChange(drag.before);
+		}
 		unregisterHistory?.();
+		props.onZipTieToolbarChange?.(undefined);
 		if (graphSaveTimer !== undefined) saveGraphState();
 		clearTimeout(creationTimer);
 		if (moveFrame !== undefined) cancelAnimationFrame(moveFrame);
@@ -182,7 +226,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 				setContextMenu(undefined);
 		};
 		const closeOnEscape = (event: KeyboardEvent) => {
-			if (isTerminalTarget(event.target) || event.key !== "Escape" || (!contextMenu() && !selectedIds().size && !gesture)) return;
+			if (isTerminalTarget(event.target) || event.key !== "Escape" || (!contextMenu() && !selectedIds().size && !gesture && !zipTieMode() && !zipTieStroke() && !zipTieDrag)) return;
 			if (Array.from(document.querySelectorAll('[aria-modal="true"]')).some((dialog) => !dialog.closest("[inert]"))) return;
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -192,6 +236,13 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			gesture = undefined;
 			setSelectionBox(undefined);
 			setSelectedIds(new Set<string>());
+			setZipTieMode(false);
+			setZipTieStroke(undefined);
+			if (zipTieDrag) {
+				const drag = zipTieDrag;
+				zipTieDrag = undefined;
+				setZipTies((current) => current.map((tie) => tie.id === drag.tieId ? { ...tie, members: drag.members } : tie));
+			}
 			setContextMenu(undefined);
 		};
 		addEventListener("pointerdown", closeOnOutsidePointer);
@@ -202,8 +253,26 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		});
 	});
 
+	const boardPoint = (event: PointerEvent): Point => {
+		const rect = getBoard().getBoundingClientRect();
+		return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+	};
+	const worldPoint = (point: Point): Point => {
+		const currentView = view();
+		return { x: (point.x - currentView.x) / currentView.scale, y: (point.y - currentView.y) / currentView.scale };
+	};
+	const beginZipTieStroke = (event: PointerEvent): void => {
+		if (props.mode !== "edit" || props.busy || !zipTieMode() || event.button !== 0 || gesture || zipTieDrag) return;
+		event.preventDefault();
+		event.stopPropagation();
+		const point = boardPoint(event);
+		setZipTieStroke({ pointerId: event.pointerId, start: point, current: point });
+		getBoard().setPointerCapture(event.pointerId);
+	};
+
 	const beginPan = (event: PointerEvent & { currentTarget: HTMLElement }): void => {
 		if (props.busy || gesture || (event.button !== 0 && event.button !== 1 && event.button !== 2)) return;
+		if (zipTieMode() && event.button === 0) { beginZipTieStroke(event); return; }
 		event.preventDefault();
 		setContextMenu(undefined);
 		event.currentTarget.setPointerCapture(event.pointerId);
@@ -240,6 +309,11 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 
 	const beginNodeDrag = (event: PointerEvent & { currentTarget: HTMLButtonElement }, note: NoteSummary): void => {
 		if (props.busy || gesture) return;
+		if (zipTieMode()) {
+			if (event.button === 0) beginZipTieStroke(event);
+			else { event.preventDefault(); event.stopPropagation(); }
+			return;
+		}
 		if (event.button === 2 || event.button === 1) {
 			event.preventDefault();
 			event.stopPropagation();
@@ -269,7 +343,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			pointerId: event.pointerId,
 			kind: "node",
 			nodeOrigins,
-			beforePositions: positions(),
+			beforeSnapshot: snapshot(),
 			startX: event.clientX,
 			startY: event.clientY,
 			originX: 0,
@@ -320,6 +394,77 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			}
 			return separateStaticNodes(next, layoutNodes(), priority);
 		});
+		if (active.beforeSnapshot) {
+			setZipTies(zipTiesAfterNodeMove(
+				active.beforeSnapshot.zipTies ?? [], edgesByKey(), active.beforeSnapshot.positions, positions(), props.notes.length,
+				new Set(Object.keys(active.nodeOrigins)),
+			));
+		}
+	};
+
+	const finishZipTieStroke = (start: Point, end: Point): void => {
+		if (props.busy || props.mode !== "edit" || !zipTieMode() || Math.hypot(end.x - start.x, end.y - start.y) < 12) return;
+		const currentView = view();
+		const routes = routedGraph().routesByKey;
+		const members = graphEdgesCrossedByStroke(edges(), positions(), props.notes.length, worldPoint(start), worldPoint(end), 12 / currentView.scale, routes);
+		const preview: ZipTie = { id: "preview", members };
+		const placement = zipTiePlacement(preview, edgesByKey(), positions(), props.notes.length, routes);
+		if (!placement || !zipTieClearOfNotes(placement, props.notes, positions())) return;
+		const before = snapshot();
+		const next = [...zipTies(), { id: crypto.randomUUID(), members }];
+		setZipTies(next);
+		saveGraphState(positions(), view(), next);
+		props.onNotesMoved(vaultId, before, { layout: "static", positions: positions(), zipTies: next });
+	};
+
+	const beginZipTieDrag = (id: string, event: PointerEvent): void => {
+		event.stopPropagation();
+		if (event.button !== 0) return;
+		event.preventDefault();
+		if (props.mode !== "edit" || props.busy || !zipTieMode() || zipTieDrag || zipTieStroke()) return;
+		const tie = zipTies().find((item) => item.id === id);
+		if (!tie) return;
+		const tieIndex = zipTies().findIndex((item) => item.id === id);
+		const routes = routeGraphEdges(edges(), positions(), props.notes.length, zipTies().slice(0, tieIndex)).routesByKey;
+		zipTieDrag = {
+			pointerId: event.pointerId,
+			tieId: id,
+			start: worldPoint(boardPoint(event)),
+			members: tie.members.map((member) => ({ ...member })),
+			routes,
+			before: snapshot(),
+		};
+		getBoard().setPointerCapture(event.pointerId);
+	};
+
+	const moveZipTieDrag = (event: PointerEvent): void => {
+		const drag = zipTieDrag;
+		if (!drag || drag.pointerId !== event.pointerId || props.mode !== "edit" || props.busy || !zipTieMode()) return;
+		const currentView = view();
+		const pointer = worldPoint(boardPoint(event));
+		const dx = pointer.x - drag.start.x, dy = pointer.y - drag.start.y;
+		if (Math.hypot(dx, dy) * currentView.scale < 4) return;
+		const tie = zipTies().find((item) => item.id === drag.tieId);
+		if (!tie) return;
+		const next = slideZipTie({ ...tie, members: drag.members }, edgesByKey(), positions(), props.notes.length, { x: dx, y: dy }, drag.routes, props.notes);
+		if (!next) return;
+		setZipTies((current) => current.map((item) => item.id === drag.tieId ? next : item));
+	};
+
+	const finishZipTieDrag = (event: PointerEvent): boolean => {
+		const drag = zipTieDrag;
+		if (!drag || drag.pointerId !== event.pointerId) return false;
+		moveZipTieDrag(event);
+		zipTieDrag = undefined;
+		recordZipTieChange(drag.before);
+		return true;
+	};
+
+	const releaseZipTie = (id: string, event: MouseEvent): void => {
+		if (props.mode !== "edit" || props.busy || !zipTieMode()) return;
+		event.preventDefault();
+		event.stopPropagation();
+		removeZipTie(id);
 	};
 
 	const flushPendingMove = (pointerId: number): void => {
@@ -332,6 +477,12 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	};
 
 	const moveGesture = (event: PointerEvent): void => {
+		const stroke = zipTieStroke();
+		if (stroke?.pointerId === event.pointerId) {
+			setZipTieStroke({ ...stroke, current: boardPoint(event) });
+			return;
+		}
+		if (zipTieDrag?.pointerId === event.pointerId) { moveZipTieDrag(event); return; }
 		if (!gesture || gesture.pointerId !== event.pointerId) return;
 		pendingMove = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY };
 		if (moveFrame !== undefined) return;
@@ -344,6 +495,13 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	};
 
 	const endGesture = (event: PointerEvent): void => {
+		const stroke = zipTieStroke();
+		if (stroke?.pointerId === event.pointerId) {
+			setZipTieStroke(undefined);
+			finishZipTieStroke(stroke.start, boardPoint(event));
+			return;
+		}
+		if (finishZipTieDrag(event)) return;
 		if (!gesture || gesture.pointerId !== event.pointerId) return;
 		pendingMove = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY };
 		flushPendingMove(event.pointerId);
@@ -389,6 +547,9 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	};
 
 	const cancelGesture = (event: PointerEvent): void => {
+		const stroke = zipTieStroke();
+		if (stroke?.pointerId === event.pointerId) { setZipTieStroke(undefined); return; }
+		if (finishZipTieDrag(event)) return;
 		if (!gesture || gesture.pointerId !== event.pointerId) return;
 		flushPendingMove(event.pointerId);
 		if (gesture.kind === "selection") setSelectedIds(gesture.selection?.baseline ?? new Set<string>());
@@ -425,6 +586,36 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		zoomTo(view().scale * Math.exp(-delta * 0.001), event.clientX - rect.left, event.clientY - rect.top);
 	};
 
+	const toggleZipTieMode = (): void => {
+		if (props.busy) return;
+		setZipTieMode((current) => !current);
+		setZipTieStroke(undefined);
+		setContextMenu(undefined);
+	};
+
+	const removeZipTie = (id: string): void => {
+		if (props.busy || props.mode !== "edit") return;
+		const before = snapshot();
+		const next = zipTies().filter((tie) => tie.id !== id);
+		if (next.length === zipTies().length) return;
+		setZipTies(next);
+		saveGraphState(positions(), view(), next);
+		props.onNotesMoved(vaultId, before, { layout: "static", positions: positions(), zipTies: next });
+	};
+
+	createEffect(() => {
+		const onChange = props.onZipTieToolbarChange;
+		if (!onChange || props.mode !== "edit") {
+			onChange?.(undefined);
+			return;
+		}
+		onChange({
+			active: zipTieMode(),
+			disabled: props.busy,
+			toggle: toggleZipTieMode,
+		});
+	});
+
 	const openContextMenu = (event: MouseEvent, note: NoteSummary): void => {
 		event.preventDefault();
 		event.stopPropagation();
@@ -449,6 +640,9 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		},
 		createdNoteId,
 		selectedIds,
+		zipTieMode,
+		zipTieStroke,
+		renderedZipTies,
 		selectionBox,
 		positions,
 		view,
@@ -457,7 +651,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		edges,
 		nodePosition: (note: NoteSummary, index: number) =>
 			positions()[note.id] ?? defaultPosition(index, props.notes.length, nodeSize(note)),
-		edgePath: (edge: ReturnType<typeof edges>[number]) => graphEdgePath(edge, positions(), props.notes.length),
+		edgePath: (edge: ReturnType<typeof edges>[number]) => graphEdgePath(edge, positions(), props.notes.length, routedGraph().routesByKey.get(graphEdgeKey(edge))),
 		beginPan,
 		beginNodeDrag,
 		moveGesture,
@@ -465,8 +659,12 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		cancelGesture,
 		zoomWithWheel,
 		zoomBy,
+		toggleZipTieMode,
+		beginZipTieDrag,
+		releaseZipTie,
+		removeZipTie,
 		openContextMenu,
-		shouldIgnoreClick: (event: MouseEvent) => Date.now() < suppressClickUntil || (props.mode === "edit" && (event.ctrlKey || event.metaKey || event.shiftKey || selectedIds().size > 1)),
+		shouldIgnoreClick: (event: MouseEvent) => zipTieMode() || Date.now() < suppressClickUntil || (props.mode === "edit" && (event.ctrlKey || event.metaKey || event.shiftKey || selectedIds().size > 1)),
 		clearContextMenu: () => setContextMenu(undefined),
 	};
 };

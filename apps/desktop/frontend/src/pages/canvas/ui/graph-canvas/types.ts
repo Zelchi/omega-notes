@@ -3,7 +3,13 @@ import type { Point } from "../../model/graph";
 import type { NoteSummary, StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 
-export type { Edge, GraphState, NodeSize, Point, View } from "../../model/graph";
+export type { Edge, GraphState, NodeSize, Point, View, ZipTie } from "../../model/graph";
+
+export type ZipTieToolbarState = {
+	active: boolean;
+	disabled: boolean;
+	toggle: () => void;
+};
 
 export type GraphCanvasProps = {
 	vaultId: string;
@@ -23,6 +29,7 @@ export type GraphCanvasProps = {
 	centerOnMount: boolean;
 	onCanvasMount: () => void;
 	hideCanvasControls: boolean;
+	onZipTieToolbarChange?: (state: ZipTieToolbarState | undefined) => void;
 	t: (key: TranslationKey) => string;
 };
 
@@ -35,7 +42,7 @@ export type Gesture = {
 	originY: number;
 	button: number;
 	nodeOrigins?: Record<string, Point>;
-	beforePositions?: Record<string, Point>;
+	beforeSnapshot?: CanvasSnapshot;
 	selection?: {
 		baseline: Set<string>;
 		additive: boolean;
