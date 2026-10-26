@@ -1,3 +1,7 @@
+---
+const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
+---
+
 <section class="features" aria-labelledby="features-heading">
     <header>
         <p class="section-label">Seu jeito de estudar</p>
@@ -15,6 +19,24 @@
                 organize notas e pastas em colunas no modo Arquivo. As três
                 visualizações trabalham com as mesmas notas.
             </p>
+        </article>
+        <article>
+            <h3>Agrupe fios com uma presilha</h3>
+            <p>
+                No canvas Estático, segure <kbd>Shift</kbd> e arraste com o botão
+                esquerdo atravessando os fios. Shift+clique em uma nota continua
+                alternando a seleção múltipla; arraste uma presilha existente sem
+                Shift para movê-la.
+            </p>
+            <figure class="zip-tie-demo">
+                <img
+                    src={`${base}zip-tie-demo.gif`}
+                    alt="Animação: Shift pressionado enquanto o ponteiro atravessa os fios e cria uma presilha."
+                    width="640"
+                    height="360"
+                    loading="lazy"
+                />
+            </figure>
         </article>
         <article>
             <h3>Texto com espaço para tudo</h3>
@@ -119,6 +141,25 @@
     }
     article p + p {
         margin-top: 12px;
+    }
+    kbd {
+        padding: 2px 5px;
+        border: 1px solid #38383b;
+        border-radius: 3px;
+        color: #e8e8e8;
+        background: #242426;
+        font-size: 0.9em;
+        white-space: nowrap;
+    }
+    .zip-tie-demo {
+        margin: 20px 0 0;
+    }
+    .zip-tie-demo img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid #303033;
+        border-radius: 6px;
     }
     @media (max-width: 640px) {
         .features {
