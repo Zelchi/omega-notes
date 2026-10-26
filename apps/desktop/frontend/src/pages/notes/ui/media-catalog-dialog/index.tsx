@@ -144,7 +144,7 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 								onClick={() => props.catalog.selectMedia(media)}
 							>
 								<Show
-									when={media.source.type === "image"}
+									when={media.source.type === "image" || (media.source.type === "video" && !!props.catalog.sources()[media.id])}
 									fallback={
 										<div class={styles.mediaIcon} aria-hidden="true">
 											<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">

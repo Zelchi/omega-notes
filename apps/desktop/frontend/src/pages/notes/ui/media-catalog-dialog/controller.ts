@@ -5,11 +5,11 @@ import { noteMediaSource, type NoteMediaCatalogItem, type NoteSummary, type Stud
 import { isDesktopRuntime } from "@/shared/lib/desktop";
 import { confirm } from "@/shared/lib/desktop";
 import type { ImportedMedia } from "../../model/media";
-import { readImageSource, selectMediaFiles } from "../../model/media-import";
+import { readImageSource, readVideoThumbnailSource, selectMediaFiles } from "../../model/media-import";
 import { cleanupOrphanedMedia } from "../../api/media.repository";
 
 type CatalogMedia = { id: string; source: ImportedMedia; noteTitles: string[] };
-const IMAGE_LOAD_CONCURRENCY = 4;
+const PREVIEW_LOAD_CONCURRENCY = 4;
 
 export type MediaCatalogDialogProps = {
 	open: boolean;
@@ -122,35 +122,44 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 	createEffect(() => {
 		const open = props.open;
 		const catalog = media();
-		if (!open || !isDesktopRuntime() || !catalog.length) {
+		const desktop = isDesktopRuntime();
+		if (!open || !catalog.length) {
 			clearSources();
 			return;
 		}
 
 		const currentRequest = ++requestId;
 		let active = true;
-		const imageEntries = catalog.filter((item) => item.source.type === "image" && "imageId" in item.source);
-		const imageIds = new Set(imageEntries.map((item) => item.id));
+		const abortController = new AbortController();
+		const previewEntries = catalog.filter((item) =>
+			(item.source.type === "image" && desktop && "imageId" in item.source)
+			|| (item.source.type === "video" && ("dataUrl" in item.source || (desktop && "videoId" in item.source))),
+		);
+		const previewIds = new Set(previewEntries.map((item) => item.id));
 		const cached = untrack(sources);
 		const retained: Record<string, string> = {};
 		for (const [id, source] of Object.entries(cached)) {
-			if (imageIds.has(id)) retained[id] = source;
+			if (previewIds.has(id)) retained[id] = source;
 			else {
 				URL.revokeObjectURL(source);
 				objectUrls.delete(source);
 			}
 		}
 		setSources(retained);
-		const pending = imageEntries.filter((item) => !retained[item.id]);
-		let nextImage = 0;
+		const pending = previewEntries.filter((item) => !retained[item.id]);
+		let nextPreview = 0;
 		const isCurrent = (): boolean => active && currentRequest === requestId;
-		const loadImages = async (): Promise<void> => {
+		const loadPreviews = async (): Promise<void> => {
 			while (isCurrent()) {
-				const item = pending[nextImage++];
+				const item = pending[nextPreview++];
 				if (!item) return;
-				if (item.source.type !== "image" || !("imageId" in item.source)) continue;
 				try {
-					const source = await readImageSource(item.source.imageId);
+					const source = item.source.type === "image" && "imageId" in item.source
+						? await readImageSource(item.source.imageId)
+						: item.source.type === "video"
+							? await readVideoThumbnailSource(item.source, abortController.signal)
+							: undefined;
+					if (!source) continue;
 					if (!isCurrent()) {
 						URL.revokeObjectURL(source);
 						return;
@@ -164,9 +173,10 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 		};
 		onCleanup(() => {
 			active = false;
+			abortController.abort();
 		});
-		for (let worker = 0; worker < Math.min(IMAGE_LOAD_CONCURRENCY, pending.length); worker++) {
-			void loadImages();
+		for (let worker = 0; worker < Math.min(PREVIEW_LOAD_CONCURRENCY, pending.length); worker++) {
+			void loadPreviews();
 		}
 	});
 

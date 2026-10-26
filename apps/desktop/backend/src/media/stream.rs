@@ -176,10 +176,15 @@ fn serve_request(
         ),
         None => ("200 OK", 0, size, None),
     };
+    let cors_header = if media_type == "video" {
+        "Access-Control-Allow-Origin: *\r\n"
+    } else {
+        ""
+    };
 
     write!(
         stream,
-        "HTTP/1.1 {status}\r\nContent-Type: {mime_type}\r\nContent-Length: {length}\r\nAccept-Ranges: bytes\r\nConnection: close\r\n"
+        "HTTP/1.1 {status}\r\nContent-Type: {mime_type}\r\nContent-Length: {length}\r\nAccept-Ranges: bytes\r\n{cors_header}Connection: close\r\n"
     )?;
     if let Some(content_range) = content_range {
         write!(stream, "{content_range}\r\n")?;
@@ -421,6 +426,7 @@ mod tests {
         assert!(headers.starts_with("HTTP/1.1 206 Partial Content"));
         assert!(headers.contains("Content-Range: bytes 2-5/10"));
         assert!(headers.contains("Content-Length: 4"));
+        assert!(headers.contains("Access-Control-Allow-Origin: *"));
         assert_eq!(body, "2345");
     }
 }
