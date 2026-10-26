@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { graphEdgeKey, graphEdgePath, graphEdges, graphEdgesCrossedByStroke, graphEdgePointAt, nearestGraphEdgePoint, routeGraphEdges, slideZipTie, zipTiesAfterNodeMove, zipTieClearOfNotes, zipTiePlacement } from '../src/pages/canvas/lib/graph.ts';
+import { graphEdgeKey, graphEdgePath, graphEdges, graphEdgesCrossedByStroke, graphEdgePointAt, nearestGraphEdgePoint, nodeSize, routeGraphEdges, slideZipTie, zipTiesAfterNodeMove, zipTieClearOfNotes, zipTiePlacement } from '../src/pages/canvas/lib/graph.ts';
 import { readGraphState } from '../src/pages/canvas/api/graph.repository.ts';
 import { mapTextOutsideCode } from '../src/shared/lib/formatted-text.ts';
 import { recordNavigation, createNavigationHistory, findHistoryIndex } from '../src/app/model/navigation-history.ts';
@@ -24,6 +24,91 @@ test('graph resolves titles and skips missing and self references', () => {
 test('zip-tie edge keys are independent of link direction', () => {
     const a = summarizeNote(note('a')), b = summarizeNote(note('b'));
     assert.equal(graphEdgeKey({ source:a, target:b }), graphEdgeKey({ source:b, target:a }));
+});
+test('wires attach to the nearest side of both notes', () => {
+    const source = summarizeNote(note('source'));
+    const target = summarizeNote(note('target'));
+    const sourceSize = nodeSize(source), targetSize = nodeSize(target);
+    const sourceCenter = { x:sourceSize.width / 2, y:sourceSize.height / 2 };
+    for (const [name, delta, startSide, endSide] of [
+        ['right', { x:500, y:0 }, 'right', 'left'],
+        ['left', { x:-500, y:0 }, 'left', 'right'],
+        ['bottom', { x:0, y:300 }, 'bottom', 'top'],
+        ['top', { x:0, y:-300 }, 'top', 'bottom'],
+    ]) {
+        const targetCenter = { x:sourceCenter.x + delta.x, y:sourceCenter.y + delta.y };
+        const positions = {
+            source:{ x:0, y:0 },
+            target:{ x:targetCenter.x - targetSize.width / 2, y:targetCenter.y - targetSize.height / 2 },
+        };
+        const edge = { source, target };
+        const start = graphEdgePointAt(edge, positions, 2, 0);
+        const end = graphEdgePointAt(edge, positions, 2, 1);
+        const expected = (position, size, side) => ({
+            right:{ x:position.x + size.width, y:position.y + size.height / 2 },
+            left:{ x:position.x, y:position.y + size.height / 2 },
+            bottom:{ x:position.x + size.width / 2, y:position.y + size.height },
+            top:{ x:position.x + size.width / 2, y:position.y },
+        })[side];
+        assert.deepEqual(start, expected(positions.source, sourceSize, startSide), name + ' source side');
+        assert.deepEqual(end, expected(positions.target, targetSize, endSide), name + ' target side');
+    }
+});
+test('a horizontal route leaves a wide note on its right edge even when the destination is lower', () => {
+	const source = { ...summarizeNote(note('source')), title:'Diagrama de Componentes' };
+	const target = summarizeNote(note('target'));
+	const sourceSize = nodeSize(source), targetSize = nodeSize(target);
+	const sourceCenter = { x:sourceSize.width / 2, y:sourceSize.height / 2 };
+	const targetCenter = { x:sourceCenter.x + 240, y:sourceCenter.y + 70 };
+	const positions = {
+		source:{x:0,y:0},
+		target:{x:targetCenter.x - targetSize.width / 2, y:targetCenter.y - targetSize.height / 2},
+	};
+	const edge = { source, target };
+	const start = graphEdgePointAt(edge, positions, 2, 0);
+	assert.equal(start.x, sourceSize.width);
+});
+test('note ports face the nearest zip tie instead of a lower remote note', () => {
+	const source = { ...summarizeNote(note('component')), title:'Diagrama de Componentes' };
+	const targets = ['target1', 'target2'].map(id => summarizeNote(note(id)));
+	const edges = targets.map(target => ({ source, target }));
+	const sourceSize = nodeSize(source);
+	const positions = { component:{x:0,y:0} };
+	for (const [index, [dx, dy]] of [[175, 200], [190, 210]].entries()) {
+		const targetSize = nodeSize(targets[index]);
+		positions[targets[index].id] = {
+			x:sourceSize.width / 2 + dx - targetSize.width / 2,
+			y:17 + dy - targetSize.height / 2,
+		};
+	}
+	const baseline = routeGraphEdges(edges, positions, 3, []).routesByKey;
+	assert.ok(edges.every(edge => graphEdgePointAt(edge, positions, 3, 0, baseline.get(graphEdgeKey(edge))).y === sourceSize.height));
+	const tie = { id:'tie', members:edges.map(edge => ({ edgeKey:graphEdgeKey(edge), t:.7 })) };
+	const routes = routeGraphEdges(edges, positions, 3, [tie]).routesByKey;
+	for (const edge of edges) {
+		const start = graphEdgePointAt(edge, positions, 3, 0, routes.get(graphEdgeKey(edge)));
+		assert.equal(start.x, sourceSize.width);
+	}
+});
+test('wires keep their geometric order along shared note edges', () => {
+	const [hub, upper, lower] = ['hub', 'upper', 'lower'].map(id => summarizeNote(note(id)));
+	const positions = { hub:{x:0,y:100}, upper:{x:500,y:80}, lower:{x:500,y:120} };
+	const checkPorts = (edges, noteId, endpoint) => {
+		const tie = { id:'tie', members:edges.map(edge => ({ edgeKey:graphEdgeKey(edge), t:.5 })) };
+		const routes = routeGraphEdges(edges, positions, 3, [tie]).routesByKey;
+		const atPort = edge => graphEdgePointAt(edge, positions, 3, endpoint === 'start' ? 0 : 1, routes.get(graphEdgeKey(edge)));
+		const upperPort = atPort(edges.find(edge => edge.source.id === 'upper' || edge.target.id === 'upper'));
+		const lowerPort = atPort(edges.find(edge => edge.source.id === 'lower' || edge.target.id === 'lower'));
+		assert.ok(lowerPort.y > upperPort.y, `${noteId} ports follow the notes' vertical order`);
+		assert.ok(Math.abs(lowerPort.y - upperPort.y - 6) < 1e-6);
+		for (const t of endpoint === 'start' ? [0, .2, .4, .5] : [.5, .6, .8, 1]) {
+			const upperEdge = edges.find(edge => edge.source.id === 'upper' || edge.target.id === 'upper');
+			const lowerEdge = edges.find(edge => edge.source.id === 'lower' || edge.target.id === 'lower');
+			assert.ok(graphEdgePointAt(lowerEdge, positions, 3, t, routes.get(graphEdgeKey(lowerEdge))).y > graphEdgePointAt(upperEdge, positions, 3, t, routes.get(graphEdgeKey(upperEdge))).y, `${noteId} keeps the order at t=${t}`);
+		}
+	};
+	checkPorts([{ source:hub, target:upper }, { source:hub, target:lower }], 'hub output', 'start');
+	checkPorts([{ source:upper, target:hub }, { source:lower, target:hub }], 'hub input', 'end');
 });
 test('zip-tie placement spans all wires crossed by the drawn line', () => {
     const a = summarizeNote(note('a')), b = summarizeNote(note('b'));
@@ -52,7 +137,7 @@ test('zip ties stop before overlapping a note', () => {
     const positions = { a:{x:0,y:0}, b:{x:500,y:0}, z:{x:250,y:400} };
     const edgeMap = new Map(edges.map(edge => [graphEdgeKey(edge), edge]));
     const tie = { id:'tie', members:edges.map(edge => ({ edgeKey:graphEdgeKey(edge), t:.5 })) };
-    const nearNote = { ...tie, members:tie.members.map(member => ({ ...member, t:.9 })) };
+    const nearNote = { ...tie, members:tie.members.map(member => ({ ...member, t:.99 })) };
     const safePlacement = zipTiePlacement(tie, edgeMap, positions, 3);
     const blockedPlacement = zipTiePlacement(nearNote, edgeMap, positions, 3);
     assert.ok(safePlacement);
@@ -133,10 +218,10 @@ test('a horizontal stroke can tie widely fanned wires together', () => {
     assert.equal(stroke.length, 2);
     const tie = { id:'tie', members:stroke };
     const edgeMap = new Map(edges.map(edge => [graphEdgeKey(edge), edge]));
-    const placement = zipTiePlacement(tie, edgeMap, positions, 3);
+    const routed = routeGraphEdges(edges, positions, 3, [tie]);
+    const placement = routed.zipTies[0].placement;
     assert.ok(placement);
     assert.equal(placement.width, 18);
-    const routed = routeGraphEdges(edges, positions, 3, [tie]);
     for (const member of stroke) {
         const edge = edgeMap.get(member.edgeKey);
         const path = graphEdgePath(edge, positions, 3, routed.routesByKey.get(member.edgeKey));
@@ -163,12 +248,56 @@ test('additional ties can be drawn on the routed bundle and keep the section bet
     for (const edge of edges) assert.equal((graphEdgePath(edge, positions, 3, routes.routesByKey.get(graphEdgeKey(edge))).match(/ C /g) ?? []).length, 3);
     const firstEnd = second.members.find(member => member.edgeKey === graphEdgeKey(firstEdge)).t;
     const secondEnd = second.members.find(member => member.edgeKey === graphEdgeKey(secondEdge)).t;
+    const assertForward = (edge, startT, endT) => {
+        const pointAt = t => graphEdgePointAt(edge, positions, 3, t, routes.routesByKey.get(graphEdgeKey(edge)));
+        const start = pointAt(startT), end = pointAt(endT);
+        const dx = end.x - start.x, dy = end.y - start.y, lengthSquared = dx * dx + dy * dy;
+        let previous = 0;
+        for (let index = 1; index <= 32; index++) {
+            const point = pointAt(startT + (endT - startT) * index / 32);
+            const progress = ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared;
+            assert.ok(progress >= previous - 1e-6 && progress <= 1 + 1e-6, `wire does not double back between t=${startT} and t=${endT}`);
+            previous = progress;
+        }
+    };
+    for (const edge of edges) {
+        const endT = second.members.find(member => member.edgeKey === graphEdgeKey(edge)).t;
+        assertForward(edge, 0, .4);
+        assertForward(edge, .4, endT);
+        assertForward(edge, endT, 1);
+    }
     for (const progress of [.2, .4, .6, .8]) {
         const firstPoint = graphEdgePointAt(firstEdge, positions, 3, .4 + (firstEnd - .4) * progress, routes.routesByKey.get(graphEdgeKey(firstEdge)));
         const secondPoint = graphEdgePointAt(secondEdge, positions, 3, .4 + (secondEnd - .4) * progress, routes.routesByKey.get(graphEdgeKey(secondEdge)));
         assert.ok(Math.hypot(firstPoint.x - secondPoint.x, firstPoint.y - secondPoint.y) < 7);
     }
     assert.equal(routes.zipTies.length, 2);
+});
+test('zip-tie slots follow note height and preserve their order across ties', () => {
+	const [upper, shared, lower] = ['z-upper', 'm-shared', 'a-lower'].map(id => summarizeNote(note(id)));
+	const edges = [{ source:lower, target:shared }, { source:upper, target:shared }];
+	const positions = { 'z-upper':{x:0,y:0}, 'a-lower':{x:0,y:180}, 'm-shared':{x:700,y:80} };
+    const members = edges.map(edge => ({ edgeKey:graphEdgeKey(edge), t:.35 }));
+    const first = { id:'first', members };
+    const second = { id:'second', members:members.map(member => ({ ...member, t:.7 })) };
+    const routes = routeGraphEdges(edges, positions, 3, [first, second]);
+    const lowerEdge = edges[0], upperEdge = edges[1];
+    const pointAt = (edge, t) => graphEdgePointAt(edge, positions, 3, t, routes.routesByKey.get(graphEdgeKey(edge)));
+    for (const t of [.35, .42, .5, .6, .7]) {
+        assert.ok(pointAt(lowerEdge, t).y > pointAt(upperEdge, t).y, `lower wire remains below upper wire at t=${t}`);
+    }
+});
+test('zip-tie routing keeps each wire moving in its own direction', () => {
+	const [left, right, otherRight, otherLeft] = ['a-left', 'z-right', 'b-right', 'y-left'].map(id => summarizeNote(note(id)));
+	const edges = [{ source:left, target:right }, { source:otherRight, target:otherLeft }];
+	const positions = { 'a-left':{x:0,y:0}, 'z-right':{x:500,y:0}, 'b-right':{x:500,y:60}, 'y-left':{x:0,y:60} };
+	const tie = { id:'tie', members:edges.map(edge => ({ edgeKey:graphEdgeKey(edge), t:.5 })) };
+	const routes = routeGraphEdges(edges, positions, 4, [tie]);
+	for (const edge of edges) {
+		const pointAt = t => graphEdgePointAt(edge, positions, 4, t, routes.routesByKey.get(graphEdgeKey(edge)));
+		const before = pointAt(.49), anchor = pointAt(.5), after = pointAt(.51);
+		assert.ok((anchor.x - before.x) * (after.x - anchor.x) + (anchor.y - before.y) * (after.y - anchor.y) > 0);
+	}
 });
 test('a zip tie slides along each of its wires while remaining bound to those wires', () => {
     const notes = ['a', 'b', 'c', 'd'].map(id => summarizeNote(note(id)));
