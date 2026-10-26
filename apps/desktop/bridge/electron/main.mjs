@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Backend } from './backend.mjs';
 import { readSettingsImport, validateStorageSnapshot } from './storage.mjs';
+import { installAndRelaunch } from './updater-install.mjs';
 if (process.platform === 'linux') app.commandLine.appendSwitch('disable-features', 'WaylandWpColorManagerV1');
 let settingsImport = await readSettingsImport(process.argv);
 
@@ -113,8 +114,11 @@ async function invoke(command, args) {
         case 'updater_ready': return app.isPackaged && await backend.invoke(command, args);
         case 'updater_install': {
             if (!app.isPackaged) throw new Error('Updates require a packaged app');
-            await backend.invoke(command, args);
-            void quit();
+            await installAndRelaunch(
+                () => backend.invoke(command, args),
+                () => app.relaunch(),
+                quit,
+            );
             return;
         }
         default:
