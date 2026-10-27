@@ -65,7 +65,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 							const point = () => graph.nodePosition(note, index());
 							return (
 								<Button
-									class={cx(styles.bubble, graph.createdNoteId() === note.id && styles.createdBubble, graph.selectedIds().has(note.id) && styles.selectedBubble)}
+									class={cx(styles.bubble, graph.createdNoteId() === note.id && styles.createdBubble, graph.selectedIds().has(note.id) && styles.selectedBubble, graph.isLocked(note.id) && styles.lockedBubble)}
 									ref={(element) => {
 										graph.registerNode(note.id, element);
 										registerExitSnapshot(element, { kind: "card", key: `canvas-card:${note.id}`,
@@ -76,7 +76,7 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 									type="button"
 									style={{
 										translate: `${point().x}px ${point().y}px`,
-										cursor: props.mode === "view" ? "pointer" : "grab",
+										cursor: props.mode === "view" ? "pointer" : graph.isLocked(note.id) ? "default" : "grab",
 									}}
 									onPointerDown={(event) => graph.beginNodeDrag(event, note)}
 									onContextMenu={(event) => graph.openContextMenu(event, note)}
@@ -145,6 +145,20 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 								onPointerDown={(event) => event.stopPropagation()}
 								onContextMenu={(event) => event.preventDefault()}
 							>
+								<Button
+									class={styles.menuButton}
+									type="button"
+									onClick={() => {
+										const current = note();
+										if (current) {
+											graph.clearContextMenu();
+											graph.toggleNoteLock(current.id);
+										}
+									}}
+								>
+									<Icon name={graph.areLockTargetsLocked(menu().noteId) ? "unlock" : "lock"} size={15} />
+									{props.t(graph.areLockTargetsLocked(menu().noteId) ? "canvasUnlockPosition" : "canvasLockPosition")}
+								</Button>
 								<Button
 									class={styles.menuButton}
 									type="button"

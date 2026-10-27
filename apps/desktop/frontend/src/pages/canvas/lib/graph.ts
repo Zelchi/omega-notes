@@ -82,7 +82,7 @@ const edgeBoundaryPorts = (
 	references: ReadonlyMap<string, EdgePortReferences> = new Map(),
 ): Map<string, EdgePorts> => {
 	type Side = "left" | "right" | "top" | "bottom";
-	type Port = { edgeKey: string; endpoint: keyof EdgePorts; side: Side; position: Point; size: NodeSize; port: EdgePoint; orderBy: Point };
+	type Port = { edgeKey: string; endpoint: keyof EdgePorts; side: Side; position: Point; size: NodeSize; orderBy: Point };
 	const ports = new Map<string, EdgePorts>();
 	const groups = new Map<string, Port[]>();
 	const add = (edgeKey: string, endpoint: keyof EdgePorts, note: NoteSummary, position: Point, size: NodeSize, port: EdgePoint, orderBy: Point): void => {
@@ -91,7 +91,7 @@ const edgeBoundaryPorts = (
 			: port.tangent.y < 0 ? "top" : "bottom";
 		const key = JSON.stringify([note.id, side]);
 		const members = groups.get(key) ?? [];
-		members.push({ edgeKey, endpoint, side, position, size, port, orderBy });
+		members.push({ edgeKey, endpoint, side, position, size, orderBy });
 		groups.set(key, members);
 	};
 	for (const edge of edges) {

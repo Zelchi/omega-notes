@@ -42,6 +42,21 @@ test('startup centering is labeled as camera centering and does not move notes',
 	assert.doesNotMatch(centerCamera, /setPositions\(/);
 });
 
+test('static note locks are exposed and excluded from dragging and auto-separation', async () => {
+	const [canvas, controller, style] = await Promise.all([
+		source('../src/pages/canvas/ui/graph-canvas/index.tsx'),
+		source('../src/pages/canvas/ui/graph-canvas/controller.ts'),
+		source('../src/pages/canvas/ui/graph-canvas/style.css.ts'),
+	]);
+	assert.match(canvas, /graph\.toggleNoteLock\(current\.id\)/);
+	assert.match(canvas, /graph\.areLockTargetsLocked\(menu\(\)\.noteId\)/);
+	assert.match(canvas, /styles\.lockedBubble/);
+	assert.doesNotMatch(canvas, /lockBadge/);
+	assert.match(style, /lockedBubble: style\(\{[\s\S]*?borderColor: "var\(--ink\)"/);
+	assert.match(controller, /if \(isLocked\(note\.id\)\) \{ setSelectedIds\(new Set\(\[note\.id\]\)\); return; \}/);
+	assert.match(controller, /separateStaticNodes\(next, layoutNodes\(\), priority, new Set\(lockedNoteIds\(\)\)\)/);
+});
+
 test('Lo-fi radio controls remain in Pomodoro while its player lives for the app lifetime', async () => {
 	const [titlebar, app, pomodoro, player, controller] = await Promise.all([
 		source('../src/app/ui/window-titlebar/index.tsx'),

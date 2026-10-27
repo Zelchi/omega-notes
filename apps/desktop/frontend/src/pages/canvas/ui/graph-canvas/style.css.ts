@@ -83,6 +83,10 @@ export const styles = {
 			},
 		},
 	}),
+	lockedBubble: style({
+		borderColor: "var(--ink)",
+		selectors: { "&:hover": { borderColor: "var(--ink)" } },
+	}),
 	selectionBox: style({
 		position: "absolute",
 		zIndex: 2,
@@ -137,7 +141,7 @@ export const styles = {
 		position: "absolute",
 		zIndex: 3,
 		display: "grid",
-		width: 152,
+		width: 176,
 		gap: 2,
 		padding: 4,
 		backgroundColor: "var(--surface-panel)",

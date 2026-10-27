@@ -4,6 +4,10 @@
 
 O Canvas parte da biblioteca de resumos do vault ativo. O layout Estático permite posicionar nós manualmente; o Dinâmico calcula posições por força e mantém um limite de 60 quadros por segundo enquanto a simulação está ativa. Ambos guardam posições e visão por vault no `localStorage`.
 
+No layout Estático, o menu de contexto permite bloquear uma nota ou a seleção. Se a seleção tiver estados mistos, a ação bloqueia todas; quando todas já estão bloqueadas, a ação desbloqueia todas. Notas bloqueadas não podem ser arrastadas nem movidas pela separação automática; permanecem como âncoras enquanto as demais evitam sobreposição. O bloqueio fica salvo por vault e pode ser desfeito/refeito.
+
+As conexões se distribuem pela lateral da nota; quando são numerosas, ficam mais próximas para permanecer dentro da altura da borda.
+
 O layout Arquivo apresenta listas encadeadas de notas e pastas; sua estrutura também fica no `localStorage`, separada por vault. A opção e a visualização estão disponíveis em builds de produção. As preferências de layout são preservadas no armazenamento local da instalação.
 
 Atalhos e controles de navegação alteram a visualização; criar, mover e excluir notas registra ações para desfazer/refazer enquanto o app está aberto. O histórico não é persistido após reiniciar.

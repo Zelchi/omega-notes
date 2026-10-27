@@ -1,5 +1,11 @@
 # Histórico de atualizações
 
+## v0.5.4
+
+### Canvas
+
+- Notas no layout Estático podem ser bloqueadas individualmente ou em grupo para mantê-las fixas enquanto as demais evitam sobreposição; conexões numerosas se compactam pela lateral da nota.
+
 ## v0.5.3
 
 ### Pomodoro e música

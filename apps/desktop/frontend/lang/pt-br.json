@@ -151,6 +151,8 @@
   "deleteMediaElement": "Deletar",
   "placeElement": "Colocar",
   "removeElement": "Remover",
+  "canvasLockPosition": "Bloquear",
+  "canvasUnlockPosition": "Desbloquear",
   "centerCanvasOnLaunch": "Centralizar câmera",
   "hideCanvasControls": "Ocultar botões",
   "language": "Idioma",
