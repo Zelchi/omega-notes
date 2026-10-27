@@ -4,13 +4,11 @@ import test from 'node:test';
 
 const source = async path => readFile(new URL(path, import.meta.url), 'utf8');
 
-test('Pomodoro entry point and panel are available in production', async () => {
+test('Pomodoro entry point and panel remain available in production', async () => {
 	const titlebar = await source('../src/app/ui/window-titlebar/index.tsx');
 	const app = await source('../src/app/index.tsx');
-	assert.match(titlebar, /aria-label=\{props\.t\("pomodoroOpen"\)\}/);
-	assert.doesNotMatch(titlebar, /import\.meta\.env\.DEV/);
+	assert.match(titlebar, /<Show when=\{import\.meta\.env\.DEV\}>[\s\S]*?<\/Show>\s*<Button class=\{cx\(styles\.button, styles\.pomodoroButton\)\}[\s\S]*?aria-label=\{props\.t\("pomodoroOpen"\)\}/);
 	assert.match(app, /<Show when=\{pomodoroMounted\(\)\}>[\s\S]*?<PomodoroPanel/);
-	assert.doesNotMatch(app, /import\.meta\.env\.DEV/);
 });
 
 test('Pomodoro focus completion can reveal a hidden window on both desktop hosts', async () => {
@@ -45,6 +43,41 @@ test('startup centering is labeled as camera centering and does not move notes',
 test('canvas mounts only after a successful full vault load', async () => {
 	const app = await source('../src/app/index.tsx');
 	assert.match(app, /ready=\{app\.notes\.hasLoadedVault\(\)\}/);
+});
+
+test('Kanban is hidden and cannot be opened in production', async () => {
+	const [titlebar, app, controller] = await Promise.all([
+		source('../src/app/ui/window-titlebar/index.tsx'),
+		source('../src/app/index.tsx'),
+		source('../src/app/controller.ts'),
+	]);
+	assert.match(titlebar, /<Show when=\{import\.meta\.env\.DEV\}>[\s\S]*?kanbanButton/);
+	assert.match(app, /createPresence\(\(\) => import\.meta\.env\.DEV && app\.kanban\.open\(\)/);
+	assert.match(app, /<Show when=\{import\.meta\.env\.DEV && kanbanMounted\(\)\}>[\s\S]*?<KanbanPanel/);
+	assert.match(controller, /if \(!import\.meta\.env\.DEV \|\| !vaults\.activeVaultId\(\)\) return/);
+	assert.match(controller, /if \(!import\.meta\.env\.DEV \|\| event\.defaultPrevented[\s\S]*?KeyB/);
+});
+
+test('Electron and Tauri enforce one app instance and focus the existing window', async () => {
+	const [electron, tauri, tauriCargo] = await Promise.all([
+		source('../../bridge/electron/main.mjs'),
+		source('../../bridge/tauri/src/main.rs'),
+		source('../../bridge/tauri/Cargo.toml'),
+	]);
+	assert.match(electron, /if \(!app\.requestSingleInstanceLock\(\)\) app\.exit\(0\)/);
+	assert.ok(electron.indexOf('if (!app.requestSingleInstanceLock())') < electron.indexOf('tray = new Tray(icon)'));
+	assert.match(electron, /app\.on\('second-instance', \(\) => \{ if \(window\) show\(\); \}\)/);
+	assert.match(tauriCargo, /tauri-plugin-single-instance = "2"/);
+	assert.ok(tauri.indexOf('.plugin(tauri_plugin_single_instance::init(') < tauri.indexOf('.plugin(tauri_plugin_dialog::init())'));
+	assert.match(tauri, /tauri_plugin_single_instance::init\(\|app, _args, _cwd\|\s*\{\s*show_window\(app\)\s*\}\)/);
+});
+
+test('Kanban card editor has only an icon save action', async () => {
+	const kanban = await source('../src/features/manage-kanban/ui/kanban-panel/index.tsx');
+	const start = kanban.indexOf('<form class={styles.cardEditor}');
+	const editor = kanban.slice(start, kanban.indexOf('</form>', start));
+	assert.doesNotMatch(editor, /props\.t\("cancel"\)|props\.t\("save"\)/);
+	assert.match(editor, /type="submit"[\s\S]*?<Icon name="check" size=\{14\} \/>/);
 });
 
 test('static note locks are exposed and excluded from dragging and auto-separation', async () => {

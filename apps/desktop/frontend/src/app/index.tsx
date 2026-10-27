@@ -44,7 +44,7 @@ const AppView: Component = () => {
 	const deleteDialogMounted = createPresence(app.noteDeletion.open, 210).present;
 	const noteNameDialogMounted = createPresence(app.navigation.nameDialogVisible, 210).present;
 	const chatMounted = createPresence(app.chatOpen, 210).present;
-	const kanbanMounted = createPresence(app.kanban.open, 210).present;
+	const kanbanMounted = createPresence(() => import.meta.env.DEV && app.kanban.open(), 210).present;
 	const pomodoroMounted = createPresence(app.pomodoro.open, 210).present;
 
 	return (
@@ -289,7 +289,7 @@ const AppView: Component = () => {
 							</Show>
 						</Suspense>
 					</Show>
-					<Show when={kanbanMounted()}>
+					<Show when={import.meta.env.DEV && kanbanMounted()}>
 						<Suspense fallback={null}>
 						<KanbanPanel kanban={app.kanban} t={app.t} />
 						</Suspense>
