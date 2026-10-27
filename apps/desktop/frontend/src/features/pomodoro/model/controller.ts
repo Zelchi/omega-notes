@@ -1,12 +1,19 @@
 import { createEffect, createSignal, on, onCleanup, type Accessor } from "solid-js";
 import { playSound } from "@/shared/ui/sound";
-import { readPomodoroSettings, readPomodoroTasks, savePomodoroSettings, savePomodoroTasks, type PomodoroTask } from "../api/tasks.repository";
+import { readMuteLofiDuringBreaks, readPomodoroSettings, readPomodoroTasks, saveMuteLofiDuringBreaks, savePomodoroSettings, savePomodoroTasks, type PomodoroTask } from "../api/tasks.repository";
 import { initializePomodoroTimer, nextPomodoroPhase, pausePomodoroTimer, readPomodoroTimer, resetPomodoroTimer, setPomodoroSettings, startPomodoroTimer, type PomodoroPhase, type PomodoroTimerSnapshot } from "../api/timer.repository";
 import { isDesktopRuntime } from "@/shared/lib/desktop";
 
 const maxTasks = 1000;
+const alarmMuteMs = 700;
 
-export const usePomodoro = (vaultId: Accessor<string | undefined>) => {
+export const shouldMuteLofi = (phase: PomodoroPhase, muteDuringBreaks: boolean, alarmActive: boolean): boolean =>
+	alarmActive || (muteDuringBreaks && phase !== "focus");
+
+export const endsFocusPhase = (phase: PomodoroPhase, nextPhase: PomodoroPhase): boolean =>
+	phase === "focus" && nextPhase !== "focus";
+
+export const usePomodoro = (vaultId: Accessor<string | undefined>, onFocusPhaseEnd?: () => void) => {
 	const [open, setOpen] = createSignal(false);
 	const [tasks, setTasks] = createSignal<PomodoroTask[]>([]);
 	const [loading, setLoading] = createSignal(false);
@@ -14,6 +21,8 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>) => {
 	const [readFailed, setReadFailed] = createSignal(false);
 	const [writeFailed, setWriteFailed] = createSignal(false);
 	const [settingsError, setSettingsError] = createSignal(false);
+	const [muteLofiDuringBreaks, setMuteLofiDuringBreaksSignal] = createSignal(readMuteLofiDuringBreaks());
+	const [alarmActive, setAlarmActive] = createSignal(false);
 	const initialSettings = readPomodoroSettings();
 	const [phase, setPhase] = createSignal<PomodoroPhase>("focus");
 	const [focusMinutes, setFocusMinutes] = createSignal(initialSettings.focusMinutes);
@@ -35,13 +44,20 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>) => {
 	const [editDraft, setEditDraft] = createSignal("");
 	const view = { draft, setDraft, showSettings, setShowSettings, focusDraft, setFocusDraft, shortBreakDraft, setShortBreakDraft, longBreakDraft, setLongBreakDraft, cyclesDraft, setCyclesDraft, editingTaskId, setEditingTaskId, taskActionsVisibleId, setTaskActionsVisibleId, editDraft, setEditDraft };
 	let timer: ReturnType<typeof setInterval> | undefined;
+	let alarmMuteTimer: ReturnType<typeof setTimeout> | undefined;
 	let timerRevision = 0, timerReadPending = false, timerErrorLogged = false;
 	let loadRevision = 0, writeRevision = 0;
 	const writes = new Map<string, Promise<void>>();
 
 	const clearTimer = () => { clearInterval(timer); timer = undefined; };
 	const applySnapshot = (snapshot: PomodoroTimerSnapshot, playPhaseChange: boolean) => {
-		if (playPhaseChange && phase() !== snapshot.phase) playSound("pomodoro-alarm");
+		if (playPhaseChange && phase() !== snapshot.phase) {
+			if (endsFocusPhase(phase(), snapshot.phase)) onFocusPhaseEnd?.();
+			setAlarmActive(true);
+			clearTimeout(alarmMuteTimer);
+			alarmMuteTimer = setTimeout(() => { alarmMuteTimer = undefined; setAlarmActive(false); }, alarmMuteMs);
+			playSound("pomodoro-alarm");
+		}
 		setPhase(snapshot.phase);
 		setPhaseSeconds(snapshot.durationSeconds);
 		setSeconds(snapshot.remainingSeconds);
@@ -128,6 +144,12 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>) => {
 			.then(snapshot => applySnapshot(snapshot, false)).catch(reportTimerError);
 		return true;
 	};
+	const setMuteLofiDuringBreaks = (muted: boolean) => {
+		if (!saveMuteLofiDuringBreaks(muted)) { setSettingsError(true); return false; }
+		setMuteLofiDuringBreaksSignal(muted);
+		setSettingsError(false);
+		return true;
+	};
 	const toggleSettings = () => {
 		if (showSettings()) { setShowSettings(false); return; }
 		setFocusDraft(String(focusMinutes())); setShortBreakDraft(String(shortBreakMinutes()));
@@ -210,9 +232,11 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>) => {
 		catch { return false; }
 	};
 
-	onCleanup(() => { timerRevision += 1; clearTimer(); });
+	onCleanup(() => { timerRevision += 1; clearTimer(); clearTimeout(alarmMuteTimer); });
 	return {
 		open, setOpen, tasks, loading, error, readFailed, settingsError, addTask, renameTask, toggleTask, removeTask, flushSave, view, toggleSettings,
 		phase, phaseSeconds, timerReady, focusMinutes, shortBreakMinutes, longBreakMinutes, cyclesBeforeLongBreak, seconds, running, start, pause, reset, next, setDurations,
+		muteLofiDuringBreaks, setMuteLofiDuringBreaks,
+		muteLofi: () => shouldMuteLofi(phase(), muteLofiDuringBreaks(), alarmActive()),
 	};
 };

@@ -45,12 +45,16 @@ const invoke = async <T>(command: string, args: Record<string, unknown>): Promis
 				musicPlaying: args.musicPlaying,
 			}) as T;
 		case 'window_is_maximized': return await webviewWindow.isMaximized() as T;
+		case 'window_is_visible': return await webviewWindow.isVisible() as T;
 		case 'window_toggle_maximize': return await webviewWindow.toggleMaximize() as T;
 		case 'window_minimize': return await webviewWindow.minimize() as T;
 		case 'window_close': return await webviewWindow.close() as T;
 		case 'window_destroy': return await webviewWindow.destroy() as T;
 		case 'hide_main_window': return await webviewWindow.hide() as T;
-		case 'show_main_window': return await webviewWindow.show() as T;
+		case 'show_main_window': {
+			await webviewWindow.show();
+			return await webviewWindow.setFocus() as T;
+		}
 		case 'exit_main_app': return await tauriInvoke('exit_app') as T;
 		case 'is_gnome_desktop': return false as T;
 		case 'set_window_background_color': {

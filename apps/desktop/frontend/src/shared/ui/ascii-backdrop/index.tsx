@@ -6,12 +6,16 @@ import { styles } from "./style.css.ts";
 type AsciiTheme = Exclude<BackgroundTheme, "default">;
 type Props = { theme?: BackgroundTheme; placement?: "titlebar" | "modal" };
 const CODE_FALL_SPEED = 32;
+const CODE_RAIN_MAX_DENSITY = 0.008 * 5;
 const CODE_RAIN_SEED = Math.floor(Math.random() * 1_000_000);
 const CODE_RAIN_EPOCH = typeof performance === "undefined" ? 0 : performance.now();
 
 const defaultBackgroundTheme: Accessor<BackgroundTheme> = () => "default";
+const defaultBackgroundIntensity: Accessor<number> = () => 0.6;
 export const BackgroundThemeContext = createContext<Accessor<BackgroundTheme>>(defaultBackgroundTheme);
 export const BackgroundThemeProvider = BackgroundThemeContext.Provider;
+export const BackgroundIntensityContext = createContext<Accessor<number>>(defaultBackgroundIntensity);
+export const BackgroundIntensityProvider = BackgroundIntensityContext.Provider;
 
 const tileScene = (scene: string, columns = 3, rows = 3): string => {
 	const lines = scene.trim().split("\n").map((line) => line.replace(/\s+$/, ""));
@@ -63,14 +67,22 @@ const randomAt = (seed: number) => {
 	return value - Math.floor(value);
 };
 
-const renderConstellation = (animationSeed: number) => {
+const renderConstellation = (animationSeed: number, intensity: number) => {
 	const lines = scenes.constellation.split("\n");
 	return lines.flatMap((line, row) => {
 		const parts: (string | ReturnType<typeof renderGlyph>)[] = [];
 		let text = "";
 
 		Array.from(line).forEach((character, column) => {
-			if (character !== "*") {
+			if (character !== "*" && character !== ".") {
+				text += character;
+				return;
+			}
+			if (randomAt(CODE_RAIN_SEED + row * line.length + column) >= intensity) {
+				text += " ";
+				return;
+			}
+			if (character === ".") {
 				text += character;
 				return;
 			}
@@ -89,14 +101,14 @@ const renderConstellation = (animationSeed: number) => {
 const codeFallDuration = () => typeof window === "undefined" ? 30 : Math.max(window.innerHeight / CODE_FALL_SPEED, 0.1);
 const codeRainElapsed = () => typeof performance === "undefined" ? 0 : (performance.now() - CODE_RAIN_EPOCH) / 1000;
 
-const renderCodeRain = (duration: number, elapsed: number) => {
+const renderCodeRain = (duration: number, elapsed: number, intensity: number) => {
 	const lines = scenes.matrix.split("\n");
 	const columns = Math.max(...lines.map((line) => line.length));
 	return lines.flatMap((line, row) => Array.from(line, (character, column) => {
 		if (character !== "0" && character !== "1") return [];
 
 		const seed = CODE_RAIN_SEED + row * columns + column;
-		if (randomAt(seed) >= 0.002) return [];
+		if (randomAt(seed) >= intensity * CODE_RAIN_MAX_DENSITY) return [];
 		const phase = (elapsed + randomAt(seed + 2) * duration) % duration;
 
 		return (
@@ -129,6 +141,7 @@ const renderGlyph = (character: string, seed: number) => {
 
 const AsciiBackdrop: Component<Props> = (props) => {
 	const contextTheme = useContext(BackgroundThemeContext);
+	const intensity = useContext(BackgroundIntensityContext);
 	const theme = () => props.theme ?? contextTheme();
 	const animationSeed = Math.floor(Math.random() * 1_000_000);
 	let codeRainElement: HTMLDivElement | undefined;
@@ -151,17 +164,29 @@ const AsciiBackdrop: Component<Props> = (props) => {
 				glyph.style.animationDelay = `${-phase}s`;
 			});
 		};
+		const settleAt = performance.now() + 300;
+		let entryFrame = 0;
+		const syncDuringEntrance = () => {
+			if (!codeRainElement) return;
+			const bounds = codeRainElement.getBoundingClientRect();
+			codeRainElement.style.setProperty("--rain-left", `${bounds.left}px`);
+			codeRainElement.style.setProperty("--rain-top", `${bounds.top}px`);
+			if (performance.now() < settleAt) {
+				entryFrame = window.requestAnimationFrame(syncDuringEntrance);
+			}
+		};
 
 		const observer = new ResizeObserver(syncCodeRain);
 		observer.observe(codeRainElement);
 		window.addEventListener("resize", syncCodeRain);
-		// shortcut: espera a entrada atual de 180 ms terminar; atualize se a duração da animação mudar.
-		const settleTimer = window.setTimeout(syncCodeRain, 300);
 		syncCodeRain();
+		if (props.placement === "modal") {
+			entryFrame = window.requestAnimationFrame(syncDuringEntrance);
+		}
 		onCleanup(() => {
 			observer.disconnect();
 			window.removeEventListener("resize", syncCodeRain);
-			window.clearTimeout(settleTimer);
+			window.cancelAnimationFrame(entryFrame);
 		});
 	});
 
@@ -174,9 +199,9 @@ const AsciiBackdrop: Component<Props> = (props) => {
 							ref={codeRainElement}
 							style={{ "--code-fall-duration": `${codeFallDuration()}s` }}
 						>
-							{renderCodeRain(codeFallDuration(), codeRainElapsed())}
+							{renderCodeRain(codeFallDuration(), codeRainElapsed(), intensity())}
 						</div>
-					: <pre class={styles.art}>{renderConstellation(animationSeed)}</pre>}
+					: <pre class={styles.art}>{renderConstellation(animationSeed, intensity())}</pre>}
 			</div>
 		</Show>
 	);

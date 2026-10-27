@@ -20,6 +20,7 @@ import {
 	saveAiFeaturesEnabled,
 	readCanvasLayout,
 	readBackgroundTheme,
+	readBackgroundIntensity,
 	readCenterCanvasOnLaunch,
 	readHideCanvasControls,
 	readLanguage,
@@ -27,6 +28,7 @@ import {
 	readTextCursor,
 	saveCanvasLayout,
 	saveBackgroundTheme,
+	saveBackgroundIntensity,
 	saveCenterCanvasOnLaunch,
 	saveHideCanvasControls,
 	saveLanguage,
@@ -48,6 +50,7 @@ export const usePreferences = () => {
 	const [language, setLanguage] = createSignal<Language>(readLanguage());
 	const [theme, setTheme] = createSignal<Theme>(readTheme());
 	const [backgroundTheme, setBackgroundTheme] = createSignal<BackgroundTheme>(readBackgroundTheme());
+	const [backgroundIntensity, setBackgroundIntensity] = createSignal(readBackgroundIntensity());
 	const [textCursor, setTextCursor] = createSignal<TextCursor>(readTextCursor());
 
 	document.documentElement.dataset.theme = theme();
@@ -108,6 +111,13 @@ export const usePreferences = () => {
 		setBackgroundTheme: (value: BackgroundTheme) => {
 			setBackgroundTheme(value);
 			saveBackgroundTheme(value);
+		},
+		backgroundIntensity,
+		setBackgroundIntensity: (value: number) => {
+			if (!Number.isFinite(value)) return;
+			const intensity = Math.max(0, Math.min(1, value));
+			setBackgroundIntensity(intensity);
+			saveBackgroundIntensity(intensity);
 		},
 		setCanvasLayout: (value: CanvasLayout) => {
 			setCanvasLayout(value);

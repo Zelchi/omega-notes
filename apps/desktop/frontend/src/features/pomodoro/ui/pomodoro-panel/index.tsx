@@ -105,6 +105,11 @@ const PomodoroPanel: Component<Props> = (props) => {
 											<span>{props.t("pomodoroCyclesBeforeLongBreak")}</span>
 											<input class={styles.numberInput} type="number" min="1" max="100" step="1" required value={cyclesDraft()} onInput={event => setCyclesDraft(event.currentTarget.value)} onChange={saveSettings} />
 										</label>
+										<label class={styles.muteLofiSetting}>
+											<input class={styles.muteLofiCheckbox} type="checkbox" checked={props.pomodoro.muteLofiDuringBreaks()}
+												onChange={event => props.pomodoro.setMuteLofiDuringBreaks(event.currentTarget.checked)} />
+											<span>{props.t("pomodoroMuteLofiDuringBreaks")}</span>
+										</label>
 									</div>
 								</Show>
 								<Show when={props.pomodoro.settingsError()}>

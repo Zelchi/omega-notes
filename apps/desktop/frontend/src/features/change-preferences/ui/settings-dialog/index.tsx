@@ -54,6 +54,8 @@ type Props = {
 	textCursor: TextCursor;
 	soundVolume: number;
 	onSoundVolumeChange: (value: number) => void;
+	backgroundIntensity: number;
+	onBackgroundIntensityChange: (value: number) => void;
 	versionControl?: () => JSX.Element;
 	t: (key: TranslationKey) => string;
 	onClose: () => void;
@@ -138,6 +140,12 @@ const SettingsDialog: Component<Props> = (props) => {
 											{ value: "matrix", label: props.t("backgroundStyleMatrix") },
 										]}
 										onChange={(value) => props.onBackgroundThemeChange(value as BackgroundTheme)} />
+								</div>
+								<div class={styles.option}>
+									<label for="settings-backgroundIntensity">{props.t("backgroundIntensity")}</label>
+									<div class={styles.volumeControl}>
+										<BlockSlider id="settings-backgroundIntensity" value={props.backgroundIntensity} onChange={props.onBackgroundIntensityChange} />
+									</div>
 								</div>
 							</Show>
 

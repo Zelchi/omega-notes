@@ -9,6 +9,7 @@ type Player = {
 	volume: Accessor<number>;
 	setVolume: Setter<number>;
 	muted: Accessor<boolean>;
+	setPomodoroMuted: (muted: boolean) => void;
 	status: Accessor<PlayerStatus>;
 	isActive: () => boolean;
 	sourceName: () => string;
@@ -33,6 +34,7 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 	const [currentIndex, setCurrentIndex] = createSignal(0);
 	const [volume, setVolume] = createSignal(0.4);
 	const [muted, setMuted] = createSignal(false);
+	const [pomodoroMuted, setPomodoroMuted] = createSignal(false);
 	const [status, setStatus] = createSignal<PlayerStatus>("idle");
 	const [somaFmChannel, setSomaFmChannel] = createSignal<{ title: string; lastPlaying?: string }>();
 	let audio: HTMLAudioElement | undefined;
@@ -43,7 +45,7 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 	let attempted = new Set<number>();
 
 	const currentSource = () => sources()[currentIndex()] ?? somaFmSource;
-	const effectiveVolume = () => isNoteMediaPlaying() || muted() ? 0 : volume();
+	const effectiveVolume = () => isNoteMediaPlaying() || muted() || pomodoroMuted() ? 0 : volume();
 	const isActive = () => status() === "playing" || status() === "loading";
 	const sourceName = () => currentSource().provider === "somafm" ? somaFmChannel()?.title ?? currentSource().name : currentSource().name;
 	const trackName = () => currentSource().provider === "somafm" ? somaFmChannel()?.lastPlaying : undefined;
@@ -165,7 +167,7 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 		audio?.pause();
 	});
 
-	const player: Player = { volume, setVolume, muted, status, isActive, sourceName, trackName, toggleMute, togglePlayback, nextSource };
+	const player: Player = { volume, setVolume, muted, setPomodoroMuted, status, isActive, sourceName, trackName, toggleMute, togglePlayback, nextSource };
 	return <PlayerContext.Provider value={player}>
 		{props.children}
 		<audio

@@ -11,6 +11,7 @@ export type PomodoroSettings = {
 
 const key = (vaultId: string) => `omega-notes.pomodoro-tasks.v1.${vaultId}`;
 const settingsKey = "omega-notes.pomodoro-settings.v1";
+const muteLofiDuringBreaksKey = "omega-notes.pomodoro-mute-lofi-during-breaks.v1";
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const defaultSettings: PomodoroSettings = {
 	focusMinutes: 25,
@@ -45,6 +46,20 @@ export const savePomodoroSettings = (settings: PomodoroSettings): boolean => {
 	} catch {
 		return false;
 	}
+};
+
+export const readMuteLofiDuringBreaks = (): boolean => {
+	try {
+		const saved = localStorage.getItem(muteLofiDuringBreaksKey);
+		return saved !== "false";
+	} catch { return true; }
+};
+
+export const saveMuteLofiDuringBreaks = (muted: boolean): boolean => {
+	try {
+		localStorage.setItem(muteLofiDuringBreaksKey, String(muted));
+		return true;
+	} catch { return false; }
 };
 
 const decode = (value: unknown): PomodoroTask[] => {

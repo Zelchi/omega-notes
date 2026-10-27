@@ -8,6 +8,7 @@ const CENTER_CANVAS_KEY = "omega-notes.settings.center-canvas-on-launch";
 const HIDE_CANVAS_CONTROLS_KEY = "omega-notes.settings.hide-zoom-controls";
 const THEME_KEY = "omega-notes.settings.theme";
 const BACKGROUND_THEME_KEY = "omega-notes.settings.background-theme";
+const BACKGROUND_INTENSITY_KEY = "omega-notes.settings.background-intensity";
 const LANGUAGE_KEY = "omega-notes.settings.language";
 const TEXT_CURSOR_KEY = "omega-notes.settings.text-cursor";
 const AI_FEATURES_KEY = "omega-notes.settings.ai-features-enabled";
@@ -152,6 +153,25 @@ export const readBackgroundTheme = (): BackgroundTheme => {
 export const saveBackgroundTheme = (value: BackgroundTheme): void => {
 	try {
 		localStorage.setItem(BACKGROUND_THEME_KEY, value);
+	} catch (error) {
+		console.error(error);
+	}
+};
+
+export const readBackgroundIntensity = (): number => {
+	try {
+		const stored = localStorage.getItem(BACKGROUND_INTENSITY_KEY);
+		if (stored === null || stored.trim() === "") return 0.6;
+		const value = Number(stored);
+		return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0.6;
+	} catch {
+		return 0.6;
+	}
+};
+
+export const saveBackgroundIntensity = (value: number): void => {
+	try {
+		localStorage.setItem(BACKGROUND_INTENSITY_KEY, String(value));
 	} catch (error) {
 		console.error(error);
 	}

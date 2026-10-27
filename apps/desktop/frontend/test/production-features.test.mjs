@@ -13,20 +13,51 @@ test('Pomodoro entry point and panel are available in production', async () => {
 	assert.doesNotMatch(app, /import\.meta\.env\.DEV/);
 });
 
+test('Pomodoro focus completion can reveal a hidden window on both desktop hosts', async () => {
+	const [pomodoro, app, windowApi, electron, tauri] = await Promise.all([
+		source('../src/features/pomodoro/model/controller.ts'),
+		source('../src/app/controller.ts'),
+		source('../src/app/api/window.repository.ts'),
+		source('../../bridge/electron/main.mjs'),
+		source('../src/shared/lib/desktop-tauri.ts'),
+	]);
+	assert.match(pomodoro, /endsFocusPhase\(phase\(\), snapshot\.phase\)\) onFocusPhaseEnd\?\.\(\)/);
+	assert.match(app, /showMainWindowIfHidden\(\)/);
+	assert.match(windowApi, /isDesktopRuntime\(\) && !\(await isMainWindowVisible\(\)\)\) await showMainWindow\(\)/);
+	assert.match(electron, /case 'window_is_visible': return window\.isVisible\(\)/);
+	assert.match(tauri, /case 'window_is_visible': return await webviewWindow\.isVisible\(\)/);
+});
+
+test('startup centering is labeled as camera centering and does not move notes', async () => {
+	const [ptBr, en, graph] = await Promise.all([
+		source('../lang/pt-br.json'),
+		source('../lang/en.json'),
+		source('../src/pages/canvas/ui/graph-canvas/controller.ts'),
+	]);
+	const centerCamera = graph.match(/if \(props\.centerOnMount\) \{([\s\S]*?)\n\t\t\}/)?.[1];
+	assert.equal(JSON.parse(ptBr).centerCanvasOnLaunch, 'Centralizar câmera');
+	assert.equal(JSON.parse(en).centerCanvasOnLaunch, 'Center camera on launch');
+	assert.ok(centerCamera);
+	assert.match(centerCamera, /setView\(/);
+	assert.doesNotMatch(centerCamera, /setPositions\(/);
+});
+
 test('Lo-fi radio controls remain in Pomodoro while its player lives for the app lifetime', async () => {
-	const [titlebar, app, pomodoro, player] = await Promise.all([
+	const [titlebar, app, pomodoro, player, controller] = await Promise.all([
 		source('../src/app/ui/window-titlebar/index.tsx'),
 		source('../src/app/index.tsx'),
 		source('../src/features/pomodoro/ui/pomodoro-panel/index.tsx'),
 		source('../src/features/lofi-player/model/player.tsx'),
+		source('../src/app/controller.ts'),
 	]);
 	assert.ok(pomodoro.indexOf('<LofiPlayerPanel') < pomodoro.indexOf('<section class={styles.timer}'));
 	assert.match(app, /const AppView: Component = \(\) => \{\s*const app = useAppController\(\)/);
 	assert.match(app, /const App: Component = \(\) => <LofiPlayerProvider><AppView \/><\/LofiPlayerProvider>/);
 	assert.match(player, /<audio/);
 	assert.match(player, /onCleanup\(\(\) => \{[\s\S]*?audio\?\.pause\(\)/);
-	assert.match(player, /isNoteMediaPlaying\(\) \|\| muted\(\) \? 0 : volume\(\)/);
+	assert.match(player, /isNoteMediaPlaying\(\) \|\| muted\(\) \|\| pomodoroMuted\(\) \? 0 : volume\(\)/);
 	assert.match(player, /audio\.volume = effectiveVolume\(\)/);
+	assert.match(controller, /lofiPlayer\.setPomodoroMuted\(pomodoro\.muteLofi\(\)\)/);
 	assert.doesNotMatch(app, /MusicPlayerPanel|musicOpen|onMusic/);
 	assert.doesNotMatch(titlebar, /musicPlayerOpen|musicButton|onMusic/);
 });
@@ -47,7 +78,7 @@ test('tray menu presents Play/Pause while starting playback or toggling mute', a
 	assert.match(controller, /if \(lofiPlayer\.muted\(\)\) lofiPlayer\.toggleMute\(\);\s*lofiPlayer\.togglePlayback\(\)/);
 	assert.match(controller, /case "music-play-pause": toggleTrayMusic\(\)/);
 	assert.match(controller, /case "music-next": lofiPlayer\.nextSource\(\)/);
-	assert.match(player, /isNoteMediaPlaying\(\) \|\| muted\(\) \? 0 : volume\(\)/);
+	assert.match(player, /isNoteMediaPlaying\(\) \|\| muted\(\) \|\| pomodoroMuted\(\) \? 0 : volume\(\)/);
 	assert.match(electron, /trayMusicPlaying \? trayLabels\.musicPause : trayLabels\.musicPlay/);
 	assert.match(electron, /'music-play-pause'/);
 	assert.match(electron, /'music-next'/);
