@@ -1,7 +1,7 @@
 {
     "name": "omega-notes-desktop",
     "private": true,
-    "version": "0.5.6",
+    "version": "0.5.7",
     "type": "module",
     "scripts": {
         "dev": "vite frontend --config frontend/vite.config.ts --host 127.0.0.1 --port 1420",

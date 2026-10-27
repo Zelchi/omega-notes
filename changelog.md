@@ -1,5 +1,12 @@
 # Histórico de atualizações
 
+## v0.5.7
+
+### Aplicativo
+
+- Abrir o Ômega Notes novamente agora traz a janela existente para frente no host Tauri, evitando instâncias duplicadas.
+- O Kanban fica disponível apenas durante o desenvolvimento, e a edição dos cartões usa um botão de salvar com ícone.
+
 ## v0.5.6
 
 ### Notas e vaults

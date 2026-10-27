@@ -187,7 +187,7 @@ export const useAppController = () => {
 		else aiChat.setOpen(open);
 	};
 	const toggleKanban = () => {
-		if (!vaults.activeVaultId()) return;
+		if (!import.meta.env.DEV || !vaults.activeVaultId()) return;
 		if (!kanban.open()) hideOtherWindows("kanban");
 		kanban.setOpen((open) => !open);
 	};
@@ -431,7 +431,7 @@ export const useAppController = () => {
 		onCleanup(() => removeEventListener("keydown", preventNativeTab, true));
 
 		const onKanbanShortcut = (event: KeyboardEvent) => {
-			if (event.defaultPrevented || event.isComposing || isTerminalTarget(event.target) || !vaults.activeVaultId()
+			if (!import.meta.env.DEV || event.defaultPrevented || event.isComposing || isTerminalTarget(event.target) || !vaults.activeVaultId()
 				|| navigation.nameDialogVisible() || vaults.dialogOpen() || settingsOpen() || studies.open()
 				|| noteDeletion.open() || noteDeletion.pending() || updates.installing()) return;
 			if (event.metaKey || event.getModifierState("AltGraph") || event.code !== "KeyB"

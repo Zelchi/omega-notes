@@ -81,8 +81,9 @@ const KanbanPanel: Component<Props> = (props) => {
 						<input class={`${styles.cardInput} ${styles.cardEditorInput}`} value={editDraft()} maxLength={500}
 							aria-label={props.t("kanbanItemTitle")} disabled={mutationsBlocked()} onInput={(event) => setEditDraft(event.currentTarget.value)} />
 						<div class={styles.formActions}>
-							<Button class={styles.formButton} type="button" onClick={() => setEditing(undefined)}>{props.t("cancel")}</Button>
-							<Button class={styles.formButton} type="submit" disabled={mutationsBlocked() || !editDraft().trim()}>{props.t("save")}</Button>
+							<Button class={styles.formButton} type="submit" disabled={mutationsBlocked() || !editDraft().trim()}>
+								<Icon name="check" size={14} />
+							</Button>
 						</div>
 					</form>
 				</Show>

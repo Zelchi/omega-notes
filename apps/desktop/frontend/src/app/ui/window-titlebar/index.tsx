@@ -55,11 +55,13 @@ const WindowTitlebar: Component<Props> = (props) => (
 			<div class={styles.brand} data-omega-drag-region data-tauri-drag-region>
 				<img class={styles.mark} data-omega-drag-region data-tauri-drag-region src={iconUrl} alt="" />
 			</div>
-			<Button class={cx(styles.button, styles.kanbanButton)} type="button" disabled={!props.vaultName} aria-label={props.t("kanbanOpen")}
-				aria-expanded={props.kanbanOpen} aria-controls="kanban-panel" aria-keyshortcuts="Control+Shift+B"
-				onClick={() => runAppAction(props.onKanban, props.settingsOpen, props.onSettings)}>
-				<Icon name="bulletList" size={16} />
-			</Button>
+			<Show when={import.meta.env.DEV}>
+				<Button class={cx(styles.button, styles.kanbanButton)} type="button" disabled={!props.vaultName} aria-label={props.t("kanbanOpen")}
+					aria-expanded={props.kanbanOpen} aria-controls="kanban-panel" aria-keyshortcuts="Control+Shift+B"
+					onClick={() => runAppAction(props.onKanban, props.settingsOpen, props.onSettings)}>
+					<Icon name="bulletList" size={16} />
+				</Button>
+			</Show>
 			<Button class={cx(styles.button, styles.pomodoroButton)} type="button" disabled={!props.vaultName} aria-label={props.t("pomodoroOpen")}
 				aria-expanded={props.pomodoroOpen} aria-controls="pomodoro-panel"
 				onClick={() => runAppAction(props.onPomodoro, props.settingsOpen, props.onSettings)}>
