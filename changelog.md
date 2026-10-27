@@ -1,5 +1,11 @@
 # Histórico de atualizações
 
+## v0.5.5
+
+### Correções
+
+- O Canvas Estático preserva as posições salvas enquanto o vault carrega e evita descartar a organização se o carregamento falhar.
+
 ## v0.5.4
 
 ### Canvas

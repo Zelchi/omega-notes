@@ -119,7 +119,7 @@ const AppView: Component = () => {
 										<Canvas
 											vaultId={app.vaults.activeVaultId() ?? ""}
 											layout={app.preferences.canvasLayout()}
-											ready={!app.notes.loading() || app.notes.hasLoadedVault()}
+											ready={app.notes.hasLoadedVault()}
 											notes={app.notes.sortedNotes()}
 							onCreateNote={app.createNoteAtCanvas}
 											onOpenNote={app.navigation.openNote}
