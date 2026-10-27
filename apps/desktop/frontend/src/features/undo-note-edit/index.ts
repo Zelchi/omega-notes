@@ -1,1 +1,1 @@
-export { createTextHistory, type TextHistoryState } from "./model/text-history";
+export { createTextHistory, invalidateHistoryForExternalText, type TextHistoryState } from "./model/text-history";

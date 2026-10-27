@@ -1,4 +1,4 @@
-import { Channel, invoke } from "@/shared/lib/desktop";
+import { Channel, invoke, invokeCancellable } from "@/shared/lib/desktop";
 import type { NoteChangeSet, NoteLibrary, NoteLoadIssue, NoteMediaCatalogItem, NoteSaveResult, NoteSummary, NoteSummaryLibrary, StudyNote } from "../model/note";
 
 type NoteSummaryEvent =
@@ -44,16 +44,27 @@ export const streamNoteSummaries = (
 	external: boolean,
 	resetObserverSnapshot: boolean,
 	onItems: (notes: NoteSummary[]) => void,
+	signal: AbortSignal,
 ): Promise<NoteSummaryCompletion> => new Promise((resolve, reject) => {
 	const queue: NoteSummaryEvent[] = [];
 	const channel = new Channel<NoteSummaryEvent>();
 	let done = false, invoked = false, complete: NoteSummaryCompletion | undefined;
 	let task: ReturnType<typeof setTimeout> | undefined;
+	const requestController = new AbortController();
 	const cleanup = () => {
 		clearTimeout(timeout); clearTimeout(task); queue.length = 0;
 		channel.onmessage = () => undefined;
+		channel.close();
+		signal.removeEventListener("abort", onAbort);
 	};
-	const fail = () => { if (!done) { done = true; cleanup(); reject(Error("NOTE_READ_FAILED")); } };
+	const fail = (error: Error = Error("NOTE_READ_FAILED"), cancel = true) => {
+		if (done) return;
+		done = true;
+		cleanup();
+		if (cancel) requestController.abort();
+		reject(error);
+	};
+	const onAbort = () => fail(Error("NOTE_READ_CANCELLED"), true);
 	const finish = () => {
 		if (done || !invoked || !complete || queue.length) return;
 		done = true; cleanup(); resolve(complete);
@@ -75,25 +86,30 @@ export const streamNoteSummaries = (
 			else finish();
 		} catch { fail(); }
 	};
-	const timeout = setTimeout(fail, 120_000);
+	const timeout = setTimeout(() => fail(Error("NOTE_READ_FAILED"), true), 120_000);
+	signal.addEventListener("abort", onAbort, { once: true });
+	if (signal.aborted) { onAbort(); return; }
 	channel.onmessage = (event) => {
 		if (done || !event || typeof event !== "object") { fail(); return; }
 		queue.push(event);
 		if (task === undefined) task = setTimeout(drain, 0);
 	};
 	void Promise.resolve()
-		.then(() => invoke<void>("stream_note_summaries", { vaultId, observerId, resetObserverSnapshot, external, onItem: channel }))
-		.then(() => { invoked = true; finish(); }, fail);
+		.then(() => {
+			if (done) return;
+			return invokeCancellable<void>("stream_note_summaries", { vaultId, observerId, resetObserverSnapshot, external, onItem: channel }, requestController.signal);
+		})
+		.then(() => { invoked = true; finish(); }, error => fail(error instanceof Error ? error : Error("NOTE_READ_FAILED"), false));
 });
 
-export const getNote = (vaultId: string, noteId: string): Promise<StudyNote> =>
-	invoke<StudyNote>("get_note", { vaultId, noteId });
+export const getNote = (vaultId: string, noteId: string, signal?: AbortSignal): Promise<StudyNote> =>
+	signal ? invokeCancellable<StudyNote>("get_note", { vaultId, noteId }, signal) : invoke<StudyNote>("get_note", { vaultId, noteId });
 
 export const listNoteMedia = (): Promise<NoteMediaCatalogItem[]> => invoke("list_note_media");
 
 export const listNotes = (vaultId?: string, external = false): Promise<NoteLibrary> => invoke<NoteLibrary>("list_notes", { vaultId: vaultId ?? null, external });
-export const notesChanges = (vaultId: string, observerId: string): Promise<NoteChangeSet> =>
-	invoke<NoteChangeSet>("notes_changes", { vaultId, observerId });
+export const notesChanges = (vaultId: string, observerId: string, signal?: AbortSignal): Promise<NoteChangeSet> =>
+	signal ? invokeCancellable<NoteChangeSet>("notes_changes", { vaultId, observerId }, signal) : invoke<NoteChangeSet>("notes_changes", { vaultId, observerId });
 
 export const acknowledgeNoteChanges = (observerId: string, changeToken: string): Promise<void> =>
 	invoke<void>("acknowledge_note_changes", { observerId, changeToken });
@@ -116,7 +132,8 @@ export const deleteNote = (noteId: string): Promise<NoteLoadIssue[]> =>
 
 export const listDeletedNotes = (): Promise<StudyNote[]> => invoke("list_deleted_notes");
 
-export const listDeletedNoteIds = (): Promise<string[]> => invoke("list_deleted_note_ids");
+export const listDeletedNoteIds = (vaultId: string, signal?: AbortSignal): Promise<string[]> =>
+	signal ? invokeCancellable<string[]>("list_deleted_note_ids", { vaultId }, signal) : invoke("list_deleted_note_ids", { vaultId });
 
 export const restoreDeletedNote = (noteId: string): Promise<NoteSaveResult> =>
 	invoke("restore_deleted_note", { noteId });

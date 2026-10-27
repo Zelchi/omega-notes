@@ -8,6 +8,7 @@
   "next_pomodoro_phase",
   "list_notes",
   "stream_note_summaries",
+  "cancel_note_read",
   "notes_changes",
   "acknowledge_note_changes",
   "get_note",

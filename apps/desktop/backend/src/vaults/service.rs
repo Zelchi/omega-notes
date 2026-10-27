@@ -154,6 +154,7 @@ pub(super) fn switch_vault(
     set_active_vault: &impl Fn(Option<(PathBuf, PathBuf)>, &str) -> Result<(), String>,
     vault_id: String,
 ) -> Result<VaultLibrary, String> {
+    let _title_mutations = crate::app::library::lock_title_mutations()?;
     let _registry_lock = lock_vault_registry_mutations()?;
     Uuid::parse_str(&vault_id).map_err(|_| "Identificador de vault inválido.".to_string())?;
     let directory = resolve_app_directory()?;

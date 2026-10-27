@@ -313,6 +313,18 @@ test('zip-tie routing keeps each wire moving in its own direction', () => {
 		assert.ok((anchor.x - before.x) * (after.x - anchor.x) + (anchor.y - before.y) * (after.y - anchor.y) > 0);
 	}
 });
+test('zip-tie orientation follows the connected notes instead of a local bend', () => {
+    const upper = summarizeNote({ ...note('a'), title:'Primitive Type' });
+    const middle = summarizeNote({ ...note('b'), title:'Number' });
+    const target = summarizeNote({ ...note('z'), title:'Wrapper Object' });
+    const edges = [{ source:upper, target }, { source:middle, target }];
+    const positions = { a:{x:31,y:38}, b:{x:65,y:124}, z:{x:311,y:124} };
+    const edgeMap = new Map(edges.map(edge => [graphEdgeKey(edge), edge]));
+    const tie = { id:'tie', members:edges.map((edge, index) => ({ edgeKey:graphEdgeKey(edge), t:index ? .58 : .55 })) };
+    const placement = zipTiePlacement(tie, edgeMap, positions, 3);
+
+    assert.ok(Math.abs(placement.angle - 90) < 10, `expected a vertical clamp across the mostly horizontal wires, got ${placement.angle}°`);
+});
 test('a zip tie slides along each of its wires while remaining bound to those wires', () => {
     const notes = ['a', 'b', 'c', 'd'].map(id => summarizeNote(note(id)));
     const edges = [{ source:notes[0], target:notes[1] }, { source:notes[2], target:notes[3] }];
@@ -323,6 +335,41 @@ test('a zip tie slides along each of its wires while remaining bound to those wi
     assert.ok(moved);
     assert.ok(moved.members.every(member => member.t > .5));
     assert.ok(zipTiePlacement(moved, edgeMap, positions, 4));
+});
+test('a zip tie does not slide when dragged perpendicular to its wires', () => {
+    const notes = ['a', 'b', 'c', 'd'].map(id => summarizeNote(note(id)));
+    const edges = [{ source:notes[0], target:notes[1] }, { source:notes[2], target:notes[3] }];
+    const positions = { a:{x:0,y:0}, b:{x:500,y:200}, c:{x:0,y:200}, d:{x:500,y:0} };
+    const edgeMap = new Map(edges.map(edge => [graphEdgeKey(edge), edge]));
+    const tie = { id:'tie', members:edges.map(edge => ({ edgeKey:graphEdgeKey(edge), t:.35 })) };
+    const placement = zipTiePlacement(tie, edgeMap, positions, 4);
+    const angle = (placement.angle - 90) * Math.PI / 180;
+    const delta = { x:-Math.sin(angle) * 60, y:Math.cos(angle) * 60 };
+    const moved = slideZipTie(tie, edgeMap, positions, 4, delta);
+
+    assert.ok(moved);
+    assert.deepEqual(moved.members, tie.members);
+});
+test('a zip tie advances each wire by the same distance along its shared axis', () => {
+    const notes = ['a', 'b', 'c', 'd'].map(id => summarizeNote(note(id)));
+    const edges = [{ source:notes[0], target:notes[1] }, { source:notes[2], target:notes[3] }];
+    const positions = { a:{x:0,y:0}, b:{x:500,y:200}, c:{x:0,y:200}, d:{x:500,y:0} };
+    const edgeMap = new Map(edges.map(edge => [graphEdgeKey(edge), edge]));
+    const tie = { id:'tie', members:edges.map(edge => ({ edgeKey:graphEdgeKey(edge), t:.35 })) };
+    const placement = zipTiePlacement(tie, edgeMap, positions, 4);
+    const angle = (placement.angle - 90) * Math.PI / 180;
+    const direction = { x:Math.cos(angle), y:Math.sin(angle) };
+    const distance = 60;
+    const moved = slideZipTie(tie, edgeMap, positions, 4, { x:direction.x * distance, y:direction.y * distance });
+
+    assert.ok(moved);
+    for (const member of tie.members) {
+        const edge = edgeMap.get(member.edgeKey);
+        const before = graphEdgePointAt(edge, positions, 4, member.t);
+        const after = graphEdgePointAt(edge, positions, 4, moved.members.find(item => item.edgeKey === member.edgeKey).t);
+        const progress = (after.x - before.x) * direction.x + (after.y - before.y) * direction.y;
+        assert.ok(Math.abs(progress - distance) < .1, `wire advanced ${progress}px instead of ${distance}px`);
+    }
 });
 for (const scale of [0, -1, null, '1', 10]) test('stored camera rejects invalid scale: ' + scale, t => {
     const oldWindow = globalThis.window, oldStorage = globalThis.localStorage;

@@ -9,6 +9,8 @@ use std::{
     time::Duration,
 };
 
+pub(super) const MEDIA_STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(15);
+
 struct PublicNetworkResolver;
 
 impl Resolve for PublicNetworkResolver {
@@ -112,6 +114,16 @@ pub(super) fn build_client() -> Result<Client, reqwest::Error> {
 }
 
 pub(super) fn build_media_stream_client() -> Result<Client, reqwest::Error> {
+    build_media_stream_client_with(
+        Client::builder().dns_resolver(PublicNetworkResolver),
+        MEDIA_STREAM_IDLE_TIMEOUT,
+    )
+}
+
+pub(super) fn build_media_stream_client_with(
+    builder: reqwest::ClientBuilder,
+    idle_timeout: Duration,
+) -> Result<Client, reqwest::Error> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let redirects = Policy::custom(|attempt| {
         if attempt.previous().len() > 5 || !is_safe_https_target_url(attempt.url()) {
@@ -120,11 +132,11 @@ pub(super) fn build_media_stream_client() -> Result<Client, reqwest::Error> {
             attempt.follow()
         }
     });
-    Client::builder()
+    builder
         .connect_timeout(Duration::from_secs(4))
+        .read_timeout(idle_timeout)
         .no_proxy()
         .redirect(redirects)
-        .dns_resolver(PublicNetworkResolver)
         .user_agent(concat!("OmegaNotes/", env!("CARGO_PKG_VERSION")))
         .build()
 }

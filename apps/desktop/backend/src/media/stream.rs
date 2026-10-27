@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
+use tokio::sync::oneshot;
 use uuid::Uuid;
 
 const MAX_REQUEST_BYTES: usize = 16 * 1024;
@@ -13,6 +14,79 @@ const REQUEST_WORKERS: usize = 4;
 const MAX_QUEUED_REQUESTS: usize = 16;
 const HEADER_READ_TIMEOUT: Duration = Duration::from_secs(5);
 const RESPONSE_WRITE_TIMEOUT: Duration = Duration::from_secs(15);
+const CONSUMER_DISCONNECT_POLL: Duration = Duration::from_millis(50);
+
+struct ConsumerMonitor {
+    cancelled: oneshot::Receiver<()>,
+    stop: mpsc::Sender<()>,
+    worker: Option<thread::JoinHandle<()>>,
+}
+
+impl ConsumerMonitor {
+    fn start(stream: &TcpStream) -> io::Result<Self> {
+        let probe = stream.try_clone()?;
+        probe.set_read_timeout(Some(CONSUMER_DISCONNECT_POLL))?;
+        let (cancel_sender, cancelled) = oneshot::channel();
+        let (stop, stopped) = mpsc::channel();
+        let worker = thread::Builder::new()
+            .name("omega-media-consumer-monitor".to_string())
+            .spawn(move || {
+                let mut byte = [0; 1];
+                loop {
+                    let has_data = match probe.peek(&mut byte) {
+                        Ok(0) => {
+                            let _ = cancel_sender.send(());
+                            break;
+                        }
+                        Ok(_) => true,
+                        Err(error)
+                            if matches!(
+                                error.kind(),
+                                io::ErrorKind::WouldBlock
+                                    | io::ErrorKind::TimedOut
+                                    | io::ErrorKind::Interrupted
+                            ) =>
+                        {
+                            false
+                        }
+                        Err(_) => {
+                            let _ = cancel_sender.send(());
+                            break;
+                        }
+                    };
+
+                    let stopped_now = if has_data {
+                        matches!(
+                            stopped.recv_timeout(CONSUMER_DISCONNECT_POLL),
+                            Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected)
+                        )
+                    } else {
+                        matches!(
+                            stopped.try_recv(),
+                            Ok(()) | Err(mpsc::TryRecvError::Disconnected)
+                        )
+                    };
+                    if stopped_now {
+                        break;
+                    }
+                }
+            })?;
+        Ok(Self {
+            cancelled,
+            stop,
+            worker: Some(worker),
+        })
+    }
+}
+
+impl Drop for ConsumerMonitor {
+    fn drop(&mut self) {
+        let _ = self.stop.send(());
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
 
 pub(crate) struct MediaStream {
     port: u16,
@@ -232,7 +306,18 @@ fn serve_request(
 }
 
 fn serve_remote_audio(stream: &mut TcpStream, source: Url, head: bool) -> io::Result<()> {
-    let mut response = match crate::runtime::block_on(crate::web::fetch_audio_stream(source)) {
+    let mut consumer = ConsumerMonitor::start(stream)?;
+    let response = crate::runtime::block_on(async {
+        tokio::select! {
+            biased;
+            _ = &mut consumer.cancelled => None,
+            response = crate::web::fetch_audio_stream(source) => Some(response),
+        }
+    });
+    let Some(response) = response else {
+        return Ok(());
+    };
+    let mut response = match response {
         Ok(response) => response,
         Err(_) => return respond_empty(stream, "502 Bad Gateway", &[]),
     };
@@ -256,9 +341,20 @@ fn serve_remote_audio(stream: &mut TcpStream, source: Url, head: bool) -> io::Re
         return Ok(());
     }
 
-    while let Some(chunk) = crate::runtime::block_on(response.chunk())
-        .map_err(|error| io::Error::other(error.to_string()))?
-    {
+    loop {
+        let chunk = crate::runtime::block_on(async {
+            tokio::select! {
+                biased;
+                _ = &mut consumer.cancelled => None,
+                chunk = response.chunk() => Some(chunk),
+            }
+        });
+        let Some(chunk) = chunk else {
+            return Ok(());
+        };
+        let Some(chunk) = chunk.map_err(|error| io::Error::other(error.to_string()))? else {
+            break;
+        };
         if content_length.is_none() {
             write!(stream, "{:X}\r\n", chunk.len())?;
             stream.write_all(&chunk)?;
@@ -550,5 +646,22 @@ mod tests {
         assert!(headers.contains("Content-Length: 4"));
         assert!(headers.contains("Access-Control-Allow-Origin: *"));
         assert_eq!(body, "2345");
+    }
+
+    #[test]
+    fn consumer_disconnect_signals_cancellation_for_the_remote_request() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let address = listener.local_addr().unwrap();
+        let accept = thread::spawn(move || listener.accept().unwrap().0);
+        let consumer = TcpStream::connect(address).unwrap();
+        let server = accept.join().unwrap();
+        let mut monitor = ConsumerMonitor::start(&server).unwrap();
+
+        consumer.shutdown(std::net::Shutdown::Both).unwrap();
+        let cancelled = crate::runtime::block_on(async {
+            tokio::time::timeout(Duration::from_secs(1), &mut monitor.cancelled).await
+        });
+
+        assert!(cancelled.is_ok_and(|result| result.is_ok()));
     }
 }

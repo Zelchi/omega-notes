@@ -1,5 +1,5 @@
 import { isTerminalTarget } from "@/shared/lib/terminal-focus";
-import { isDesktopRuntime } from "@/shared/lib/desktop";
+import { isDesktopRuntime, withCancellableReadsPaused } from "@/shared/lib/desktop";
 import type { CliStudyBridge } from "@/features/gambiarra-terminal/model/study-bridge";
 import { useCreateNoteFromLink } from "@/features/create-note-from-link";
 import type { StudiesController } from "@/features/study-notes/model/controller";
@@ -497,13 +497,28 @@ export const useAppController = () => {
 	});
 
 	const selectVault = async (vault: Vault): Promise<void> => {
-		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.navigating() || navigation.nameDialog()) return;
+		if (vaultActionPending() || canvasHistory.mutating() || noteReferences.pending() || navigation.savingName()) return;
 		setVaultActionPending(true);
 		try {
 			if (!(await beforeShutdown())) return;
 			const previousId = vaults.activeVaultId();
-			await vaults.select(vault);
-			if (previousId !== vaults.activeVaultId()) navigation.resetToCanvas();
+			if (previousId && previousId !== vault.id) {
+				try {
+					await withCancellableReadsPaused(previousId, () => vaults.select(vault));
+				} catch (error) {
+					console.error(error);
+					notes.reload();
+					return;
+				}
+			} else {
+				await vaults.select(vault);
+			}
+			if (previousId !== vaults.activeVaultId()) {
+				navigation.cancelNameDialog();
+				navigation.resetToCanvas();
+			} else if (previousId && previousId !== vault.id) {
+				notes.reload();
+			}
 		} finally {
 			setVaultActionPending(false);
 		}

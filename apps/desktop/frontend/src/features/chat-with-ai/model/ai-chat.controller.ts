@@ -535,10 +535,10 @@ export const useAiChat = (options: {
                 error: String(failure) === "AI_SAVE_FAILED" ? options.t("saveFailed") : describe(failure),
             }), true);
         } finally {
-            if (!posted && message === undefined && !disposed && revision === connectionRevision && options.enabled()) {
+            if (!posted && !disposed && revision === connectionRevision && options.enabled()) {
                 patchChat(id, (value) => ({
                     ...value,
-                    draft: value.draft ? `${submittedDraft}\n${value.draft}` : submittedDraft,
+                    ...(message === undefined ? { draft: value.draft ? `${submittedDraft}\n${value.draft}` : submittedDraft } : {}),
                     ...(value.requestId === requestId ? { busy: false } : {}),
                 }));
             }

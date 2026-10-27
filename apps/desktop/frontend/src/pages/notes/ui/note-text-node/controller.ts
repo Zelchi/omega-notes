@@ -12,7 +12,7 @@ import { layoutTextFlow, type TextFlowLayout } from "../../lib/text-flow-layout"
 import { layoutFormattedText } from "../../lib/formatted-text-layout";
 import { EMPTY_CHARACTER, syncEditableTextDom } from "../../lib/editable-text-dom";
 import { styles } from "./style.css.ts";
-import { createTextHistory, type TextHistoryState } from "@/features/undo-note-edit";
+import { createTextHistory, invalidateHistoryForExternalText, type TextHistoryState } from "@/features/undo-note-edit";
 import { createAsyncTextReplacement } from "@/shared/lib/async-text-replacement";
 import { pastedUrl, canResolvePastedUrl, resolvePastedLink } from "@/features/paste-url-link";
 import { formatSelection, indentSelection, type TextRun, type TextFormatHandler, type TextSelection, type FormattedFragment } from "@/features/format-text";
@@ -487,9 +487,10 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 
 	createEffect(() => {
 		const value = props.element().text;
-		if (value !== untrack(draft)) {
-			setDraft(value);
-		}
+		if (invalidateHistoryForExternalText(history, value, untrack(draft), () => {
+			pendingHistory = undefined;
+			pendingHistoryKind = "replace";
+		})) setDraft(value);
 	});
 
 	createEffect(syncEditableContent);

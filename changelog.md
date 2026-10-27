@@ -1,5 +1,22 @@
 # Histórico de atualizações
 
+## v0.5.6
+
+### Notas e vaults
+
+- A troca de vault cancela leituras antigas sem travar o carregamento do vault seguinte; a sincronização externa e a recuperação de notas lidam melhor com cancelamentos e alterações concorrentes.
+- Ações de desfazer texto não reaplicam histórico obsoleto após uma edição externa, e o terminal restaura suas dimensões ao reconectar.
+
+### Organização
+
+- O Arquivo e o Kanban preservam os dados existentes quando a leitura falha e permitem tentar novamente.
+- O Canvas mantém as presilhas alinhadas aos fios e melhora a restauração do histórico por vault.
+
+### Pomodoro, estudos e áudio
+
+- O timer Pomodoro permite tentar novamente após falhas; o progresso de estudos é salvo e retomado com mais segurança.
+- A reprodução lo-fi cancela fluxos antigos ao parar ou trocar de estação e lida melhor com streams interrompidos.
+
 ## v0.5.5
 
 ### Correções

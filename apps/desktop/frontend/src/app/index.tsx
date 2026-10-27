@@ -120,6 +120,8 @@ const AppView: Component = () => {
 											vaultId={app.vaults.activeVaultId() ?? ""}
 											layout={app.preferences.canvasLayout()}
 											ready={app.notes.hasLoadedVault()}
+											loading={app.notes.loading()}
+											onReload={app.notes.reload}
 											notes={app.notes.sortedNotes()}
 							onCreateNote={app.createNoteAtCanvas}
 											onOpenNote={app.navigation.openNote}
@@ -258,7 +260,7 @@ const AppView: Component = () => {
 								getDetails={app.vaults.getDetails}
 								error={app.vaults.error()}
 								errorAction={app.vaults.errorAction()}
-								saving={app.vaults.saving() || app.vaultActionPending() || app.canvasHistory.pending() || app.noteReferences.pending()}
+								saving={app.vaults.saving() || app.vaultActionPending() || app.canvasHistory.mutating() || app.noteReferences.pending()}
 								t={app.t}
 								onClose={app.vaults.closeDialog}
 								onClearError={app.vaults.clearError}

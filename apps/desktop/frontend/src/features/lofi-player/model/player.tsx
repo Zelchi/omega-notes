@@ -41,6 +41,7 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 	let playbackIntent = false;
 	let requestId = 0;
 	let sourceAttemptId = 0;
+	let activeAudioAttempt: { requestId: number; attemptId: number; src: string } | undefined;
 	let attemptTimer: ReturnType<typeof setTimeout> | undefined;
 	let attempted = new Set<number>();
 
@@ -50,6 +51,13 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 	const sourceName = () => currentSource().provider === "somafm" ? somaFmChannel()?.title ?? currentSource().name : currentSource().name;
 	const trackName = () => currentSource().provider === "somafm" ? somaFmChannel()?.lastPlaying : undefined;
 	const clearAttemptTimer = () => { clearTimeout(attemptTimer); attemptTimer = undefined; };
+	const cancelAudio = () => {
+		activeAudioAttempt = undefined;
+		if (!audio) return;
+		audio.pause();
+		audio.removeAttribute("src");
+		audio.load();
+	};
 
 	createEffect(() => {
 		if (audio) audio.volume = effectiveVolume();
@@ -62,7 +70,7 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 			sourceAttemptId += 1;
 			playbackIntent = false;
 			setStatus("failed");
-			audio?.pause();
+			cancelAudio();
 			return;
 		}
 		void trySource((currentIndex() + 1) % sources().length, activeRequest);
@@ -81,13 +89,14 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 		setCurrentIndex(index);
 		setStatus("loading");
 		const activeAttempt = ++sourceAttemptId;
-		audio.pause();
+		cancelAudio();
 		clearAttemptTimer();
 		attemptTimer = setTimeout(() => finishFailed(activeRequest, activeAttempt), 15_000);
 		try {
 			const streamUrl = await getMusicStreamUrl(list[index]!.url);
 			if (activeRequest !== requestId || activeAttempt !== sourceAttemptId || !playbackIntent) return;
 			audio.src = streamUrl;
+			activeAudioAttempt = { requestId: activeRequest, attemptId: activeAttempt, src: audio.src };
 			audio.volume = effectiveVolume();
 			audio.load();
 			void audio.play().catch((error: unknown) => {
@@ -97,6 +106,7 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 				if (error instanceof DOMException && error.name === "NotAllowedError") {
 					playbackIntent = false;
 					setStatus("failed");
+					cancelAudio();
 					return;
 				}
 				finishFailed(activeRequest, activeAttempt);
@@ -120,7 +130,7 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 			requestId += 1;
 			clearAttemptTimer();
 			setStatus("paused");
-			audio?.pause();
+			cancelAudio();
 		} else playFrom(currentIndex());
 	};
 	const toggleMute = () => setMuted(value => !value);
@@ -133,6 +143,12 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 
 	const handleSourceFailure = () => {
 		if (playbackIntent) finishFailed(requestId, sourceAttemptId);
+	};
+
+	const handleEnded = () => {
+		const attempt = activeAudioAttempt;
+		if (!playbackIntent || !audio?.ended || !attempt || audio.currentSrc !== attempt.src) return;
+		finishFailed(attempt.requestId, attempt.attemptId);
 	};
 
 	const handleWaiting = () => {
@@ -164,7 +180,7 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 		playbackIntent = false;
 		requestId += 1;
 		clearAttemptTimer();
-		audio?.pause();
+		cancelAudio();
 	});
 
 	const player: Player = { volume, setVolume, muted, setPomodoroMuted, status, isActive, sourceName, trackName, toggleMute, togglePlayback, nextSource };
@@ -181,6 +197,7 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 			onWaiting={handleWaiting}
 			onStalled={handleWaiting}
 			onError={handleSourceFailure}
+			onEnded={handleEnded}
 		/>
 	</PlayerContext.Provider>;
 };

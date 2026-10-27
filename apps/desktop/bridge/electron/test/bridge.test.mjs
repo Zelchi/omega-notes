@@ -22,11 +22,14 @@ test('renderer channels cross a serializable bridge and subscriptions can be rem
     channel.onmessage = value => messages.push(value);
     assert.equal(await invoke('stream_note_summaries', { output: channel }), 42);
     assert.deepEqual(messages, [{ text: 'first' }]);
-    receive(channel.id, { text: 'after completion' });
-    assert.equal(messages.length, 1);
+    receive(channel.id, { text: 'after RPC response' });
+    assert.deepEqual(messages, [{ text: 'first' }, { text: 'after RPC response' }]);
+    channel.close();
+    receive(channel.id, { text: 'after stream completion' });
+    assert.equal(messages.length, 2);
     const unlisten = await listen('ai-event', event => messages.push(event.payload));
     for (const listener of listeners) listener('ai-event', { text: 'event' });
     unlisten();
     assert.equal(listeners.size, 0);
-    assert.equal(messages.length, 2);
+    assert.equal(messages.length, 3);
 });

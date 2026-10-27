@@ -74,7 +74,7 @@ test('Lo-fi radio controls remain in Pomodoro while its player lives for the app
 	assert.match(app, /const AppView: Component = \(\) => \{\s*const app = useAppController\(\)/);
 	assert.match(app, /const App: Component = \(\) => <LofiPlayerProvider><AppView \/><\/LofiPlayerProvider>/);
 	assert.match(player, /<audio/);
-	assert.match(player, /onCleanup\(\(\) => \{[\s\S]*?audio\?\.pause\(\)/);
+	assert.match(player, /onCleanup\(\(\) => \{[\s\S]*?cancelAudio\(\)/);
 	assert.match(player, /isNoteMediaPlaying\(\) \|\| muted\(\) \|\| pomodoroMuted\(\) \? 0 : volume\(\)/);
 	assert.match(player, /audio\.volume = effectiveVolume\(\)/);
 	assert.match(controller, /lofiPlayer\.setPomodoroMuted\(pomodoro\.muteLofi\(\)\)/);

@@ -50,3 +50,15 @@ export const createTextHistory = () => {
         },
     };
 };
+
+export const invalidateHistoryForExternalText = (
+    history: Pick<ReturnType<typeof createTextHistory>, "clear">,
+    incomingText: string,
+    draftText: string,
+    clearPending: () => void,
+): boolean => {
+    if (incomingText === draftText) return false;
+    history.clear();
+    clearPending();
+    return true;
+};

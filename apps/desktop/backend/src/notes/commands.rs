@@ -3,8 +3,11 @@ use serde::Serialize;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::{LazyLock, Mutex},
-    time::{Instant, UNIX_EPOCH},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, LazyLock, Mutex,
+    },
+    time::{Duration, Instant, UNIX_EPOCH},
 };
 
 use super::models::{
@@ -38,6 +41,104 @@ struct ExternalSnapshot {
 
 static EXTERNAL_SNAPSHOTS: LazyLock<Mutex<HashMap<String, ExternalSnapshot>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+struct NoteReadState {
+    cancelled: Arc<AtomicBool>,
+    active: bool,
+    expires_at: Instant,
+}
+
+static NOTE_READ_OPERATIONS: LazyLock<Mutex<HashMap<String, NoteReadState>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+struct NoteReadOperation {
+    id: Option<String>,
+    cancelled: Arc<AtomicBool>,
+}
+
+impl Drop for NoteReadOperation {
+    fn drop(&mut self) {
+        let Some(id) = &self.id else { return };
+        if let Ok(mut operations) = NOTE_READ_OPERATIONS.lock() {
+            if operations
+                .get(id)
+                .is_some_and(|value| Arc::ptr_eq(&value.cancelled, &self.cancelled))
+            {
+                operations.remove(id);
+            }
+        }
+    }
+}
+
+fn begin_note_read(operation_id: Option<String>) -> Result<NoteReadOperation, String> {
+    let Some(id) = operation_id else {
+        return Ok(NoteReadOperation {
+            id: None,
+            cancelled: Arc::new(AtomicBool::new(false)),
+        });
+    };
+    uuid::Uuid::parse_str(&id).map_err(|_| "NOTE_READ_FAILED".to_string())?;
+    let now = Instant::now();
+    let mut operations = NOTE_READ_OPERATIONS
+        .lock()
+        .map_err(|_| "NOTE_READ_FAILED".to_string())?;
+    operations.retain(|_, state| state.active || state.expires_at > now);
+    let cancelled = if let Some(state) = operations.get_mut(&id) {
+        if state.active {
+            return Err("NOTE_READ_FAILED".into());
+        }
+        state.active = true;
+        state.cancelled.clone()
+    } else {
+        let cancelled = Arc::new(AtomicBool::new(false));
+        operations.insert(
+            id.clone(),
+            NoteReadState {
+                cancelled: cancelled.clone(),
+                active: true,
+                expires_at: now + Duration::from_secs(30),
+            },
+        );
+        cancelled
+    };
+    Ok(NoteReadOperation {
+        id: Some(id),
+        cancelled,
+    })
+}
+
+pub(crate) fn cancel_note_read(operation_id: String) -> Result<(), String> {
+    uuid::Uuid::parse_str(&operation_id).map_err(|_| "NOTE_READ_FAILED".to_string())?;
+    let now = Instant::now();
+    let mut operations = NOTE_READ_OPERATIONS
+        .lock()
+        .map_err(|_| "NOTE_READ_FAILED".to_string())?;
+    operations.retain(|_, state| state.active || state.expires_at > now);
+    if let Some(state) = operations.get_mut(&operation_id) {
+        state.cancelled.store(true, Ordering::Relaxed);
+        state.expires_at = now + Duration::from_secs(30);
+    } else {
+        if operations.len() >= 256 {
+            return Err("NOTE_READ_FAILED".into());
+        }
+        operations.insert(
+            operation_id,
+            NoteReadState {
+                cancelled: Arc::new(AtomicBool::new(true)),
+                active: false,
+                expires_at: now + Duration::from_secs(30),
+            },
+        );
+    }
+    Ok(())
+}
+
+fn check_cancelled(cancelled: &AtomicBool) -> Result<(), String> {
+    if cancelled.load(Ordering::Relaxed) {
+        Err("NOTE_READ_CANCELLED".into())
+    } else {
+        Ok(())
+    }
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -65,22 +166,29 @@ pub(crate) struct NoteSummaryCompletion {
     reference_titles: std::collections::HashMap<String, String>,
 }
 
-fn scan_external_snapshot(directory: &Path) -> Result<BTreeMap<String, ExternalFileStamp>, String> {
+fn scan_external_snapshot(
+    directory: &Path,
+    cancelled: &AtomicBool,
+) -> Result<BTreeMap<String, ExternalFileStamp>, String> {
     let entries = std::fs::read_dir(directory).map_err(|_| "NOTE_READ_FAILED")?;
     let mut files = BTreeMap::new();
     for entry in entries {
-        let entry = entry.map_err(|_| "NOTE_READ_FAILED")?;
+        check_cancelled(cancelled)?;
+        // External files can be renamed while the observer snapshots the directory.
+        let Ok(entry) = entry else { continue };
         let path = entry.path();
         if path.extension().and_then(|extension| extension.to_str()) != Some("omega") {
             continue;
         }
-        let metadata = std::fs::symlink_metadata(&path).map_err(|_| "NOTE_READ_FAILED")?;
-        let modified_nanos = metadata
-            .modified()
-            .map_err(|_| "NOTE_READ_FAILED")?
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| "NOTE_READ_FAILED")?
-            .as_nanos();
+        let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+            continue;
+        };
+        let Ok(modified) = metadata.modified() else {
+            continue;
+        };
+        let Ok(modified_nanos) = modified.duration_since(UNIX_EPOCH) else {
+            continue;
+        };
         #[cfg(unix)]
         let identity = {
             use std::os::unix::fs::MetadataExt;
@@ -88,15 +196,14 @@ fn scan_external_snapshot(directory: &Path) -> Result<BTreeMap<String, ExternalF
         };
         #[cfg(not(unix))]
         let identity = None;
-        let file_name = entry
-            .file_name()
-            .into_string()
-            .map_err(|_| "NOTE_READ_FAILED")?;
+        let Ok(file_name) = entry.file_name().into_string() else {
+            continue;
+        };
         files.insert(
             file_name,
             ExternalFileStamp {
                 length: metadata.len(),
-                modified_nanos,
+                modified_nanos: modified_nanos.as_nanos(),
                 identity,
                 regular: metadata.is_file() && !metadata.file_type().is_symlink(),
             },
@@ -141,6 +248,7 @@ fn external_snapshot_diff(
     observer_id: &str,
     directory: &Path,
     current: &BTreeMap<String, ExternalFileStamp>,
+    cancelled: &AtomicBool,
 ) -> Result<Option<ExternalSnapshotChanges>, String> {
     let now = Instant::now();
     let mut snapshots = EXTERNAL_SNAPSHOTS.lock().map_err(|_| "NOTE_READ_FAILED")?;
@@ -154,18 +262,20 @@ fn external_snapshot_diff(
         return Ok(None);
     }
     previous.last_seen = now;
-    let changed = current
-        .iter()
-        .filter_map(|(file_name, stamp)| {
-            (previous.files.get(file_name) != Some(stamp)).then_some(file_name.clone())
-        })
-        .collect::<Vec<_>>();
-    let removed = previous
-        .files
-        .keys()
-        .filter(|file_name| !current.contains_key(*file_name))
-        .cloned()
-        .collect::<Vec<_>>();
+    let mut changed = Vec::new();
+    for (file_name, stamp) in current {
+        check_cancelled(cancelled)?;
+        if previous.files.get(file_name) != Some(stamp) {
+            changed.push(file_name.clone());
+        }
+    }
+    let mut removed = Vec::new();
+    for file_name in previous.files.keys() {
+        check_cancelled(cancelled)?;
+        if !current.contains_key(file_name) {
+            removed.push(file_name.clone());
+        }
+    }
     let reconcile_due =
         now.duration_since(previous.last_full_reconcile).as_secs() >= FULL_RECONCILE_SECONDS;
     Ok(Some((changed, removed, reconcile_due)))
@@ -245,8 +355,12 @@ pub(crate) async fn list_notes(
     external: Option<bool>,
 ) -> Result<NoteLibrary, String> {
     crate::runtime::spawn_blocking(move || {
-        let _title_lock = library::lock_title_mutations()?;
         let directories = runtime::notes_and_backups_dirs(&app)?;
+        let title_lock = library::title_lock_for_vault(&directories.0)?;
+        let _title_lock = library::lock_vault_title_operations(&title_lock)?;
+        if runtime::notes_and_backups_dirs(&app)? != directories {
+            return Err("NOTE_LOAD_VAULT_CHANGED".into());
+        }
         if let Some(id) = vault_id.as_deref() {
             if crate::ai::terminal_vault_directory(&app, id)
                 .map_err(|error| vault_operation_error(error, "NOTE_LOAD_VAULT_CHANGED"))?
@@ -295,14 +409,18 @@ pub(crate) async fn stream_note_summaries(
     vault_id: String,
     observer_id: String,
     reset_observer_snapshot: bool,
-    _external: Option<bool>,
+    external: Option<bool>,
+    operation_id: Option<String>,
     on_item: Channel<NoteSummaryEvent>,
 ) -> Result<(), String> {
+    let operation = begin_note_read(operation_id)?;
+    let cancelled = operation.cancelled.clone();
     crate::runtime::spawn_blocking(move || {
+        let _operation = operation;
+        check_cancelled(&cancelled)?;
         if observer_id.is_empty() || observer_id.len() > 128 {
             return Err("NOTE_READ_FAILED".into());
         }
-        let _title_lock = library::lock_title_mutations()?;
         let directories = runtime::notes_and_backups_dirs(&app)?;
         if crate::ai::terminal_vault_directory(&app, &vault_id)
             .map_err(|error| vault_operation_error(error, "NOTE_LOAD_VAULT_CHANGED"))?
@@ -310,16 +428,35 @@ pub(crate) async fn stream_note_summaries(
         {
             return Err("NOTE_LOAD_VAULT_MISMATCH".into());
         }
-        if reset_observer_snapshot {
-            let snapshot = scan_external_snapshot(&directories.0)?;
-            store_external_snapshot(&observer_id, &directories.0, snapshot)?;
+        let title_lock = library::title_lock_for_vault(&directories.0)?;
+        let _title_lock =
+            library::lock_vault_title_operations_cancellable(&title_lock, &cancelled)?;
+        check_cancelled(&cancelled)?;
+        if runtime::notes_and_backups_dirs(&app)? != directories {
+            return Err("NOTE_LOAD_VAULT_CHANGED".into());
         }
-        let (issues, reference_titles) =
-            library::stream_note_summaries(&|| Ok(directories.clone()), |note| {
+        if reset_observer_snapshot && external == Some(true) {
+            // Observer indexing is advisory and must not block loading note summaries.
+            match scan_external_snapshot(&directories.0, &cancelled) {
+                Ok(snapshot) => {
+                    check_cancelled(&cancelled)?;
+                    let _ = store_external_snapshot(&observer_id, &directories.0, snapshot);
+                }
+                Err(error) if error == "NOTE_READ_CANCELLED" => return Err(error),
+                Err(_) => {}
+            }
+        }
+        let (issues, reference_titles) = library::stream_note_summaries_cancellable(
+            &|| Ok(directories.clone()),
+            &cancelled,
+            |note| {
+                check_cancelled(&cancelled)?;
                 on_item
                     .send(NoteSummaryEvent::Item(note))
                     .map_err(|_| "NOTE_READ_FAILED".to_string())
-            })?;
+            },
+        )?;
+        check_cancelled(&cancelled)?;
         if runtime::notes_dir(&app)? != directories.0 {
             return Err("NOTE_LOAD_VAULT_CHANGED".into());
         }
@@ -338,12 +475,16 @@ pub(crate) async fn notes_changes(
     app: AppContext,
     vault_id: String,
     observer_id: String,
+    operation_id: Option<String>,
 ) -> Result<NoteChangeSet, String> {
+    let operation = begin_note_read(operation_id)?;
+    let cancelled = operation.cancelled.clone();
     crate::runtime::spawn_blocking(move || {
+        let _operation = operation;
+        check_cancelled(&cancelled)?;
         if observer_id.is_empty() || observer_id.len() > 128 {
             return Err("NOTE_READ_FAILED".into());
         }
-        let _title_lock = library::lock_title_mutations()?;
         let directories = runtime::notes_and_backups_dirs(&app)?;
         if crate::ai::terminal_vault_directory(&app, &vault_id)
             .map_err(|error| vault_operation_error(error, "NOTE_SCAN_VAULT_CHANGED"))?
@@ -351,9 +492,16 @@ pub(crate) async fn notes_changes(
         {
             return Err("NOTE_LOAD_VAULT_MISMATCH".into());
         }
-        let current = scan_external_snapshot(&directories.0)?;
+        let title_lock = library::title_lock_for_vault(&directories.0)?;
+        let _title_lock =
+            library::lock_vault_title_operations_cancellable(&title_lock, &cancelled)?;
+        check_cancelled(&cancelled)?;
+        if runtime::notes_and_backups_dirs(&app)? != directories {
+            return Err("NOTE_LOAD_VAULT_CHANGED".into());
+        }
+        let current = scan_external_snapshot(&directories.0, &cancelled)?;
         let Some((changed_files, removed_files, reconcile_due)) =
-            external_snapshot_diff(&observer_id, &directories.0, &current)?
+            external_snapshot_diff(&observer_id, &directories.0, &current, &cancelled)?
         else {
             let change_token =
                 stage_external_snapshot(&observer_id, &directories.0, current, true)?;
@@ -383,10 +531,13 @@ pub(crate) async fn notes_changes(
         }
 
         if changed_files.len().saturating_add(removed_files.len()) > MAX_EXTERNAL_CHANGE_ITEMS {
-            let mut changed_ids = changed_files
-                .iter()
-                .filter_map(|file_name| external_id(file_name))
-                .collect::<Vec<_>>();
+            let mut changed_ids = Vec::new();
+            for file_name in &changed_files {
+                check_cancelled(&cancelled)?;
+                if let Some(id) = external_id(file_name) {
+                    changed_ids.push(id);
+                }
+            }
             changed_ids.sort();
             let change_token =
                 stage_external_snapshot(&observer_id, &directories.0, current, true)?;
@@ -404,6 +555,7 @@ pub(crate) async fn notes_changes(
         let mut removed_ids = HashSet::new();
         let mut full_resync = false;
         for file_name in changed_files {
+            check_cancelled(&cancelled)?;
             if let Some(id) = external_id(&file_name) {
                 changed_ids.push(id);
             } else {
@@ -411,6 +563,7 @@ pub(crate) async fn notes_changes(
             }
         }
         for file_name in removed_files {
+            check_cancelled(&cancelled)?;
             if let Some(id) = external_id(&file_name) {
                 removed_ids.insert(id);
             } else {
@@ -448,14 +601,19 @@ pub(crate) async fn notes_changes(
         let changed_id_set = changed_ids.iter().cloned().collect::<HashSet<_>>();
         let mut notes = Vec::new();
         let mut emitted = HashSet::new();
-        let (issues, reference_titles) =
-            library::stream_note_summaries(&|| Ok(directories.clone()), |summary| {
+        let (issues, reference_titles) = library::stream_note_summaries_cancellable(
+            &|| Ok(directories.clone()),
+            &cancelled,
+            |summary| {
+                check_cancelled(&cancelled)?;
                 if changed_id_set.contains(&summary.id) {
                     emitted.insert(summary.id.clone());
                     notes.push(summary);
                 }
                 Ok(())
-            })?;
+            },
+        )?;
+        check_cancelled(&cancelled)?;
         for id in changed_ids.iter().filter(|id| !emitted.contains(*id)) {
             removed_ids.insert(id.clone());
         }
@@ -498,12 +656,23 @@ pub(crate) async fn get_note(
     app: AppContext,
     vault_id: String,
     note_id: String,
+    operation_id: Option<String>,
 ) -> Result<StudyNote, String> {
+    let operation = begin_note_read(operation_id)?;
+    let cancelled = operation.cancelled.clone();
     crate::runtime::spawn_blocking(move || {
-        let _title_lock = library::lock_title_mutations()?;
+        let _operation = operation;
+        check_cancelled(&cancelled)?;
         super::validate_note_id(&note_id).map_err(|_| "NOTE_READ_FAILED")?;
         let directory = crate::ai::terminal_vault_directory(&app, &vault_id)
             .map_err(|error| vault_operation_error(error, "NOTE_LOAD_VAULT_CHANGED"))?;
+        if runtime::notes_dir(&app)? != directory {
+            return Err("NOTE_LOAD_VAULT_MISMATCH".into());
+        }
+        let title_lock = library::title_lock_for_vault(&directory)?;
+        let _title_lock =
+            library::lock_vault_title_operations_cancellable(&title_lock, &cancelled)?;
+        check_cancelled(&cancelled)?;
         let path = super::note_path(&directory, &note_id);
         let metadata = std::fs::symlink_metadata(&path).map_err(|_| "NOTE_READ_FAILED")?;
         if metadata.file_type().is_symlink() || !metadata.is_file() {
@@ -511,6 +680,7 @@ pub(crate) async fn get_note(
         }
         let note =
             super::note_from_path_with_id(&path, &note_id).map_err(|_| "NOTE_READ_FAILED")?;
+        check_cancelled(&cancelled)?;
         if runtime::notes_dir(&app)? != directory {
             return Err("NOTE_LOAD_VAULT_CHANGED".into());
         }
@@ -522,8 +692,12 @@ pub(crate) async fn get_note(
 
 pub(crate) async fn list_note_media(app: AppContext) -> Result<Vec<NoteMediaCatalogItem>, String> {
     crate::runtime::spawn_blocking(move || {
-        let _title_lock = library::lock_title_mutations()?;
         let directory = runtime::notes_dir(&app)?;
+        let title_lock = library::title_lock_for_vault(&directory)?;
+        let _title_lock = library::lock_vault_title_operations(&title_lock)?;
+        if runtime::notes_dir(&app)? != directory {
+            return Err("NOTE_LOAD_VAULT_CHANGED".into());
+        }
         let catalog = super::list_note_media(&directory)?;
         if runtime::notes_dir(&app)? != directory {
             return Err("NOTE_LOAD_VAULT_CHANGED".into());
@@ -534,14 +708,35 @@ pub(crate) async fn list_note_media(app: AppContext) -> Result<Vec<NoteMediaCata
     .map_err(|_| "NOTE_READ_FAILED".to_string())?
 }
 
-pub(crate) async fn list_deleted_note_ids(app: AppContext) -> Result<Vec<String>, String> {
+pub(crate) async fn list_deleted_note_ids(
+    app: AppContext,
+    vault_id: String,
+    operation_id: Option<String>,
+) -> Result<Vec<String>, String> {
+    let operation = begin_note_read(operation_id)?;
+    let cancelled = operation.cancelled.clone();
     crate::runtime::spawn_blocking(move || {
-        let _title_lock = library::lock_title_mutations()?;
-        let directory = runtime::notes_dir(&app)?;
+        let _operation = operation;
+        check_cancelled(&cancelled)?;
+        let directory = crate::ai::terminal_vault_directory(&app, &vault_id)
+            .map_err(|error| vault_operation_error(error, "NOTE_LOAD_VAULT_CHANGED"))?;
+        if runtime::notes_dir(&app)? != directory {
+            return Err("NOTE_LOAD_VAULT_MISMATCH".into());
+        }
+        let title_lock = library::title_lock_for_vault(&directory)?;
+        let _title_lock =
+            library::lock_vault_title_operations_cancellable(&title_lock, &cancelled)?;
+        check_cancelled(&cancelled)?;
         let archive = super::deleted_notes_directory(&directory);
         let metadata = match std::fs::symlink_metadata(&archive) {
             Ok(metadata) => metadata,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                check_cancelled(&cancelled)?;
+                if runtime::notes_dir(&app)? != directory {
+                    return Err("NOTE_LOAD_VAULT_CHANGED".into());
+                }
+                return Ok(Vec::new());
+            }
             Err(_) => return Err("NOTE_READ_FAILED".into()),
         };
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
@@ -549,6 +744,7 @@ pub(crate) async fn list_deleted_note_ids(app: AppContext) -> Result<Vec<String>
         }
         let mut ids = std::collections::BTreeSet::new();
         for entry in std::fs::read_dir(archive).map_err(|_| "NOTE_READ_FAILED")? {
+            check_cancelled(&cancelled)?;
             let entry = entry.map_err(|_| "NOTE_READ_FAILED")?;
             if entry
                 .path()
@@ -569,6 +765,10 @@ pub(crate) async fn list_deleted_note_ids(app: AppContext) -> Result<Vec<String>
                 .to_string();
             super::validate_note_id(&id).map_err(|_| "NOTE_READ_FAILED")?;
             ids.insert(id);
+        }
+        check_cancelled(&cancelled)?;
+        if runtime::notes_dir(&app)? != directory {
+            return Err("NOTE_LOAD_VAULT_CHANGED".into());
         }
         Ok(ids.into_iter().collect())
     })
@@ -722,6 +922,84 @@ fn vault_operation_error(error: String, changed: &str) -> String {
 #[cfg(test)]
 mod runtime_tests {
     use std::{sync::mpsc, time::Duration};
+
+    #[test]
+    fn cancelled_old_vault_worker_does_not_block_switching_and_loading_the_new_vault() {
+        let temp = tempfile::tempdir().unwrap();
+        let app = crate::runtime::AppContext::new(
+            temp.path().join("documents"),
+            temp.path().join("cache"),
+            Box::new(std::io::sink()),
+        );
+        crate::app::setup::initialize(app.clone()).unwrap();
+        let invoke = |command: &str, args| {
+            crate::runtime::block_on(crate::dispatch::dispatch(app.clone(), command.into(), args))
+        };
+        let first = invoke("create_vault", serde_json::json!({"name": "First"})).unwrap();
+        let first_id = first["vaults"][0]["id"].as_str().unwrap();
+        let second = invoke("create_vault", serde_json::json!({"name": "Second"})).unwrap();
+        let second_id = second["vaults"][1]["id"].as_str().unwrap();
+        invoke("switch_vault", serde_json::json!({"vaultId": first_id})).unwrap();
+        let directories = crate::app::runtime::notes_and_backups_dirs(&app).unwrap();
+        let old_lock = crate::app::library::title_lock_for_vault(&directories.0).unwrap();
+        let operation_id = uuid::Uuid::now_v7().to_string();
+        let operation = super::begin_note_read(Some(operation_id.clone())).unwrap();
+        let worker_lock = old_lock.clone();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _operation = operation;
+            let _guard = worker_lock.lock().unwrap();
+            started_tx.send(()).unwrap();
+            // Keep the old worker and its vault lock alive even after cancellation acknowledgment.
+            release_rx.recv().unwrap();
+        });
+        started_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        super::cancel_note_read(operation_id).unwrap();
+        let context = app.clone();
+        let second_id = second_id.to_string();
+        let (result_tx, result_rx) = mpsc::channel();
+        let loading = crate::runtime::spawn(async move {
+            let result = async {
+                crate::vaults::commands::switch_vault(context.clone(), second_id.clone()).await?;
+                super::stream_note_summaries(
+                    context.clone(),
+                    second_id,
+                    "switch-regression".into(),
+                    true,
+                    Some(false),
+                    Some(uuid::Uuid::now_v7().to_string()),
+                    crate::runtime::Channel::from_argument(
+                        &context,
+                        &serde_json::json!({
+                            "onItem": {"__omegaChannel": uuid::Uuid::now_v7().to_string()}
+                        }),
+                        "onItem",
+                    )?,
+                )
+                .await
+            }
+            .await;
+            result_tx.send(result).unwrap();
+        });
+        let result = result_rx.recv_timeout(Duration::from_secs(2));
+        release_tx.send(()).unwrap();
+        worker.join().unwrap();
+        crate::runtime::block_on(loading).unwrap();
+        result
+            .expect("new vault must load before the old vault lock is released")
+            .unwrap();
+    }
+
+    #[test]
+    fn cancel_note_read_marks_the_registered_operation() {
+        let operation_id = uuid::Uuid::now_v7().to_string();
+        let operation = super::begin_note_read(Some(operation_id.clone())).unwrap();
+
+        super::cancel_note_read(operation_id).unwrap();
+
+        assert!(operation.cancelled.load(super::Ordering::Relaxed));
+    }
 
     #[test]
     fn blocking_worker_does_not_stall_async_tasks() {

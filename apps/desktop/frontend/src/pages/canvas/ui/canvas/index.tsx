@@ -3,19 +3,31 @@ import type { CanvasLayout } from "@/features/change-preferences";
 import GraphCanvas from "../graph-canvas";
 import type { GraphCanvasProps } from "../graph-canvas/types";
 import ArchiveView from "../archive-view";
+import Button from "@/shared/ui/button";
+import Icon from "@/shared/ui/icon";
 import { styles } from "./style.css.ts";
 
 const DynamicGraph = lazy(() => import("../dynamic-graph"));
 
 type CanvasProps = GraphCanvasProps & {
 	ready: boolean;
+	loading: boolean;
+	onReload: () => void;
 	layout: CanvasLayout;
 };
 
 const Canvas: Component<CanvasProps> = (props) => {
 	return (
 		<div class={styles.canvasScroll} inert={props.busy}>
-			<Show when={props.ready ? props.vaultId : undefined} keyed fallback={<div aria-busy="true" />}>
+			<Show when={props.ready ? props.vaultId : undefined} keyed fallback={
+				<div class={styles.loadState}>
+					<Show when={!props.loading && props.vaultId} fallback={<Icon name="clock" size={24} />}>
+						<Button class={styles.retryButton} type="button" data-omega-vault-retry onClick={props.onReload}>
+							<Icon name="reset" size={18} />{props.t("retry")}
+						</Button>
+					</Show>
+				</div>
+			}>
 				{(vaultId) => <>
 				<Switch>
 					<Match when={props.layout === "static"}><GraphCanvas {...props} vaultId={vaultId} /></Match>

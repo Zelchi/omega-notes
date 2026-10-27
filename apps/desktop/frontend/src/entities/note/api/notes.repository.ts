@@ -7,15 +7,15 @@ export const setNotesVaultId = browserNotesRepository.setNotesVaultId;
 
 export const listNotes = (vaultId?: string, external = false): Promise<NoteLibrary> =>
 	isDesktopRuntime() ? desktopNotesRepository.listNotes(vaultId, external) : browserNotesRepository.listNotes();
-export const streamNoteSummaries = (vaultId: string, observerId: string, external: boolean, resetObserverSnapshot: boolean, onItems: (notes: NoteSummary[]) => void): Promise<Omit<NoteSummaryLibrary, "notes">> =>
-	isDesktopRuntime() ? desktopNotesRepository.streamNoteSummaries(vaultId, observerId, external, resetObserverSnapshot, onItems) : browserNotesRepository.streamNoteSummaries(vaultId, observerId, external, resetObserverSnapshot, onItems);
-export const getNote = (vaultId: string, noteId: string): Promise<StudyNote> =>
-	isDesktopRuntime() ? desktopNotesRepository.getNote(vaultId, noteId) : browserNotesRepository.getNote(vaultId, noteId);
+export const streamNoteSummaries = (vaultId: string, observerId: string, external: boolean, resetObserverSnapshot: boolean, onItems: (notes: NoteSummary[]) => void, signal: AbortSignal): Promise<Omit<NoteSummaryLibrary, "notes">> =>
+	isDesktopRuntime() ? desktopNotesRepository.streamNoteSummaries(vaultId, observerId, external, resetObserverSnapshot, onItems, signal) : browserNotesRepository.streamNoteSummaries(vaultId, observerId, external, resetObserverSnapshot, onItems, signal);
+export const getNote = (vaultId: string, noteId: string, signal?: AbortSignal): Promise<StudyNote> =>
+	isDesktopRuntime() ? desktopNotesRepository.getNote(vaultId, noteId, signal) : browserNotesRepository.getNote(vaultId, noteId, signal);
 
 export const listNoteMedia = (): Promise<NoteMediaCatalogItem[]> =>
 	isDesktopRuntime() ? desktopNotesRepository.listNoteMedia() : browserNotesRepository.listNoteMedia();
-export const notesChanges = (vaultId: string, observerId: string): Promise<NoteChangeSet> =>
-	isDesktopRuntime() ? desktopNotesRepository.notesChanges(vaultId, observerId) : browserNotesRepository.notesChanges(vaultId, observerId);
+export const notesChanges = (vaultId: string, observerId: string, signal?: AbortSignal): Promise<NoteChangeSet> =>
+	isDesktopRuntime() ? desktopNotesRepository.notesChanges(vaultId, observerId, signal) : browserNotesRepository.notesChanges(vaultId, observerId, signal);
 export const acknowledgeNoteChanges = (observerId: string, changeToken: string): Promise<void> =>
 	isDesktopRuntime() ? desktopNotesRepository.acknowledgeNoteChanges(observerId, changeToken) : browserNotesRepository.acknowledgeNoteChanges(observerId, changeToken);
 
@@ -36,8 +36,8 @@ export const deleteNote = (noteId: string): Promise<NoteLoadIssue[]> =>
 export const listDeletedNotes = (): Promise<StudyNote[]> =>
 	isDesktopRuntime() ? desktopNotesRepository.listDeletedNotes() : browserNotesRepository.listDeletedNotes();
 
-export const listDeletedNoteIds = (): Promise<string[]> =>
-	isDesktopRuntime() ? desktopNotesRepository.listDeletedNoteIds() : browserNotesRepository.listDeletedNoteIds();
+export const listDeletedNoteIds = (vaultId: string, signal?: AbortSignal): Promise<string[]> =>
+	isDesktopRuntime() ? desktopNotesRepository.listDeletedNoteIds(vaultId, signal) : browserNotesRepository.listDeletedNoteIds(vaultId, signal);
 
 export const restoreDeletedNote = (noteId: string): Promise<NoteSaveResult> =>
 	isDesktopRuntime() ? desktopNotesRepository.restoreDeletedNote(noteId) : browserNotesRepository.restoreDeletedNote(noteId);

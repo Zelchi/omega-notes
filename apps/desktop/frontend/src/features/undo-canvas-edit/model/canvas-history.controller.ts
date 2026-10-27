@@ -63,12 +63,15 @@ export const useCanvasHistory = (options: {
 	});
 	createEffect(() => {
 		const id = options.vaultId();
-		if (!id || options.notes.loading() || histories.has(id)) return;
+		if (!id || options.notes.loading() || !options.notes.hasLoadedVault() || histories.has(id)) return;
 		const current: History = { past: [], future: [] };
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 120_000);
+		onCleanup(() => { clearTimeout(timeout); controller.abort(); });
 		histories.set(id, current);
 		setLoadingVaults(previous => new Map(previous).set(id, current));
 		const activeIds = new Set(untrack(options.notes.notes).map((note) => note.id));
-		void options.notes.listDeleted().then((deleted) => {
+		void options.notes.listDeleted(id, controller.signal).then((deleted) => {
 			if (disposed || histories.get(id) !== current) return;
 			const recovered: Action[] = deleted.filter((noteId) => !activeIds.has(noteId))
 				.reverse().map((noteId) => ({ kind: "delete", noteId }));
@@ -77,8 +80,10 @@ export const useCanvasHistory = (options: {
 		}).catch(cause => {
 			if (disposed) return;
 			if (histories.get(id) === current) histories.delete(id);
+			if (controller.signal.aborted || id !== options.vaultId()) return;
 			reportError(cause, id);
 		}).finally(() => {
+			clearTimeout(timeout);
 			if (disposed) return;
 			setLoadingVaults(previous => {
 				if (previous.get(id) !== current) return previous;
@@ -144,7 +149,7 @@ export const useCanvasHistory = (options: {
 	});
 	onCleanup(() => { disposed = true; clearTimeout(errorTimer); snapshots.clear(); });
 	return {
-		pending, error, restoration, remove,
+		pending, mutating, error, restoration, remove,
 		register: (vaultId: string, reader: () => CanvasSnapshot) => snapshots.register(vaultId, reader),
 		restored: () => setRestoration(undefined),
 		created: (vaultId: string, note: StudyNote, before: CanvasSnapshot, after: CanvasSnapshot) => rememberAction(vaultId, { kind: "create", noteId: note.id, before, after }),

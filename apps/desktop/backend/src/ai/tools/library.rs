@@ -54,8 +54,10 @@ impl Library {
     }
 
     fn load_internal(directory: &Path, include_search_text: bool) -> Result<Arc<Self>, String> {
-        let _title_lock =
-            crate::app::library::lock_title_mutations().map_err(|_| "AI_READ_FAILED")?;
+        let title_lock =
+            crate::app::library::title_lock_for_vault(directory).map_err(|_| "AI_READ_FAILED")?;
+        let _title_lock = crate::app::library::lock_vault_title_operations(&title_lock)
+            .map_err(|_| "AI_READ_FAILED")?;
         let signature = current_note_file_signature(directory);
         let previous = {
             let mut cache = CACHE.lock().map_err(|_| "AI_READ_FAILED")?;

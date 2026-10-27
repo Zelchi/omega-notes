@@ -254,6 +254,7 @@
   "pomodoroAddTask": "Adicionar tarefa",
   "pomodoroStorageFailed": "Não foi possível carregar ou salvar as tarefas.",
   "pomodoroSettingsFailed": "Não foi possível salvar as configurações do Pomodoro.",
+  "pomodoroTimerFailed": "Não foi possível sincronizar o timer.",
   "pomodoroLoading": "Carregando tarefas…",
   "pomodoroCompleteTask": "Concluir tarefa",
   "pomodoroEditTask": "Editar tarefa",

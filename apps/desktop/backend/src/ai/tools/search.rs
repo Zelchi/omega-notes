@@ -127,7 +127,10 @@ pub(super) fn with_index<T>(
     operation: impl FnOnce(&SearchCache) -> Result<T, String>,
 ) -> Result<T, String> {
     let signature = library.signature.as_ref().ok_or("AI_READ_FAILED")?;
-    let _title_lock = crate::app::library::lock_title_mutations().map_err(|_| "AI_READ_FAILED")?;
+    let title_lock =
+        crate::app::library::title_lock_for_vault(directory).map_err(|_| "AI_READ_FAILED")?;
+    let _title_lock = crate::app::library::lock_vault_title_operations(&title_lock)
+        .map_err(|_| "AI_READ_FAILED")?;
     let mut cached = CACHE.lock().map_err(|_| "AI_READ_FAILED")?;
 
     if cached

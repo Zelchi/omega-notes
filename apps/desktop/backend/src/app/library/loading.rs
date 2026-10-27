@@ -4,6 +4,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicBool, Ordering},
     time::UNIX_EPOCH,
 };
 
@@ -81,7 +82,28 @@ pub(crate) fn stream_note_summaries(
     ),
     String,
 > {
-    stream_note_summaries_internal(resolve_directories, false, |summary, _| emit(summary))
+    stream_note_summaries_internal(
+        resolve_directories,
+        false,
+        &AtomicBool::new(false),
+        |summary, _| emit(summary),
+    )
+}
+
+pub(crate) fn stream_note_summaries_cancellable(
+    resolve_directories: &impl Fn() -> Result<(PathBuf, PathBuf), String>,
+    cancelled: &AtomicBool,
+    mut emit: impl FnMut(crate::notes::NoteSummary) -> Result<(), String>,
+) -> Result<
+    (
+        Vec<NoteLoadIssue>,
+        std::collections::HashMap<String, String>,
+    ),
+    String,
+> {
+    stream_note_summaries_internal(resolve_directories, false, cancelled, |summary, _| {
+        emit(summary)
+    })
 }
 
 pub(crate) fn stream_note_summaries_with_text(
@@ -94,12 +116,13 @@ pub(crate) fn stream_note_summaries_with_text(
     ),
     String,
 > {
-    stream_note_summaries_internal(resolve_directories, true, emit)
+    stream_note_summaries_internal(resolve_directories, true, &AtomicBool::new(false), emit)
 }
 
 fn stream_note_summaries_internal(
     resolve_directories: &impl Fn() -> Result<(PathBuf, PathBuf), String>,
     include_search_text: bool,
+    cancelled: &AtomicBool,
     mut emit: impl FnMut(crate::notes::NoteSummary, Option<String>) -> Result<(), String>,
 ) -> Result<
     (
@@ -108,8 +131,10 @@ fn stream_note_summaries_internal(
     ),
     String,
 > {
+    ensure_load_not_cancelled(cancelled)?;
     let (directory, backups_directory) = resolve_directories()?;
     crate::notes::recover_note_rename_journal(&directory, &backups_directory)?;
+    ensure_load_not_cancelled(cancelled)?;
 
     let mut issues = Vec::new();
     let mut entries = Vec::new();
@@ -123,8 +148,9 @@ fn stream_note_summaries_internal(
                 .collect::<HashMap<_, _>>()
         })
         .unwrap_or_default();
-    let (paths, entry_errors) = match note_paths(&directory) {
+    let (paths, entry_errors) = match note_paths_cancellable(&directory, cancelled) {
         Ok(entries) => entries,
+        Err(error) if error == "NOTE_READ_CANCELLED" => return Err(error),
         Err(error) => {
             return Ok((
                 vec![NoteLoadIssue {
@@ -137,6 +163,7 @@ fn stream_note_summaries_internal(
             ));
         }
     };
+    ensure_load_not_cancelled(cancelled)?;
     for error in entry_errors {
         issues.push(NoteLoadIssue {
             file_name: "notes".to_string(),
@@ -150,6 +177,7 @@ fn stream_note_summaries_internal(
         .iter()
         .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("omega"))
     {
+        ensure_load_not_cancelled(cancelled)?;
         let Some(file_name) = path
             .file_name()
             .and_then(|name| name.to_str())
@@ -193,6 +221,7 @@ fn stream_note_summaries_internal(
             &backups_directory,
             &note_id,
             include_search_text,
+            cancelled,
             &mut issues,
         )?;
         let summary = loaded.summary;
@@ -217,7 +246,8 @@ fn stream_note_summaries_internal(
         entries.push(entry);
     }
 
-    let (backup_paths, backup_errors) = collect_backup_paths(&backups_directory)?;
+    let (backup_paths, backup_errors) = collect_backup_paths(&backups_directory, cancelled)?;
+    ensure_load_not_cancelled(cancelled)?;
     for error in backup_errors {
         issues.push(NoteLoadIssue {
             file_name: ".temp".to_string(),
@@ -228,6 +258,7 @@ fn stream_note_summaries_internal(
     }
     let archive = crate::notes::deleted_notes_directory(&directory);
     for backup in backup_paths {
+        ensure_load_not_cancelled(cancelled)?;
         let Some(note_id) = note_id_from_backup(&backup) else {
             continue;
         };
@@ -309,10 +340,39 @@ fn stream_note_summaries_internal(
         version: SUMMARY_INDEX_VERSION,
         entries,
     };
+    ensure_load_not_cancelled(cancelled)?;
     let _ = write_summary_index(&directory, &index);
-    let (reference_titles, title_issues) = crate::notes::load_reference_titles(&directory);
+    ensure_load_not_cancelled(cancelled)?;
+    let (reference_titles, title_issues) =
+        crate::notes::load_reference_titles_cancellable(&directory, cancelled)?;
+    ensure_load_not_cancelled(cancelled)?;
     issues.extend(title_issues);
     Ok((issues, reference_titles))
+}
+
+fn ensure_load_not_cancelled(cancelled: &AtomicBool) -> Result<(), String> {
+    if cancelled.load(Ordering::Relaxed) {
+        Err("NOTE_READ_CANCELLED".into())
+    } else {
+        Ok(())
+    }
+}
+
+fn note_paths_cancellable(
+    directory: &Path,
+    cancelled: &AtomicBool,
+) -> Result<(Vec<PathBuf>, Vec<String>), String> {
+    let entries = fs::read_dir(directory).map_err(|error| error.to_string())?;
+    let mut paths = Vec::new();
+    let mut errors = Vec::new();
+    for entry in entries {
+        ensure_load_not_cancelled(cancelled)?;
+        match entry {
+            Ok(entry) => paths.push(entry.path()),
+            Err(error) => errors.push(error.to_string()),
+        }
+    }
+    Ok((paths, errors))
 }
 
 struct LoadedNoteSummary {
@@ -412,10 +472,13 @@ fn load_changed_note(
     backups_directory: &Path,
     note_id: &str,
     include_search_text: bool,
+    cancelled: &AtomicBool,
     issues: &mut Vec<NoteLoadIssue>,
 ) -> Result<LoadedNoteSummary, String> {
+    ensure_load_not_cancelled(cancelled)?;
     match note_from_path(path) {
         Ok(note) => {
+            ensure_load_not_cancelled(cancelled)?;
             let content_stats = Some(indexed_content_stats(&note));
             Ok(LoadedNoteSummary {
                 search_text: include_search_text.then(|| note_text(&note)),
@@ -424,6 +487,7 @@ fn load_changed_note(
             })
         }
         Err(error) => {
+            ensure_load_not_cancelled(cancelled)?;
             let file_name = path
                 .file_name()
                 .unwrap_or_default()
@@ -434,6 +498,7 @@ fn load_changed_note(
                     Ok(path) => (Some(path), None),
                     Err(error) => (None, Some(error)),
                 };
+            ensure_load_not_cancelled(cancelled)?;
             let backup = note_backup_path(backups_directory, note_id);
             let mut message = error;
             let mut recovered = false;
@@ -441,21 +506,35 @@ fn load_changed_note(
             let mut content_stats = None;
             let mut search_text = None;
             if is_safe_regular_file(&backup).unwrap_or(false) {
+                ensure_load_not_cancelled(cancelled)?;
                 match note_from_path_with_id(&backup, note_id) {
-                    Ok(note) => match read_file_bytes(&backup) {
-                        Ok(bytes) => match restore_file(path, &bytes) {
-                            Ok(()) => {
-                                search_text = include_search_text.then(|| note_text(&note));
-                                content_stats = Some(indexed_content_stats(&note));
-                                summary = Some(summary_from_note(note));
-                                recovered = true;
-                                message = format!("A nota atual estava inválida; uma versão anterior foi restaurada. {message}");
+                    Ok(note) => {
+                        ensure_load_not_cancelled(cancelled)?;
+                        match read_file_bytes(&backup) {
+                            Ok(bytes) => {
+                                ensure_load_not_cancelled(cancelled)?;
+                                match restore_file(path, &bytes) {
+                                    Ok(()) => {
+                                        search_text = include_search_text.then(|| note_text(&note));
+                                        content_stats = Some(indexed_content_stats(&note));
+                                        summary = Some(summary_from_note(note));
+                                        recovered = true;
+                                        message = format!("A nota atual estava inválida; uma versão anterior foi restaurada. {message}");
+                                    }
+                                    Err(restore_error) => message = format!("{message} Não foi possível restaurar a cópia anterior: {restore_error}"),
+                                }
                             }
-                            Err(restore_error) => message = format!("{message} Não foi possível restaurar a cópia anterior: {restore_error}"),
-                        },
-                        Err(backup_error) => message = format!("{message} Não foi possível ler a cópia anterior: {backup_error}"),
-                    },
-                    Err(backup_error) => message = format!("{message} A cópia anterior também está inválida: {backup_error}"),
+                            Err(backup_error) => {
+                                message.push_str(" Não foi possível ler a cópia anterior: ");
+                                message.push_str(&backup_error.to_string());
+                            }
+                        }
+                    }
+                    Err(backup_error) => {
+                        message = format!(
+                            "{message} A cópia anterior também está inválida: {backup_error}"
+                        )
+                    }
                 }
             }
             if let Some(recovery_error) = recovery_error {
@@ -551,7 +630,10 @@ fn file_stamp(path: &Path) -> Result<Option<FileStamp>, String> {
     }))
 }
 
-fn collect_backup_paths(directory: &Path) -> Result<(Vec<PathBuf>, Vec<String>), String> {
+fn collect_backup_paths(
+    directory: &Path,
+    cancelled: &AtomicBool,
+) -> Result<(Vec<PathBuf>, Vec<String>), String> {
     let metadata = match fs::symlink_metadata(directory) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -566,14 +648,22 @@ fn collect_backup_paths(directory: &Path) -> Result<(Vec<PathBuf>, Vec<String>),
     if metadata.file_type().is_symlink() || !metadata.is_dir() {
         return Err("Diretório de arquivos temporários inválido.".into());
     }
-    let (paths, errors) = note_paths(directory)
-        .map_err(|error| format!("Não foi possível abrir os arquivos temporários: {error}"))?;
+    let (paths, errors) = match note_paths_cancellable(directory, cancelled) {
+        Ok(paths) => paths,
+        Err(error) if error == "NOTE_READ_CANCELLED" => return Err(error),
+        Err(error) => {
+            return Err(format!(
+                "Não foi possível abrir os arquivos temporários: {error}"
+            ));
+        }
+    };
     let mut backups = Vec::new();
     let mut errors = errors;
     for path in paths
         .into_iter()
         .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("temp"))
     {
+        ensure_load_not_cancelled(cancelled)?;
         match fs::symlink_metadata(&path) {
             Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {
                 backups.push(path)
@@ -969,6 +1059,28 @@ mod tests {
             assert!(read_summary_index(&vault.notes).is_some());
             assert_eq!(fs::read(&note_path).unwrap(), original);
         }
+    }
+
+    #[test]
+    fn cancellable_summary_stream_stops_between_notes() {
+        let vault = TestVault::new();
+        vault.write_note(&uuid::Uuid::now_v7().to_string(), "Primeira", "Texto");
+        vault.write_note(&uuid::Uuid::now_v7().to_string(), "Segunda", "Texto");
+        let cancelled = AtomicBool::new(false);
+        let mut emitted = 0;
+
+        let result = stream_note_summaries_cancellable(
+            &|| Ok((vault.notes.clone(), vault.backups.clone())),
+            &cancelled,
+            |_| {
+                emitted += 1;
+                cancelled.store(true, Ordering::Relaxed);
+                Ok(())
+            },
+        );
+
+        assert_eq!(result.unwrap_err(), "NOTE_READ_CANCELLED");
+        assert_eq!(emitted, 1);
     }
 
     #[test]
