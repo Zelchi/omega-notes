@@ -8,7 +8,7 @@ import FloatingSearch from "./ui/floating-search";
 
 import { useAppController } from "./controller";
 import { styles } from "./style.css.ts";
-import { BackgroundThemeProvider } from "@/shared/ui/ascii-backdrop";
+import { BackgroundIntensityProvider, BackgroundThemeProvider } from "@/shared/ui/ascii-backdrop";
 import { LofiPlayerProvider } from "@/features/lofi-player/model/player";
 
 const StudyToolbar = lazy(() => import("@/features/study-notes/ui/study-toolbar"));
@@ -49,6 +49,7 @@ const AppView: Component = () => {
 
 	return (
 		<BackgroundThemeProvider value={app.preferences.backgroundTheme}>
+			<BackgroundIntensityProvider value={app.preferences.backgroundIntensity}>
 				<>
 				<div class={styles.shell} inert={app.updates.installing()} onContextMenu={(event) => event.preventDefault()} data-omega-app-shell>
 					<WindowTitlebar
@@ -195,6 +196,8 @@ const AppView: Component = () => {
 								confirmGambiarra={app.confirmGambiarra} setConfirmGambiarra={app.setConfirmGambiarra}
 								soundVolume={app.preferences.soundVolume()}
 								onSoundVolumeChange={app.preferences.setSoundVolume}
+								backgroundIntensity={app.preferences.backgroundIntensity()}
+								onBackgroundIntensityChange={app.preferences.setBackgroundIntensity}
 								aiResetting={app.aiChat.resetting()}
 								aiCleanupError={app.aiChat.cleanupError()}
 								canvasLayout={app.preferences.canvasLayout()}
@@ -300,6 +303,7 @@ const AppView: Component = () => {
 					<div class={styles.updateOverlay} role="alert" aria-live="assertive">{app.t("installingUpdate")}</div>
 				</Show>
 				</>
+			</BackgroundIntensityProvider>
 		</BackgroundThemeProvider>
 	);
 };

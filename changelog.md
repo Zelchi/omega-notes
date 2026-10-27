@@ -1,6 +1,20 @@
 # Histórico de atualizações
 
-## Unreleased
+## v0.5.3
+
+### Pomodoro e música
+
+- O rádio lo-fi pode ser silenciado nas pausas curtas e longas do Pomodoro, com retorno automático ao foco; o alarme também silencia o rádio temporariamente.
+- Ao terminar um ciclo de foco, o aplicativo traz a janela de volta se ela estiver escondida na bandeja.
+
+### Aparência
+
+- Controle de intensidade dos fundos animados e melhor alinhamento da chuva de código durante a abertura de painéis.
+- A opção de inicialização agora se chama “Centralizar câmera” e altera apenas o enquadramento, não as posições das notas.
+
+### Site
+
+- Vídeo de demonstração reencodado em 1080p, reduzindo o tamanho do arquivo.
 
 ## v0.5.2
 

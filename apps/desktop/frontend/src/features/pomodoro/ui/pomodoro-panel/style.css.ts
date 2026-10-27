@@ -36,6 +36,8 @@ export const styles = {
 	settingsError: style({ gridColumn: "1 / -1" }),
 	setting: style({ display: "grid", gap: 4, minWidth: 0, color: "var(--muted)", fontSize: 11 }),
 	numberInput: style({ boxSizing: "border-box", width: "100%", minWidth: 0, height: 30, padding: "5px 8px", border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-panel)", color: "var(--ink)", font: "inherit", fontSize: 12 }),
+	muteLofiSetting: style({ display: "flex", gridColumn: "1 / -1", alignItems: "center", gap: 7, color: "var(--muted)", fontSize: 11, cursor: "pointer" }),
+	muteLofiCheckbox: style({ width: 14, height: 14, margin: 0, accentColor: "var(--button-confirm-bg)" }),
 	tasks: style({ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, gap: 8 }),
 	taskForm: style({
 		display: "flex", alignItems: "center", boxSizing: "border-box", height: 36, margin: "0 20px 0 10px", gap: 0,

@@ -82,6 +82,7 @@ async function invoke(command, args) {
             return;
         }
         case 'window_is_maximized': return window.isMaximized();
+        case 'window_is_visible': return window.isVisible();
         case 'window_toggle_maximize': window.isMaximized() ? window.unmaximize() : window.maximize(); return;
         case 'window_minimize': window.minimize(); return;
         case 'window_close': window.close(); return;

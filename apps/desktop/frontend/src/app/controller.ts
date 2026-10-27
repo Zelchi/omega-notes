@@ -10,7 +10,7 @@ import { useNotes, type NoteSummary } from "@/entities/note";
 import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner } from "solid-js";
 import { translate, type TranslationKey } from "@/shared/lib/i18n";
 import { configureTrayMenu, onTrayAction } from "./api/tray.repository";
-import { setWindowBackgroundColor } from "./api/window.repository";
+import { setWindowBackgroundColor, showMainWindowIfHidden } from "./api/window.repository";
 import { useVaults } from "@/features/manage-vault/model/vaults.controller";
 import type { Vault } from "@/entities/vault";
 import { matchesAiChatShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
@@ -60,7 +60,10 @@ export const useAppController = () => {
 	const vaults = useVaults();
 	const preferences = usePreferences();
 	const kanban = useKanban(vaults.activeVaultId);
-	const pomodoro = usePomodoro(vaults.activeVaultId);
+	const pomodoro = usePomodoro(vaults.activeVaultId, () => {
+		void showMainWindowIfHidden().catch(console.error);
+	});
+	createEffect(() => lofiPlayer.setPomodoroMuted(pomodoro.muteLofi()));
 	const notes = useNotes(vaults.activeVaultId, preferences.gambiarraEnabled);
 	const t = (key: TranslationKey) => translate(preferences.language(), key);
 	let saveNoteTitle: (() => Promise<boolean>) | undefined;
