@@ -154,7 +154,6 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 				if (revision !== loadRevision || !batch.length) return;
 				summaries.push(...batch);
 				setNotes(summaries);
-				setHasLoadedVault(true);
 			})
 			.then((library) => {
 				if (revision !== loadRevision) return;
@@ -169,6 +168,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 				if (revision !== loadRevision) return;
 				console.error(error);
 				loadedVaultId = undefined;
+				setHasLoadedVault(false);
 				setNotes([]);
 				setLoadIssues([
 					{

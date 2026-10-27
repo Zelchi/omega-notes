@@ -42,6 +42,11 @@ test('startup centering is labeled as camera centering and does not move notes',
 	assert.doesNotMatch(centerCamera, /setPositions\(/);
 });
 
+test('canvas mounts only after a successful full vault load', async () => {
+	const app = await source('../src/app/index.tsx');
+	assert.match(app, /ready=\{app\.notes\.hasLoadedVault\(\)\}/);
+});
+
 test('static note locks are exposed and excluded from dragging and auto-separation', async () => {
 	const [canvas, controller, style] = await Promise.all([
 		source('../src/pages/canvas/ui/graph-canvas/index.tsx'),
