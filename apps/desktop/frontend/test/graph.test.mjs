@@ -90,7 +90,7 @@ test('note ports face the nearest zip tie instead of a lower remote note', () =>
 		assert.equal(start.x, sourceSize.width);
 	}
 });
-test('wires keep their geometric order along shared note edges', () => {
+test('wires spread along shared note edges and keep their geometric order', () => {
 	const [hub, upper, lower] = ['hub', 'upper', 'lower'].map(id => summarizeNote(note(id)));
 	const positions = { hub:{x:0,y:100}, upper:{x:500,y:80}, lower:{x:500,y:120} };
 	const checkPorts = (edges, noteId, endpoint) => {
@@ -109,6 +109,20 @@ test('wires keep their geometric order along shared note edges', () => {
 	};
 	checkPorts([{ source:hub, target:upper }, { source:hub, target:lower }], 'hub output', 'start');
 	checkPorts([{ source:upper, target:hub }, { source:lower, target:hub }], 'hub input', 'end');
+});
+test('many wires compress along a note edge without extending beyond its height', () => {
+	const source = summarizeNote(note('hub'));
+	const targets = Array.from({ length:20 }, (_, index) => summarizeNote(note(`target-${index}`)));
+	const edges = targets.map(target => ({ source, target }));
+	const positions = { hub:{x:0,y:100} };
+	targets.forEach((target, index) => { positions[target.id] = { x:500, y:50 + index * 3 }; });
+	const routes = routeGraphEdges(edges, positions, edges.length + 1, []).routesByKey;
+	const points = edges.map(edge => graphEdgePointAt(edge, positions, edges.length + 1, 0, routes.get(graphEdgeKey(edge))));
+	const spacing = nodeSize(source).height / (edges.length + 1);
+
+	assert.ok(points.every(point => point.y >= positions.hub.y && point.y <= positions.hub.y + nodeSize(source).height));
+	assert.ok(points.every((point, index) => index === 0 || Math.abs(point.y - points[index - 1].y - spacing) < 1e-6));
+	assert.ok(spacing < 6);
 });
 test('zip-tie placement spans all wires crossed by the drawn line', () => {
     const a = summarizeNote(note('a')), b = summarizeNote(note('b'));

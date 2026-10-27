@@ -126,3 +126,10 @@ test('zip-tie changes are undoable and redoable', async t => {
     await f.shortcut(); assert.deepEqual(f.history.restoration().zipTies, []);
     await f.shortcut('y'); assert.deepEqual(f.history.restoration().zipTies, zipTies);
 });
+test('note lock changes are undoable and redoable', async t => {
+    const f = setup(t); await settle();
+    const before = snapshot(), after = { ...snapshot(), lockedNoteIds: ['a'] };
+    f.history.moved('vault-a', before, after);
+    await f.shortcut(); assert.equal(f.history.restoration().lockedNoteIds, undefined);
+    await f.shortcut('y'); assert.deepEqual(f.history.restoration().lockedNoteIds, ['a']);
+});

@@ -5,9 +5,9 @@ type Bounds = Point & NodeSize;
 const GAP = 12;
 const CELL_SIZE = 256;
 
-/** Mantenha as notas arrastadas ou novas primeiro; mova as demais apenas quando os limites delas colidirem. */
+/** Mantenha notas bloqueadas como âncoras; priorize as arrastadas ou novas e mova as demais só em colisões. */
 export const separateStaticNodes = (
-	positions: Record<string, Point>, nodes: StaticNode[], priority: ReadonlySet<string> = new Set(),
+	positions: Record<string, Point>, nodes: StaticNode[], priority: ReadonlySet<string> = new Set(), locked: ReadonlySet<string> = new Set(),
 ): Record<string, Point> => {
 	const cells = new Map<string, Bounds[]>();
 	let minimumY = Infinity;
@@ -28,14 +28,19 @@ export const separateStaticNodes = (
 				bounds.y < other.y + other.height + GAP && bounds.y + bounds.height + GAP > other.y) return other;
 		}
 	};
-	const ordered = [...nodes.filter((node) => priority.has(node.id)), ...nodes.filter((node) => !priority.has(node.id))];
+	const ordered = [
+		...nodes.filter((node) => locked.has(node.id)),
+		...nodes.filter((node) => !locked.has(node.id) && priority.has(node.id)),
+		...nodes.filter((node) => !locked.has(node.id) && !priority.has(node.id)),
+	];
 	for (const node of ordered) {
 		const origin = positions[node.id];
 		if (!origin) continue;
+		const fixed = locked.has(node.id);
 		let point = origin;
-		const candidates: (Point & { cost: number })[] = [{ ...origin, cost: 0 }];
+		const candidates: (Point & { cost: number })[] = fixed ? [] : [{ ...origin, cost: 0 }];
 		const visited = new Set<string>();
-		let placed = false;
+		let placed = fixed;
 		for (let attempt = 0; candidates.length && attempt < 256; attempt++) {
 			candidates.sort((a, b) => b.cost - a.cost);
 			const candidate = candidates.pop()!;

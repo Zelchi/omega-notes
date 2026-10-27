@@ -38,6 +38,8 @@ export type IconName =
 	| "close"
 	| "edit"
 	| "delete"
+	| "lock"
+	| "unlock"
 	| "folder"
 	| "file"
 	| "check"
@@ -127,6 +129,8 @@ const paths: Record<IconName, Component> = {
 			<path d="M10 11v5m4-5v5" />
 		</>
 	),
+	lock: () => <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
+	unlock: () => <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 7-3" /></>,
 	folder: () => <path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Zm0 4h18" />,
 	file: () => <><path d="M6 3h8l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" /><path d="M14 3v5h5M8 13h8M8 17h8" /></>,
 	check: () => <path d="m5 12 4 4L19 6" />,

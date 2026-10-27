@@ -7,14 +7,35 @@ import { separateStaticNodes } from "../../lib/static-layout";
 import { readGraphState, saveGraphState as persistGraphState } from "../../api/graph.repository";
 import type { GraphCanvasProps } from "./types";
 
+export const noteLockTargets = (noteId: string, selection: ReadonlySet<string>): string[] =>
+	selection.has(noteId) ? [...selection] : [noteId];
+
+export const areNoteLockTargetsLocked = (lockedIds: readonly string[], targetIds: readonly string[]): boolean => {
+	const locked = new Set(lockedIds);
+	return targetIds.length > 0 && targetIds.every((id) => locked.has(id));
+};
+
+export const toggleNoteLocks = (lockedIds: readonly string[], targetIds: readonly string[]): string[] => {
+	const next = new Set(lockedIds);
+	const shouldLock = !areNoteLockTargetsLocked(lockedIds, targetIds);
+	for (const id of targetIds) shouldLock ? next.add(id) : next.delete(id);
+	return [...next];
+};
+
 export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivElement) => {
 	const vaultId = props.vaultId;
 	const storedState = readGraphState(vaultId);
 	const [positions, setPositions] = createSignal<Record<string, Point>>(storedState.positions);
 	const [view, setView] = createSignal<View>(storedState.view ?? { x: 0, y: 0, scale: 1 });
 	const [zipTies, setZipTies] = createSignal<ZipTie[]>(storedState.zipTies ?? []);
+	const [lockedNoteIds, setLockedNoteIds] = createSignal<string[]>(storedState.lockedNoteIds ?? []);
 	let unregisterHistory: (() => void) | undefined;
-	const snapshot = () => ({ layout: "static" as const, positions: positions(), zipTies: zipTies() });
+	const snapshot = (nextPositions = positions(), nextZipTies = zipTies(), nextLockedNoteIds = lockedNoteIds()) => ({
+		layout: "static" as const,
+		positions: nextPositions,
+		zipTies: nextZipTies,
+		...(nextLockedNoteIds.length ? { lockedNoteIds: [...nextLockedNoteIds] } : {}),
+	});
 	const recordMove = (finished?: Gesture) => {
 		if (finished?.kind === "node" && finished.moved && finished.beforeSnapshot)
 			props.onNotesMoved(vaultId, finished.beforeSnapshot, snapshot());
@@ -44,12 +65,12 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	let suppressClickUntil = 0;
 	let zipTieDrag: { pointerId: number; tieId: string; start: Point; members: ZipTie["members"]; routes: ReturnType<typeof routeGraphEdges>["routesByKey"]; before: ReturnType<typeof snapshot> } | undefined;
 
-	const saveGraphState = (nextPositions = positions(), nextView = view(), nextZipTies = zipTies()): void => {
+	const saveGraphState = (nextPositions = positions(), nextView = view(), nextZipTies = zipTies(), nextLockedNoteIds = lockedNoteIds()): void => {
 		if (graphSaveTimer !== undefined) {
 			clearTimeout(graphSaveTimer);
 			graphSaveTimer = undefined;
 		}
-		persistGraphState(vaultId, { positions: nextPositions, view: nextView, zipTies: nextZipTies });
+		persistGraphState(vaultId, { positions: nextPositions, view: nextView, zipTies: nextZipTies, ...(nextLockedNoteIds.length ? { lockedNoteIds: nextLockedNoteIds } : {}) });
 	};
 
 	const recordZipTieChange = (before: ReturnType<typeof snapshot>): void => {
@@ -72,6 +93,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		positions();
 		view();
 		zipTies();
+		lockedNoteIds();
 		scheduleGraphSave();
 	});
 
@@ -100,6 +122,8 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		}).map((node) => node.id));
 		previousSizes = new Map(nodes.map((node) => [node.id, node]));
 		const activeIds = new Set(notes.map((note) => note.id));
+		const nextLockedNoteIds = lockedNoteIds().filter((id) => activeIds.has(id));
+		if (nextLockedNoteIds.length !== lockedNoteIds().length) setLockedNoteIds(nextLockedNoteIds);
 		const next = Object.fromEntries(Object.entries(current).filter(([noteId]) => activeIds.has(noteId)));
 		let changed = Object.keys(next).length !== Object.keys(current).length;
 
@@ -114,7 +138,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		});
 
 		const priority = gesture?.nodeOrigins ? new Set(Object.keys(gesture.nodeOrigins)) : new Set([...addedIds, ...resizedIds]);
-		const separated = separateStaticNodes(changed ? next : current, nodes, priority);
+		const separated = separateStaticNodes(changed ? next : current, nodes, priority, new Set(nextLockedNoteIds));
 		if (changed || separated !== current) setPositions(separated);
 		setSelectedIds((current) => {
 			const retained = new Set([...current].filter((id) => activeIds.has(id)));
@@ -131,9 +155,15 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			setSelectionBox(undefined);
 			setContextMenu(undefined);
 			setZipTies(restore.zipTies ?? []);
+			const restoredLockedNoteIds = restore.lockedNoteIds ?? [];
+			setLockedNoteIds(restoredLockedNoteIds);
 			const ids = new Set(props.notes.map((note) => note.id));
-			setPositions(separateStaticNodes(Object.fromEntries(Object.entries({ ...positions(), ...restore.positions }).filter(([id]) => ids.has(id))), layoutNodes()));
-			saveGraphState();
+			const restoredPositions = separateStaticNodes(
+				Object.fromEntries(Object.entries({ ...positions(), ...restore.positions }).filter(([id]) => ids.has(id))),
+				layoutNodes(), new Set(), new Set(restoredLockedNoteIds),
+			);
+			setPositions(restoredPositions);
+			saveGraphState(restoredPositions, view(), restore.zipTies ?? [], restoredLockedNoteIds);
 			props.onHistoryRestored();
 		});
 	});
@@ -304,6 +334,21 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		};
 	};
 
+	const isLocked = (id: string): boolean => lockedNoteIds().includes(id);
+	const lockTargets = (id: string): string[] => noteLockTargets(id, selectedIds());
+	const areLockTargetsLocked = (id: string): boolean => areNoteLockTargetsLocked(lockedNoteIds(), lockTargets(id));
+	const toggleNoteLock = (id: string): void => {
+		if (props.busy || props.mode !== "edit" || !props.notes.some((note) => note.id === id)) return;
+		const targets = lockTargets(id);
+		const before = snapshot();
+		const nextLockedNoteIds = toggleNoteLocks(lockedNoteIds(), targets);
+		const nextPositions = separateStaticNodes(positions(), layoutNodes(), new Set(), new Set(nextLockedNoteIds));
+		setLockedNoteIds(nextLockedNoteIds);
+		setPositions(nextPositions);
+		saveGraphState(nextPositions, view(), zipTies(), nextLockedNoteIds);
+		props.onNotesMoved(vaultId, before, snapshot(nextPositions, zipTies(), nextLockedNoteIds));
+	};
+
 	const beginNodeDrag = (event: PointerEvent & { currentTarget: HTMLButtonElement }, note: NoteSummary): void => {
 		if (props.busy || gesture) return;
 		if (event.button === 2 || event.button === 1) {
@@ -330,10 +375,12 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			});
 			return;
 		}
-		if (!selectedIds().has(note.id)) setSelectedIds(new Set([note.id]));
+		const dragSelection = selectedIds().has(note.id) ? selectedIds() : new Set([note.id]);
+		if (!selectedIds().has(note.id)) setSelectedIds(dragSelection);
+		if (isLocked(note.id)) { setSelectedIds(new Set([note.id])); return; }
 		event.currentTarget.setPointerCapture(event.pointerId);
 		const nodeOrigins = Object.fromEntries(props.notes.flatMap((item, index) =>
-			selectedIds().has(item.id) ? [[item.id, positions()[item.id] ?? defaultPosition(index, props.notes.length, nodeSize(item))]] : [],
+			dragSelection.has(item.id) && !isLocked(item.id) ? [[item.id, positions()[item.id] ?? defaultPosition(index, props.notes.length, nodeSize(item))]] : [],
 		));
 		gesture = {
 			pointerId: event.pointerId,
@@ -388,7 +435,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			for (const [id, origin] of Object.entries(active.nodeOrigins!)) {
 				if (current[id]) next[id] = { x: origin.x + dx / scale, y: origin.y + dy / scale };
 			}
-			return separateStaticNodes(next, layoutNodes(), priority);
+			return separateStaticNodes(next, layoutNodes(), priority, new Set(lockedNoteIds()));
 		});
 		if (active.beforeSnapshot) {
 			setZipTies(zipTiesAfterNodeMove(
@@ -410,7 +457,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		const next = [...zipTies(), { id: crypto.randomUUID(), members }];
 		setZipTies(next);
 		saveGraphState(positions(), view(), next);
-		props.onNotesMoved(vaultId, before, { layout: "static", positions: positions(), zipTies: next });
+		props.onNotesMoved(vaultId, before, snapshot(positions(), next));
 	};
 
 	const beginZipTieDrag = (id: string, event: PointerEvent): void => {
@@ -545,7 +592,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			const position = { x: clickPoint.x - size.width / 2, y: clickPoint.y - size.height / 2 };
 			const nodes = layoutNodes();
 			const nextPositions = separateStaticNodes({ ...positions(), [note.id]: position },
-				nodes.some((item) => item.id === note.id) ? nodes : [...nodes, { id: note.id, ...size }], new Set([note.id]));
+				nodes.some((item) => item.id === note.id) ? nodes : [...nodes, { id: note.id, ...size }], new Set([note.id]), new Set(lockedNoteIds()));
 			setPositions(nextPositions);
 			setCreatedNoteId(note.id);
 			clearTimeout(creationTimer);
@@ -602,7 +649,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		if (next.length === zipTies().length) return;
 		setZipTies(next);
 		saveGraphState(positions(), view(), next);
-		props.onNotesMoved(vaultId, before, { layout: "static", positions: positions(), zipTies: next });
+		props.onNotesMoved(vaultId, before, snapshot(positions(), next));
 	};
 
 	const openContextMenu = (event: MouseEvent, note: NoteSummary): void => {
@@ -612,8 +659,8 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		const rect = getBoard().getBoundingClientRect();
 		setContextMenu({
 			noteId: note.id,
-			x: Math.max(8, Math.min(event.clientX - rect.left, rect.width - 168)),
-			y: Math.max(8, Math.min(event.clientY - rect.top, rect.height - 92)),
+			x: Math.max(8, Math.min(event.clientX - rect.left, rect.width - 192)),
+			y: Math.max(8, Math.min(event.clientY - rect.top, rect.height - 132)),
 		});
 	};
 
@@ -629,6 +676,10 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		},
 		createdNoteId,
 		selectedIds,
+		lockedNoteIds,
+		isLocked,
+		areLockTargetsLocked,
+		toggleNoteLock,
 		zipTieStroke,
 		renderedZipTies,
 		selectionBox,

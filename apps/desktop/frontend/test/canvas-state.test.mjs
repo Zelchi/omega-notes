@@ -33,6 +33,14 @@ test('zip ties persist only in their vault static canvas state', t => {
     assert.equal(readGraphState('b').zipTies, undefined);
     assert.equal(readGraphState('a', 'dynamic').zipTies, undefined);
 });
+test('locked notes persist only in their vault static canvas state', t => {
+    const data = storage(t);
+    saveGraphState('a', { positions:{}, lockedNoteIds:['note-a', 'note-b'] });
+    assert.deepEqual(readGraphState('a').lockedNoteIds, ['note-a', 'note-b']);
+    assert.equal(readGraphState('b').lockedNoteIds, undefined);
+    data.set('omega-notes.graph.a.dynamic', JSON.stringify({ positions:{}, lockedNoteIds:['note-a'] }));
+    assert.equal(readGraphState('a', 'dynamic').lockedNoteIds, undefined);
+});
 test('invalid persisted zip ties are discarded', t => {
     const data = storage(t);
     data.set('omega-notes.graph.a.static', JSON.stringify({ positions:{}, zipTies:[
@@ -77,6 +85,15 @@ test('canvas history snapshots deeply copy zip ties', () => {
     const read = store.read('a');
     read.zipTies[0].members[1].edgeKey = 'changed';
     assert.deepEqual(store.read('a').zipTies, [{ id:'tie', members:[{ edgeKey:'a-b', t:.5 }, { edgeKey:'c-d', t:.6 }] }]);
+});
+test('canvas history snapshots copy locked note ids', () => {
+    const store = new CanvasSnapshotStore();
+    const original = { layout:'static', positions:{}, lockedNoteIds:['note-a'] };
+    store.remember('a', original);
+    original.lockedNoteIds.push('note-b');
+    const read = store.read('a');
+    read.lockedNoteIds.push('note-c');
+    assert.deepEqual(store.read('a').lockedNoteIds, ['note-a']);
 });
 test('unmount of one vault preserves another vault snapshot', () => {
     const store = new CanvasSnapshotStore(); const unregisterA = store.register('a', () => snapshot(1));

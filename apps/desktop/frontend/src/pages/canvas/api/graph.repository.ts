@@ -23,6 +23,9 @@ export const readGraphState = (vaultId: string, layout: GraphLayout = "static"):
 				return uniqueMembers.length >= 2 ? [{ id: tie.id, members: uniqueMembers }] : [];
 			})
 			: undefined;
+		const lockedNoteIds = layout === "static" && Array.isArray(parsed.lockedNoteIds)
+			? [...new Set(parsed.lockedNoteIds.filter((id): id is string => typeof id === "string" && id.length > 0 && id.length <= 128))].slice(0, 5000)
+			: undefined;
 		return {
 			positions: Object.fromEntries(
 				Object.entries(parsed.positions).filter(
@@ -38,6 +41,7 @@ export const readGraphState = (vaultId: string, layout: GraphLayout = "static"):
 					? parsed.view
 					: undefined,
 			...(zipTies?.length ? { zipTies } : {}),
+			...(lockedNoteIds?.length ? { lockedNoteIds } : {}),
 		};
 	} catch {
 		return { positions: {} };
