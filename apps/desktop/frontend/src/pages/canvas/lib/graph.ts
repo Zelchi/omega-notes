@@ -246,6 +246,38 @@ export const nearestGraphEdgePoint = (
 	return { ...nearest, t: bestT, distance: bestDistance };
 };
 
+const nearestGraphEdgeTAtProjection = (
+	curve: EdgeCurve,
+	route: readonly RoutedEdgeSegment[] | undefined,
+	target: number,
+	direction: Point,
+	originT: number,
+): number => {
+	const projectionAt = (t: number): number => {
+		const { point } = edgePointOnRoute(curve, route, t);
+		return point.x * direction.x + point.y * direction.y;
+	};
+	let bestT = originT;
+	let bestDistance = Infinity;
+	const inspect = (t: number): void => {
+		const distance = Math.abs(projectionAt(t) - target);
+		if (distance < bestDistance - 1e-9 ||
+			(Math.abs(distance - bestDistance) <= 1e-9 && Math.abs(t - originT) < Math.abs(bestT - originT))) {
+			bestDistance = distance;
+			bestT = t;
+		}
+	};
+	inspect(originT);
+	for (let index = 0; index <= 48; index++) inspect(index / 48);
+	let radius = 1 / 48;
+	for (let iteration = 0; iteration < 5; iteration++) {
+		const start = Math.max(0, bestT - radius), end = Math.min(1, bestT + radius);
+		for (let step = 0; step <= 8; step++) inspect(start + (end - start) * step / 8);
+		radius = (end - start) / 8;
+	}
+	return bestT;
+};
+
 export const graphEdgesCrossedByStroke = (
 	edges: Edge[],
 	positions: Record<string, Point>,
@@ -315,12 +347,25 @@ const zipTieGeometry = (
 	}
 	const points = [...samples.values()];
 	const center = points.reduce((sum, sample) => ({ x: sum.x + sample.point.x / points.length, y: sum.y + sample.point.y / points.length }), { x: 0, y: 0 });
-	const reference = samples.get([...samples.keys()].sort()[0]!)!.tangent;
-	const aligned = [...samples].map(([edgeKey, { tangent }]) => {
-		const dot = tangent.x * reference.x + tangent.y * reference.y;
+	const noteCenter = (note: NoteSummary): Point => {
+		const position = positions[note.id] ?? defaultPosition(0, total, nodeSize(note));
+		const size = nodeSize(note);
+		return { x: position.x + size.width / 2, y: position.y + size.height / 2 };
+	};
+	const edgeDirection = (edgeKey: string): Point => {
+		const edge = edgesByKey.get(edgeKey)!;
+		const source = noteCenter(edge.source), target = noteCenter(edge.target);
+		const dx = target.x - source.x, dy = target.y - source.y;
+		const length = Math.hypot(dx, dy);
+		return length ? { x: dx / length, y: dy / length } : samples.get(edgeKey)!.tangent;
+	};
+	const reference = edgeDirection([...samples.keys()].sort()[0]!);
+	const aligned = [...samples.keys()].map((edgeKey) => {
+		const direction = edgeDirection(edgeKey);
+		const dot = direction.x * reference.x + direction.y * reference.y;
 		// A near-perpendicular fan is not evidence that a wire runs backward.
 		const sign = dot < -0.1 ? -1 : 1;
-		return { edgeKey, sign, tangent: { x: tangent.x * sign, y: tangent.y * sign } };
+		return { edgeKey, sign, tangent: { x: direction.x * sign, y: direction.y * sign } };
 	});
 	const direction = aligned.reduce((sum, { tangent }) => ({ x: sum.x + tangent.x, y: sum.y + tangent.y }), { x: 0, y: 0 });
 	const directionLength = Math.hypot(direction.x, direction.y) || 1;
@@ -337,12 +382,7 @@ const zipTieGeometry = (
 	const neighboringNoteProjection = (edgeKey: string): number => {
 		const edge = edgesByKey.get(edgeKey)!;
 		const sample = samples.get(edgeKey)!.point;
-		const center = (note: NoteSummary): Point => {
-			const position = positions[note.id] ?? defaultPosition(0, total, nodeSize(note));
-			const size = nodeSize(note);
-			return { x: position.x + size.width / 2, y: position.y + size.height / 2 };
-		};
-		const source = center(edge.source), target = center(edge.target);
+		const source = noteCenter(edge.source), target = noteCenter(edge.target);
 		return projection(Math.hypot(sample.x - source.x, sample.y - source.y) <= Math.hypot(sample.x - target.x, sample.y - target.y) ? source : target);
 	};
 	const orderedKeys = [...samples.keys()].sort((leftKey, rightKey) => {
@@ -492,17 +532,31 @@ export const slideZipTie = (
 	routes?: ReadonlyMap<string, readonly RoutedEdgeSegment[]>,
 	notes: NoteSummary[] = [],
 ): ZipTie | undefined => {
+	const initialPlacement = zipTiePlacement(tie, edgesByKey, positions, total, routes);
+	if (!initialPlacement) return;
+	const angle = (initialPlacement.angle - 90) * Math.PI / 180;
+	const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+	const distance = delta.x * direction.x + delta.y * direction.y;
 	const members = tie.members.flatMap((member) => {
 		const edge = edgesByKey.get(member.edgeKey);
 		if (!edge) return [];
+		if (Math.abs(distance) < 1e-6) return [{ edgeKey: member.edgeKey, t: member.t }];
 		const route = routes?.get(member.edgeKey);
 		const origin = graphEdgePointAt(edge, positions, total, member.t, route);
-		const nearest = nearestGraphEdgePoint(edge, positions, total, { x: origin.x + delta.x, y: origin.y + delta.y }, route);
-		return [{ edgeKey: member.edgeKey, t: nearest.t }];
+		const target = origin.x * direction.x + origin.y * direction.y + distance;
+		const curve = edgeCurve(edge, positions, total);
+		const t = nearestGraphEdgeTAtProjection(
+			curve,
+			route,
+			target,
+			direction,
+			member.t,
+		);
+		return [{ edgeKey: member.edgeKey, t }];
 	});
 	const next = { ...tie, members };
-	const placement = zipTiePlacement(next, edgesByKey, positions, total, routes);
-	return members.length === tie.members.length && placement && zipTieClearOfNotes(placement, notes, positions) ? next : undefined;
+	const nextPlacement = zipTiePlacement(next, edgesByKey, positions, total, routes);
+	return members.length === tie.members.length && nextPlacement && zipTieClearOfNotes(nextPlacement, notes, positions) ? next : undefined;
 };
 
 export const graphEdgePath = (

@@ -91,16 +91,18 @@ export const streamNoteSummaries = async (
 	_onExternal: boolean,
 	_resetObserverSnapshot: boolean,
 	onItems: (notes: NoteSummary[]) => void,
+	signal?: AbortSignal,
 ): Promise<Omit<NoteSummaryLibrary, "notes">> => {
 	const library = await listNotes();
 	for (let offset = 0; offset < library.notes.length; offset += 32) {
 		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+		if (signal?.aborted) throw Error("NOTE_READ_CANCELLED");
 		onItems(library.notes.slice(offset, offset + 32).map(summarizeNote));
 	}
 	return { issues: library.issues, referenceTitles: library.referenceTitles };
 };
 
-export const notesChanges = async (_vaultId: string, _observerId: string): Promise<NoteChangeSet> => ({
+export const notesChanges = async (_vaultId: string, _observerId: string, _signal?: AbortSignal): Promise<NoteChangeSet> => ({
 	fullResync: false,
 	changeToken: null,
 	changedIds: [],
@@ -112,7 +114,8 @@ export const notesChanges = async (_vaultId: string, _observerId: string): Promi
 
 export const acknowledgeNoteChanges = async (_observerId: string, _changeToken: string): Promise<void> => undefined;
 
-export const getNote = async (_vaultId: string, noteId: string): Promise<StudyNote> => {
+export const getNote = async (_vaultId: string, noteId: string, signal?: AbortSignal): Promise<StudyNote> => {
+	if (signal?.aborted) throw Error("NOTE_READ_CANCELLED");
 	const note = readNotes().find((entry) => entry.id === noteId);
 	if (!note) throw new Error("NOTE_NOT_FOUND");
 	return note;
@@ -193,7 +196,10 @@ export const listDeletedNotes = async (): Promise<StudyNote[]> => {
 	return serialized ? parseNotes(serialized, deletedStorageKey()) : [];
 };
 
-export const listDeletedNoteIds = async (): Promise<string[]> => (await listDeletedNotes()).map((note) => note.id);
+export const listDeletedNoteIds = async (_vaultId: string, signal?: AbortSignal): Promise<string[]> => {
+	if (signal?.aborted) throw Error("NOTE_READ_CANCELLED");
+	return (await listDeletedNotes()).map((note) => note.id);
+};
 
 export const restoreDeletedNote = async (noteId: string): Promise<NoteSaveResult> => {
 	const deleted = await listDeletedNotes();

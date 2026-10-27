@@ -25,6 +25,7 @@ const KanbanPanel: Component<Props> = (props) => {
 		actionsVisibleId, setActionsVisibleId, collapsedStatuses, setCollapsedStatuses } = props.kanban.view;
 	const [draggedId, setDraggedId] = createSignal<string>();
 	const [dropTarget, setDropTarget] = createSignal<{ status: KanbanStatus; position: number }>();
+	const mutationsBlocked = () => props.kanban.loading() || props.kanban.readFailed();
 
 	const byStatus = createMemo(() => {
 		const grouped = new Map<KanbanStatus, Map<number, KanbanItem>>(kanbanStatuses.map((status) => [status, new Map()]));
@@ -46,14 +47,14 @@ const KanbanPanel: Component<Props> = (props) => {
 	});
 	const submitNew = (event: SubmitEvent, status: KanbanStatus) => {
 		event.preventDefault();
-		if (!draft().trim()) return;
+		if (mutationsBlocked() || !draft().trim()) return;
 		props.kanban.add(draft(), status);
 		setDraft("");
 		setAdding(undefined);
 	};
 	const submitEdit = (event: SubmitEvent, itemId: string) => {
 		event.preventDefault();
-		if (!editDraft().trim()) return;
+		if (mutationsBlocked() || !editDraft().trim()) return;
 		props.kanban.rename(itemId, editDraft());
 		setEditing(undefined);
 	};
@@ -61,14 +62,14 @@ const KanbanPanel: Component<Props> = (props) => {
 		const actionsVisible = () => actionsVisibleId() === item.id;
 		return (
 			<article class={styles.card} classList={{ [styles.dragging]: draggedId() === item.id }}
-				draggable={editing() !== item.id}
+				draggable={editing() !== item.id && !mutationsBlocked()}
 				onContextMenu={(event) => {
 					event.preventDefault();
 					event.stopPropagation();
 					setActionsVisibleId(current => current === item.id ? undefined : item.id);
 				}}
 				onDragStart={(event) => {
-					if (editing() === item.id) { event.preventDefault(); return; }
+					if (editing() === item.id || mutationsBlocked()) { event.preventDefault(); return; }
 					if (!event.dataTransfer) return;
 					setDraggedId(item.id);
 					event.dataTransfer.effectAllowed = "move";
@@ -78,10 +79,10 @@ const KanbanPanel: Component<Props> = (props) => {
 				<Show when={editing() === item.id} fallback={<div class={styles.cardTitle}>{item.title}</div>}>
 					<form class={styles.cardEditor} onSubmit={(event) => submitEdit(event, item.id)}>
 						<input class={`${styles.cardInput} ${styles.cardEditorInput}`} value={editDraft()} maxLength={500}
-							aria-label={props.t("kanbanItemTitle")} onInput={(event) => setEditDraft(event.currentTarget.value)} />
+							aria-label={props.t("kanbanItemTitle")} disabled={mutationsBlocked()} onInput={(event) => setEditDraft(event.currentTarget.value)} />
 						<div class={styles.formActions}>
 							<Button class={styles.formButton} type="button" onClick={() => setEditing(undefined)}>{props.t("cancel")}</Button>
-							<Button class={styles.formButton} type="submit" disabled={!editDraft().trim()}>{props.t("save")}</Button>
+							<Button class={styles.formButton} type="submit" disabled={mutationsBlocked() || !editDraft().trim()}>{props.t("save")}</Button>
 						</div>
 					</form>
 				</Show>
@@ -96,14 +97,14 @@ const KanbanPanel: Component<Props> = (props) => {
 				<Show when={editing() !== item.id}>
 					<div class={styles.cardActions}>
 						<Button class={styles.actionReveal} classList={{ [styles.actionRevealVisible]: actionsVisible() }}
-							type="button" disabled={!actionsVisible()} aria-hidden={!actionsVisible()} tabIndex={actionsVisible() ? 0 : -1}
+							type="button" disabled={!actionsVisible() || mutationsBlocked()} aria-hidden={!actionsVisible()} tabIndex={actionsVisible() ? 0 : -1}
 							aria-label={props.t("kanbanEditItem")}
 							onClick={() => { setActionsVisibleId(undefined); setEditing(item.id); setEditDraft(item.title); }}>
 							<Icon name="edit" size={14} />
 						</Button>
 						<Button class={`${styles.deleteButton} ${styles.actionReveal} ${styles.actionRevealTrailing}`}
 							classList={{ [styles.actionRevealVisible]: actionsVisible(), [styles.actionRevealTrailingVisible]: actionsVisible() }}
-							type="button" disabled={!actionsVisible()} aria-hidden={!actionsVisible()} tabIndex={actionsVisible() ? 0 : -1}
+							type="button" disabled={!actionsVisible() || mutationsBlocked()} aria-hidden={!actionsVisible()} tabIndex={actionsVisible() ? 0 : -1}
 							aria-label={props.t("kanbanDeleteItem")}
 							onClick={() => { setActionsVisibleId(undefined); props.kanban.remove(item.id); }}>
 							<Icon name="delete" size={14} />
@@ -133,7 +134,14 @@ const KanbanPanel: Component<Props> = (props) => {
 					</Button>
 				</header>
 				<div class={styles.content}>
-					<Show when={props.kanban.error()}><p class={styles.error} role="alert">{props.t("kanbanStorageFailed")}</p></Show>
+					<Show when={props.kanban.error() || props.kanban.readFailed()}>
+						<div class={styles.formActions} style={{ "align-items": "center" }}>
+							<p class={styles.error} role="alert">{props.t("kanbanStorageFailed")}</p>
+							<Show when={props.kanban.readFailed()}>
+								<Button class={styles.formButton} type="button" disabled={props.kanban.loading()} onClick={props.kanban.retryRead}>{props.t("retry")}</Button>
+							</Show>
+						</div>
+					</Show>
 					<Show when={props.kanban.items().length >= maxKanbanItems}><p class={styles.loading} role="status">{props.t("kanbanLimitReached")}</p></Show>
 					<Show when={props.kanban.loading()}><p class={styles.loading}>{props.t("kanbanLoading")}</p></Show>
 					<CustomScrollArea ariaLabel={props.t("kanbanTitle")} contentClass={styles.lanes} viewportStyle={{ padding: "2px 12px 12px 2px" }}>
@@ -156,7 +164,7 @@ const KanbanPanel: Component<Props> = (props) => {
 											</Button>
 											<Button class={styles.iconButton} type="button"
 												aria-label={`${props.t("kanbanAddItem")} · ${props.t(kanbanStatusLabels[status])}`}
-												disabled={props.kanban.loading() || props.kanban.items().length >= maxKanbanItems}
+												disabled={mutationsBlocked() || props.kanban.items().length >= maxKanbanItems}
 												onClick={() => { setStatusCollapsed(status, false); setDraft(""); setAdding(status); }}>
 												<Icon name="add" size={15} />
 											</Button>
@@ -168,11 +176,11 @@ const KanbanPanel: Component<Props> = (props) => {
 										<form class={styles.createForm} onSubmit={(event) => submitNew(event, status)}>
 											<input class={styles.cardInput} value={draft()} maxLength={500}
 												placeholder={props.t("kanbanItemPlaceholder")} aria-label={props.t("kanbanItemTitle")}
-												onInput={(event) => setDraft(event.currentTarget.value)} />
+												disabled={mutationsBlocked()} onInput={(event) => setDraft(event.currentTarget.value)} />
 											<div class={styles.formActions}>
 												<Button class={styles.formButton} type="button"
 													onClick={() => { setAdding(undefined); setDraft(""); }}>{props.t("cancel")}</Button>
-												<Button class={styles.formButton} type="submit" disabled={!draft().trim() || props.kanban.items().length >= maxKanbanItems}>{props.t("save")}</Button>
+												<Button class={styles.formButton} type="submit" disabled={mutationsBlocked() || !draft().trim() || props.kanban.items().length >= maxKanbanItems}>{props.t("save")}</Button>
 											</div>
 										</form>
 										</Show>
@@ -184,7 +192,7 @@ const KanbanPanel: Component<Props> = (props) => {
 												<div class={styles.positionSlot} classList={{ [styles.positionSlotDropTarget]: isDropTarget() }}
 													aria-hidden={item() ? undefined : "true"}
 													onDragOver={(event) => {
-														if (!draggedId() || !event.dataTransfer) return;
+														if (mutationsBlocked() || !draggedId() || !event.dataTransfer) return;
 														event.preventDefault();
 														event.dataTransfer.dropEffect = "move";
 														setDropTarget({ status, position });
@@ -196,7 +204,7 @@ const KanbanPanel: Component<Props> = (props) => {
 														event.preventDefault();
 														event.stopPropagation();
 														const itemId = event.dataTransfer?.getData("text/plain") || draggedId();
-														if (itemId) props.kanban.move(itemId, status, position, item()?.id);
+														if (!mutationsBlocked() && itemId) props.kanban.move(itemId, status, position, item()?.id);
 														setDraggedId(undefined);
 														setDropTarget(undefined);
 													}}>

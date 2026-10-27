@@ -1,5 +1,4 @@
 use crate::pomodoro::PomodoroTimer;
-// Explicit protocol allowlist; platform/window commands live in Electron.
 use crate::runtime::{AppContext, Channel};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -15,6 +14,10 @@ pub(crate) async fn dispatch(
     args: Value,
 ) -> Result<Value, String> {
     match command.as_str() {
+        "cancel_note_read" => serde_json::to_value(crate::notes::commands::cancel_note_read(
+            argument(&args, "operationId")?,
+        )?)
+        .map_err(|error| error.to_string()),
         "initialize_pomodoro_timer" => {
             serde_json::to_value(crate::pomodoro::initialize_pomodoro_timer(
                 app.clone(),
@@ -76,6 +79,7 @@ pub(crate) async fn dispatch(
                 argument(&args, "observerId")?,
                 argument(&args, "resetObserverSnapshot")?,
                 argument(&args, "external")?,
+                argument(&args, "operationId")?,
                 Channel::from_argument(&app, &args, "onItem")?,
             )
             .await?,
@@ -86,8 +90,8 @@ pub(crate) async fn dispatch(
                 app.clone(),
                 argument(&args, "vaultId")?,
                 argument(&args, "observerId")?,
-            )
-            .await?,
+                argument(&args, "operationId")?,
+            ).await?,
         )
         .map_err(|error| error.to_string()),
         "acknowledge_note_changes" => serde_json::to_value(
@@ -103,6 +107,7 @@ pub(crate) async fn dispatch(
                 app.clone(),
                 argument(&args, "vaultId")?,
                 argument(&args, "noteId")?,
+                argument(&args, "operationId")?,
             )
             .await?,
         )
@@ -111,10 +116,15 @@ pub(crate) async fn dispatch(
             serde_json::to_value(crate::notes::commands::list_note_media(app.clone()).await?)
                 .map_err(|error| error.to_string())
         }
-        "list_deleted_note_ids" => {
-            serde_json::to_value(crate::notes::commands::list_deleted_note_ids(app.clone()).await?)
-                .map_err(|error| error.to_string())
-        }
+        "list_deleted_note_ids" => serde_json::to_value(
+            crate::notes::commands::list_deleted_note_ids(
+                app.clone(),
+                argument(&args, "vaultId")?,
+                argument(&args, "operationId")?,
+            )
+            .await?,
+        )
+        .map_err(|error| error.to_string()),
         "create_note" => serde_json::to_value(
             crate::notes::commands::create_note(app.clone(), argument(&args, "noteTitle")?).await?,
         )

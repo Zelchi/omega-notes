@@ -21,6 +21,8 @@ pub(crate) fn create_note(
 ) -> Result<StudyNote, String> {
     let _title_lock = super::lock_title_mutations()?;
     let (directory, backups_directory) = resolve_directories()?;
+    let vault_lock = super::title_lock_for_vault(&directory)?;
+    let _vault_lock = super::lock_vault_title_operations(&vault_lock)?;
     validate_note_title(&note_title)?;
     crate::notes::validate_note_title_length(&note_title)?;
     let note_id = Uuid::now_v7().to_string();
@@ -55,6 +57,8 @@ pub(crate) fn save_note_checked(
     let _asset_lock = crate::images::lock_asset_mutations()?;
     validate_note_id(&note_id)?;
     let (directory, backups_directory) = resolve_directories()?;
+    let vault_lock = super::title_lock_for_vault(&directory)?;
+    let _vault_lock = super::lock_vault_title_operations(&vault_lock)?;
     validate_note_title(&note_title)?;
     let existing = existing_note(&directory, &note_id)?;
     let previous_document = existing
@@ -132,6 +136,8 @@ pub(crate) fn delete_note(
     let _asset_lock = crate::images::lock_asset_mutations()?;
     validate_note_id(&note_id)?;
     let (directory, backups_directory) = resolve_directories()?;
+    let vault_lock = super::title_lock_for_vault(&directory)?;
+    let _vault_lock = super::lock_vault_title_operations(&vault_lock)?;
     let note = existing_note(&directory, &note_id)?.ok_or("Nota não encontrada.")?;
     crate::notes::remember_reference_title(&directory, &note_id, &note.title)?;
     let previous_document = note.document;

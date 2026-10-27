@@ -12,12 +12,13 @@ const setup = (t, config = {}) => {
     createRoot(dispose => {
         stop = dispose;
         const [vaultId, setVault] = createSignal('vault-a');
-        const [all, setAll] = createSignal({ 'vault-a': [note('a')], 'vault-b': [note('b')] });
+         const [all, setAll] = createSignal({ 'vault-a': [note('a')], 'vault-b': [note('b')] });
         const [loading, setLoading] = createSignal(false);
-        const loads = [], layouts = [], removed = [], restored = [];
+        const [hasLoadedVault] = createSignal(config.loaded ?? true);
+        const loads = [], historySignals = [], layouts = [], removed = [], restored = [];
         const notes = {
-            loading, notes: () => all()[vaultId()] ?? [],
-            listDeleted: () => { const id = vaultId(); loads.push(id); return config.listDeleted?.(id) ?? Promise.resolve([]); },
+            loading, hasLoadedVault, notes: () => all()[vaultId()] ?? [],
+            listDeleted: (id, signal) => { loads.push(id); historySignals.push(signal); return config.listDeleted?.(id, signal) ?? Promise.resolve([]); },
             remove: async current => {
                 const id = vaultId(); await config.onRemove?.(id, current);
                 removed.push([id, current.id]); setAll(previous => ({ ...previous, [id]: previous[id].filter(item => item.id !== current.id) }));
@@ -30,7 +31,7 @@ const setup = (t, config = {}) => {
             },
         };
         const history = useCanvasHistory({ notes, vaultId, enabled: () => true, setLayout: value => layouts.push(value) });
-        fixture = { history, vaultId, setVault, setLoading, notes, loads, layouts, removed, restored };
+        fixture = { history, vaultId, setVault, setLoading, notes, loads, historySignals, layouts, removed, restored };
     });
     let disposed = false;
     const dispose = () => { if (!disposed) { disposed = true; stop(); } };
@@ -50,6 +51,24 @@ test('old history completion cannot release the current vault loading state', as
     assert.equal(f.history.pending(), true); f.setVault('vault-b'); assert.equal(f.history.pending(), true);
     a.resolve([]); await settle(); assert.equal(f.history.pending(), true);
     b.resolve([]); await settle(); assert.equal(f.history.pending(), false);
+});
+test('switching vaults cancels the obsolete history read without blocking the switch', async t => {
+    const f = setup(t, { listDeleted: (id, signal) => id === 'vault-a'
+        ? new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(Error('NOTE_READ_CANCELLED')), { once: true }))
+        : Promise.resolve([]) });
+    assert.equal(f.history.pending(), true);
+    assert.equal(f.history.mutating(), false);
+    f.setVault('vault-b');
+    assert.equal(f.historySignals[0].aborted, true);
+    await settle();
+    assert.equal(f.history.pending(), false);
+    assert.equal(f.history.error(), false);
+});
+test('failed note loads do not start a history read or block vault selection', async t => {
+    const f = setup(t, { loaded: false });
+    await settle();
+    assert.deepEqual(f.loads, []);
+    assert.equal(f.history.pending(), false);
 });
 test('current history may finish before an older request', async t => {
     const a = deferred(), b = deferred(), f = setup(t, { listDeleted: id => id === 'vault-a' ? a.promise : b.promise });

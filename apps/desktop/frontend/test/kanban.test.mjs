@@ -6,13 +6,20 @@ import { useKanban } from '../src/features/manage-kanban/model/controller.ts';
 import { kanbanSlotCount } from '../src/features/manage-kanban/model/kanban.ts';
 import { settle } from './helpers.mjs';
 
-const setup = async (t, { failWrite = false, initialItems = [] } = {}) => {
+const setup = async (t, { failRead = false, failWrite = false, initialData, initialItems = [] } = {}) => {
 	const previousStorage = globalThis.localStorage;
 	const data = new Map();
-	if (initialItems.length) data.set('omega-notes.kanban.v1.vault-a', JSON.stringify(initialItems));
+	const saved = initialData ?? (initialItems.length ? JSON.stringify(initialItems) : undefined);
+	if (saved !== undefined) data.set('omega-notes.kanban.v1.vault-a', saved);
+	let readFailure = failRead;
+	let writes = 0;
 	globalThis.localStorage = {
-		getItem: key => data.get(key) ?? null,
+		getItem: key => {
+			if (readFailure && key.startsWith('omega-notes.kanban.')) throw Error('storage unavailable');
+			return data.get(key) ?? null;
+		},
 		setItem: (key, value) => {
+			writes += 1;
 			if (failWrite && key.startsWith('omega-notes.kanban.')) throw Error('storage unavailable');
 			data.set(key, String(value));
 		},
@@ -29,7 +36,7 @@ const setup = async (t, { failWrite = false, initialItems = [] } = {}) => {
 		kanban = useKanban(vaultId);
 	});
 	await settle();
-	return { kanban, data, setVaultId };
+	return { kanban, data, setVaultId, setReadFailure: value => { readFailure = value; }, writes: () => writes };
 };
 
 const makeItems = count => Array.from({ length: count }, (_, index) => ({
@@ -130,7 +137,86 @@ test('flushSave reports pending and previous write failures', async t => {
 
 	assert.equal(await kanban.flushSave(), false);
 	assert.equal(kanban.error(), true);
+	assert.equal(kanban.readFailed(), false);
 	assert.equal(await kanban.flushSave(), false);
+});
+
+test('mutations stay blocked after a failed read until an explicit retry succeeds', async t => {
+	const fixture = makeItems(1);
+	const original = JSON.stringify(fixture);
+	const { kanban, data, setReadFailure, writes } = await setup(t, { failRead: true, initialItems: fixture });
+	const [item] = fixture;
+
+	assert.equal(kanban.readFailed(), true);
+	assert.equal(kanban.error(), false);
+	kanban.add('New task', 'backlog');
+	kanban.rename(item.id, 'Renamed task');
+	kanban.move(item.id, 'toDo', 0);
+	kanban.remove(item.id);
+	await settle();
+
+	assert.equal(writes(), 0);
+	assert.equal(data.get('omega-notes.kanban.v1.vault-a'), original);
+
+	setReadFailure(false);
+	kanban.retryRead();
+	await settle();
+	assert.equal(kanban.readFailed(), false);
+	assert.deepEqual(kanban.items(), fixture);
+
+	kanban.add('New task', 'backlog');
+	assert.equal(await kanban.flushSave(), true);
+	assert.equal(writes(), 1);
+	assert.deepEqual(JSON.parse(data.get('omega-notes.kanban.v1.vault-a')).map(({ title }) => title), ['Task 1', 'New task']);
+});
+
+test('mutations stay blocked while a new vault is loading', async t => {
+	const fixture = makeItems(1);
+	const { kanban, data, setVaultId, writes } = await setup(t);
+	const key = 'omega-notes.kanban.v1.vault-b';
+	data.set(key, JSON.stringify(fixture));
+
+	setVaultId('vault-b');
+	assert.equal(kanban.loading(), true);
+	kanban.add('New task', 'backlog');
+	kanban.rename(fixture[0].id, 'Renamed task');
+	kanban.move(fixture[0].id, 'toDo', 0);
+	kanban.remove(fixture[0].id);
+	await settle();
+
+	assert.equal(kanban.loading(), false);
+	assert.equal(writes(), 0);
+	assert.equal(data.get(key), JSON.stringify(fixture));
+	assert.deepEqual(kanban.items(), fixture);
+});
+
+test('invalid Kanban data is preserved after a failed read', async t => {
+	const original = '{invalid json';
+	const { kanban, data, writes } = await setup(t, { initialData: original });
+
+	assert.equal(kanban.readFailed(), true);
+	kanban.add('New task', 'backlog');
+	await settle();
+
+	assert.equal(writes(), 0);
+	assert.equal(data.get('omega-notes.kanban.v1.vault-a'), original);
+});
+
+test('a stale read retry cannot replace a newly selected vault', async t => {
+	const firstVaultItems = makeItems(1);
+	const secondVaultItems = makeItems(2);
+	const { kanban, data, setReadFailure, setVaultId, writes } = await setup(t, { failRead: true, initialItems: firstVaultItems });
+	const secondVaultKey = 'omega-notes.kanban.v1.vault-b';
+	data.set(secondVaultKey, JSON.stringify(secondVaultItems));
+
+	setReadFailure(false);
+	kanban.retryRead();
+	setVaultId('vault-b');
+	await settle();
+
+	assert.equal(writes(), 0);
+	assert.deepEqual(kanban.items(), secondVaultItems);
+	assert.equal(kanban.readFailed(), false);
 });
 
 test('app shutdown and vault deletion await the Kanban save checkpoint', async () => {

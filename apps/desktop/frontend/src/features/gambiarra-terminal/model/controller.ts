@@ -19,6 +19,7 @@ export const useGambiarraTerminal = (options: {
 	const [exited, setExited] = createSignal(false);
 	const [outputTruncated, setOutputTruncated] = createSignal(false);
 	let sessionId: string | undefined, sessionVault: string | undefined, ready = false, revision = 0;
+	let lastDimensions: { cols: number; rows: number } | undefined;
 	let history: Uint8Array[] = [], historyBytes = 0, outputTerminal: Terminal | undefined;
 	let input: Uint8Array[] = [], inputBytes = 0, sending = false;
 	const encoder = new TextEncoder();
@@ -53,6 +54,13 @@ export const useGambiarraTerminal = (options: {
 			}
 		} catch (failure) { report(failure); input = []; inputBytes = 0; }
 		finally { sending = false; }
+	};
+	const syncDimensions = (request: number, current: string, vaultId: string) => {
+		const dimensions = lastDimensions;
+		if (!dimensions) return;
+		void resizeTerminal(vaultId, current, dimensions.cols, dimensions.rows).catch(failure => {
+			if (request === revision && sessionId === current) report(failure);
+		});
 	};
 	const write = (data: Uint8Array) => {
 		if (!sessionId || exited()) return;
@@ -99,6 +107,7 @@ export const useGambiarraTerminal = (options: {
 			if (request !== revision || sessionId !== current) { await closeTerminal(current).catch(() => undefined); return; }
 			ready = true;
 			setConnecting(false);
+			syncDimensions(request, current, vaultId);
 			void sendInput();
 		} catch (failure) {
 			if (request !== revision) return;
@@ -123,7 +132,8 @@ export const useGambiarraTerminal = (options: {
 		},
 		write,
 		resize: (cols: number, rows: number) => {
-			if (ready && sessionId && sessionVault) void resizeTerminal(sessionVault, sessionId, cols, rows).catch(report);
+			lastDimensions = { cols, rows };
+			if (ready && sessionId && sessionVault) syncDimensions(revision, sessionId, sessionVault);
 		},
 	};
 };

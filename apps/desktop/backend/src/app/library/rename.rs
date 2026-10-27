@@ -33,6 +33,9 @@ pub(crate) fn rename_note(
     validate_note_title(&note_title).map_err(RenameNoteError::Validation)?;
     validate_note_title_length(&note_title).map_err(RenameNoteError::Validation)?;
     let (directory, backups_directory) = resolve_directories().map_err(RenameNoteError::Context)?;
+    let vault_lock = super::title_lock_for_vault(&directory).map_err(RenameNoteError::Context)?;
+    let _vault_lock =
+        super::lock_vault_title_operations(&vault_lock).map_err(RenameNoteError::Context)?;
     let mut notes = Vec::new();
     let (issues, _) = stream_note_summaries(
         &|| Ok((directory.clone(), backups_directory.clone())),

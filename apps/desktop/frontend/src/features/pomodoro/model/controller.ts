@@ -33,6 +33,8 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>, onFocusPhaseE
 	const [phaseSeconds, setPhaseSeconds] = createSignal(initialSettings.focusMinutes * 60);
 	const [running, setRunning] = createSignal(false);
 	const [timerReady, setTimerReady] = createSignal(false);
+	const [timerError, setTimerError] = createSignal(false);
+	const [timerSyncing, setTimerSyncing] = createSignal(false);
 	const [draft, setDraft] = createSignal("");
 	const [showSettings, setShowSettings] = createSignal(false);
 	const [focusDraft, setFocusDraft] = createSignal(String(initialSettings.focusMinutes));
@@ -45,7 +47,7 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>, onFocusPhaseE
 	const view = { draft, setDraft, showSettings, setShowSettings, focusDraft, setFocusDraft, shortBreakDraft, setShortBreakDraft, longBreakDraft, setLongBreakDraft, cyclesDraft, setCyclesDraft, editingTaskId, setEditingTaskId, taskActionsVisibleId, setTaskActionsVisibleId, editDraft, setEditDraft };
 	let timer: ReturnType<typeof setInterval> | undefined;
 	let alarmMuteTimer: ReturnType<typeof setTimeout> | undefined;
-	let timerRevision = 0, timerReadPending = false, timerErrorLogged = false;
+	let timerRevision = 0, timerReadPending = false, timerSyncPending = false, timerInitialized = false, timerDisposed = false, timerErrorLogged = false;
 	let loadRevision = 0, writeRevision = 0;
 	const writes = new Map<string, Promise<void>>();
 
@@ -67,6 +69,7 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>, onFocusPhaseE
 		setLongBreakMinutes(snapshot.longBreakMinutes);
 		setCyclesBeforeLongBreak(snapshot.cyclesBeforeLongBreak);
 		timerErrorLogged = false;
+		setTimerError(false);
 	};
 	const reportTimerError = (error: unknown) => {
 		if (!timerErrorLogged) console.error("Pomodoro timer failed", error);
@@ -75,6 +78,7 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>, onFocusPhaseE
 		clearTimer();
 		setRunning(false);
 		setTimerReady(false);
+		setTimerError(true);
 	};
 	const startPolling = () => {
 		if (!timer) timer = setInterval(() => { void tick(); }, 250);
@@ -92,6 +96,33 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>, onFocusPhaseE
 			if (revision === timerRevision) reportTimerError(error);
 		} finally {
 			timerReadPending = false;
+		}
+	};
+	const synchronizeTimer = async () => {
+		if (timerSyncPending || timerDisposed) return;
+		const revision = ++timerRevision;
+		timerSyncPending = true;
+		setTimerSyncing(true);
+		setTimerReady(false);
+		clearTimer();
+		try {
+			const snapshot = timerInitialized ? await readPomodoroTimer() : await initializePomodoroTimer(initialSettings);
+			if (revision !== timerRevision || timerDisposed) return;
+			timerInitialized = true;
+			applySnapshot(snapshot, false);
+			setTimerReady(true);
+			savePomodoroSettings({
+				focusMinutes: snapshot.focusMinutes,
+				shortBreakMinutes: snapshot.shortBreakMinutes,
+				longBreakMinutes: snapshot.longBreakMinutes,
+				cyclesBeforeLongBreak: snapshot.cyclesBeforeLongBreak,
+			});
+			if (snapshot.running) startPolling();
+		} catch (error) {
+			if (revision === timerRevision && !timerDisposed) reportTimerError(error);
+		} finally {
+			timerSyncPending = false;
+			if (!timerDisposed) setTimerSyncing(false);
 		}
 	};
 	const start = () => {
@@ -116,17 +147,21 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>, onFocusPhaseE
 	};
 	const reset = () => {
 		if (!timerReady()) return;
-		timerRevision += 1;
+		const revision = ++timerRevision;
 		clearTimer();
 		setRunning(false);
-		void resetPomodoroTimer().then(snapshot => applySnapshot(snapshot, false)).catch(reportTimerError);
+		void resetPomodoroTimer().then(snapshot => {
+			if (revision === timerRevision) applySnapshot(snapshot, false);
+		}).catch(error => { if (revision === timerRevision) reportTimerError(error); });
 	};
 	const next = () => {
 		if (!timerReady()) return;
-		timerRevision += 1;
+		const revision = ++timerRevision;
 		clearTimer();
 		setRunning(false);
-		void nextPomodoroPhase().then(snapshot => applySnapshot(snapshot, false)).catch(reportTimerError);
+		void nextPomodoroPhase().then(snapshot => {
+			if (revision === timerRevision) applySnapshot(snapshot, false);
+		}).catch(error => { if (revision === timerRevision) reportTimerError(error); });
 	};
 	const setDurations = (focus: number, shortBreak: number, longBreak: number, cycles: number) => {
 		if (!timerReady() || running() || ![focus, shortBreak, longBreak].every(value => Number.isSafeInteger(value) && value >= 1 && value <= 1440)
@@ -140,8 +175,10 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>, onFocusPhaseE
 		setShortBreakMinutes(shortBreak);
 		setLongBreakMinutes(longBreak);
 		setCyclesBeforeLongBreak(cycles);
+		const revision = ++timerRevision;
 		void setPomodoroSettings({ focusMinutes: focus, shortBreakMinutes: shortBreak, longBreakMinutes: longBreak, cyclesBeforeLongBreak: cycles })
-			.then(snapshot => applySnapshot(snapshot, false)).catch(reportTimerError);
+			.then(snapshot => { if (revision === timerRevision) applySnapshot(snapshot, false); })
+			.catch(error => { if (revision === timerRevision) reportTimerError(error); });
 		return true;
 	};
 	const setMuteLofiDuringBreaks = (muted: boolean) => {
@@ -158,17 +195,7 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>, onFocusPhaseE
 	};
 
 	if (isDesktopRuntime()) {
-		void initializePomodoroTimer(initialSettings).then(snapshot => {
-			setTimerReady(true);
-			applySnapshot(snapshot, false);
-			savePomodoroSettings({
-				focusMinutes: snapshot.focusMinutes,
-				shortBreakMinutes: snapshot.shortBreakMinutes,
-				longBreakMinutes: snapshot.longBreakMinutes,
-				cyclesBeforeLongBreak: snapshot.cyclesBeforeLongBreak,
-			});
-			if (snapshot.running) startPolling();
-		}).catch(reportTimerError);
+		void synchronizeTimer();
 	}
 
 	createEffect(on(vaultId, (id) => {
@@ -232,10 +259,10 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>, onFocusPhaseE
 		catch { return false; }
 	};
 
-	onCleanup(() => { timerRevision += 1; clearTimer(); clearTimeout(alarmMuteTimer); });
+	onCleanup(() => { timerDisposed = true; timerRevision += 1; clearTimer(); clearTimeout(alarmMuteTimer); });
 	return {
 		open, setOpen, tasks, loading, error, readFailed, settingsError, addTask, renameTask, toggleTask, removeTask, flushSave, view, toggleSettings,
-		phase, phaseSeconds, timerReady, focusMinutes, shortBreakMinutes, longBreakMinutes, cyclesBeforeLongBreak, seconds, running, start, pause, reset, next, setDurations,
+		phase, phaseSeconds, timerReady, timerError, timerSyncing, retryTimer: synchronizeTimer, focusMinutes, shortBreakMinutes, longBreakMinutes, cyclesBeforeLongBreak, seconds, running, start, pause, reset, next, setDurations,
 		muteLofiDuringBreaks, setMuteLofiDuringBreaks,
 		muteLofi: () => shouldMuteLofi(phase(), muteLofiDuringBreaks(), alarmActive()),
 	};

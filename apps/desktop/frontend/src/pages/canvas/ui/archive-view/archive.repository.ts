@@ -5,15 +5,18 @@ export type ArchiveState = {
 	noteFolders: Record<string, string>;
 	itemOrder: Record<string, ArchiveItem[]>;
 };
+export type ArchiveReadResult = { ok: true; state: ArchiveState } | { ok: false; state: ArchiveState };
 
 const storageKey = (vaultId: string): string => `omega-notes.archive.${encodeURIComponent(vaultId)}`;
 const emptyState = (): ArchiveState => ({ folders: [], noteFolders: {}, itemOrder: {} });
 
-export const readArchiveState = (vaultId: string): ArchiveState => {
-	if (!vaultId || typeof window === "undefined") return emptyState();
+export const readArchiveState = (vaultId: string): ArchiveReadResult => {
+	if (!vaultId || typeof window === "undefined") return { ok: false, state: emptyState() };
 	try {
-		const value: unknown = JSON.parse(localStorage.getItem(storageKey(vaultId)) ?? "null");
-		if (!value || typeof value !== "object") return emptyState();
+		const raw = localStorage.getItem(storageKey(vaultId));
+		if (raw === null) return { ok: true, state: emptyState() };
+		const value: unknown = JSON.parse(raw);
+		if (!value || typeof value !== "object" || Array.isArray(value)) return { ok: false, state: emptyState() };
 		const stored = value as Partial<ArchiveState> & { noteOrder?: Record<string, string[]> };
 		const rawFolders = Array.isArray(stored.folders)
 			? stored.folders.filter((folder): folder is ArchiveFolder =>
@@ -63,9 +66,9 @@ export const readArchiveState = (vaultId: string): ArchiveState => {
 				...(legacyNoteOrder[key] ?? []).map((id) => ({ kind: "note" as const, id })),
 			];
 		}
-		return { folders, noteFolders, itemOrder };
+		return { ok: true, state: { folders, noteFolders, itemOrder } };
 	} catch {
-		return emptyState();
+		return { ok: false, state: emptyState() };
 	}
 };
 

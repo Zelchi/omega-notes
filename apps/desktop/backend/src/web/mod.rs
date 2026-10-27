@@ -2,7 +2,7 @@ mod client;
 mod title;
 
 use reqwest::{header, Client, Url};
-use std::sync::OnceLock;
+use std::{sync::OnceLock, time::Duration};
 
 const MAX_HTML_BYTES: usize = 512 * 1024;
 
@@ -79,13 +79,22 @@ pub(crate) async fn fetch_audio_stream(url: Url) -> Result<reqwest::Response, St
         let _ = CLIENT.set(client.clone());
         client
     };
-    let response = client
-        .get(url)
-        .header(header::ACCEPT, "audio/mpeg")
-        .send()
-        .await
-        .and_then(reqwest::Response::error_for_status)
-        .map_err(|_| "MUSIC_STREAM_FAILED".to_string())?;
+    fetch_audio_stream_with_client(&client, url, client::MEDIA_STREAM_IDLE_TIMEOUT).await
+}
+
+async fn fetch_audio_stream_with_client(
+    client: &Client,
+    url: Url,
+    header_timeout: Duration,
+) -> Result<reqwest::Response, String> {
+    let response = tokio::time::timeout(
+        header_timeout,
+        client.get(url).header(header::ACCEPT, "audio/mpeg").send(),
+    )
+    .await
+    .map_err(|_| "MUSIC_STREAM_FAILED".to_string())?
+    .and_then(reqwest::Response::error_for_status)
+    .map_err(|_| "MUSIC_STREAM_FAILED".to_string())?;
     if !response.status().is_success() {
         return Err("MUSIC_STREAM_FAILED".into());
     }
@@ -95,7 +104,32 @@ pub(crate) async fn fetch_audio_stream(url: Url) -> Result<reqwest::Response, St
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{net::IpAddr, str::FromStr};
+    use std::{
+        io::{Read, Write},
+        net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream},
+        str::FromStr,
+        thread,
+        time::Instant,
+    };
+
+    fn fixture_client(address: SocketAddr, idle_timeout: Duration) -> Client {
+        client::build_media_stream_client_with(
+            Client::builder().resolve("radio.fixture", address),
+            idle_timeout,
+        )
+        .unwrap()
+    }
+
+    fn read_request(stream: &mut TcpStream) {
+        let mut request = Vec::new();
+        let mut byte = [0; 1];
+        while !request.ends_with(b"\r\n\r\n") {
+            if stream.read(&mut byte).unwrap() == 0 {
+                break;
+            }
+            request.push(byte[0]);
+        }
+    }
 
     #[test]
     fn rejects_non_public_literal_targets() {
@@ -182,5 +216,85 @@ mod tests {
         ] {
             assert!(parse_public_https_url(value).is_err(), "{value}");
         }
+    }
+
+    #[tokio::test]
+    async fn silent_fixture_before_headers_hits_the_header_deadline() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            read_request(&mut stream);
+            thread::sleep(Duration::from_millis(250));
+        });
+        let client = fixture_client(address, Duration::from_millis(100));
+        let url = Url::parse(&format!("http://radio.fixture:{}/stream", address.port())).unwrap();
+
+        let result = fetch_audio_stream_with_client(&client, url, Duration::from_millis(100)).await;
+        assert!(
+            result.is_err(),
+            "a response that never sends headers must time out"
+        );
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn silent_fixture_between_chunks_hits_the_idle_read_timeout() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            read_request(&mut stream);
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: audio/mpeg\r\nContent-Length: 2\r\nConnection: close\r\n\r\nx")
+                .unwrap();
+            stream.flush().unwrap();
+            thread::sleep(Duration::from_millis(250));
+        });
+        let client = fixture_client(address, Duration::from_millis(100));
+        let url = Url::parse(&format!("http://radio.fixture:{}/stream", address.port())).unwrap();
+        let mut response = fetch_audio_stream_with_client(&client, url, Duration::from_millis(100))
+            .await
+            .unwrap();
+
+        assert_eq!(&response.chunk().await.unwrap().unwrap()[..], b"x");
+        assert!(
+            response.chunk().await.is_err(),
+            "an idle body read must time out"
+        );
+        server.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn periodic_chunks_keep_a_long_stream_alive_past_the_idle_interval() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            read_request(&mut stream);
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: audio/mpeg\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n1\r\na\r\n")
+                .unwrap();
+            stream.flush().unwrap();
+            thread::sleep(Duration::from_millis(70));
+            stream.write_all(b"1\r\nb\r\n").unwrap();
+            stream.flush().unwrap();
+            thread::sleep(Duration::from_millis(70));
+            stream.write_all(b"0\r\n\r\n").unwrap();
+        });
+        let client = fixture_client(address, Duration::from_millis(100));
+        let url = Url::parse(&format!("http://radio.fixture:{}/stream", address.port())).unwrap();
+        let mut response = fetch_audio_stream_with_client(&client, url, Duration::from_millis(100))
+            .await
+            .unwrap();
+        let started = Instant::now();
+        let mut body = Vec::new();
+        while let Some(chunk) = response.chunk().await.unwrap() {
+            body.extend_from_slice(&chunk);
+        }
+
+        assert_eq!(body, b"ab");
+        assert!(started.elapsed() > Duration::from_millis(100));
+        server.join().unwrap();
     }
 }

@@ -12,7 +12,6 @@ import { clozeAnswerPrompt } from "./cloze-feedback";
 import { readStudyGenerationTimes, readStudyPreferences, saveStudyGenerationTime, saveStudyPreferences, type StudyLimit } from "../api/preferences.repository";
 import { useStudyRequestQueue } from "./request-queue";
 
-type PendingProgress = { vaultId: string; deckId: string; kind: StudyKind; progress: StudyProgress };
 type SavedStudy = StudyDeck | StudySummary;
 const itemCount = (value: SavedStudy) => "items" in value ? value.items.length : value.itemCount;
 const shuffled = <T,>(items: T[]): T[] => {
@@ -27,7 +26,7 @@ type Stage = "setup" | "generating" | "running" | "grading" | "result" | "report
 const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initialKind: StudyKind) => {
 	const [open, setOpen] = createSignal(false), [kind, setKind] = createSignal<StudyKind>(initialKind);
 	const [stage, setStage] = createSignal<Stage>("setup");
-	const { decks, setDecks, loading: libraryLoading, storageFailed } = library;
+	const { decks, setDecks, loading: libraryLoading, storageFailed, savingProgress, progressFailed } = library;
 	const [removing, setRemoving] = createSignal(false), [opening, setOpening] = createSignal(false);
 	const [committing, setCommitting] = createSignal(false);
 	const [generationElapsed, setGenerationElapsed] = createSignal(0), [generationAverage, setGenerationAverage] = createSignal<number>();
@@ -48,10 +47,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	const [remainingTime, setRemainingTime] = createSignal<StudyLimit>(seconds()), [endReason, setEndReason] = createSignal<"complete" | "lives" | "manual">("complete");
 	let deadline = 0, timer: ReturnType<typeof setInterval> | undefined, abort: AbortController | undefined;
 	const [sessionIndices, setSessionIndices] = createSignal<number[]>([]);
-	const [savingProgress, setSavingProgress] = createSignal(false), [progressFailed, setProgressFailed] = createSignal(false);
 	const [clock, setClock] = createSignal(Date.now());
-	let pendingProgress: PendingProgress | undefined;
-	let progressSave: Promise<void> | undefined;
 	const clockTimer = setInterval(() => setClock(Date.now()), 60_000);
 	onCleanup(() => clearInterval(clockTimer));
 	const millisecondsFor = (value: StudyLimit) => value === "infinite" ? Infinity : value * 1000;
@@ -125,7 +121,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		close(); stopTimer(); ++revision; cancelGeneration(); review.reset(); cloze.reset(); correction.reset();
 		setGenerationLoopEnabled(false);
 		setCommitting(false);
-		pendingProgress = undefined; progressSave = undefined; setRemoving(false); setOpening(false); setScrollTop(0); setLibrarySearch(""); setLibraryPage(0); setDeleteVisibleId(undefined); setProgressFailed(false); setSavingProgress(false); setError(undefined);
+		setRemoving(false); setOpening(false); setScrollTop(0); setLibrarySearch(""); setLibraryPage(0); setDeleteVisibleId(undefined); setError(undefined);
 		setStage("setup"); setDeck(undefined); setSessionMaterials([]); setSessionIndices([]); setIndex(0);
 		setRevealed(false); setAnswered(false); setChoice(undefined); setOutcome(undefined); setCorrect(0);
 		setRemainingLives(lives()); setEndReason("complete");
@@ -159,22 +155,14 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		if (review.pending()) setStage("grading");
 		else finish(reason);
 	};
-	const persistProgress = async () => {
+	const persistProgress = async (vaultId: string, deckId: string, kind: StudyKind, progress: StudyProgress) => {
 		const requestRevision = revision;
-		const pending = pendingProgress;
-		if (!pending) return;
-		setSavingProgress(true); setProgressFailed(false); setError(undefined);
-		const request = library.saveProgress(pending.vaultId, pending.deckId, pending.kind, pending.progress);
-		progressSave = request;
+		if (!progressFailed()) setError(undefined);
 		try {
-			await request;
-			if (disposed || revision !== requestRevision || progressSave !== request) return;
-			if (pendingProgress === pending) pendingProgress = undefined;
-			setClock(Date.now());
+			await library.saveProgress(vaultId, deckId, kind, progress);
+			if (!disposed && revision === requestRevision && vaultId === options.vaultId()) setClock(Date.now());
 		} catch {
-			if (!disposed && revision === requestRevision && progressSave === request) { setProgressFailed(true); setError(options.t("studyProgressFailed")); }
-		} finally {
-			if (!disposed && revision === requestRevision && progressSave === request) { progressSave = undefined; setSavingProgress(false); }
+			// A biblioteca mantém a falha para sinalização, retry e flush.
 		}
 	};
 	const record = (outcome: StudyOutcome, itemIndex = sessionIndices()[index()], details?: StudySubmission & { feedback?: WrittenFeedback }, rating?: FlashcardRating) => {
@@ -188,8 +176,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		setDeck(previous => previous?.id === value.id ? { ...previous, progress } : previous);
 		setSessionMaterials(previous => previous.map((entry, index) => index === itemIndex ? { ...entry, progress: materialProgress } : entry));
 		setDecks(previous => previous.map(entry => entry.id === material.id ? { ...entry, progress: { items: materialProgress.items }, hasReport: !!materialProgress.responses?.length } : entry));
-		pendingProgress = { vaultId, deckId: material.id, kind: material.kind, progress: materialProgress };
-		void persistProgress();
+		void persistProgress(vaultId, material.id, material.kind, materialProgress);
 	};
 	const dueCount = (value: SavedStudy) => dueStudyIndices(itemCount(value), value.progress, clock()).length;
 	const errorCount = (value: SavedStudy) => incorrectStudyIndices(value.progress).length;
@@ -409,7 +396,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 	};
 	return {
 		open, review, cloze, correction, outcome, kind, stage, deck, current, saved, count, seconds, lives, loading, storageFailed,
-		generationElapsed, generationAverage, generationLoopEnabled, error: () => error() ?? library.error(),
+		generationElapsed, generationAverage, generationLoopEnabled, error: () => progressFailed() ? options.t("studyProgressFailed") : error() ?? library.error(),
 		index, revealed, answered, choice, correct, remainingLives, remainingTime, endReason, scrollTop, setScrollTop,
 		librarySearch, setLibrarySearch, libraryPage, setLibraryPage, deleteVisibleId, setDeleteVisibleId,
 		close, generate, start, studyRandom, reviewMethodErrors, methodErrorCount, answer, next, endStudy, canEnd: () => stage() === "running" && !loading() && !savingProgress() && !progressFailed(), sessionIndices, dueCount, errorCount, savingProgress, progressFailed,
@@ -426,7 +413,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 			if (!value?.progress?.responses?.length || disposed || requestRevision !== revision || vaultId !== options.vaultId()) return;
 			stopTimer(); review.reset(); cloze.reset(); correction.reset(); setScrollTop(0); setDeck(value); setSessionMaterials([value]); setError(undefined); setStage("report");
 		},
-		retryProgress: persistProgress,
+		retryProgress: () => { const vaultId = options.vaultId(); return vaultId ? library.flushSave(vaultId) : Promise.resolve(false); },
 		clearProgress: async (value: SavedStudy) => {
 			if (progressBlocked() || loading()) return;
 			const vaultId = options.vaultId(); if (!vaultId) return;
@@ -434,8 +421,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 			setDecks(previous => previous.map(deck => deck.id === value.id ? { ...deck, progress: { items: [] }, hasReport: false } : deck));
 			setSessionMaterials(previous => previous.map(material => material.id === value.id ? { ...material, progress } : material));
 			setDeck(previous => previous?.id === value.id ? { ...previous, progress } : previous);
-			pendingProgress = { vaultId, deckId: value.id, kind: value.kind, progress };
-			await persistProgress();
+			await persistProgress(vaultId, value.id, value.kind, progress);
 		},
 		show: (value: StudyKind) => {
 			if (!options.aiEnabled() || !options.vaultId()) return;

@@ -80,3 +80,35 @@ test('flush also saves edits received while another write is in flight', async t
     f.edit('a', 'latest'); save.resolve(); assert.equal(await flush, true);
     assert.deepEqual(f.writes.map(write => write.text), ['first', 'latest']);
 });
+test('successful stale autosaves preserve newer editor changes', async t => {
+    const first = deferred(), second = deferred();
+    const f = await setup(t, (_args, count) => count === 1 ? first.promise : count === 2 ? second.promise : undefined);
+    const debounce = () => new Promise(resolve => setTimeout(resolve, 510));
+    const currentText = () => f.library.loadedNotes().find(value => value.id === 'a').document.elements[0].text;
+
+    f.edit('a', 'A'); await debounce(); await settle();
+    f.edit('a', 'B'); first.resolve(); await settle();
+    assert.equal(currentText(), 'B');
+
+    await debounce(); await settle();
+    assert.deepEqual(f.writes.map(write => write.text), ['A', 'B']);
+    f.edit('a', 'C'); second.resolve(); await settle();
+    assert.equal(currentText(), 'C');
+
+    assert.equal(await f.library.flushSave(), true);
+    assert.deepEqual(f.writes.map(write => write.text), ['A', 'B', 'C']);
+    assert.equal(currentText(), 'C');
+});
+test('a save response from a previous vault is not published in the active vault', async t => {
+    const save = deferred(), f = await setup(t, () => save.promise);
+    f.edit('a', 'previous vault'); const flush = f.library.flushSave(); await settle();
+
+    f.setVault('vault-b'); await settle();
+    for (let attempt = 0; attempt < 50 && (!f.library.hasLoadedVault() || f.library.loading()); attempt++) await settle();
+    assert.equal(f.library.hasLoadedVault(), true);
+    await f.library.loadNote('a');
+
+    save.resolve(); await settle();
+    assert.equal(f.library.loadedNotes().find(value => value.id === 'a').document.elements[0].text, '');
+    assert.equal(await flush, true);
+});

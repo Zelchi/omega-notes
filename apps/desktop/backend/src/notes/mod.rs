@@ -20,7 +20,9 @@ pub(crate) use models::{
     NoteContentStats, NoteDocument, NoteElement, NoteLibrary, NoteLoadIssue, NoteSaveResult,
     NoteSummary, StudyNote,
 };
-pub(crate) use reference_titles::{load_reference_titles, remember_reference_title};
+pub(crate) use reference_titles::{
+    load_reference_titles, load_reference_titles_cancellable, remember_reference_title,
+};
 pub(crate) use repository::{
     begin_note_rename_journal, commit_note_rename_journal, delete_note_files, existing_note,
     list_note_media, note_backup_exists, note_backup_path, note_file_exists, note_from_contents,

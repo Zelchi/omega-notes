@@ -9,9 +9,17 @@ export const useStudyLibrary = (options: StudyEnvironment) => {
 	const [loading, setLoading] = createSignal(false), [storageFailed, setStorageFailed] = createSignal(false);
 	const [error, setError] = createSignal<string>();
 	let revision = 0, writeRevision = 0, disposed = false, operations = Promise.resolve();
-	type ProgressWrite = { vaultId: string; id: string; kind: StudyKind; progress: StudyProgress; failed: boolean };
+	type ProgressWrite = { vaultId: string; id: string; kind: StudyKind; progress: StudyProgress; failed: boolean; saving: boolean };
 	const progressWrites = new Map<string, ProgressWrite>();
+	const [progressRevision, setProgressRevision] = createSignal(0);
 	const progressKey = (vaultId: string, kind: StudyKind, id: string) => `${vaultId}/${kind}/${id}`;
+	const progressForVault = () => {
+		progressRevision();
+		const vaultId = options.vaultId();
+		return [...progressWrites.values()].filter(value => value.vaultId === vaultId);
+	};
+	const savingProgress = () => progressForVault().some(value => value.saving);
+	const progressFailed = () => progressForVault().some(value => value.failed);
 	let reading: AbortController | undefined;
 	const serialize = <T,>(operation: () => Promise<T>): Promise<T> => {
 		const request = operations.then(operation);
@@ -52,24 +60,26 @@ export const useStudyLibrary = (options: StudyEnvironment) => {
 	const persistProgress = (value: ProgressWrite) => {
 		const key = progressKey(value.vaultId, value.kind, value.id);
 		progressWrites.set(key, value);
+		setProgressRevision(value => value + 1);
 		const request = mutate(() => saveStudyProgress(value.vaultId, value.id, value.kind, value.progress));
 		void request.then(() => {
-			if (progressWrites.get(key) === value) progressWrites.delete(key);
-		}, () => { value.failed = true; });
+			if (progressWrites.get(key) === value) { progressWrites.delete(key); setProgressRevision(version => version + 1); }
+		}, () => {
+			if (progressWrites.get(key) === value) { value.failed = true; value.saving = false; setProgressRevision(version => version + 1); }
+		});
 		return request;
 	};
-	const flushSave = async (): Promise<boolean> => {
+	const flushSave = async (vaultId?: string): Promise<boolean> => {
 		for (const value of progressWrites.values()) {
-			if (value.failed) { value.failed = false; void persistProgress(value).catch(() => undefined); }
+			if (value.failed && !value.saving && (vaultId === undefined || value.vaultId === vaultId)) { value.saving = true; void persistProgress(value).catch(() => undefined); }
 		}
 		let observed: Promise<void>;
 		do { observed = operations; await observed; } while (observed !== operations);
-		const saved = progressWrites.size === 0;
-		if (!saved) setError(options.t("studyProgressFailed"));
-		return saved;
+		return ![...progressWrites.values()].some(value => vaultId === undefined || value.vaultId === vaultId);
 	};
 	return {
-		decks, setDecks, invalidItems, loading, storageFailed, error, load, flushSave,
+		decks, setDecks, invalidItems, loading, storageFailed,
+		error: () => progressFailed() ? options.t("studyProgressFailed") : error(), savingProgress, progressFailed, load, flushSave,
 		save: (vaultId: string, deck: StudyDeck, signal?: AbortSignal) => mutate(async () => {
 			if (signal?.aborted) return false;
 			await saveStudy(vaultId, deck);
@@ -83,10 +93,13 @@ export const useStudyLibrary = (options: StudyEnvironment) => {
 		read: (vaultId: string, id: string, kind: StudyKind) => serialize(() => readStudy(vaultId, id, kind)),
 		remove: (vaultId: string, id: string, kind: StudyKind) => mutate(async () => {
 			await deleteStudy(vaultId, id, kind);
-			progressWrites.delete(progressKey(vaultId, kind, id));
+			if (progressWrites.delete(progressKey(vaultId, kind, id))) setProgressRevision(version => version + 1);
 			if (vaultId === options.vaultId()) setInvalidItems(previous => previous.filter(item => item.id !== id));
 		}),
-		saveProgress: (vaultId: string, id: string, kind: StudyKind, progress: StudyProgress) => persistProgress({ vaultId, id, kind, progress, failed: false }),
+		saveProgress: (vaultId: string, id: string, kind: StudyKind, progress: StudyProgress) => {
+			const previous = progressWrites.get(progressKey(vaultId, kind, id));
+			return persistProgress({ vaultId, id, kind, progress, failed: previous?.failed ?? false, saving: true });
+		},
 	};
 };
 export type StudyLibrary = ReturnType<typeof useStudyLibrary>;

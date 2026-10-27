@@ -32,7 +32,9 @@ const parentKey = (folderId?: string): string => folderId ?? "";
 
 const ArchiveView: Component<Props> = (props) => {
 	let root!: HTMLElement;
-	const [state, setState] = createSignal(readArchiveState(props.vaultId));
+	const initialRead = readArchiveState(props.vaultId);
+	const [state, setState] = createSignal(initialRead.state);
+	const [readFailed, setReadFailed] = createSignal(!initialRead.ok);
 	const [saveError, setSaveError] = createSignal(false);
 	const [path, setPath] = createSignal<string[]>([]);
 	const [folderEditor, setFolderEditor] = createSignal<FolderEditor>();
@@ -43,7 +45,16 @@ const ArchiveView: Component<Props> = (props) => {
 	const [draggedItem, setDraggedItem] = createSignal<ArchiveItem>();
 	const [contextMenu, setContextMenu] = createSignal<{ item: ArchiveItem; x: number; y: number }>();
 
-	const persistState = (): void => { setSaveError(!saveArchiveState(props.vaultId, state())); };
+	const persistState = (): void => {
+		if (readFailed()) return;
+		setSaveError(!saveArchiveState(props.vaultId, state()));
+	};
+	const retryRead = (): void => {
+		const result = readArchiveState(props.vaultId);
+		if (!result.ok) return;
+		setState(result.state);
+		setReadFailed(false);
+	};
 	createEffect(persistState);
 	createEffect(() => {
 		if (!contextMenu()) return;
@@ -61,7 +72,7 @@ const ArchiveView: Component<Props> = (props) => {
 	const openEntryContextMenu = (event: MouseEvent, item: ArchiveItem): void => {
 		event.preventDefault();
 		event.stopPropagation();
-		if (props.mode !== "edit") return;
+		if (props.mode !== "edit" || readFailed()) return;
 		const rect = root.getBoundingClientRect();
 		setContextMenu({ item, x: Math.max(8, Math.min(rect.width - 160, event.clientX - rect.left)), y: Math.max(8, Math.min(rect.height - 90, event.clientY - rect.top)) });
 	};
@@ -119,7 +130,7 @@ const ArchiveView: Component<Props> = (props) => {
 		return false;
 	};
 	const putItemIn = (item: ArchiveItem, targetFolderId: string | undefined, targetItem?: ArchiveItem): void => {
-		if (props.mode !== "edit") return;
+		if (props.mode !== "edit" || readFailed()) return;
 		setState((current) => {
 			if (item.kind === "folder" && targetFolderId && isWithinFolder(targetFolderId, item.id, current)) return current;
 			if (targetItem && parentOfItem(item, current) === targetFolderId) {
@@ -149,13 +160,13 @@ const ArchiveView: Component<Props> = (props) => {
 	};
 
 	const startCreateFolder = (): void => {
-		if (props.mode !== "edit") return;
+		if (props.mode !== "edit" || readFailed()) return;
 		setFolderName("");
 		setFolderError("");
 		setFolderEditor({ kind: "create", parentFolderId: currentFolderId(), parentPath: [...path()] });
 	};
 	const startRenameFolder = (folder: ArchiveFolder): void => {
-		if (props.mode !== "edit") return;
+		if (props.mode !== "edit" || readFailed()) return;
 		setFolderName(folder.name);
 		setFolderError("");
 		setFolderEditor({ kind: "rename", folderId: folder.id });
@@ -164,7 +175,7 @@ const ArchiveView: Component<Props> = (props) => {
 		event.preventDefault();
 		const editor = folderEditor();
 		const name = folderName().trim();
-		if (!editor || props.mode !== "edit" || !name) return;
+		if (!editor || props.mode !== "edit" || readFailed() || !name) return;
 		const parentFolderId = editor.kind === "create" ? editor.parentFolderId : folderById(editor.folderId)?.parentFolderId;
 		const duplicate = state().folders.some((folder) => folder.parentFolderId === parentFolderId &&
 			folder.name.toLocaleLowerCase() === name.toLocaleLowerCase() && (editor.kind === "create" || folder.id !== editor.folderId));
@@ -185,6 +196,7 @@ const ArchiveView: Component<Props> = (props) => {
 		setFolderError("");
 	};
 	const deleteFolder = (folderId: string): void => {
+		if (readFailed()) return;
 		setState((current) => {
 			const folder = folderById(folderId, current);
 			if (!folder) return current;
@@ -216,7 +228,7 @@ const ArchiveView: Component<Props> = (props) => {
 		setFolderEditor(undefined);
 	};
 	const createNote = async (): Promise<void> => {
-		if (props.mode !== "edit") return;
+		if (props.mode !== "edit" || readFailed()) return;
 		const targetFolderId = currentFolderId();
 		const note = await props.onCreateNote();
 		if (!note) return;
@@ -248,7 +260,7 @@ const ArchiveView: Component<Props> = (props) => {
 		if (item.kind === "folder" && state().folders.some((folder) => folder.id === item.id)) return item;
 	};
 	const startDragging = (event: DragEvent, item: ArchiveItem): void => {
-		if (props.mode !== "edit" || !event.dataTransfer) { event.preventDefault(); return; }
+		if (props.mode !== "edit" || readFailed() || !event.dataTransfer) { event.preventDefault(); return; }
 		event.dataTransfer.setData("text/plain", JSON.stringify(item));
 		event.dataTransfer.effectAllowed = "move";
 		setDraggedItem(item);
@@ -258,7 +270,7 @@ const ArchiveView: Component<Props> = (props) => {
 		setDropTargetId(undefined);
 	};
 	const allowDrop = (event: DragEvent, targetId: string): void => {
-		if (props.mode !== "edit") return;
+		if (props.mode !== "edit" || readFailed()) return;
 		event.preventDefault();
 		event.stopPropagation();
 		if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
@@ -267,6 +279,7 @@ const ArchiveView: Component<Props> = (props) => {
 	const dropOnEntry = (event: DragEvent, entry: ArchiveEntry, parentFolderId?: string): void => {
 		event.preventDefault();
 		event.stopPropagation();
+		if (readFailed()) return;
 		const item = readDraggedItem(event);
 		const targetItem = entryItem(entry);
 		if (!item || sameItem(item, targetItem)) return;
@@ -280,6 +293,7 @@ const ArchiveView: Component<Props> = (props) => {
 	const dropOnGrid = (event: DragEvent, parentFolderId?: string): void => {
 		event.preventDefault();
 		event.stopPropagation();
+		if (readFailed()) return;
 		const item = readDraggedItem(event);
 		if (item) putItemIn(item, parentFolderId);
 		setDropTargetId(undefined);
@@ -292,15 +306,20 @@ const ArchiveView: Component<Props> = (props) => {
 					<h2 class={styles.title}>{props.t("archiveHeading")}</h2>
 					<div class={styles.headerActions}>
 						<Show when={props.mode === "edit"}>
-							<Button class={styles.actionButton} type="button" onClick={() => void createNote()}>
+							<Button class={styles.actionButton} type="button" disabled={readFailed()} onClick={() => void createNote()}>
 								<Icon name="add" size={16} />{props.t("archiveNewNote")}
 							</Button>
-							<Button class={styles.actionButton} type="button" onClick={startCreateFolder}>
+							<Button class={styles.actionButton} type="button" disabled={readFailed()} onClick={startCreateFolder}>
 								<Icon name="add" size={16} />{props.t("archiveAddFolder")}
 							</Button>
 						</Show>
 					</div>
 				</header>
+				<Show when={readFailed()}>
+					<div class={styles.saveError}>
+						<Button class={styles.actionButton} type="button" onClick={retryRead}>{props.t("retry")}</Button>
+					</div>
+				</Show>
 				<Show when={saveError()}>
 					<div class={styles.saveError} role="alert">
 						<span>{props.t("archiveSaveFailed")}</span>
@@ -313,7 +332,7 @@ const ArchiveView: Component<Props> = (props) => {
 						<label class={styles.srOnly} for="archive-folder-name">{props.t("archiveFolderName")}</label>
 						<Input id="archive-folder-name" class={styles.folderInput} value={folderName()} maxLength={64}
 							placeholder={props.t("archiveFolderName")} onInput={(event) => setFolderName(event.currentTarget.value)} />
-						<Button class={styles.actionButton} type="submit" disabled={!folderName().trim()}>
+						<Button class={styles.actionButton} type="submit" disabled={readFailed() || !folderName().trim()}>
 							{folderEditor()?.kind === "create" ? props.t("archiveCreateFolder") : props.t("archiveRenameFolder")}
 						</Button>
 						<Button class={styles.actionButton} type="button" onClick={() => { setFolderEditor(undefined); setFolderError(""); }}>
@@ -326,7 +345,7 @@ const ArchiveView: Component<Props> = (props) => {
 				<Show when={confirmDeleteId()}>
 					<div class={styles.confirmDelete} role="alert">
 						<span>{props.t("archiveDeleteFolderMessage")}</span>
-						<Button class={styles.dangerButton} type="button" onClick={() => deleteFolder(confirmDeleteId()!)}>{props.t("archiveConfirmDeleteFolder")}</Button>
+						<Button class={styles.dangerButton} type="button" disabled={readFailed()} onClick={() => deleteFolder(confirmDeleteId()!)}>{props.t("archiveConfirmDeleteFolder")}</Button>
 						<Button class={styles.actionButton} type="button" onClick={() => setConfirmDeleteId(undefined)}>{props.t("archiveCancel")}</Button>
 					</div>
 				</Show>
@@ -348,8 +367,8 @@ const ArchiveView: Component<Props> = (props) => {
 									const selected = () => folder !== undefined && columnPath()[depth()] === folder.id;
 									return (
 										<article class={cx(styles.entry, selected() && styles.selectedEntry, dropClass(itemKey(item)), draggedItem() && sameItem(draggedItem()!, item) && styles.dragging)}>
-											<Button class={cx(styles.entryButton, props.mode === "edit" && styles.draggableEntry)} type="button"
-												draggable={props.mode === "edit"}
+											<Button class={cx(styles.entryButton, props.mode === "edit" && !readFailed() && styles.draggableEntry)} type="button"
+												draggable={props.mode === "edit" && !readFailed()}
 												aria-expanded={folder ? selected() : undefined}
 													aria-controls={selected() ? `archive-column-${depth() + 1}` : undefined}
 												onDragStart={(event) => startDragging(event, item)} onDragEnd={endDragging}
@@ -362,7 +381,7 @@ const ArchiveView: Component<Props> = (props) => {
 													<span class={styles.entryTitle}>{entry.kind === "folder" ? entry.folder.name : displayNoteTitle(entry.note)}</span>
 												</span>
 											</Button>
-											<Show when={props.mode === "edit" ? folder : undefined} keyed>{(folderItem) => (
+											<Show when={props.mode === "edit" && !readFailed() ? folder : undefined} keyed>{(folderItem) => (
 												<div class={styles.entryActions}>
 													<Button class={styles.iconButton} type="button" aria-label={`${props.t("archiveRenameFolder")}: ${folderItem.name}`} onClick={() => startRenameFolder(folderItem)}>
 														<Icon name="edit" size={14} />

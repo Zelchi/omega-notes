@@ -129,6 +129,12 @@ const PomodoroPanel: Component<Props> = (props) => {
 								</Button>
 							</Show>
 						</div>
+						<Show when={props.pomodoro.timerError()}>
+							<p class={styles.error}>
+								{props.t("pomodoroTimerFailed")} <Button class={styles.button} type="button" disabled={props.pomodoro.timerSyncing()}
+									onClick={() => void props.pomodoro.retryTimer()}>{props.t("retry")}</Button>
+							</p>
+						</Show>
 					</section>
 
 					<section class={styles.tasks} aria-label={props.t("pomodoroTasks")}>

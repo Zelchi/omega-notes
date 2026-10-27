@@ -1,4 +1,4 @@
-import { isDesktopRuntime } from "@/shared/lib/desktop";
+import { isDesktopRuntime, registerCancellableRead } from "@/shared/lib/desktop";
 import { createEffect, createMemo, createSignal, onCleanup, untrack, type Accessor } from "solid-js";
 import {
 	createNote as createNoteRecord,
@@ -47,18 +47,19 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 	const baselines = new Map<string, StudyNote>();
 	const [conflicts, setConflicts] = createSignal<string[]>([]);
 	const [resolvingConflict, setResolvingConflict] = createSignal(false);
+	const [reloadRevision, setReloadRevision] = createSignal(0);
 	const sameNote = (a: StudyNote | undefined, b: StudyNote | undefined) => a === b || !!a && !!b && a.title === b.title && documentSignature(a.document) === documentSignature(b.document);
 	const sameSummary = (a: NoteSummary | undefined, b: NoteSummary | undefined) => a === b || !!a && !!b &&
 		a.title === b.title && a.updatedAt === b.updatedAt &&
 		a.hasContent === b.hasContent && a.hasText === b.hasText &&
 		a.studyContentCharacters === b.studyContentCharacters && a.studyContentWords === b.studyContentWords && a.studyContentLines === b.studyContentLines &&
 		a.links.join("\0") === b.links.join("\0");
-	const readSummaryLibrary = async (vaultId: string, external: boolean, resetObserverSnapshot = true) => {
+	const readSummaryLibrary = async (vaultId: string, external: boolean, resetObserverSnapshot = true, signal?: AbortSignal) => {
 		const summaries: NoteSummary[] = [];
-		const completion = await streamNoteSummaries(vaultId, observerId, external, resetObserverSnapshot, (batch) => summaries.push(...batch));
+		const completion = await streamNoteSummaries(vaultId, observerId, external, resetObserverSnapshot, (batch) => summaries.push(...batch), signal ?? new AbortController().signal);
 		return { ...completion, notes: summaries };
 	};
-	const readExternalDocuments = async (vaultId: string, summaries: NoteSummary[], changedIds: string[] = [], reconcileLoaded = false): Promise<Map<string, StudyNote>> => {
+	const readExternalDocuments = async (vaultId: string, summaries: NoteSummary[], changedIds: string[] = [], reconcileLoaded = false, signal?: AbortSignal): Promise<Map<string, StudyNote>> => {
 		const local = new Map(notes().map((note) => [note.id, note]));
 		const forced = new Set(changedIds);
 		const ids = summaries.filter((summary) => {
@@ -68,9 +69,9 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		const documents = new Map<string, StudyNote>();
 		let cursor = 0;
 		const workers = Array.from({ length: Math.min(4, ids.length) }, async () => {
-			while (cursor < ids.length) {
+			while (cursor < ids.length && !signal?.aborted) {
 				const id = ids[cursor++];
-				try { documents.set(id, await withDocumentReadSlot(() => getNoteRecord(vaultId, id))); }
+				try { documents.set(id, await withDocumentReadSlot(() => getNoteRecord(vaultId, id, signal))); }
 				catch { /* O arquivo pode ter sido alterado novamente enquanto o fluxo de resumos era executado. */ }
 			}
 		});
@@ -99,7 +100,9 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		const key = `${vaultId}\0${id}`;
 		const pending = pendingLoads.get(key);
 		if (pending) return pending;
-		const request = withDocumentReadSlot(() => getNoteRecord(vaultId, id)).then((note) => {
+		const controller = new AbortController();
+		const unregisterRead = registerCancellableRead(vaultId, controller);
+		const request = withDocumentReadSlot(() => getNoteRecord(vaultId, id, controller.signal)).then((note) => {
 			if (vaultId !== activeVaultId() || !notes().some((item) => item.id === id)) throw new Error("NOTE_LOAD_VAULT_CHANGED");
 			const current = loadedNotes().get(id);
 			if (current) return current;
@@ -107,6 +110,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 			updateSummary(summarizeNote(note));
 			return note;
 		}).finally(() => {
+			unregisterRead();
 			if (pendingLoads.get(key) === request) pendingLoads.delete(key);
 		});
 		pendingLoads.set(key, request);
@@ -128,6 +132,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 	let loadRevision = 0;
 	createEffect(() => {
 		const vaultId = activeVaultId();
+		reloadRevision();
 		setNotesVaultId(vaultId);
 		const revision = ++loadRevision;
 		baselines.clear(); setConflicts([]);
@@ -150,13 +155,33 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		setReferenceTitles({});
 		setLoading(true);
 		const summaries: NoteSummary[] = [];
-		void streamNoteSummaries(vaultId, observerId, untrack(observeExternal), true, (batch) => {
-				if (revision !== loadRevision || !batch.length) return;
+		const controller = new AbortController();
+		const unregisterRead = registerCancellableRead(vaultId, controller);
+		onCleanup(() => { controller.abort(); unregisterRead(); });
+		const onItems = (batch: NoteSummary[]) => {
+				if (revision !== loadRevision || controller.signal.aborted || !batch.length) return;
 				summaries.push(...batch);
 				setNotes(summaries);
-			})
+			};
+		const readSummaries = () => streamNoteSummaries(
+			vaultId, observerId, untrack(observeExternal), true, onItems, controller.signal,
+		);
+		const loadSummaries = async () => {
+			try {
+				return await readSummaries();
+			} catch (error) {
+				const code = error instanceof Error ? error.message : String(error);
+				if (code !== "NOTE_READ_FAILED" || revision !== loadRevision || controller.signal.aborted) throw error;
+				await new Promise(resolve => setTimeout(resolve, 50));
+				if (revision !== loadRevision || controller.signal.aborted) throw error;
+				summaries.length = 0;
+				setNotes([]);
+				return readSummaries();
+			}
+		};
+		void loadSummaries()
 			.then((library) => {
-				if (revision !== loadRevision) return;
+				if (revision !== loadRevision || controller.signal.aborted) return;
 				loadedVaultId = vaultId;
 				summaries.sort((a, b) => b.updatedAt - a.updatedAt);
 				setNotes(summaries);
@@ -166,6 +191,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 			})
 			.catch((error) => {
 				if (revision !== loadRevision) return;
+				if (error instanceof Error && error.message === "NOTE_READ_CANCELLED") return;
 				console.error(error);
 				loadedVaultId = undefined;
 				setHasLoadedVault(false);
@@ -180,6 +206,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 				]);
 			})
 			.finally(() => {
+				unregisterRead();
 				if (revision === loadRevision) setLoading(false);
 			});
 	});
@@ -191,20 +218,29 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 
 	const persist = (note: StudyNote): Promise<void> => {
 		const vaultId = activeVaultId();
+		const revision = loadRevision;
 		const operation = saveQueue.then(async () => {
 			if (latestSaves.get(note.id) !== note) return;
 			if (resolvingConflict()) { pendingSaves.set(note.id, note); return; }
 			try {
-				if (!vaultId || vaultId !== activeVaultId()) throw Error("NOTE_SAVE_VAULT_CHANGED");
+				if (!vaultId || vaultId !== activeVaultId() || revision !== loadRevision) throw Error("NOTE_SAVE_VAULT_CHANGED");
 				const expected = baselines.get(note.id);
 				if (!expected || conflicts().includes(note.id)) throw Error("NOTE_EXTERNAL_CONFLICT");
 				const result = await saveNote(note, expected, vaultId);
+				if (vaultId !== activeVaultId() || revision !== loadRevision) {
+					if (latestSaves.get(note.id) === note) latestSaves.delete(note.id);
+					return;
+				}
 				const saved = result.note;
+				const isLatest = latestSaves.get(note.id) === note;
+				const hasNewerSave = latestSaves.has(note.id) && !isLatest;
 				++changeRevision;
 				baselines.set(saved.id, saved);
-				setLoadedNotes((current) => new Map(current).set(saved.id, saved));
-				updateSummary(summarizeNote(saved));
-				if (latestSaves.get(note.id) === note) latestSaves.delete(note.id);
+				if (!hasNewerSave) {
+					setLoadedNotes((current) => new Map(current).set(saved.id, saved));
+					updateSummary(summarizeNote(saved));
+				}
+				if (isLatest) latestSaves.delete(note.id);
 				reportCleanupIssues(result.cleanupIssues);
 				if (pendingSaves.size === 0) setSaveError(false);
 			} catch (error) {
@@ -351,36 +387,47 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		const vaultId = activeVaultId(), enabled = observeExternal();
 		if (!enabled || !vaultId || !isDesktopRuntime()) return;
 		let stopped = false;
+		let refreshController: AbortController | undefined;
+		let unregisterRefresh: (() => void) | undefined;
 		const refresh = async () => {
 			if (stopped || refreshing || resolvingConflict() || loading() || loadedVaultId !== vaultId || document.hidden) return;
 			refreshing = true;
+			const controller = new AbortController();
+			refreshController = controller;
+			unregisterRefresh = registerCancellableRead(vaultId, controller);
 			const revision = changeRevision;
 			try {
 				await saveQueue;
-				const changes = await notesChanges(vaultId, observerId);
-				if (stopped || vaultId !== activeVaultId()) return;
+				if (controller.signal.aborted) return;
+				const changes = await notesChanges(vaultId, observerId, controller.signal);
+				if (stopped || controller.signal.aborted || vaultId !== activeVaultId()) return;
 				if (changes.fullResync) {
-					const library = await readSummaryLibrary(vaultId, true, false);
-					if (stopped || resolvingConflict() || vaultId !== activeVaultId() || revision !== changeRevision) return;
-					const documents = await readExternalDocuments(vaultId, library.notes, changes.changedIds, true);
-					if (stopped || resolvingConflict() || vaultId !== activeVaultId() || revision !== changeRevision) return;
+					const library = await readSummaryLibrary(vaultId, true, false, controller.signal);
+					if (stopped || controller.signal.aborted || resolvingConflict() || vaultId !== activeVaultId() || revision !== changeRevision) return;
+					const documents = await readExternalDocuments(vaultId, library.notes, changes.changedIds, true, controller.signal);
+					if (stopped || controller.signal.aborted || resolvingConflict() || vaultId !== activeVaultId() || revision !== changeRevision) return;
 					mergeExternal(library, documents);
 					if (changes.changeToken) await acknowledgeNoteChanges(observerId, changes.changeToken);
 					return;
 				}
 				if (!changes.changedIds.length && !changes.removedIds.length) return;
-				const documents = await readExternalDocuments(vaultId, changes.notes, changes.changedIds);
-				if (stopped || resolvingConflict() || vaultId !== activeVaultId() || revision !== changeRevision) return;
+				const documents = await readExternalDocuments(vaultId, changes.notes, changes.changedIds, false, controller.signal);
+				if (stopped || controller.signal.aborted || resolvingConflict() || vaultId !== activeVaultId() || revision !== changeRevision) return;
 				mergeExternalDelta(changes, documents);
 				if (changes.changeToken) await acknowledgeNoteChanges(observerId, changes.changeToken);
 			} catch { }
-			finally { refreshing = false; }
+			finally {
+				unregisterRefresh?.();
+				unregisterRefresh = undefined;
+				if (refreshController === controller) refreshController = undefined;
+				refreshing = false;
+			}
 		};
 		const timer = setInterval(() => { void refresh(); }, 2000);
 		const focus = () => { void refresh(); };
 		window.addEventListener("focus", focus);
 		void refresh();
-		onCleanup(() => { stopped = true; clearInterval(timer); window.removeEventListener("focus", focus); });
+		onCleanup(() => { stopped = true; clearInterval(timer); window.removeEventListener("focus", focus); refreshController?.abort(); unregisterRefresh?.(); });
 	});
 	const resolveConflict = async (id: string, keepLocal: boolean, suffix: string) => {
 		const vaultId = activeVaultId();
@@ -534,7 +581,8 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		loadNote,
 		releaseLoadedNotes,
 		loading,
-		hasLoadedVault,
+		hasLoadedVault: () => hasLoadedVault() && loadedVaultId === activeVaultId(),
+		reload: () => setReloadRevision(value => value + 1),
 		saveError,
 		loadIssues,
 		referenceTitles,
@@ -544,7 +592,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		rename,
 		remove,
 		restore,
-		listDeleted: listDeletedNoteIds,
+		listDeleted: (vaultId: string, signal?: AbortSignal) => listDeletedNoteIds(vaultId, signal),
 		updateDocument,
 		applyLinkedMentions, conflicts, resolvingConflict, resolveConflict,
 	};
