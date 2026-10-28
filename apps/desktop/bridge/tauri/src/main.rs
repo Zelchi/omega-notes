@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use std::{io, io::Write, sync::Mutex};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    tray::TrayIconBuilder,
     AppHandle, Emitter, Manager, State,
 };
 
@@ -274,6 +274,7 @@ fn main() {
                 .icon(icon)
                 .tooltip("Ômega Notes")
                 .menu(&menu)
+                .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "visibility" => {
                         if let Some(window) = app.get_webview_window("main") {
@@ -308,27 +309,6 @@ fn main() {
                         emit_tray_action(app, "exit");
                     }
                     _ => {}
-                })
-                .on_tray_icon_event(|tray, event| {
-                    if matches!(
-                        event,
-                        TrayIconEvent::Click {
-                            button: MouseButton::Left,
-                            button_state: MouseButtonState::Up,
-                            ..
-                        }
-                    ) {
-                        if let Some(window) = tray.app_handle().get_webview_window("main") {
-                            if window.is_visible().unwrap_or(false) {
-                                let _ = window.hide();
-                            } else {
-                                show_window(tray.app_handle());
-                            }
-                        }
-                        if let Some(menu) = tray.app_handle().try_state::<TrayMenuState>() {
-                            let _ = menu.refresh(tray.app_handle());
-                        }
-                    }
                 })
                 .build(app)?;
             Ok(())

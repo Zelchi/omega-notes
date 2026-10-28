@@ -40,6 +40,13 @@ test('tray Exit saves before calling the native app exit command', async () => {
 	assert.match(tauri, /fn exit_app\(app: AppHandle\)\s*\{\s*app\.exit\(0\)/);
 });
 
+test('tray clicks open only the context menu on Windows', async () => {
+	const tauri = await source('../../bridge/tauri/src/main.rs');
+	assert.match(tauri, /\.show_menu_on_left_click\(true\)/);
+	assert.doesNotMatch(tauri, /on_tray_icon_event/);
+	assert.doesNotMatch(tauri, /MouseButton|TrayIconEvent/);
+});
+
 test('Tauri updater relaunches after installing and registers the native restart command', async () => {
 	const [updates, desktop, tauri] = await Promise.all([
 		source('../src/features/check-for-updates/api/updates.repository.ts'),
