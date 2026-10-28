@@ -31,6 +31,7 @@ export const installUpdate = async (update: Update): Promise<void> => {
         const candidate = tauriUpdates.get(update.version);
         if (!candidate) throw new Error('UPDATE_NOT_FOUND');
         await candidate.install();
+        await invoke('relaunch_app');
         return;
     }
     return invoke('updater_install', { version: update.version });

@@ -3,7 +3,6 @@ import { isDesktopRuntime } from "@/shared/lib/desktop";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import {
 	confirmCloseWithoutSaving,
-	closeWindow,
 	exitMainApp,
 	hideMainWindow,
 	isGnomeDesktop,
@@ -11,7 +10,6 @@ import {
 	minimizeWindow,
 	onWindowCloseRequested,
 	onWindowResized,
-	showMainWindow,
 	toggleWindowMaximize,
 } from "../api/window.repository";
 
@@ -23,8 +21,12 @@ export const useWindowControls = (beforeClose: () => Promise<boolean>, t: (key: 
 	let unlistenResize: (() => void) | undefined;
 	let unlistenClose: (() => void) | undefined;
 	let closePending = false;
-	let exitAfterClose = false;
 	let active = true;
+	const confirmClose = async () => {
+		const saved = await beforeClose().catch((error) => { console.error(error); return false; });
+		return saved || confirmCloseWithoutSaving(t("closeUnsavedMessage"), t("appName"),
+			t("closeWithoutSaving"), t("keepEditing"));
+	};
 
 	onMount(() => {
 		if (!isDesktopRuntime()) return;
@@ -49,35 +51,26 @@ export const useWindowControls = (beforeClose: () => Promise<boolean>, t: (key: 
 		void onWindowCloseRequested((destroyWindow) => {
 			if (closePending) return;
 			closePending = true;
-			void beforeClose()
+			void confirmClose()
 				.catch((error) => { console.error(error); return false; })
-				.then(async (saved) => {
-					if (!saved) {
-						const confirmed = await confirmCloseWithoutSaving(t("closeUnsavedMessage"), t("appName"),
-							t("closeWithoutSaving"), t("keepEditing"));
-						if (!confirmed) {
-							exitAfterClose = false;
-							closePending = false;
-							return;
-						}
+				.then(async (confirmed) => {
+					if (!confirmed) {
+						closePending = false;
+						return;
 					}
 					try {
-						if (exitAfterClose) {
-							await exitMainApp();
-						} else if (isLinux) {
+						if (isLinux) {
 							await hideMainWindow();
 							closePending = false;
 						} else {
 							await destroyWindow();
 						}
 					} catch (error) {
-						exitAfterClose = false;
 						closePending = false;
 						console.error(error);
 					}
 				})
 				.catch((error) => {
-					exitAfterClose = false;
 					closePending = false;
 					console.error(error);
 				});
@@ -90,14 +83,19 @@ export const useWindowControls = (beforeClose: () => Promise<boolean>, t: (key: 
 	});
 
 	const exit = async (): Promise<void> => {
-		if (!isDesktopRuntime() || closePending || exitAfterClose) return;
-		exitAfterClose = true;
+		if (!isDesktopRuntime() || closePending) return;
+		closePending = true;
 		try {
-			await showMainWindow();
-			await closeWindow();
+			await beforeClose();
 		} catch (error) {
-			exitAfterClose = false;
 			console.error(error);
+		}
+		try {
+			await exitMainApp();
+		} catch (error) {
+			console.error(error);
+		} finally {
+			closePending = false;
 		}
 	};
 

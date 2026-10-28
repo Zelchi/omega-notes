@@ -26,6 +26,32 @@ test('Pomodoro focus completion can reveal a hidden window on both desktop hosts
 	assert.match(tauri, /case 'window_is_visible': return await webviewWindow\.isVisible\(\)/);
 });
 
+test('tray Exit saves before calling the native app exit command', async () => {
+	const [controls, tauri] = await Promise.all([
+		source('../src/app/model/window-controls.controller.ts'),
+		source('../../bridge/tauri/src/main.rs'),
+	]);
+	const exit = controls.slice(controls.indexOf('const exit ='), controls.indexOf('\n\t};', controls.indexOf('const exit =')));
+	assert.match(exit, /await beforeClose\(\)/);
+	assert.match(exit, /await exitMainApp\(\)/);
+	assert.doesNotMatch(exit, /if\s*\([^)]*beforeClose/);
+	assert.doesNotMatch(exit, /confirmClose\(/);
+	assert.doesNotMatch(exit, /showMainWindow\(\)|closeWindow\(\)/);
+	assert.match(tauri, /fn exit_app\(app: AppHandle\)\s*\{\s*app\.exit\(0\)/);
+});
+
+test('Tauri updater relaunches after installing and registers the native restart command', async () => {
+	const [updates, desktop, tauri] = await Promise.all([
+		source('../src/features/check-for-updates/api/updates.repository.ts'),
+		source('../src/shared/lib/desktop-tauri.ts'),
+		source('../../bridge/tauri/src/main.rs'),
+	]);
+	assert.match(updates, /await candidate\.install\(\);\s*await invoke\('relaunch_app'\)/);
+	assert.match(desktop, /case 'relaunch_app': return await tauriInvoke\('relaunch_app'\)/);
+	assert.match(tauri, /fn relaunch_app\(app: AppHandle\)\s*\{\s*app\.restart\(\)/);
+	assert.match(tauri, /generate_handler!\[[\s\S]*?relaunch_app/);
+});
+
 test('startup centering is labeled as camera centering and does not move notes', async () => {
 	const [ptBr, en, graph] = await Promise.all([
 		source('../lang/pt-br.json'),
@@ -176,11 +202,10 @@ test('Pomodoro settings overlay the timer without changing its layout', async ()
 	assert.match(styles, /resetButton: style\(\[button, \{ position: "absolute", top: "50%", left: "calc\(50% \+ 38px\)"[^}]*width: 36, minWidth: 36, height: 32, minHeight: 32/);
 });
 
-test('Archive layout is selectable and rendered in production', async () => {
+test('Archive canvas layout is no longer selectable or rendered', async () => {
 	const settings = await source('../src/features/change-preferences/ui/settings-dialog/index.tsx');
 	const canvas = await source('../src/pages/canvas/ui/canvas/index.tsx');
-	assert.match(settings, /\{ value: "archive", label: props\.t\("archiveCanvas"\) \}/);
-	assert.doesNotMatch(settings, /import\.meta\.env\.DEV/);
-	assert.match(canvas, /<Match when=\{props\.layout === "archive"\}>/);
-	assert.doesNotMatch(canvas, /import\.meta\.env\.DEV/);
+	assert.doesNotMatch(settings, /value:\s*"archive"|archiveCanvas/);
+	assert.doesNotMatch(canvas, /archive-view|layout\s*===\s*"archive"/);
+	assert.match(canvas, /GraphCanvas/);
 });

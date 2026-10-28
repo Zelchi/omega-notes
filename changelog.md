@@ -1,5 +1,16 @@
 # Histórico de atualizações
 
+## v0.5.8
+
+### Bandeja e atualizações
+
+- Sair pela bandeja tenta salvar as alterações pendentes e encerra o aplicativo.
+- Atualizações Tauri reiniciam o aplicativo após a instalação; o manifesto usa o nome publicado do pacote NSIS, corrigindo o download no Windows.
+
+### Canvas
+
+- Removido o layout Arquivo. Preferências antigas passam para Dinâmico sem apagar os dados de organização já salvos; o Kanban continua oculto em produção.
+
 ## v0.5.7
 
 ### Aplicativo

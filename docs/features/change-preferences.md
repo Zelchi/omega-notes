@@ -8,7 +8,7 @@ Recursos de IA e Gambiarra são mutuamente exclusivos. Idioma, tema, cursor, vol
 
 ## Limites observados
 
-O layout Arquivo pode ser selecionado e salvo em builds de produção. A leitura preserva uma preferência `archive` já existente. O contrato de persistência está coberto por [preferences.test.mjs](../../apps/desktop/frontend/test/preferences.test.mjs).
+Apenas os layouts Estático e Dinâmico estão disponíveis. Preferências antigas ou desconhecidas são normalizadas para Dinâmico; o contrato está coberto por [preferences.test.mjs](../../apps/desktop/frontend/test/preferences.test.mjs).
 
 Falhas de gravação de preferências são registradas no console, mas a interface continua usando o valor em memória até reiniciar. Não há teste dedicado.
 

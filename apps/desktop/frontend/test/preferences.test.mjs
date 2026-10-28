@@ -17,16 +17,18 @@ const storage = t => {
 	return data;
 };
 
-test('archive layout preference is saved without falling back to dynamic', t => {
+test('supported canvas layouts are persisted', t => {
 	const data = storage(t);
-	saveCanvasLayout('archive');
-	assert.equal(data.get('omega-notes.canvas-layout'), 'archive');
+	saveCanvasLayout('static');
+	assert.equal(data.get('omega-notes.canvas-layout'), 'static');
+	saveCanvasLayout('dynamic');
+	assert.equal(data.get('omega-notes.canvas-layout'), 'dynamic');
 });
 
-test('previously saved archive layout remains selected', t => {
+test('unsupported legacy canvas layout falls back to dynamic', t => {
 	const data = storage(t);
 	data.set('omega-notes.canvas-layout', 'archive');
-	assert.equal(readCanvasLayout(), 'archive');
+	assert.equal(readCanvasLayout(), 'dynamic');
 });
 
 test('background intensity defaults, persists, and clamps saved values', t => {

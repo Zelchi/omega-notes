@@ -8,18 +8,17 @@ No layout Estático, o menu de contexto permite bloquear uma nota ou a seleção
 
 As conexões se distribuem pela lateral da nota; quando são numerosas, ficam mais próximas para permanecer dentro da altura da borda.
 
-O layout Arquivo apresenta listas encadeadas de notas e pastas; sua estrutura também fica no `localStorage`, separada por vault. A opção e a visualização estão disponíveis em builds de produção. As preferências de layout são preservadas no armazenamento local da instalação.
+As preferências de layout são preservadas no armazenamento local da instalação.
 
 Atalhos e controles de navegação alteram a visualização; criar, mover e excluir notas registra ações para desfazer/refazer enquanto o app está aberto. O histórico não é persistido após reiniciar.
 
 ## Falhas e cobertura
 
-Falhas de gravação de posições mantêm o Canvas utilizável em memória, mas o estado pode sumir ao remontar. No Arquivo, a falha de `localStorage` é mostrada com uma ação de nova tentativa; a alteração permanece na memória enquanto a visualização está aberta. Testes de grafo, estado, histórico e persistência do Arquivo estão em [graph.test.mjs](../../apps/desktop/frontend/test/graph.test.mjs), [canvas-state.test.mjs](../../apps/desktop/frontend/test/canvas-state.test.mjs), [canvas-history.test.mjs](../../apps/desktop/frontend/test/canvas-history.test.mjs) e [archive.test.mjs](../../apps/desktop/frontend/test/archive.test.mjs).
+Falhas de gravação de posições mantêm o Canvas utilizável em memória, mas o estado pode sumir ao remontar. Testes de grafo, estado e histórico estão em [graph.test.mjs](../../apps/desktop/frontend/test/graph.test.mjs), [canvas-state.test.mjs](../../apps/desktop/frontend/test/canvas-state.test.mjs) e [canvas-history.test.mjs](../../apps/desktop/frontend/test/canvas-history.test.mjs).
 
 ## Código
 
 - [Seleção de layout](../../apps/desktop/frontend/src/pages/canvas/ui/canvas/index.tsx)
 - [Canvas Estático](../../apps/desktop/frontend/src/pages/canvas/ui/graph-canvas/)
 - [Grafo Dinâmico](../../apps/desktop/frontend/src/pages/canvas/ui/dynamic-graph/)
-- [Arquivo](../../apps/desktop/frontend/src/pages/canvas/ui/archive-view/)
 - [Armazenamento de posições](../../apps/desktop/frontend/src/pages/canvas/api/graph.repository.ts)
