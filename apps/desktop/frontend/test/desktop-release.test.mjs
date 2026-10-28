@@ -3,6 +3,7 @@ import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promi
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { normalizeWindowsUpdaterAsset } from '../../../../scripts/desktop-release-assets.mjs';
 
@@ -53,7 +54,8 @@ childProcess.spawnSync = (command, args) => {
 };
 syncBuiltinESMExports();
 `);
-	const result = spawnSync(process.execPath, ['--import', shim, join(scripts, 'desktop-release.mjs'), 'sign', assets], {
+	const shimUrl = pathToFileURL(shim).href;
+	const result = spawnSync(process.execPath, ['--import', shimUrl, join(scripts, 'desktop-release.mjs'), 'sign', assets], {
 		cwd: directory,
 		env: { GITHUB_REPOSITORY: 'example/omega-notes', RELEASE_TAG: 'v0.5.7', CARGO_PACKAGER_SIGN_PRIVATE_KEY: 'fixture-private-key' },
 		encoding: 'utf8',
@@ -65,7 +67,7 @@ syncBuiltinESMExports();
 	assert.equal(manifest.packages['linux-x86_64'].deb.signature, 'omega.deb signature');
 	assert.equal(manifest.packages['linux-x86_64'].rpm.signature, 'omega.rpm signature');
 	await writeFile(join(assets, 'Omega.Notes_0.5.7_x64-setup.exe.sig'), 'invalid signature');
-	const rejected = spawnSync(process.execPath, ['--import', shim, join(scripts, 'desktop-release.mjs'), 'sign', assets], {
+	const rejected = spawnSync(process.execPath, ['--import', shimUrl, join(scripts, 'desktop-release.mjs'), 'sign', assets], {
 		cwd: directory,
 		env: { GITHUB_REPOSITORY: 'example/omega-notes', RELEASE_TAG: 'v0.5.7', CARGO_PACKAGER_SIGN_PRIVATE_KEY: 'fixture-private-key' },
 		encoding: 'utf8',
