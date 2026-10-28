@@ -174,7 +174,6 @@ fn scan_external_snapshot(
     let mut files = BTreeMap::new();
     for entry in entries {
         check_cancelled(cancelled)?;
-        // External files can be renamed while the observer snapshots the directory.
         let Ok(entry) = entry else { continue };
         let path = entry.path();
         if path.extension().and_then(|extension| extension.to_str()) != Some("omega") {
@@ -436,7 +435,6 @@ pub(crate) async fn stream_note_summaries(
             return Err("NOTE_LOAD_VAULT_CHANGED".into());
         }
         if reset_observer_snapshot && external == Some(true) {
-            // Observer indexing is advisory and must not block loading note summaries.
             match scan_external_snapshot(&directories.0, &cancelled) {
                 Ok(snapshot) => {
                     check_cancelled(&cancelled)?;
@@ -951,7 +949,6 @@ mod runtime_tests {
             let _operation = operation;
             let _guard = worker_lock.lock().unwrap();
             started_tx.send(()).unwrap();
-            // Keep the old worker and its vault lock alive even after cancellation acknowledgment.
             release_rx.recv().unwrap();
         });
         started_rx.recv_timeout(Duration::from_secs(2)).unwrap();

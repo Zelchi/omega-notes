@@ -50,8 +50,7 @@ export class Backend {
                 }
             });
         });
-        // Consumers may issue their first command only after creating the window.
-        this.#ready.catch(() => {});
+        this.#ready.catch(() => { });
     }
     async ready() { await this.#ready; }
     async invoke(command, args = {}) {

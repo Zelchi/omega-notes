@@ -24,14 +24,27 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, "/");
             canvas. Seus arquivos ficam no seu computador.
         </p>
         <nav class="actions" aria-label="Conheça o Ômega Notes">
-            <a class="button" href={`${repository}/releases/latest`}
-                >Baixar o aplicativo</a
-            >
+            <div class="downloads">
+                <a
+                    class="button"
+                    href={`${repository}/releases/latest/download/omega-notes-windows-x64.exe`}
+                    ><img class="platform-icon" src={`${base}platform-icons/windows.svg`} alt="" />Windows</a
+                >
+                <a
+                    class="button"
+                    href={`${repository}/releases/latest/download/omega-notes-ubuntu-x64.deb`}
+                    ><img class="platform-icon" src={`${base}platform-icons/ubuntu.svg`} alt="" />Ubuntu</a
+                >
+                <a
+                    class="button"
+                    href={`${repository}/releases/latest/download/omega-notes-fedora-x64.rpm`}
+                    ><img class="platform-icon" src={`${base}platform-icons/fedora.ico`} alt="" />Fedora</a
+                >
+            </div>
             <a class="repository" href={repository}
                 >Ver no GitHub <span aria-hidden="true">↗</span></a
             >
         </nav>
-        <p class="platforms">Windows 10/11 · Ubuntu · Fedora</p>
         <figure class="demo">
             <VideoPlayer src={`${base}omega-1.mp4`} />
             <figcaption>Veja o Ômega Notes em ação.</figcaption>

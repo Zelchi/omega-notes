@@ -1,5 +1,19 @@
 # Histórico de atualizações
 
+## v0.5.9
+
+### Estudos
+
+- A biblioteca de estudos conclui o carregamento mesmo quando o evento final chega depois da resposta do comando, evitando manter as ações desativadas.
+
+### Bandeja
+
+- Sair pela bandeja espera o fechamento do menu nativo sem reabrir a janela no Linux e no Windows.
+
+### Site
+
+- Os downloads de Windows, Ubuntu e Fedora agora têm links diretos e nomes estáveis nas releases.
+
 ## v0.5.8
 
 ### Bandeja e atualizações

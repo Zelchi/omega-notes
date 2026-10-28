@@ -305,8 +305,11 @@ fn main() {
                         emit_tray_action(app, "update");
                     }
                     "exit" => {
-                        show_window(app);
-                        emit_tray_action(app, "exit");
+                        let app = app.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(150));
+                            emit_tray_action(&app, "exit");
+                        });
                     }
                     _ => {}
                 })

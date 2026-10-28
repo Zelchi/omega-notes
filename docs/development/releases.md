@@ -27,8 +27,8 @@ Atualize a versão em `apps/desktop/package.json`, nos dois `Cargo.toml` e em `b
 
 1. Gera `.deb`/`.rpm` com Electron no Linux e NSIS `.exe`/`.exe.sig` com Tauri no Windows (`createUpdaterArtifacts: true`).
 2. Assina os pacotes Linux com `cargo-packager`; normaliza o nome do `.exe` e da assinatura juntos e verifica também a assinatura Tauri do `.exe` usando o backend.
-3. Gera um manifesto comum com os campos Linux e Windows.
-4. Cria uma release em rascunho, envia os instaladores, assinaturas e manifesto, e publica ao final.
+3. Gera um manifesto comum com os campos Linux e Windows e cópias com nomes estáveis para os links da página web.
+4. Cria uma release em rascunho, envia os instaladores, assinaturas e manifesto, e publica ao final. Os links estáveis apontam para o asset da release mais recente.
 
 Use `CARGO_PACKAGER_SIGN_PRIVATE_KEY` para assinar os pacotes Linux e `TAURI_SIGNING_PRIVATE_KEY` para criar o artefato updater Windows. Ambos podem apontar para a mesma chave Minisign. As variáveis `*_PASSWORD` correspondentes são opcionais. A chave deve corresponder a `apps/desktop/bridge/electron/updater-public-key.txt`; `OMEGA_UPDATER_PUBLIC_KEY` pode substituir a chave pública no build coordenado.
 

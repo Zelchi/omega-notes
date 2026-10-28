@@ -40,6 +40,25 @@ test('tray Exit saves before calling the native app exit command', async () => {
 	assert.match(tauri, /fn exit_app\(app: AppHandle\)\s*\{\s*app\.exit\(0\)/);
 });
 
+test('Linux and Windows tray Exit stay hidden and defer dispatch by 150ms', async () => {
+	const [electron, tauri] = await Promise.all([
+		source('../../bridge/electron/main.mjs'),
+		source('../../bridge/tauri/src/main.rs'),
+	]);
+	const exitClickStart = electron.indexOf('{ label: trayLabels.exit');
+	const exitClick = electron.slice(exitClickStart, electron.indexOf('\n    ]));', exitClickStart));
+	const quitStart = electron.indexOf('export function quit()');
+	const quit = electron.slice(quitStart, electron.indexOf('\nfunction validateSender', quitStart));
+	assert.match(exitClick, /if \(process\.platform === 'darwin'\) \{ show\(\); emit\('omega-tray-action', 'exit'\); \}\s*else setTimeout\(\(\) => emit\('omega-tray-action', 'exit'\), 150\)/);
+	assert.match(quit, /Promise\.race\([\s\S]*?backend\.stop\(\)[\s\S]*?5000/);
+	assert.match(quit, /process\.platform !== 'linux'[\s\S]*?tray\?\.destroy\(\)/);
+	assert.match(quit, /app\.exit\(0\)/);
+	const tauriExitStart = tauri.indexOf('"exit" => {');
+	const tauriExit = tauri.slice(tauriExitStart, tauri.indexOf('\n                    _ => {}', tauriExitStart));
+	assert.doesNotMatch(tauriExit, /show_window\(app\)/);
+	assert.match(tauriExit, /std::thread::spawn[\s\S]*?sleep\(std::time::Duration::from_millis\(150\)\)[\s\S]*?emit_tray_action\(&app, "exit"\)/);
+});
+
 test('tray clicks open only the context menu on Windows', async () => {
 	const tauri = await source('../../bridge/tauri/src/main.rs');
 	assert.match(tauri, /\.show_menu_on_left_click\(true\)/);

@@ -93,6 +93,11 @@ jobs:
         env:
           CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.UPDATER_PRIVATE_KEY }}
           CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: ${{ secrets.UPDATER_PRIVATE_PASSWORD }}
+      - name: Criar nomes estáveis para os downloads do site
+        run: |
+          cp release-assets/*.exe release-assets/omega-notes-windows-x64.exe
+          cp release-assets/*.deb release-assets/omega-notes-ubuntu-x64.deb
+          cp release-assets/*.rpm release-assets/omega-notes-fedora-x64.rpm
       - name: Publicar release completa
         shell: bash
         env:
