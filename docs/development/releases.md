@@ -6,14 +6,14 @@ O desktop compartilha SolidJS e o crate Rust de backend. Linux x64 usa Electron 
 
 `yarn dev:desktop` e `yarn build:desktop` escolhem o host pelo sistema operacional. No Fedora/Ubuntu, o fluxo usa Electron; no Windows, Tauri. Os comandos `*:electron` e `*:tauri` permitem selecionar o host manualmente.
 
-As saídas Electron ficam em `apps/desktop/release`. O Tauri gera o instalador e seu pacote updater em `apps/desktop/bridge/tauri/target/release/bundle/nsis`.
+As saídas Electron ficam em `apps/desktop/release`. O Tauri gera o instalador `.exe` e sua assinatura `.exe.sig` em `apps/desktop/bridge/tauri/target/release/bundle/nsis`.
 
 ## Atualizações
 
 Os dois hosts consultam `native-latest.json`, mas cada um instala seu formato:
 
 - Linux: o backend baixa o `.deb` ou `.rpm` do gerenciador instalado, valida a assinatura Minisign e instala via APT/DNF com Polkit.
-- Windows: o plugin updater do Tauri valida e instala o `.nsis.zip` assinado. O `.exe` NSIS continua disponível para a instalação inicial.
+- Windows: o plugin updater do Tauri valida e instala diretamente o `.exe` NSIS, usando a assinatura `.exe.sig`. O mesmo instalador serve para a instalação inicial e a atualização automática.
 
 O manifesto mantém `packages.linux-x86_64` para o updater Rust e `platforms.windows-x86_64` para o updater Tauri. O Tauri exige HTTPS e assinatura; a chave pública embutida fica em `bridge/tauri/tauri.conf.json` e é sincronizada por `yarn release:prepare`. Nenhuma chave privada entra nos pacotes.
 
@@ -25,8 +25,8 @@ Ao enviar uma tag `vX.Y.Z`, o GitHub Actions compila os pacotes Linux e Windows,
 
 Atualize a versão em `apps/desktop/package.json`, nos dois `Cargo.toml` e em `bridge/tauri/tauri.conf.json`; acrescente `## vX.Y.Z` em `changelog.md` e envie uma nova tag. O workflow:
 
-1. Gera `.deb`/`.rpm` com Electron no Linux e NSIS `.exe`/`.nsis.zip` com Tauri no Windows.
-2. Assina os pacotes Linux com `cargo-packager`; verifica também a assinatura Tauri do `.nsis.zip` usando o backend.
+1. Gera `.deb`/`.rpm` com Electron no Linux e NSIS `.exe`/`.exe.sig` com Tauri no Windows (`createUpdaterArtifacts: true`).
+2. Assina os pacotes Linux com `cargo-packager`; normaliza o nome do `.exe` e da assinatura juntos e verifica também a assinatura Tauri do `.exe` usando o backend.
 3. Gera um manifesto comum com os campos Linux e Windows.
 4. Cria uma release em rascunho, envia os instaladores, assinaturas e manifesto, e publica ao final.
 

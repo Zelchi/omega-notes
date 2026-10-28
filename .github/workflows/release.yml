@@ -63,8 +63,7 @@ jobs:
           name: installers-Windows
           path: |
             apps/desktop/bridge/tauri/target/release/bundle/nsis/*.exe
-            apps/desktop/bridge/tauri/target/release/bundle/nsis/*.nsis.zip
-            apps/desktop/bridge/tauri/target/release/bundle/nsis/*.sig
+            apps/desktop/bridge/tauri/target/release/bundle/nsis/*.exe.sig
           if-no-files-found: error
   publish:
     needs: build
@@ -106,5 +105,5 @@ jobs:
           else
             gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft --title "Ômega Notes $RELEASE_TAG" --generate-notes
           fi
-          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber release-assets/*.deb release-assets/*.rpm release-assets/*.exe release-assets/*.nsis.zip release-assets/*.sig release-assets/native-latest.json
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber release-assets/*.deb release-assets/*.rpm release-assets/*.exe release-assets/*.sig release-assets/native-latest.json
           gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest

@@ -24,7 +24,7 @@ O app valida comandos, argumentos e URLs na fronteira da bridge. O WebView não 
 
 Linux usa o atualizador Rust existente: manifesto `native-latest.json`, pacotes `.deb` e `.rpm`, assinatura Minisign e instalação por APT/DNF com Polkit. O gerenciador de pacotes mantém o registro do sistema.
 
-Windows usa o plugin updater do Tauri. O instalador inicial é NSIS `.exe`; as atualizações usam o arquivo `.nsis.zip` assinado que o Tauri gera. Ambos usam o manifesto estático `native-latest.json`; `platforms.windows-x86_64` serve o Tauri e `packages.linux-x86_64` serve o atualizador Linux.
+Windows usa o plugin updater do Tauri. A instalação inicial e as atualizações usam o mesmo NSIS `.exe`, cuja assinatura é gerada em `.exe.sig`. Ambos os hosts usam o manifesto estático `native-latest.json`; `platforms.windows-x86_64` serve o Tauri e `packages.linux-x86_64` serve o atualizador Linux.
 
 O workflow de release só publica após validação gráfica explicitamente habilitada. Builds locais não publicam nem enviam pacotes.
 
