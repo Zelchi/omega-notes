@@ -91,7 +91,8 @@ pub(crate) async fn dispatch(
                 argument(&args, "vaultId")?,
                 argument(&args, "observerId")?,
                 argument(&args, "operationId")?,
-            ).await?,
+            )
+            .await?,
         )
         .map_err(|error| error.to_string()),
         "acknowledge_note_changes" => serde_json::to_value(
