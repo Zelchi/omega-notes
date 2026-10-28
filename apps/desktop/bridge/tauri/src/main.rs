@@ -172,6 +172,11 @@ fn exit_app(app: AppHandle) {
     app.exit(0);
 }
 
+#[tauri::command]
+fn relaunch_app(app: AppHandle) {
+    app.restart();
+}
+
 fn emit_tray_action(app: &AppHandle, action: &str) {
     let _ = app.emit(
         "omega:event",
@@ -347,6 +352,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             desktop_dispatch,
             exit_app,
+            relaunch_app,
             configure_tray_menu
         ])
         .run(tauri::generate_context!())

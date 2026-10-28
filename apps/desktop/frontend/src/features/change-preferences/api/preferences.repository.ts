@@ -180,7 +180,6 @@ export const saveBackgroundIntensity = (value: number): void => {
 export const readCanvasLayout = (): CanvasLayout => {
 	try {
 		const value = localStorage.getItem("omega-notes.canvas-layout");
-		if (value === "archive") return "archive";
 		return value === "static" ? "static" : "dynamic";
 	}
 	catch { return "static"; }

@@ -51,6 +51,7 @@ const invoke = async <T>(command: string, args: Record<string, unknown>): Promis
 		case 'window_close': return await webviewWindow.close() as T;
 		case 'window_destroy': return await webviewWindow.destroy() as T;
 		case 'hide_main_window': return await webviewWindow.hide() as T;
+		case 'relaunch_app': return await tauriInvoke('relaunch_app') as T;
 		case 'show_main_window': {
 			await webviewWindow.show();
 			return await webviewWindow.setFocus() as T;

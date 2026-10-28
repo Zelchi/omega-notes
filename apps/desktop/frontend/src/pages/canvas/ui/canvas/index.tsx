@@ -2,7 +2,6 @@ import { lazy, Show, Suspense, Switch, Match, type Component } from "solid-js";
 import type { CanvasLayout } from "@/features/change-preferences";
 import GraphCanvas from "../graph-canvas";
 import type { GraphCanvasProps } from "../graph-canvas/types";
-import ArchiveView from "../archive-view";
 import Button from "@/shared/ui/button";
 import Icon from "@/shared/ui/icon";
 import { styles } from "./style.css.ts";
@@ -35,9 +34,6 @@ const Canvas: Component<CanvasProps> = (props) => {
 						<Suspense fallback={<div aria-busy="true" />}>
 							<DynamicGraph {...props} vaultId={vaultId} />
 						</Suspense>
-					</Match>
-					<Match when={props.layout === "archive"}>
-						<ArchiveView vaultId={vaultId} notes={props.notes} mode={props.mode} onCreateNote={props.onCreateNote} onOpenNote={props.onOpenNote} onRequestRename={props.onRequestRename} onDeleteNote={props.onDeleteNote} t={props.t} />
 					</Match>
 				</Switch>
 				<Show when={props.notes.length === 0}>
