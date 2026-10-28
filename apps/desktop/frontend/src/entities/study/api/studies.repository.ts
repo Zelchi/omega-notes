@@ -19,6 +19,7 @@ const streamStudies = (vaultId: string, options: ReadOptions): Promise<StudySumm
 	const cleanup = () => {
 		clearTimeout(timeout); clearTimeout(task); queue.length = 0;
 		channel.onmessage = () => undefined;
+		channel.close();
 		options.signal?.removeEventListener("abort", abort);
 	};
 	const fail = (failure: Error) => { if (!done) { done = true; cleanup(); reject(failure); } };

@@ -43,15 +43,23 @@ function refreshTray() {
         { type: 'separator' },
         { label: trayLabels.update, click: () => { show(); emit('omega-tray-action', 'update'); } },
         { type: 'separator' },
-        { label: trayLabels.exit, click: () => { show(); emit('omega-tray-action', 'exit'); } },
+        { label: trayLabels.exit, click: () => {
+            if (process.platform === 'darwin') { show(); emit('omega-tray-action', 'exit'); }
+            else setTimeout(() => emit('omega-tray-action', 'exit'), 150);
+        } },
     ]));
 }
 export function quit() {
     if (shutdown) return shutdown;
     quitting = true;
     shutdown = (async () => {
-        await backend?.stop();
-        tray?.destroy();
+        if (backend) await Promise.race([
+            backend.stop().catch(console.error),
+            new Promise(resolve => setTimeout(resolve, 5000)),
+        ]);
+        if (process.platform !== 'linux') {
+            try { tray?.destroy(); } catch (error) { console.error(error); }
+        }
         app.exit(0);
     })();
     return shutdown;

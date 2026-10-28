@@ -45,7 +45,7 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
         if (active.length) await subscribeChannels();
         const result = await desktop().invoke<T>(command, serializedArgs);
         // Stream completion can arrive after the RPC response; its consumer closes the channel.
-        if (command !== 'terminal_open' && command !== 'stream_note_summaries') active.forEach(channel => channel.close());
+        if (command !== 'terminal_open' && command !== 'stream_note_summaries' && command !== 'read_studies') active.forEach(channel => channel.close());
         return result;
     } catch (error) { active.forEach(channel => channel.close()); throw error; }
 }

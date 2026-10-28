@@ -16,7 +16,7 @@ const deck = (id, createdAt) => ({
     progress: { items: [] },
 });
 
-const setup = (t, materials, { controller = true } = {}) => {
+const setup = (t, materials, { controller = true, completeAfterResponse = false } = {}) => {
     const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
     const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
     const values = new Map();
@@ -28,7 +28,9 @@ const setup = (t, materials, { controller = true } = {}) => {
             readCount++;
             const saved = [...backend].filter(([key]) => key.startsWith(`${args.vaultId}/`)).map(([, value]) => value);
             for (const value of saved) args.onItem.onmessage({ kind: 'item', item: studySummary(value) });
-            args.onItem.onmessage({ kind: 'complete', total: saved.length });
+            const complete = () => args.onItem.onmessage({ kind: 'complete', total: saved.length });
+            if (completeAfterResponse) setTimeout(complete, 0);
+            else complete();
             return;
         }
         if (command === 'read_study') return backend.get(storageKey(args.vaultId, args.studyId));
@@ -95,6 +97,13 @@ const waitFor = async condition => {
     }
     throw Error('Condition was not reached');
 };
+
+test('study library accepts its completion event after the desktop command resolves', async t => {
+    const f = setup(t, [deck('00000000-0000-4000-8000-000000000001', 1)], { completeAfterResponse: true });
+    f.study.show('written');
+    await waitFor(() => !f.study.loading());
+    assert.equal(f.study.saved().length, 1);
+});
 
 test('failure on one material stays visible after another succeeds and retry/flush cover every failed write', async t => {
     const f = setup(t, [deck('00000000-0000-4000-8000-000000000001', 1), deck('00000000-0000-4000-8000-000000000002', 2)]);

@@ -76,10 +76,17 @@ syncBuiltinESMExports();
 	assert.match(rejected.stderr, /A assinatura Tauri/);
 });
 
-test('Windows release configuration and CI publish the EXE signature instead of a ZIP', async () => {
+test('release CI publishes Windows signatures and stable website download links', async () => {
 	const config = JSON.parse(await readFile(new URL('../../bridge/tauri/tauri.release.conf.json', import.meta.url), 'utf8'));
 	assert.equal(config.bundle.createUpdaterArtifacts, true);
 	const workflow = await readFile(new URL('../../../../.github/workflows/release.yml', import.meta.url), 'utf8');
+	const homepage = await readFile(new URL('../../../web/src/pages/index.astro', import.meta.url), 'utf8');
 	assert.match(workflow, /bundle\/nsis\/\*\.exe\.sig/);
 	assert.doesNotMatch(workflow, /\.nsis\.zip/);
+	assert.match(workflow, /cp release-assets\/\*\.exe release-assets\/omega-notes-windows-x64\.exe/);
+	assert.match(workflow, /cp release-assets\/\*\.deb release-assets\/omega-notes-ubuntu-x64\.deb/);
+	assert.match(workflow, /cp release-assets\/\*\.rpm release-assets\/omega-notes-fedora-x64\.rpm/);
+	for (const asset of ['omega-notes-windows-x64.exe', 'omega-notes-ubuntu-x64.deb', 'omega-notes-fedora-x64.rpm']) {
+		assert.ok(homepage.includes(`/releases/latest/download/${asset}`), `Homepage download link missing ${asset}`);
+	}
 });

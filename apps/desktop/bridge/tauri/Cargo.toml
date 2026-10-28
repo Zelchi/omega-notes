@@ -1,6 +1,6 @@
 [package]
 name = "omega-notes-tauri"
-version = "0.5.8"
+version = "0.5.9"
 description = "Host Tauri do Ômega Notes para Windows"
 authors = ["Ômega Notes"]
 edition = "2021"

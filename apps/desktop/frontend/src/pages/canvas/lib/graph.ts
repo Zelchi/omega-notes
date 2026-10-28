@@ -120,12 +120,12 @@ const edgeBoundaryPorts = (
 			const offset = margin + spacing * index;
 			const point = side === "left" ? { x: position.x, y: position.y + offset }
 				: side === "right" ? { x: position.x + size.width, y: position.y + offset }
-				: side === "top" ? { x: position.x + offset, y: position.y }
-				: { x: position.x + offset, y: position.y + size.height };
+					: side === "top" ? { x: position.x + offset, y: position.y }
+						: { x: position.x + offset, y: position.y + size.height };
 			const tangent = side === "left" ? { x: -1, y: 0 }
 				: side === "right" ? { x: 1, y: 0 }
-				: side === "top" ? { x: 0, y: -1 }
-				: { x: 0, y: 1 };
+					: side === "top" ? { x: 0, y: -1 }
+						: { x: 0, y: 1 };
 			const edgePorts = ports.get(edgeKey)!;
 			edgePorts[endpoint] = { point, tangent, speed: edgePorts[endpoint].speed };
 		});
@@ -320,7 +320,6 @@ export const graphEdgesCrossedByStroke = (
 export type ZipTiePlacement = Point & { angle: number; width: number };
 const ZIP_TIE_WIRE_SPACING = 6;
 const ZIP_TIE_MARGIN = 12;
-// Keep wires bound until they diverge by almost a full note width.
 const ZIP_TIE_DETACH_DISTANCE = 192;
 
 type ZipTieGeometry = {
@@ -363,7 +362,6 @@ const zipTieGeometry = (
 	const aligned = [...samples.keys()].map((edgeKey) => {
 		const direction = edgeDirection(edgeKey);
 		const dot = direction.x * reference.x + direction.y * reference.y;
-		// A near-perpendicular fan is not evidence that a wire runs backward.
 		const sign = dot < -0.1 ? -1 : 1;
 		return { edgeKey, sign, tangent: { x: direction.x * sign, y: direction.y * sign } };
 	});
