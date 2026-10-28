@@ -76,17 +76,25 @@ syncBuiltinESMExports();
 	assert.match(rejected.stderr, /A assinatura Tauri/);
 });
 
-test('release CI publishes Windows signatures and stable website download links', async () => {
+test('release CI prepares stable website aliases and the homepage links to the v0.5.8 assets', async () => {
 	const config = JSON.parse(await readFile(new URL('../../bridge/tauri/tauri.release.conf.json', import.meta.url), 'utf8'));
 	assert.equal(config.bundle.createUpdaterArtifacts, true);
 	const workflow = await readFile(new URL('../../../../.github/workflows/release.yml', import.meta.url), 'utf8');
 	const homepage = await readFile(new URL('../../../web/src/pages/index.astro', import.meta.url), 'utf8');
 	assert.match(workflow, /bundle\/nsis\/\*\.exe\.sig/);
 	assert.doesNotMatch(workflow, /\.nsis\.zip/);
-	assert.match(workflow, /cp release-assets\/\*\.exe release-assets\/omega-notes-windows-x64\.exe/);
-	assert.match(workflow, /cp release-assets\/\*\.deb release-assets\/omega-notes-ubuntu-x64\.deb/);
-	assert.match(workflow, /cp release-assets\/\*\.rpm release-assets\/omega-notes-fedora-x64\.rpm/);
-	for (const asset of ['omega-notes-windows-x64.exe', 'omega-notes-ubuntu-x64.deb', 'omega-notes-fedora-x64.rpm']) {
-		assert.ok(homepage.includes(`/releases/latest/download/${asset}`), `Homepage download link missing ${asset}`);
+	for (const [source, alias] of [
+		['*.exe', 'omega-notes-windows-x64.exe'],
+		['*.deb', 'omega-notes-ubuntu-x64.deb'],
+		['*.rpm', 'omega-notes-fedora-x64.rpm'],
+	]) {
+		assert.ok(workflow.includes(`cp release-assets/${source} release-assets/${alias}`), `Release workflow alias missing ${alias}`);
+	}
+	for (const asset of [
+		'Omega.Notes_0.5.8_x64-setup.exe',
+		'omega-notes-0.5.8-amd64.deb',
+		'omega-notes-0.5.8-x86_64.rpm',
+	]) {
+		assert.ok(homepage.includes(`/releases/download/v0.5.8/${asset}`), `Homepage download link missing ${asset}`);
 	}
 });
