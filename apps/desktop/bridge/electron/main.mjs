@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, screen, shell, Tray } from 'electron';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -90,6 +90,11 @@ async function invoke(command, args) {
             return;
         }
         case 'window_is_maximized': return window.isMaximized();
+        case 'window_axis_sizes': {
+            const bounds = window.getBounds();
+            const { workArea } = screen.getDisplayMatching(bounds);
+            return { width: bounds.width, height: bounds.height, workWidth: workArea.width, workHeight: workArea.height };
+        }
         case 'window_is_visible': return window.isVisible();
         case 'window_toggle_maximize': window.isMaximized() ? window.unmaximize() : window.maximize(); return;
         case 'window_minimize': window.minimize(); return;
@@ -185,6 +190,9 @@ else {
             )
         );
         window.on('resize', () => emit('window-resized', null));
+        window.on('move', () => emit('window-resized', null));
+        screen.on('display-metrics-changed', () => emit('window-resized', null));
+        screen.on('display-removed', () => emit('window-resized', null));
         window.on('maximize', () => emit('window-resized', null));
         window.on('unmaximize', () => emit('window-resized', null));
         window.on('close', event => { if (!quitting) { event.preventDefault(); emit('window-close-requested', null); } });

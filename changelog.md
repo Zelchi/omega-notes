@@ -1,5 +1,11 @@
 # Histórico de atualizações
 
+## v0.6.1
+
+### Aparência
+
+- O raio das janelas restauradas passa a ser 8 px. Janelas maximizadas ou que ocupam toda a largura ou altura da área útil ficam com cantos quadrados.
+
 ## v0.6.0
 
 ### Canvas

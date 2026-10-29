@@ -1,7 +1,6 @@
 import Button from "@/shared/ui/button";
 import { createEffect, createSignal, lazy, Show, Suspense, type Component } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
-import { cx } from "@/shared/lib/classes";
 
 import { formatAiChatShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
 import WindowTitlebar from "./ui/window-titlebar";
@@ -52,7 +51,7 @@ const AppView: Component = () => {
 		<BackgroundThemeProvider value={app.preferences.backgroundTheme}>
 			<BackgroundIntensityProvider value={app.preferences.backgroundIntensity}>
 				<>
-				<div class={cx(styles.shell, app.windowControls.maximized() && styles.maximizedShell)} inert={app.updates.installing()} onContextMenu={(event) => event.preventDefault()} data-omega-app-shell>
+				<div class={styles.shell} style={{ "border-radius": app.windowControls.squareCorners() ? "0" : undefined }} inert={app.updates.installing()} onContextMenu={(event) => event.preventDefault()} data-omega-app-shell>
 					<WindowTitlebar
 						maximized={app.windowControls.maximized()}
 						gnome={app.windowControls.gnome()}
@@ -307,7 +306,7 @@ const AppView: Component = () => {
 
 				</div>
 				<Show when={app.updates.installing()}>
-					<div class={cx(styles.updateOverlay, app.windowControls.maximized() && styles.maximizedShell)} role="alert" aria-live="assertive">{app.t("installingUpdate")}</div>
+					<div class={styles.updateOverlay} style={{ "border-radius": app.windowControls.squareCorners() ? "0" : undefined }} role="alert" aria-live="assertive">{app.t("installingUpdate")}</div>
 				</Show>
 				</>
 			</BackgroundIntensityProvider>
