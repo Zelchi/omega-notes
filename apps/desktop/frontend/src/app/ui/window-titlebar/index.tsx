@@ -11,10 +11,10 @@ import { styles } from "./style.css.ts";
 
 const iconUrl = `${import.meta.env.BASE_URL}icon.png`;
 
-const runAppAction = (action: () => void, settingsOpen: boolean, onSettings: () => void) => {
+const runAppAction = (action: () => void, settingsOpen: boolean, vaultDialogCanHide: boolean, onSettings: () => void) => {
 	if (document.querySelector('[role="dialog"][aria-modal="true"]')) {
-		if (!settingsOpen) return;
-		onSettings();
+		if (settingsOpen) onSettings();
+		else if (!vaultDialogCanHide) return;
 	}
 	action();
 };
@@ -25,6 +25,7 @@ type Props = {
 	backgroundTheme: BackgroundTheme;
 	settingsOpen: boolean;
 	vaultDialogOpen: boolean;
+	vaultDialogCanHide: boolean;
 	vaultName?: string;
 	t: (key: TranslationKey) => string;
 	onVaultClick: () => void;
@@ -58,19 +59,19 @@ const WindowTitlebar: Component<Props> = (props) => (
 			<Show when={import.meta.env.DEV}>
 				<Button class={cx(styles.button, styles.kanbanButton)} type="button" disabled={!props.vaultName} aria-label={props.t("kanbanOpen")}
 					aria-expanded={props.kanbanOpen} aria-controls="kanban-panel" aria-keyshortcuts="Control+Shift+B"
-					onClick={() => runAppAction(props.onKanban, props.settingsOpen, props.onSettings)}>
+					onClick={() => runAppAction(props.onKanban, props.settingsOpen, props.vaultDialogCanHide, props.onSettings)}>
 					<Icon name="bulletList" size={16} />
 				</Button>
 			</Show>
 			<Button class={cx(styles.button, styles.pomodoroButton)} type="button" disabled={!props.vaultName} aria-label={props.t("pomodoroOpen")}
 				aria-expanded={props.pomodoroOpen} aria-controls="pomodoro-panel"
-				onClick={() => runAppAction(props.onPomodoro, props.settingsOpen, props.onSettings)}>
+				onClick={() => runAppAction(props.onPomodoro, props.settingsOpen, props.vaultDialogCanHide, props.onSettings)}>
 				<Icon name="clock" size={16} />
 			</Button>
 			<div class={styles.drag} data-omega-drag-region data-tauri-drag-region />
 		</div>
 		<Show when={props.vaultName}>
-			<Button class={styles.vaultName} type="button" onClick={() => props.vaultDialogOpen ? props.onVaultClick() : runAppAction(props.onVaultClick, props.settingsOpen, props.onSettings)}>
+			<Button class={styles.vaultName} type="button" onClick={() => props.vaultDialogOpen ? props.onVaultClick() : runAppAction(props.onVaultClick, props.settingsOpen, props.vaultDialogCanHide, props.onSettings)}>
 				{props.vaultName}
 			</Button>
 		</Show>
@@ -81,12 +82,12 @@ const WindowTitlebar: Component<Props> = (props) => (
 					<Show when={props.aiFeaturesEnabled}>
 						<Button class={styles.button} type="button" disabled={!props.vaultName} aria-label={props.t("aiChat")}
 							aria-expanded={props.aiChatOpen} aria-controls="ai-chat-panel" aria-keyshortcuts={props.aiChatShortcut}
-							onClick={() => runAppAction(props.onAiChat, props.settingsOpen, props.onSettings)}>
+							onClick={() => runAppAction(props.onAiChat, props.settingsOpen, props.vaultDialogCanHide, props.onSettings)}>
 							<Icon name="chat" size={15} />
 						</Button>
 					</Show>
 					<Button class={styles.button} type="button" aria-label={props.t("settings")} aria-expanded={props.settingsOpen}
-						onClick={() => props.settingsOpen ? props.onSettings() : runAppAction(props.onSettings, props.settingsOpen, props.onSettings)}>
+						onClick={() => props.settingsOpen ? props.onSettings() : runAppAction(props.onSettings, props.settingsOpen, props.vaultDialogCanHide, props.onSettings)}>
 						<Icon name="settings" size={15} />
 					</Button>
 					<Show when={props.gnome === false}>

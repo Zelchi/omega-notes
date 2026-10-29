@@ -58,6 +58,7 @@ const AppView: Component = () => {
 						backgroundTheme={app.preferences.backgroundTheme()}
 						vaultName={app.vaults.activeVault()?.name}
 						vaultDialogOpen={app.vaults.dialogOpen()}
+						vaultDialogCanHide={app.vaults.dialogOpen() && Boolean(app.vaults.activeVaultId())}
 						t={app.t}
 						onVaultClick={app.toggleVaultDialog}
 						onSettings={app.toggleSettings}
@@ -200,6 +201,8 @@ const AppView: Component = () => {
 								confirmGambiarra={app.confirmGambiarra} setConfirmGambiarra={app.setConfirmGambiarra}
 								soundVolume={app.preferences.soundVolume()}
 								onSoundVolumeChange={app.preferences.setSoundVolume}
+								muteLofiDuringBreaks={app.pomodoro.muteLofiDuringBreaks()}
+								onMuteLofiDuringBreaksChange={app.pomodoro.setMuteLofiDuringBreaks}
 								backgroundIntensity={app.preferences.backgroundIntensity()}
 								onBackgroundIntensityChange={app.preferences.setBackgroundIntensity}
 								aiResetting={app.aiChat.resetting()}

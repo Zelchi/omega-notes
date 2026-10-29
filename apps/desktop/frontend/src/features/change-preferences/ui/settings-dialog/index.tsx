@@ -57,6 +57,8 @@ type Props = {
 	textCursor: TextCursor;
 	soundVolume: number;
 	onSoundVolumeChange: (value: number) => void;
+	muteLofiDuringBreaks: boolean;
+	onMuteLofiDuringBreaksChange: (value: boolean) => void;
 	backgroundIntensity: number;
 	onBackgroundIntensityChange: (value: number) => void;
 	versionControl?: () => JSX.Element;
@@ -190,6 +192,11 @@ const SettingsDialog: Component<Props> = (props) => {
 										<BlockSlider id="settings-soundVolume" value={props.soundVolume} onChange={props.onSoundVolumeChange} />
 									</div>
 								</div>
+								<label class={styles.option}>
+									<span>{props.t("pomodoroMuteLofiDuringBreaks")}</span>
+									<Input class={styles.toggle} type="checkbox" checked={props.muteLofiDuringBreaks}
+										onChange={(event) => props.onMuteLofiDuringBreaksChange(event.currentTarget.checked)} />
+								</label>
 							</Show>
 
 							<Show when={props.category() === "ai"}>
