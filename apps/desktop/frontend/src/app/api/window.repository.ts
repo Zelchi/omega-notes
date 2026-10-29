@@ -3,6 +3,7 @@ import { confirm, invoke, isDesktopRuntime, listen } from '@/shared/lib/desktop'
 export const confirmCloseWithoutSaving = (message: string, title: string, closeLabel: string, cancelLabel: string): Promise<boolean> =>
     confirm(message, { title, kind: 'warning', okLabel: closeLabel, cancelLabel });
 export const isWindowMaximized = (): Promise<boolean> => invoke('window_is_maximized');
+export const getWindowAxisSizes = (): Promise<{ width: number; height: number; workWidth: number; workHeight: number } | null> => invoke('window_axis_sizes');
 export const isMainWindowVisible = (): Promise<boolean> => invoke('window_is_visible');
 export const setWindowBackgroundColor = (color: string): Promise<void> => invoke('set_window_background_color', { color });
 export const onWindowResized = (listener: () => void) => listen('window-resized', listener);

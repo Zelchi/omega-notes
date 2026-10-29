@@ -1,6 +1,7 @@
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 import { listen as tauriListen } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { currentMonitor } from '@tauri-apps/api/window';
 import { confirm as tauriConfirm, open as tauriOpen } from '@tauri-apps/plugin-dialog';
 import { openUrl as tauriOpenUrl } from '@tauri-apps/plugin-opener';
 import type { DesktopApi } from './desktop-contract';
@@ -45,6 +46,12 @@ const invoke = async <T>(command: string, args: Record<string, unknown>): Promis
 				musicPlaying: args.musicPlaying,
 			}) as T;
 		case 'window_is_maximized': return await webviewWindow.isMaximized() as T;
+		case 'window_axis_sizes': {
+			const [monitor, size] = await Promise.all([currentMonitor(), webviewWindow.outerSize()]);
+			if (!monitor) return null as T;
+			const scale = monitor.scaleFactor;
+			return { width: size.width / scale, height: size.height / scale, workWidth: monitor.workArea.size.width / scale, workHeight: monitor.workArea.size.height / scale } as T;
+		}
 		case 'window_is_visible': return await webviewWindow.isVisible() as T;
 		case 'window_toggle_maximize': return await webviewWindow.toggleMaximize() as T;
 		case 'window_minimize': return await webviewWindow.minimize() as T;

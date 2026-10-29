@@ -1,9 +1,11 @@
 import { createSignal, onCleanup, onMount } from "solid-js";
 import { isDesktopRuntime } from "@/shared/lib/desktop";
 import type { TranslationKey } from "@/shared/lib/i18n";
+import { occupiesWindowAxis } from "./window-axis";
 import {
 	confirmCloseWithoutSaving,
 	exitMainApp,
+	getWindowAxisSizes,
 	hideMainWindow,
 	isGnomeDesktop,
 	isWindowMaximized,
@@ -17,11 +19,22 @@ const isLinux = typeof navigator !== "undefined" && navigator.platform.toLowerCa
 
 export const useWindowControls = (beforeClose: () => Promise<boolean>, t: (key: TranslationKey) => string) => {
 	const [maximized, setMaximized] = createSignal(false);
+	const [squareCorners, setSquareCorners] = createSignal(false);
 	const [gnome, setGnome] = createSignal<boolean | undefined>(isLinux ? undefined : false);
 	let unlistenResize: (() => void) | undefined;
 	let unlistenClose: (() => void) | undefined;
 	let closePending = false;
 	let active = true;
+	let maximizeQuery = 0;
+	const syncMaximized = () => {
+		const query = ++maximizeQuery;
+		void Promise.all([isWindowMaximized(), getWindowAxisSizes().catch((error) => { console.error(error); return null; })]).then(([value, sizes]) => {
+			if (active && query === maximizeQuery) {
+				setMaximized(value);
+				setSquareCorners(value || occupiesWindowAxis(sizes, isLinux));
+			}
+		}).catch(console.error);
+	};
 	const confirmClose = async () => {
 		const saved = await beforeClose().catch((error) => { console.error(error); return false; });
 		return saved || confirmCloseWithoutSaving(t("closeUnsavedMessage"), t("appName"),
@@ -36,14 +49,12 @@ export const useWindowControls = (beforeClose: () => Promise<boolean>, t: (key: 
 				setGnome(false);
 			});
 		}
-		const syncMaximized = () => {
-			void isWindowMaximized().then(setMaximized).catch(console.error);
-		};
-
-		syncMaximized();
 		void onWindowResized(syncMaximized)
 			.then((unlisten) => {
-				if (active) unlistenResize = unlisten;
+				if (active) {
+					unlistenResize = unlisten;
+					syncMaximized();
+				}
 				else unlisten();
 			})
 			.catch(console.error);
@@ -109,7 +120,7 @@ export const useWindowControls = (beforeClose: () => Promise<boolean>, t: (key: 
 		if (!isDesktopRuntime()) return;
 		try {
 			await toggleWindowMaximize();
-			setMaximized(await isWindowMaximized());
+			syncMaximized();
 		} catch (error) {
 			console.error(error);
 		}
@@ -117,6 +128,7 @@ export const useWindowControls = (beforeClose: () => Promise<boolean>, t: (key: 
 
 	return {
 		maximized,
+		squareCorners,
 		gnome,
 		minimize: () => {
 			if (isDesktopRuntime()) void minimizeWindow().catch(console.error);

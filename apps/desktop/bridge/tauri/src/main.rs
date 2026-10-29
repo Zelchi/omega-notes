@@ -324,7 +324,7 @@ fn main() {
                     json!({"event":"window-close-requested","payload":null}),
                 );
             }
-            tauri::WindowEvent::Resized(_) => {
+            tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) | tauri::WindowEvent::ScaleFactorChanged { .. } => {
                 let _ = window.emit(
                     "omega:event",
                     json!({"event":"window-resized","payload":null}),
