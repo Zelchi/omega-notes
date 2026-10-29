@@ -37,18 +37,6 @@ export const styles = {
 	settingsError: style({ gridColumn: "1 / -1" }),
 	setting: style({ display: "grid", gap: 4, minWidth: 0, color: "var(--muted)", fontSize: 11 }),
 	numberInput: style({ boxSizing: "border-box", width: "100%", minWidth: 0, height: 30, padding: "5px 8px", border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-panel)", color: "var(--ink)", font: "inherit", fontSize: 12 }),
-	muteLofiSetting: style({ display: "flex", alignItems: "center", gap: 7, color: "var(--muted)", fontSize: 11, cursor: "pointer" }),
-	muteLofiCheckbox: style({
-		appearance: "none", display: "grid", placeItems: "center", flexShrink: 0, width: 16, height: 16, margin: 0,
-		border: "1px solid var(--border-strong)", borderRadius: 4, background: "var(--surface-controls)", color: "var(--button-confirm-fg)", cursor: "pointer",
-		transition: "background-color 140ms ease, border-color 140ms ease",
-		selectors: {
-			"&::after": { width: 4, height: 8, border: "solid currentColor", borderWidth: "0 2px 2px 0", content: "", transform: "rotate(45deg) scale(0)", transition: "transform 140ms cubic-bezier(0.2, 0.7, 0.3, 1)" },
-			"&:checked": { background: "var(--button-confirm-bg)", borderColor: "var(--button-confirm-bg)" },
-			"&:checked::after": { transform: "rotate(45deg) scale(1)" },
-			"&:hover:not(:checked)": { background: "var(--surface-hover)" },
-		},
-	}),
 	tasks: style({ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, gap: 8 }),
 	taskForm: style({
 		display: "flex", alignItems: "center", boxSizing: "border-box", height: 36, margin: "0 20px 0 10px", gap: 0,

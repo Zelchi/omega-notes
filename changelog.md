@@ -1,5 +1,16 @@
 # Histórico de atualizações
 
+## v0.6.2
+
+### Vaults
+
+- A lista de vaults ganhou ações de contexto e um visual alinhado aos demais itens; as métricas exibidas acompanham o vault selecionado sem reaproveitar resultados obsoletos.
+- Com um vault ativo, é possível alternar para outros painéis sem perder o acesso ao seletor de vaults.
+
+### Preferências
+
+- A opção para silenciar música durante as pausas do Pomodoro foi movida para Preferências; o modal agora mantém altura fixa de 450 px entre categorias.
+
 ## v0.6.1
 
 ### Aparência

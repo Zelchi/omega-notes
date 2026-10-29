@@ -2,7 +2,7 @@ import Input from "@/shared/ui/input";
 import Button from "@/shared/ui/button";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
-import { For, Show, createEffect, createSignal, type Component } from "solid-js";
+import { For, Show, createEffect, createSignal, untrack, type Component } from "solid-js";
 import Icon from "@/shared/ui/icon";
 import ModalError from "@/shared/ui/modal-error";
 import { cx } from "@/shared/lib/classes";
@@ -60,6 +60,8 @@ const VaultDialog: Component<Props> = (props) => {
 	let vaultList: HTMLDivElement | undefined;
 	const [createInputRow, setCreateInputRow] = createSignal<HTMLDivElement>();
 	const [renameInput, setRenameInput] = createSignal<HTMLInputElement>();
+	const [vaultActionsVisibleId, setVaultActionsVisibleId] = createSignal<string>();
+	const [displayedDetails, setDisplayedDetails] = createSignal<VaultDetails>();
 	const state = props.dialogState;
 	const backdropDismiss = createBackdropDismiss(props.onClose);
 	const deleteBackdropDismiss = createBackdropDismiss(() => state.setDeleteConfirmationVisible(false));
@@ -74,8 +76,17 @@ const VaultDialog: Component<Props> = (props) => {
 	createEffect(() => {
 		const isOpen = props.open;
 		const vaultId = state.selectedVaultId();
-		if (!isOpen || !vaultId) return;
-		void props.getDetails(vaultId).catch(error => console.error(error));
+		if (!isOpen) {
+			setVaultActionsVisibleId(undefined);
+			setDisplayedDetails(undefined);
+			return;
+		}
+		if (!vaultId) return;
+		const cachedDetails = untrack(() => state.details()[vaultId]);
+		if (cachedDetails) setDisplayedDetails(cachedDetails);
+		void props.getDetails(vaultId).then(details => {
+			if (props.open && state.selectedVaultId() === vaultId) setDisplayedDetails(details);
+		}).catch(error => console.error(error));
 	});
 
 	const submit = async (event: SubmitEvent): Promise<void> => {
@@ -122,86 +133,63 @@ const VaultDialog: Component<Props> = (props) => {
 							<div class={styles.overview}>
 								<div class={styles.details}>
 									<h3 class={styles.detailTitle}>{props.t("vault")}</h3>
-									<Show when={selectedVault()}>
-										{(vault) => {
-											const details = () => state.details()[vault().id];
-											return (
-												<div class={styles.metrics}>
-													<div class={styles.metric}>
-														<strong class={styles.metricValue}>
-															{details()?.noteCount ?? ""}
-														</strong>
-														<span class={styles.metricLabel}>{props.t("vaultNotes")}</span>
-													</div>
-													<div class={styles.metric}>
-														<strong class={styles.metricValue}>
-															{details()?.imageCount ?? ""}
-														</strong>
-														<span class={styles.metricLabel}>{props.t("vaultImages")}</span>
-													</div>
-													<div class={styles.metric}>
-														<strong class={styles.metricValue}>{details()?.audioCount ?? ""}</strong>
-														<span class={styles.metricLabel}>{props.t("vaultAudio")}</span>
-													</div>
-													<div class={styles.metric}>
-														<strong class={styles.metricValue}>{details()?.videoCount ?? ""}</strong>
-														<span class={styles.metricLabel}>{props.t("vaultVideos")}</span>
-													</div>
-													<div class={styles.metric}>
-														<strong class={styles.metricValue}>
-															{details()
-																? formatCount(
-																		details()!.characterCount,
-																		props.t("locale"),
-																	)
-																: ""}
-														</strong>
-														<span class={styles.metricLabel}>
-															{props.t("vaultCharacters")}
-														</span>
-													</div>
-													<div class={styles.metric}>
-														<strong class={styles.metricValue}>
-															{details()
-																? formatStorageSize(
-																		details()!.storageBytes,
-																		props.t("locale"),
-																	)
-																: ""}
-														</strong>
-														<span class={styles.metricLabel}>
-															{props.t("vaultStorage")}
-														</span>
-													</div>
-													<div class={styles.metric}>
-														<strong class={styles.metricValue}>
-															{details()
-																? formatLastModified(
-																		details()!.lastModifiedAt,
-																		props.t("locale"),
-																	)
-																: ""}
-														</strong>
-														<span class={styles.metricLabel}>
-															{props.t("vaultUpdated")}
-														</span>
-													</div>
-													<div class={styles.metric}>
-														<strong class={styles.metricValue}>
-															{details()
-																? formatLastModified(
-																		details()!.createdAt,
-																		props.t("locale"),
-																	)
-																: ""}
-														</strong>
-														<span class={styles.metricLabel}>
-															{props.t("vaultCreated")}
-														</span>
-													</div>
+									<Show when={displayedDetails()}>
+										{(details) => (
+											<div class={styles.metrics}>
+												<div class={styles.metric}>
+													<strong class={styles.metricValue}>
+														{details().noteCount}
+													</strong>
+													<span class={styles.metricLabel}>{props.t("vaultNotes")}</span>
 												</div>
-											);
-										}}
+												<div class={styles.metric}>
+													<strong class={styles.metricValue}>
+														{details().imageCount}
+													</strong>
+													<span class={styles.metricLabel}>{props.t("vaultImages")}</span>
+												</div>
+												<div class={styles.metric}>
+													<strong class={styles.metricValue}>{details().audioCount}</strong>
+													<span class={styles.metricLabel}>{props.t("vaultAudio")}</span>
+												</div>
+												<div class={styles.metric}>
+													<strong class={styles.metricValue}>{details().videoCount}</strong>
+													<span class={styles.metricLabel}>{props.t("vaultVideos")}</span>
+												</div>
+												<div class={styles.metric}>
+													<strong class={styles.metricValue}>
+														{formatCount(details().characterCount, props.t("locale"))}
+													</strong>
+													<span class={styles.metricLabel}>
+														{props.t("vaultCharacters")}
+													</span>
+												</div>
+												<div class={styles.metric}>
+													<strong class={styles.metricValue}>
+														{formatStorageSize(details().storageBytes, props.t("locale"))}
+													</strong>
+													<span class={styles.metricLabel}>
+														{props.t("vaultStorage")}
+													</span>
+												</div>
+												<div class={styles.metric}>
+													<strong class={styles.metricValue}>
+														{formatLastModified(details().lastModifiedAt, props.t("locale"))}
+													</strong>
+													<span class={styles.metricLabel}>
+														{props.t("vaultUpdated")}
+													</span>
+												</div>
+												<div class={styles.metric}>
+													<strong class={styles.metricValue}>
+														{formatLastModified(details().createdAt, props.t("locale"))}
+													</strong>
+													<span class={styles.metricLabel}>
+														{props.t("vaultCreated")}
+													</span>
+												</div>
+											</div>
+										)}
 									</Show>
 								</div>
 							</div>
@@ -243,7 +231,12 @@ const VaultDialog: Component<Props> = (props) => {
 								<div class={styles.list} ref={vaultList}>
 									<For each={reorder.vaults()}>
 										{(vault) => (
-											<div data-vault-row={vault.id} class={cx(styles.vaultRow, reorder.draggedId() === vault.id && styles.draggingVault)}>
+											<div data-vault-row={vault.id} class={cx(styles.vaultRow, reorder.draggedId() === vault.id && styles.draggingVault)} onContextMenu={event => {
+												if (state.editingVaultId() === vault.id) return;
+												event.preventDefault();
+												event.stopPropagation();
+												setVaultActionsVisibleId(current => current === vault.id ? undefined : vault.id);
+											}}>
 												<Show
 									when={state.editingVaultId() === vault.id}
 													fallback={
@@ -261,9 +254,10 @@ const VaultDialog: Component<Props> = (props) => {
 																disabled={props.saving}
 																onPointerDown={event => reorder.begin(event, vault.id)}
 																onClick={(event) => {
-																	if (reorder.consumeClick(event)) return;
+																		if (reorder.consumeClick(event)) return;
 																	props.onClearError();
-											state.setSelectedVaultId(vault.id);
+																	setVaultActionsVisibleId(undefined);
+																	state.setSelectedVaultId(vault.id);
 																}}
 															>
 																{vault.name}
@@ -271,12 +265,16 @@ const VaultDialog: Component<Props> = (props) => {
 															<div class={styles.vaultActions}>
 																<Button
 																	class={styles.iconAction}
+																	classList={{ [styles.vaultActionReveal]: true, [styles.vaultActionRevealVisible]: vaultActionsVisibleId() === vault.id }}
 																	type="button"
 																	aria-label={props.t("rename")}
-																	disabled={props.saving}
-																	onClick={() => {
-																		props.onClearError();
-												state.setEditingName(vault.name);
+																	disabled={props.saving || vaultActionsVisibleId() !== vault.id}
+																	aria-hidden={vaultActionsVisibleId() !== vault.id}
+																	tabIndex={vaultActionsVisibleId() === vault.id ? 0 : -1}
+																onClick={() => {
+																	props.onClearError();
+																	setVaultActionsVisibleId(undefined);
+																	state.setEditingName(vault.name);
 												state.setEditingVaultId(vault.id);
 																	}}
 																>
@@ -284,12 +282,16 @@ const VaultDialog: Component<Props> = (props) => {
 																</Button>
 																<Button
 																	class={styles.iconAction}
+																	classList={{ [styles.vaultActionReveal]: true, [styles.vaultActionRevealVisible]: vaultActionsVisibleId() === vault.id }}
 																	type="button"
 																	aria-label={props.t("delete")}
-																	disabled={props.saving}
-																	onClick={() => {
-																		props.onClearError();
-													state.setDeletingVault(vault);
+																	disabled={props.saving || vaultActionsVisibleId() !== vault.id}
+																	aria-hidden={vaultActionsVisibleId() !== vault.id}
+																	tabIndex={vaultActionsVisibleId() === vault.id ? 0 : -1}
+																onClick={() => {
+																	props.onClearError();
+																	setVaultActionsVisibleId(undefined);
+																	state.setDeletingVault(vault);
 													state.setDeleteConfirmationVisible(true);
 																	}}
 																>

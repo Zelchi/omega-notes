@@ -340,7 +340,7 @@ export const useAppController = () => {
 		if (keep !== "kanban") kanban.setOpen(false);
 		if (keep !== "pomodoro") pomodoro.setOpen(false);
 		if (keep !== "settings") setSettingsOpen(false);
-		if (keep !== "vault") vaults.closeDialog();
+		if (keep !== "vault") vaults.hideDialog();
 		if (keep !== "study") studies.close();
 		if (keep !== "note-name") navigation.hideNameDialog();
 		if (keep !== "delete") noteDeletion.close();

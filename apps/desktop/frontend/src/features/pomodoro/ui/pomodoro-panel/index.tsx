@@ -75,11 +75,6 @@ const PomodoroPanel: Component<Props> = (props) => {
 				</header>
 				<div class={styles.radioSection}>
 					<Suspense fallback={null}><LofiPlayerPanel t={props.t} /></Suspense>
-					<label class={styles.muteLofiSetting}>
-						<input class={styles.muteLofiCheckbox} type="checkbox" checked={props.pomodoro.muteLofiDuringBreaks()}
-							onChange={event => props.pomodoro.setMuteLofiDuringBreaks(event.currentTarget.checked)} />
-						<span>{props.t("pomodoroMuteLofiDuringBreaks")}</span>
-					</label>
 				</div>
 				<div class={styles.content}>
 					<section class={styles.timer} aria-label={props.t("pomodoroTimer")}>

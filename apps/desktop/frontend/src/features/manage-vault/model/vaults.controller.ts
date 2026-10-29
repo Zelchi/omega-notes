@@ -185,6 +185,7 @@ export const useVaults = () => {
 			setSaving(false);
 		}
 	};
+	const hideDialog = (): void => { if (activeVaultId()) setDialogOpen(false); };
 
 	const select = async (vault: Vault): Promise<void> => {
 		if (saving()) return;
@@ -228,7 +229,8 @@ export const useVaults = () => {
 		},
 		retryLoad,
 		clearError,
-		closeDialog: () => { if (activeVaultId()) setDialogOpen(false); },
+		closeDialog: hideDialog,
+		hideDialog,
 		create,
 		rename,
 		remove,
