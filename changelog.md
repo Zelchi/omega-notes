@@ -1,5 +1,19 @@
 # Histórico de atualizações
 
+## v0.6.0
+
+### Canvas
+
+- Bloquear e desbloquear a posição das notas selecionadas com um atalho configurável nas preferências.
+
+### Pomodoro e música
+
+- A configuração para silenciar música durante as pausas fica junto ao rádio e ganhou um checkbox redesenhado.
+
+### Aparência
+
+- Cantos arredondados nas janelas desktop com transparência para evitar vazamento no contorno.
+
 ## v0.5.9
 
 ### Estudos

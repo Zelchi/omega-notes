@@ -3,6 +3,7 @@ import type { Language } from "@/shared/lib/i18n";
 import { DEFAULT_AI_CHAT_SHORTCUT, isAiChatShortcut, type AiChatShortcut } from "../model/ai-chat-shortcut";
 import { DEFAULT_SEARCH_SHORTCUT, isSearchShortcut, type SearchShortcut } from "../model/search-shortcut";
 import { DEFAULT_CANVAS_LAYOUT_SHORTCUT, isCanvasLayoutShortcut, type CanvasLayoutShortcut } from "../model/canvas-layout-shortcut";
+import { DEFAULT_NOTE_LOCK_SHORTCUT, isNoteLockShortcut, type NoteLockShortcut } from "../model/note-lock-shortcut";
 
 const CENTER_CANVAS_KEY = "omega-notes.settings.center-canvas-on-launch";
 const HIDE_CANVAS_CONTROLS_KEY = "omega-notes.settings.hide-zoom-controls";
@@ -16,6 +17,7 @@ const GAMBIARRA_KEY = "omega-notes.settings.gambiarra-enabled";
 const AI_CHAT_SHORTCUT_KEY = "omega-notes.settings.ai-chat-shortcut";
 const SEARCH_SHORTCUT_KEY = "omega-notes.settings.search-shortcut";
 const CANVAS_LAYOUT_SHORTCUT_KEY = "omega-notes.settings.canvas-layout-shortcut";
+const NOTE_LOCK_SHORTCUT_KEY = "omega-notes.settings.note-lock-shortcut";
 const SOUND_VOLUME_KEY = "omega-notes.settings.sound-volume";
 const NOTE_MODE_KEY = "omega-notes.settings.note-mode";
 
@@ -66,6 +68,18 @@ export const readCanvasLayoutShortcut = (): CanvasLayoutShortcut => {
 
 export const saveCanvasLayoutShortcut = (value: CanvasLayoutShortcut): void => {
 	try { localStorage.setItem(CANVAS_LAYOUT_SHORTCUT_KEY, JSON.stringify(value)); }
+	catch (error) { console.error(error); }
+};
+
+export const readNoteLockShortcut = (): NoteLockShortcut => {
+	try {
+		const value: unknown = JSON.parse(localStorage.getItem(NOTE_LOCK_SHORTCUT_KEY) ?? "null");
+		return isNoteLockShortcut(value) ? value : { ...DEFAULT_NOTE_LOCK_SHORTCUT };
+	} catch { return { ...DEFAULT_NOTE_LOCK_SHORTCUT }; }
+};
+
+export const saveNoteLockShortcut = (value: NoteLockShortcut): void => {
+	try { localStorage.setItem(NOTE_LOCK_SHORTCUT_KEY, JSON.stringify(value)); }
 	catch (error) { console.error(error); }
 };
 

@@ -1,4 +1,5 @@
 import { isTerminalTarget } from "@/shared/lib/terminal-focus";
+import { matchesCanvasLayoutShortcut } from "@/features/change-preferences/model/canvas-layout-shortcut";
 import { createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import type { NoteSummary } from "@/entities/note";
 import type { ContextMenu, Gesture, PendingMove, Point, NodeSize, SelectionBox, View, ZipTie } from "./types";
@@ -271,11 +272,27 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			}
 			setContextMenu(undefined);
 		};
+		const onNoteLockShortcut = (event: KeyboardEvent) => {
+			if (!props.noteLockShortcutEnabled || props.busy || props.suspended || props.mode !== "edit"
+				|| gesture || zipTieDrag || zipTieStroke() || contextMenu() || isTerminalTarget(event.target)
+				|| Array.from(document.querySelectorAll('[aria-modal="true"]')).some((dialog) => !dialog.closest("[inert]"))) return;
+			const target = event.target;
+			if (target instanceof Element && target.closest("button, select, option, input, textarea, [role='button'], [role='textbox'], [contenteditable]")
+				&& !target.closest("[data-note-id]")) return;
+			if (!matchesCanvasLayoutShortcut(event, props.noteLockShortcut)) return;
+			const id = [...selectedIds()].find((selectedId) => props.notes.some((note) => note.id === selectedId));
+			if (!id) return;
+			event.preventDefault();
+			event.stopPropagation();
+			if (!event.repeat) toggleNoteLock(id);
+		};
 		addEventListener("pointerdown", closeOnOutsidePointer);
 		addEventListener("keydown", closeOnEscape, true);
+		addEventListener("keydown", onNoteLockShortcut, true);
 		onCleanup(() => {
 			removeEventListener("pointerdown", closeOnOutsidePointer);
 			removeEventListener("keydown", closeOnEscape, true);
+			removeEventListener("keydown", onNoteLockShortcut, true);
 		});
 	});
 

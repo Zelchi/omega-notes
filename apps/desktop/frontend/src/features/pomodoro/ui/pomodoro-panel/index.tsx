@@ -73,7 +73,14 @@ const PomodoroPanel: Component<Props> = (props) => {
 						<Icon name="close" size={15} />
 					</Button>
 				</header>
-				<Suspense fallback={null}><LofiPlayerPanel t={props.t} /></Suspense>
+				<div class={styles.radioSection}>
+					<Suspense fallback={null}><LofiPlayerPanel t={props.t} /></Suspense>
+					<label class={styles.muteLofiSetting}>
+						<input class={styles.muteLofiCheckbox} type="checkbox" checked={props.pomodoro.muteLofiDuringBreaks()}
+							onChange={event => props.pomodoro.setMuteLofiDuringBreaks(event.currentTarget.checked)} />
+						<span>{props.t("pomodoroMuteLofiDuringBreaks")}</span>
+					</label>
+				</div>
 				<div class={styles.content}>
 					<section class={styles.timer} aria-label={props.t("pomodoroTimer")}>
 						<div class={styles.timerHeader}>
@@ -104,11 +111,6 @@ const PomodoroPanel: Component<Props> = (props) => {
 										<label class={styles.setting}>
 											<span>{props.t("pomodoroCyclesBeforeLongBreak")}</span>
 											<input class={styles.numberInput} type="number" min="1" max="100" step="1" required value={cyclesDraft()} onInput={event => setCyclesDraft(event.currentTarget.value)} onChange={saveSettings} />
-										</label>
-										<label class={styles.muteLofiSetting}>
-											<input class={styles.muteLofiCheckbox} type="checkbox" checked={props.pomodoro.muteLofiDuringBreaks()}
-												onChange={event => props.pomodoro.setMuteLofiDuringBreaks(event.currentTarget.checked)} />
-											<span>{props.t("pomodoroMuteLofiDuringBreaks")}</span>
 										</label>
 									</div>
 								</Show>

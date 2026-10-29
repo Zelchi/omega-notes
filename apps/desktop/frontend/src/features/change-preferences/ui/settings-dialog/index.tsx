@@ -15,6 +15,7 @@ import GambiarraWarningDialog from "./gambiarra-warning-dialog";
 import type { AiChatShortcut } from "../../model/ai-chat-shortcut";
 import type { SearchShortcut } from "../../model/search-shortcut";
 import type { CanvasLayoutShortcut } from "../../model/canvas-layout-shortcut";
+import type { NoteLockShortcut } from "../../model/note-lock-shortcut";
 import { styles } from "./style.css.ts";
 import BlockSlider from "@/shared/ui/block-slider";
 import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
@@ -41,6 +42,8 @@ type Props = {
 	onSearchShortcutChange: (value: SearchShortcut) => void;
 	canvasLayoutShortcut: CanvasLayoutShortcut;
 	onCanvasLayoutShortcutChange: (value: CanvasLayoutShortcut) => void;
+	noteLockShortcut: NoteLockShortcut;
+	onNoteLockShortcutChange: (value: NoteLockShortcut) => void;
 	aiResetting?: boolean;
 	aiCleanupError?: string;
 	onAiFeaturesEnabledChange: (value: boolean) => void;
@@ -101,6 +104,11 @@ const SettingsDialog: Component<Props> = (props) => {
 									<label for="settings-canvasLayoutShortcut">{props.t("canvasLayoutShortcut")}</label>
 									<KeyboardShortcutInput id="settings-canvasLayoutShortcut" label="canvasLayoutShortcut"
 										value={props.canvasLayoutShortcut} onChange={props.onCanvasLayoutShortcutChange} t={props.t} />
+								</div>
+								<div class={styles.option}>
+									<label for="settings-noteLockShortcut">{props.t("noteLockShortcut")}</label>
+									<KeyboardShortcutInput id="settings-noteLockShortcut" label="noteLockShortcut"
+										value={props.noteLockShortcut} onChange={props.onNoteLockShortcutChange} t={props.t} />
 								</div>
 								<div class={styles.option}>
 									<label for="settings-aiChatShortcut">{props.t("aiChatShortcut")}</label>

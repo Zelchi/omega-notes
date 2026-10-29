@@ -1,6 +1,6 @@
 [package]
 name = "omega-notes-backend"
-version = "0.5.9"
+version = "0.6.0"
 description = "Backend Rust do Ômega Notes"
 authors = ["Ômega Notes"]
 edition = "2021"

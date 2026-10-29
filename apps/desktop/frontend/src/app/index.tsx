@@ -1,6 +1,7 @@
 import Button from "@/shared/ui/button";
 import { createEffect, createSignal, lazy, Show, Suspense, type Component } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
+import { cx } from "@/shared/lib/classes";
 
 import { formatAiChatShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
 import WindowTitlebar from "./ui/window-titlebar";
@@ -51,7 +52,7 @@ const AppView: Component = () => {
 		<BackgroundThemeProvider value={app.preferences.backgroundTheme}>
 			<BackgroundIntensityProvider value={app.preferences.backgroundIntensity}>
 				<>
-				<div class={styles.shell} inert={app.updates.installing()} onContextMenu={(event) => event.preventDefault()} data-omega-app-shell>
+				<div class={cx(styles.shell, app.windowControls.maximized() && styles.maximizedShell)} inert={app.updates.installing()} onContextMenu={(event) => event.preventDefault()} data-omega-app-shell>
 					<WindowTitlebar
 						maximized={app.windowControls.maximized()}
 						gnome={app.windowControls.gnome()}
@@ -129,6 +130,8 @@ const AppView: Component = () => {
 							onDeleteNote={app.requestDeleteNote}
 											busy={app.canvasHistory.pending() || app.vaultActionPending() || app.navigation.navigating()}
 											suspended={app.navigation.navigating()}
+											noteLockShortcut={app.preferences.noteLockShortcut()}
+											noteLockShortcutEnabled={!!app.vaults.activeVaultId() && !app.settingsOpen() && !app.chatOpen() && !app.kanban.open() && !app.pomodoro.open() && !app.vaults.dialogOpen() && !app.studies.open() && !app.noteDeletion.open() && !app.noteDeletion.pending() && !app.navigation.nameDialogVisible() && !app.updates.installing()}
 											restoration={app.canvasHistory.restoration()?.vaultId === app.vaults.activeVaultId() ? app.canvasHistory.restoration() : undefined}
 											onRegisterHistory={app.canvasHistory.register}
 											onHistoryRestored={app.canvasHistory.restored}
@@ -209,8 +212,10 @@ const AppView: Component = () => {
 								onAiChatShortcutChange={app.preferences.setAiChatShortcut}
 								searchShortcut={app.preferences.searchShortcut()}
 								onSearchShortcutChange={app.preferences.setSearchShortcut}
-								canvasLayoutShortcut={app.preferences.canvasLayoutShortcut()}
+										canvasLayoutShortcut={app.preferences.canvasLayoutShortcut()}
 								onCanvasLayoutShortcutChange={app.preferences.setCanvasLayoutShortcut}
+								noteLockShortcut={app.preferences.noteLockShortcut()}
+								onNoteLockShortcutChange={app.preferences.setNoteLockShortcut}
 								onAiFeaturesEnabledChange={app.preferences.setAiFeaturesEnabled}
 								gambiarraEnabled={app.preferences.gambiarraEnabled()}
 								onGambiarraEnabledChange={app.preferences.setGambiarraEnabled}
@@ -302,7 +307,7 @@ const AppView: Component = () => {
 
 				</div>
 				<Show when={app.updates.installing()}>
-					<div class={styles.updateOverlay} role="alert" aria-live="assertive">{app.t("installingUpdate")}</div>
+					<div class={cx(styles.updateOverlay, app.windowControls.maximized() && styles.maximizedShell)} role="alert" aria-live="assertive">{app.t("installingUpdate")}</div>
 				</Show>
 				</>
 			</BackgroundIntensityProvider>

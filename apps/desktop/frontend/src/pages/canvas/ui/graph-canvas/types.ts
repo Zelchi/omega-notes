@@ -2,6 +2,7 @@ import type { CanvasSnapshot, CanvasRestore } from "@/features/undo-canvas-edit"
 import type { Point } from "../../model/graph";
 import type { NoteSummary, StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
+import type { NoteLockShortcut } from "@/features/change-preferences/model/note-lock-shortcut";
 
 export type { Edge, GraphState, NodeSize, Point, View, ZipTie } from "../../model/graph";
 
@@ -10,6 +11,8 @@ export type GraphCanvasProps = {
 	mode: "edit" | "view";
 	busy: boolean;
 	suspended?: boolean;
+	noteLockShortcut: NoteLockShortcut;
+	noteLockShortcutEnabled: boolean;
 	restoration?: CanvasRestore;
 	onRegisterHistory: (vaultId: string, reader: () => CanvasSnapshot) => () => void;
 	onHistoryRestored: () => void;

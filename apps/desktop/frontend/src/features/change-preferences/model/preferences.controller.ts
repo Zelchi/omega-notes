@@ -5,6 +5,7 @@ import type { BackgroundTheme, CanvasLayout, TextCursor, Theme } from "./prefere
 import { isAiChatShortcut, type AiChatShortcut } from "./ai-chat-shortcut";
 import { isSearchShortcut, type SearchShortcut } from "./search-shortcut";
 import { isCanvasLayoutShortcut, type CanvasLayoutShortcut } from "./canvas-layout-shortcut";
+import { isNoteLockShortcut, type NoteLockShortcut } from "./note-lock-shortcut";
 import {
 	readAiFeaturesEnabled,
 	readGambiarraEnabled,
@@ -17,6 +18,8 @@ import {
 	readCanvasLayoutShortcut,
 	saveSearchShortcut,
 	saveCanvasLayoutShortcut,
+	readNoteLockShortcut,
+	saveNoteLockShortcut,
 	saveAiFeaturesEnabled,
 	readCanvasLayout,
 	readBackgroundTheme,
@@ -44,6 +47,7 @@ export const usePreferences = () => {
 	const [aiChatShortcut, setAiChatShortcut] = createSignal(readAiChatShortcut());
 	const [searchShortcut, setSearchShortcut] = createSignal(readSearchShortcut());
 	const [canvasLayoutShortcut, setCanvasLayoutShortcut] = createSignal(readCanvasLayoutShortcut());
+	const [noteLockShortcut, setNoteLockShortcut] = createSignal(readNoteLockShortcut());
 	const [canvasLayout, setCanvasLayout] = createSignal<CanvasLayout>(readCanvasLayout());
 	const [centerCanvasOnLaunch, setCenterCanvasOnLaunch] = createSignal(readCenterCanvasOnLaunch());
 	const [hideCanvasControls, setHideCanvasControls] = createSignal(readHideCanvasControls());
@@ -97,6 +101,12 @@ export const usePreferences = () => {
 			if (!isCanvasLayoutShortcut(value)) return;
 			setCanvasLayoutShortcut(value);
 			saveCanvasLayoutShortcut(value);
+		},
+		noteLockShortcut,
+		setNoteLockShortcut: (value: NoteLockShortcut) => {
+			if (!isNoteLockShortcut(value)) return;
+			setNoteLockShortcut(value);
+			saveNoteLockShortcut(value);
 		},
 		setAiFeaturesEnabled: (value: boolean) => {
 			if (value) { setGambiarraEnabled(false); saveGambiarraEnabled(false); }
