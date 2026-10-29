@@ -2,7 +2,7 @@
     color-scheme: dark;
     font-family: Inter, "Segoe UI", "Helvetica Neue", sans-serif;
     color: var(--ink);
-    background: var(--canvas);
+    background: transparent;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;

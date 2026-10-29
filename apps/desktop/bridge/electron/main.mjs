@@ -162,7 +162,7 @@ else {
     try {
         await backend.ready();
         const icon = nativeImage.createFromPath(join(directory, 'icons/128x128.png'));
-        window = new BrowserWindow({ width: 1000, height: 700, minWidth: 900, minHeight: 700, title: 'Ômega', frame: false, show: false, backgroundColor: '#141416', icon, webPreferences: { preload: join(directory, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false } });
+        window = new BrowserWindow({ width: 1000, height: 700, minWidth: 900, minHeight: 700, title: 'Ômega', frame: false, transparent: true, show: false, backgroundColor: '#00000000', icon, webPreferences: { preload: join(directory, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false } });
         Menu.setApplicationMenu(null);
         ipcMain.handle('omega:invoke', (event, command, args = {}) => {
             validateSender(event);

@@ -10,7 +10,7 @@ import { useNotes, type NoteSummary } from "@/entities/note";
 import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner } from "solid-js";
 import { translate, type TranslationKey } from "@/shared/lib/i18n";
 import { configureTrayMenu, onTrayAction } from "./api/tray.repository";
-import { setWindowBackgroundColor, showMainWindowIfHidden } from "./api/window.repository";
+import { showMainWindowIfHidden } from "./api/window.repository";
 import { useVaults } from "@/features/manage-vault/model/vaults.controller";
 import type { Vault } from "@/entities/vault";
 import { matchesAiChatShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
@@ -103,12 +103,6 @@ export const useAppController = () => {
 		centerCanvasOnLaunch: preferences.centerCanvasOnLaunch,
 		beforeNavigate: async () => saveNoteTitle ? saveNoteTitle() : true,
 		t,
-	});
-	createEffect(() => {
-		const surface = navigation.route() === "canvas" ? "--board" : "--canvas";
-		preferences.theme();
-		const color = getComputedStyle(document.documentElement).getPropertyValue(surface).trim();
-		if (isDesktopRuntime() && color) void setWindowBackgroundColor(color).catch(console.error);
 	});
 	const aiChatLazy = createLazyController<AiChatController>(() =>
 		Promise.all([

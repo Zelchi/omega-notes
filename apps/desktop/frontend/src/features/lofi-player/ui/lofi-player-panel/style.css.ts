@@ -9,7 +9,7 @@ const button = style({
 });
 
 	export const styles = {
-	radio: style({ display: "grid", gap: 10, paddingBottom: 14, borderBottom: "1px solid var(--border-soft)" }),
+	radio: style({ display: "grid", gap: 10 }),
 	stationRow: style({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }),
 	station: style({ display: "grid", gap: 4, minWidth: 0 }),
 	stationName: style({ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14, fontWeight: 600 }),

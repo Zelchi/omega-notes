@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readBackgroundIntensity, saveBackgroundIntensity, readCanvasLayout, saveCanvasLayout } from '../src/features/change-preferences/api/preferences.repository.ts';
+import { readBackgroundIntensity, saveBackgroundIntensity, readCanvasLayout, saveCanvasLayout, readNoteLockShortcut, saveNoteLockShortcut } from '../src/features/change-preferences/api/preferences.repository.ts';
 import { usePreferences } from '../src/features/change-preferences/model/preferences.controller.ts';
+import { DEFAULT_NOTE_LOCK_SHORTCUT } from '../src/features/change-preferences/model/note-lock-shortcut.ts';
 
 const storage = t => {
 	const previousStorage = globalThis.localStorage;
@@ -29,6 +30,21 @@ test('unsupported legacy canvas layout falls back to dynamic', t => {
 	const data = storage(t);
 	data.set('omega-notes.canvas-layout', 'archive');
 	assert.equal(readCanvasLayout(), 'dynamic');
+});
+
+test('note lock shortcut defaults, persists, and rejects invalid saved values', t => {
+	const data = storage(t);
+	assert.deepEqual(readNoteLockShortcut(), DEFAULT_NOTE_LOCK_SHORTCUT);
+
+	const customShortcut = { code: 'KeyK', ctrl: false, alt: true, shift: true };
+	saveNoteLockShortcut(customShortcut);
+	assert.equal(data.get('omega-notes.settings.note-lock-shortcut'), JSON.stringify(customShortcut));
+	assert.deepEqual(readNoteLockShortcut(), customShortcut);
+
+	data.set('omega-notes.settings.note-lock-shortcut', JSON.stringify({ ...customShortcut, code: 'NotAKey' }));
+	assert.deepEqual(readNoteLockShortcut(), DEFAULT_NOTE_LOCK_SHORTCUT);
+	data.set('omega-notes.settings.note-lock-shortcut', '{broken json');
+	assert.deepEqual(readNoteLockShortcut(), DEFAULT_NOTE_LOCK_SHORTCUT);
 });
 
 test('background intensity defaults, persists, and clamps saved values', t => {

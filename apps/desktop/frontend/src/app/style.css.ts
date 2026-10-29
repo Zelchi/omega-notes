@@ -4,6 +4,7 @@ export const styles = {
 	updateOverlay: style({
 		position: "fixed", inset: 0, zIndex: 100,
 		display: "grid", placeItems: "center",
+		borderRadius: 12,
 		backgroundColor: "var(--overlay)", color: "var(--ink)", fontSize: 14,
 	}),
 	shell: style({
@@ -14,11 +15,13 @@ export const styles = {
 		height: "100%",
 		minHeight: 0,
 		overflow: "hidden",
-		backgroundColor: "transparent",
+		backgroundColor: "var(--canvas)",
+		borderRadius: 12,
 		borderWidth: 1,
 		borderStyle: "solid",
 		borderColor: "var(--line)",
 	}),
+	maximizedShell: style({ borderRadius: 0 }),
 	main: style({
 		flex: "1 1 0",
 		position: "relative",
