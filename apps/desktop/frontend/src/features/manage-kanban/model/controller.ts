@@ -5,6 +5,8 @@ import { kanbanStatuses, maxKanbanItems, maxKanbanPosition, type KanbanItem, typ
 
 export const useKanban = (vaultId: Accessor<string | undefined>) => {
 	const [open, setOpen] = createSignal(false);
+	const [panelWidth, setPanelWidth] = createSignal(420);
+	const [panelStage, setPanelStage] = createSignal(1);
 	const [items, setItems] = createSignal<KanbanItem[]>([]);
 	const [loading, setLoading] = createSignal(false);
 	const [error, setError] = createSignal(false);
@@ -129,5 +131,5 @@ export const useKanban = (vaultId: Accessor<string | undefined>) => {
 		persist(id, items().filter((item) => item.id !== itemId));
 	};
 
-	return { open, setOpen, items, loading, error, readFailed, retryRead, add, rename, move, remove, flushSave, view };
+	return { open, setOpen, panelWidth, setPanelWidth, panelStage, setPanelStage, items, loading, error, readFailed, retryRead, add, rename, move, remove, flushSave, view };
 };

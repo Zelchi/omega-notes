@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show, type Component } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js";
 import Button from "@/shared/ui/button";
 import CustomScrollArea from "@/shared/ui/custom-scroll-area";
 import Icon from "@/shared/ui/icon";
@@ -6,6 +6,7 @@ import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import type { TranslationKey } from "@/shared/lib/i18n";
+import { clampKanbanPanelWidth, getKanbanLayoutColumnCount, getKanbanPanelSnapPoints, getKanbanPanelStage, getKanbanPanelWidthLimits, resizeKanbanPanelForViewport, snapKanbanPanelWidth } from "../../model/panel-size";
 import { kanbanSlotCount, kanbanStatusLabels, kanbanStatuses, maxKanbanItems, type KanbanItem, type KanbanStatus } from "../../model/kanban";
 import type { useKanban } from "../../model/controller";
 import { styles } from "./style.css.ts";
@@ -23,9 +24,65 @@ const KanbanPanel: Component<Props> = (props) => {
 	const presence = createPresence(props.kanban.open, 210);
 	const { adding, setAdding, draft, setDraft, editing, setEditing, editDraft, setEditDraft,
 		actionsVisibleId, setActionsVisibleId, collapsedStatuses, setCollapsedStatuses } = props.kanban.view;
+	const [canResize, setCanResize] = createSignal(false);
+	const [viewportWidth, setViewportWidth] = createSignal(0);
 	const [draggedId, setDraggedId] = createSignal<string>();
 	const [dropTarget, setDropTarget] = createSignal<{ status: KanbanStatus; position: number }>();
+	let panelElement: HTMLElement | undefined;
+	let resizePointer: { pointerId: number; startX: number; startWidth: number } | undefined;
 	const mutationsBlocked = () => props.kanban.loading() || props.kanban.readFailed();
+	const layoutColumnCount = createMemo(() => getKanbanLayoutColumnCount(props.kanban.panelStage()));
+	const setSnappedPanelWidth = (width: number, nextViewportWidth: number) => {
+		const nextWidth = snapKanbanPanelWidth(width, nextViewportWidth);
+		props.kanban.setPanelWidth(nextWidth);
+		props.kanban.setPanelStage(getKanbanPanelStage(nextWidth, nextViewportWidth));
+	};
+	const updatePanelBounds = () => {
+		const nextViewportWidth = window.innerWidth;
+		const previousViewportWidth = viewportWidth();
+		const { minWidth, maxWidth } = getKanbanPanelWidthLimits(nextViewportWidth);
+		setViewportWidth(nextViewportWidth);
+		setCanResize(getKanbanPanelSnapPoints(minWidth, maxWidth).length > 1);
+		const resized = previousViewportWidth > 0
+			? resizeKanbanPanelForViewport(props.kanban.panelWidth(), props.kanban.panelStage(), previousViewportWidth, nextViewportWidth)
+			: {
+				width: clampKanbanPanelWidth(props.kanban.panelWidth(), nextViewportWidth),
+				stage: getKanbanPanelStage(props.kanban.panelWidth(), nextViewportWidth),
+			};
+		props.kanban.setPanelWidth(resized.width);
+		props.kanban.setPanelStage(resized.stage);
+	};
+	const beginResize = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+		if (event.button !== 0 || !canResize()) return;
+		event.preventDefault();
+		event.stopPropagation();
+		resizePointer = {
+			pointerId: event.pointerId,
+			startX: event.clientX,
+			startWidth: panelElement?.getBoundingClientRect().width ?? props.kanban.panelWidth(),
+		};
+		event.currentTarget.setPointerCapture(event.pointerId);
+	};
+	const moveResize = (event: PointerEvent) => {
+		if (!resizePointer || resizePointer.pointerId !== event.pointerId) return;
+		event.preventDefault();
+		setSnappedPanelWidth(
+			resizePointer.startWidth + event.clientX - resizePointer.startX,
+			window.innerWidth,
+		);
+	};
+	const finishResize = (event: PointerEvent) => {
+		if (!resizePointer || resizePointer.pointerId !== event.pointerId) return;
+		resizePointer = undefined;
+		setSnappedPanelWidth(props.kanban.panelWidth(), window.innerWidth);
+	};
+	onMount(() => {
+		updatePanelBounds();
+		window.addEventListener("resize", updatePanelBounds);
+		onCleanup(() => {
+			window.removeEventListener("resize", updatePanelBounds);
+		});
+	});
 
 	const byStatus = createMemo(() => {
 		const grouped = new Map<KanbanStatus, Map<number, KanbanItem>>(kanbanStatuses.map((status) => [status, new Map()]));
@@ -117,9 +174,10 @@ const KanbanPanel: Component<Props> = (props) => {
 	};
 
 	return <Show when={presence.present()}>
-		<aside id="kanban-panel" class={styles.panel} aria-labelledby="kanban-heading"
+		<aside id="kanban-panel" class={styles.panel}
+			style={{ width: `${props.kanban.panelWidth()}px` }} aria-labelledby="kanban-heading"
 			inert={presence.exiting()} aria-hidden={presence.exiting() ? "true" : undefined}
-			ref={(element) => registerVisibilityAnimation(element, presence.exiting, "panel-left")}
+			ref={(element) => { panelElement = element; registerVisibilityAnimation(element, presence.exiting, "panel-left"); }}
 			onKeyDown={(event) => {
 				if (event.key !== "Escape") return;
 				event.preventDefault();
@@ -127,6 +185,9 @@ const KanbanPanel: Component<Props> = (props) => {
 				props.kanban.setOpen(false);
 			}}>
 			<AsciiBackdrop placement="modal" />
+			<div class={styles.resizeHandle} classList={{ [styles.resizeHandleDisabled]: !canResize() }}
+				onPointerDown={beginResize} onPointerMove={moveResize} onPointerUp={finishResize}
+				onPointerCancel={finishResize} onLostPointerCapture={finishResize} />
 			<div class={styles.body}>
 				<header class={styles.header}>
 					<h2 id="kanban-heading" class={styles.title}>{props.t("kanbanTitle")}</h2>
@@ -145,11 +206,14 @@ const KanbanPanel: Component<Props> = (props) => {
 					</Show>
 					<Show when={props.kanban.items().length >= maxKanbanItems}><p class={styles.loading} role="status">{props.t("kanbanLimitReached")}</p></Show>
 					<Show when={props.kanban.loading()}><p class={styles.loading}>{props.t("kanbanLoading")}</p></Show>
-					<CustomScrollArea ariaLabel={props.t("kanbanTitle")} contentClass={styles.lanes} viewportStyle={{ padding: "2px 12px 12px 2px" }}>
+					<CustomScrollArea ariaLabel={props.t("kanbanTitle")}
+						contentClass={`${styles.lanes} ${layoutColumnCount() === 5 ? styles.lanesFive : ""}`}
+						viewportStyle={{ padding: "2px 12px 12px 2px" }}>
 						<For each={kanbanStatuses}>{(status) => {
 							const items = () => byStatus().get(status) ?? new Map<number, KanbanItem>();
 							return (
-								<section class={styles.lane} aria-labelledby={`kanban-lane-${status}`}>
+								<section class={styles.lane} classList={{ [styles.laneFive]: layoutColumnCount() === 5 }}
+									aria-labelledby={`kanban-lane-${status}`}>
 									<div class={styles.laneHeader}>
 										<h3 id={`kanban-lane-${status}`} class={styles.laneTitle}>
 											{props.t(kanbanStatusLabels[status])}<span class={styles.count}>{items().size}</span>
