@@ -8,8 +8,9 @@ const setup = async t => {
 	const previousWindow = globalThis.window;
 	const previousLocalStorage = globalThis.localStorage;
 	let desktopEvent, receive;
-	const sends = [], cancels = [], steers = [];
+	const sends = [], cancels = [], steers = [], completed = [];
 	const storage = new Map();
+	let applyImpl = async () => async () => { throw 'AI_NOTE_CHANGED'; };
 	globalThis.localStorage = {
 		getItem: key => storage.get(key) ?? null,
 		setItem: (key, value) => storage.set(key, String(value)),
@@ -17,9 +18,10 @@ const setup = async t => {
 	};
 	globalThis.window = { omegaDesktop: {
 		onEvent: handler => { desktopEvent = handler; return () => {}; },
-		invoke: async command => {
+		invoke: async (command, args) => {
 			if (command === 'read_ai_chat') return { messages: [], referenceTitles: {}, draft: '', model: '', effort: '', fast: false };
-			if (command === 'save_ai_chat' || command === 'complete_ai_link_request') return;
+			if (command === 'save_ai_chat') return;
+			if (command === 'complete_ai_link_request') { completed.push(args); return; }
 			throw Error(`Unexpected mocked desktop command: ${command}`);
 		},
 	} };
@@ -45,7 +47,7 @@ const setup = async t => {
 		setVaultId = changeVaultId;
 		controller = useAiChat({
 			provider, enabled: () => true, vaultId, notes: () => [], currentNote: () => undefined, notesReady: () => true,
-			beforeSend: () => beforeSend(), applyLinkedMentions: async () => async () => { throw 'AI_NOTE_CHANGED'; }, t: key => key,
+			beforeSend: () => beforeSend(), applyLinkedMentions: (...args) => applyImpl(...args), t: key => key,
 		});
 	});
 	t.after(() => {
@@ -59,7 +61,7 @@ const setup = async t => {
 	await controller.connect();
 	await settle();
 	return {
-		controller, sends, cancels, steers, setBeforeSend: value => { beforeSend = value; },
+		controller, sends, cancels, steers, completed, setApplyImpl: value => { applyImpl = value; }, setBeforeSend: value => { beforeSend = value; },
 		setSendImpl: value => { sendImpl = value; }, setVaultId,
 		emitLinkRequest: request => desktopEvent('ai-link-request', request),
 		complete: (vaultId, requestId) => receive({ kind: 'completed', connectionId: status.connectionId, vaultId, requestId }),
@@ -75,6 +77,8 @@ const prepareUndoFallback = async fixture => {
 		ticket: 'fake-ticket', connectionId: 'fake-connection', vaultId: 'vault-a', requestId: originalRequestId,
 		patch: { operation: 'link', noteId: 'note-a', links: [{ id: 'note-b', label: 'Note B' }] },
 	});
+	await settle();
+	controller.approveLinkRequest('fake-ticket');
 	await settle();
 	complete('vault-a', originalRequestId);
 	await settle();
@@ -184,4 +188,102 @@ test('changing vault while beforeSend is pending prevents publishing into the ne
 	await settle();
 	assert.equal(controller.chat().busy, false);
 	assert.equal(controller.chat().draft, 'old vault draft');
+});
+
+test('link requests wait for app approval and a rejection never applies a patch', async t => {
+	const fixture = await setup(t);
+	const { controller, completed } = fixture;
+	let applied = 0;
+	fixture.setApplyImpl(async () => { applied++; return async () => {}; });
+	controller.setDraft('link the notes');
+	await controller.send();
+	const requestId = controller.chat().requestId;
+	fixture.emitLinkRequest({
+		ticket: 'approval-ticket', connectionId: 'fake-connection', vaultId: 'vault-a', requestId,
+		patch: { operation: 'link', noteId: 'note-a', title: 'Note A', links: [{ id: 'note-b', title: 'Note B', reference: '[[note-b]]', label: 'Note B' }] },
+	});
+	await settle();
+	assert.equal(controller.pendingLinkRequest()?.ticket, 'approval-ticket');
+	assert.equal(applied, 0);
+	assert.equal(completed.length, 0);
+
+	controller.rejectLinkRequest('approval-ticket');
+	await settle();
+	assert.equal(applied, 0);
+	assert.equal(completed.length, 1);
+	assert.equal(completed[0].approved, false);
+	assert.equal(completed[0].ticket, 'approval-ticket');
+});
+
+test('cancellation before approval rejects the link request without mutating', async t => {
+	const fixture = await setup(t);
+	const { controller, cancels, completed } = fixture;
+	let applied = 0;
+	fixture.setApplyImpl(async () => { applied++; return async () => {}; });
+	controller.setDraft('link the notes');
+	await controller.send();
+	const requestId = controller.chat().requestId;
+	fixture.emitLinkRequest({ ticket: 'cancel-ticket', connectionId: 'fake-connection', vaultId: 'vault-a', requestId,
+		patch: { operation: 'link', noteId: 'note-a', title: 'Note A', links: [] } });
+	await settle();
+	await controller.cancel();
+	assert.equal(applied, 0);
+	assert.equal(completed.length, 1);
+	assert.equal(completed[0].approved, false);
+	assert.equal(cancels.at(-1)?.[2], requestId);
+});
+
+test('Stop waits for an approved link mutation to commit before cancelling the provider', async t => {
+	const fixture = await setup(t);
+	const { controller, cancels, completed } = fixture;
+	const persistence = deferred();
+	let validAtCommit = false;
+	fixture.setApplyImpl(async (_patch, stillValid) => {
+		validAtCommit = stillValid();
+		await persistence.promise;
+		return async () => {};
+	});
+	controller.setDraft('link the notes');
+	await controller.send();
+	const requestId = controller.chat().requestId;
+	fixture.emitLinkRequest({ ticket: 'commit-ticket', connectionId: 'fake-connection', vaultId: 'vault-a', requestId,
+		patch: { operation: 'link', noteId: 'note-a', title: 'Note A', links: [] } });
+	await settle();
+	controller.approveLinkRequest('commit-ticket');
+	await settle();
+	assert.equal(validAtCommit, true);
+	assert.equal(completed.length, 0);
+
+	const stopping = controller.cancel();
+	await settle();
+	assert.equal(cancels.length, 0);
+	persistence.resolve();
+	await stopping;
+	assert.equal(completed.length, 1);
+	assert.equal(completed[0].approved, true);
+	assert.equal(cancels.at(-1)?.[2], requestId);
+	assert.equal(controller.chat().messages.at(-1).text, 'aiLinksAppliedBeforeStop');
+});
+
+test('Stop after a committed link change preserves the success result before cancelling the provider', async t => {
+	const fixture = await setup(t);
+	const { controller, cancels, completed } = fixture;
+	let committed = false;
+	fixture.setApplyImpl(async () => { committed = true; return async () => {}; });
+	controller.setDraft('link the notes');
+	await controller.send();
+	const requestId = controller.chat().requestId;
+	fixture.emitLinkRequest({ ticket: 'committed-ticket', connectionId: 'fake-connection', vaultId: 'vault-a', requestId,
+		patch: { operation: 'link', noteId: 'note-a', title: 'Note A', links: [] } });
+	await settle();
+	controller.approveLinkRequest('committed-ticket');
+	await settle();
+	assert.equal(committed, true);
+	assert.equal(completed.length, 1);
+	assert.equal(completed[0].approved, true);
+
+	await controller.cancel();
+	assert.equal(completed.length, 1);
+	assert.equal(cancels.at(-1)?.[2], requestId);
+	assert.equal(controller.chat().messages.at(-1).text, 'aiLinksAppliedBeforeStop');
 });

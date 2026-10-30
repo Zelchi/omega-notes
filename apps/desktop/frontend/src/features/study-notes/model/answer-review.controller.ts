@@ -15,7 +15,7 @@ export const useAnswerReview = (options: StudyEnvironment, session: {
 	active: Accessor<boolean>; canWrite: Accessor<boolean>;
 	current: Accessor<StudyItem | undefined>; itemIndex: Accessor<number | undefined>;
 	pauseTimer: () => number; onSubmitted: () => void;
-	prompt: (item: StudyItem, answer: string, locale: string, blankAnswers?: readonly string[]) => string;
+	prompt: (item: StudyItem, answer: string, locale: string, blankAnswers: readonly string[] | undefined, contextItemId: string) => string;
 	onResult: (itemIndex: number, outcome: StudyOutcome, details: StudySubmission & { feedback?: WrittenFeedback }) => void;
 }) => {
 	const [draft, setDraftValue] = createSignal("");
@@ -40,8 +40,9 @@ export const useAnswerReview = (options: StudyEnvironment, session: {
 		try {
 			if (!options.aiConnected()) throw Error("AI_DISCONNECTED");
 			const context = contexts.get(options.noteSummaries(), value.item);
-			const response = await options.requestText(session.prompt(value.item, value.answer, options.t("locale"), value.blankAnswers), token.signal, {
-				items: [{ itemId: `review-${value.itemIndex}`, candidateId: context.candidateId, noteId: context.noteId, sourceIds: context.sourceIds, supportingNoteIds: context.supportingNoteIds }],
+			const contextItemId = `review-${value.itemIndex}`;
+			const response = await options.requestText(session.prompt(value.item, value.answer, options.t("locale"), value.blankAnswers, contextItemId), token.signal, {
+				items: [{ itemId: contextItemId, candidateId: context.candidateId, noteId: context.noteId, sourceIds: context.sourceIds, supportingNoteIds: context.supportingNoteIds }],
 			}, "study-evaluation");
 			if (!valid()) return;
 			if (!contexts.unchanged(context, options.noteSummaries(), value.item)) throw Error("STUDY_SOURCES_CHANGED");
@@ -73,7 +74,7 @@ export const useAnswerReview = (options: StudyEnvironment, session: {
 		const item = session.current(), itemIndex = session.itemIndex();
 		if (!item || itemIndex === undefined || !session.canWrite() || !answer.trim() || responses().some(value => value.itemIndex === itemIndex)) return;
 		if (!options.aiConnected()) { setError(options.t("studyConnectFirst")); return; }
-		const prompt = session.prompt(item, answer, options.t("locale"), blankAnswers);
+		const prompt = session.prompt(item, answer, options.t("locale"), blankAnswers, `review-${itemIndex}`);
 		if (answer.length > 4000 || new TextEncoder().encode(prompt).length > 32_000) { setError(options.t("studyWrittenTooLong")); return; }
 		if (session.pauseTimer() <= 0) return;
 		setResponses(values => [...values, { itemIndex, item, ...details, status: "queued" }]);

@@ -380,9 +380,20 @@ pub(super) fn read(directory: &Path, request_id: &str, args: &Value) -> Result<V
             .cloned()
             .ok_or("AI_STUDY_CONTEXT_UNAVAILABLE")?
     };
+    read_context(directory, &context, args)
+}
+
+fn read_context(directory: &Path, context: &Context, args: &Value) -> Result<Value, String> {
     if context.directory != directory {
         return Err("AI_STUDY_VAULT_MISMATCH".into());
     }
+    let item_id = args["itemId"].as_str().ok_or("AI_STUDY_ITEM_NOT_FOUND")?;
+    let item = context
+        .items
+        .iter()
+        .find(|item| item.item_id == item_id)
+        .ok_or("AI_STUDY_ITEM_NOT_FOUND")?;
+    let is_assigned_source = |note: &Source| item.source_ids.iter().any(|id| id == &note.id);
     let offset = args["offset"].as_u64().unwrap_or(0).min(usize::MAX as u64) as usize;
     if let Some(id) = args["sourceId"].as_str() {
         let note = context
@@ -390,6 +401,12 @@ pub(super) fn read(directory: &Path, request_id: &str, args: &Value) -> Result<V
             .iter()
             .find(|note| note.alias == id)
             .ok_or("AI_NOTE_NOT_FOUND")?;
+        if !is_assigned_source(note) {
+            return Err("AI_STUDY_SOURCE_NOT_ASSIGNED".into());
+        }
+        if !tools::has_text(&note.content.text) {
+            return Err("AI_CONTENT_EMPTY".into());
+        }
         let limit = args["limit"].as_u64().unwrap_or(16000) as usize;
         if let Some(segment_id) = args["segmentId"].as_u64() {
             let segment_id = usize::try_from(segment_id).map_err(|_| "AI_SEGMENT_NOT_FOUND")?;
@@ -406,9 +423,6 @@ pub(super) fn read(directory: &Path, request_id: &str, args: &Value) -> Result<V
             result["usedByItems"] = json!(note.used_by);
             result["segment"] = segment.descriptor(&note.content.text);
             return Ok(result);
-        }
-        if !tools::has_text(&note.content.text) {
-            return Err("AI_CONTENT_EMPTY".into());
         }
         let segment_offset = args["segmentOffset"]
             .as_u64()
@@ -448,8 +462,12 @@ pub(super) fn read(directory: &Path, request_id: &str, args: &Value) -> Result<V
         }
         return Ok(result);
     }
-    let notes: Vec<_> = context
+    let assigned_sources: Vec<_> = context
         .notes
+        .iter()
+        .filter(|note| is_assigned_source(note))
+        .collect();
+    let notes: Vec<_> = assigned_sources
         .iter()
         .skip(offset)
         .take(50)
@@ -472,13 +490,19 @@ pub(super) fn read(directory: &Path, request_id: &str, args: &Value) -> Result<V
             .find(|note| note.id == id)
             .map(|note| note.alias.as_str())
     };
-    let items: Vec<_> = context.items.iter().enumerate().map(|(index, item)| json!({
-        "number":index + 1,"itemId":item.item_id,"primarySourceId":alias_for(&item.note_id),
+    let number = context
+        .items
+        .iter()
+        .position(|candidate| candidate.item_id == item_id)
+        .unwrap()
+        + 1;
+    let items = json!([{
+        "number":number,"itemId":item.item_id,"primarySourceId":alias_for(&item.note_id),
         "supportingSourceIds":item.supporting_note_ids.iter().filter_map(|id| alias_for(id)).collect::<Vec<_>>()
-    })).collect();
+    }]);
     Ok(
-        json!({"items":items,"notes":notes,"totalNotes":context.notes.len(),
-        "nextOffset":(end < context.notes.len()).then_some(end),"scope":"prepared-study-context"}),
+        json!({"items":items,"notes":notes,"totalNotes":assigned_sources.len(),
+        "nextOffset":(end < assigned_sources.len()).then_some(end),"scope":"prepared-study-context"}),
     )
 }
 

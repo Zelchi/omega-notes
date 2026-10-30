@@ -561,6 +561,9 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		}
 		const before = new Map(current.document.elements.filter((element) => element.type === "text").map((element) => [element.id, element.text]));
 		const after = new Map(patch.document.elements.flatMap((element) => element.type === "text" && before.get(element.id) !== element.text ? [[element.id, element.text] as const] : []));
+		if (!stillValid()) throw "AI_CANCELLED";
+		// queueSave updates the in-memory document and starts the commit synchronously. Once
+		// this point is crossed, cancellation waits for persistence and reports its result.
 		updateDocument(current.id, { ...current.document, elements: current.document.elements.map((element) => element.type === "text" && after.has(element.id) ? { ...element, text: after.get(element.id)! } : element) });
 		if (!(await flushSave())) throw "AI_SAVE_FAILED";
 		return async () => {

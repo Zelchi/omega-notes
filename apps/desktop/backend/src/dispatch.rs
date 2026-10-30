@@ -399,6 +399,10 @@ pub(crate) async fn dispatch(
             serde_json::to_value(crate::ai::link_requests::complete_ai_link_request(
                 app.clone(),
                 argument(&args, "ticket")?,
+                argument(&args, "connectionId")?,
+                argument(&args, "vaultId")?,
+                argument(&args, "requestId")?,
+                argument(&args, "approved")?,
                 argument(&args, "error")?,
             )?)
             .map_err(|error| error.to_string())
@@ -569,5 +573,31 @@ pub(crate) async fn dispatch(
         }
         "updater_install" => crate::updates::install(app, argument(&args, "version")?).await,
         _ => Err("Unknown backend command".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::dispatch;
+    use serde_json::json;
+
+    #[test]
+    fn link_completion_dispatch_rejects_requests_without_an_approval_decision() {
+        let app = crate::runtime::AppContext::new(
+            std::env::temp_dir(),
+            std::env::temp_dir(),
+            Box::new(Vec::<u8>::new()),
+        );
+        let result = crate::runtime::block_on(dispatch(
+            app,
+            "complete_ai_link_request".into(),
+            json!({
+                "ticket":"ticket",
+                "connectionId":"connection",
+                "vaultId":"vault",
+                "requestId":"request"
+            }),
+        ));
+        assert!(result.unwrap_err().contains("approved"));
     }
 }

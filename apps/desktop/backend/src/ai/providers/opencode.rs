@@ -50,11 +50,12 @@ pub(super) fn isolate(command: &mut Command, root: &Path, config: &Value) -> Res
     Ok(())
 }
 
-pub(super) fn permissions() -> Value {
+pub(super) fn permissions(purpose: crate::ai::task::Purpose) -> Value {
     let mut permissions = vec![json!({"action":"*","resource":"*","effect":"deny"})];
     permissions.extend(
         crate::ai::tools::names()
             .iter()
+            .filter(|name| crate::ai::tools::allowed_for(purpose, name))
             .map(|name| json!({"action":format!("omega_{name}"),"resource":"*","effect":"allow"})),
     );
     Value::Array(permissions)
@@ -66,9 +67,10 @@ pub(super) fn configure(
     root: &Path,
     mcp_command: Vec<Value>,
     instructions: &str,
+    purpose: crate::ai::task::Purpose,
     model: Option<&str>,
 ) -> Result<(), String> {
-    let config = configuration(binary, root, mcp_command, instructions)?;
+    let config = configuration(binary, root, mcp_command, instructions, purpose)?;
     isolate(command, root, &config)?;
     command.args([
         "run",
@@ -90,9 +92,10 @@ pub(super) fn configure_server(
     root: &Path,
     mcp_command: Vec<Value>,
     instructions: &str,
+    purpose: crate::ai::task::Purpose,
     port: u16,
 ) -> Result<(), String> {
-    let config = configuration(binary, root, mcp_command, instructions)?;
+    let config = configuration(binary, root, mcp_command, instructions, purpose)?;
     isolate(command, root, &config)?;
     command.args(["serve", "--hostname", "127.0.0.1", "--port"]);
     command.arg(port.to_string());
@@ -104,8 +107,9 @@ fn configuration(
     root: &Path,
     mcp_command: Vec<Value>,
     instructions: &str,
+    purpose: crate::ai::task::Purpose,
 ) -> Result<Value, String> {
-    let permissions = permissions();
+    let permissions = permissions(purpose);
     let mut config = json!({"update":"disable","share":"disabled","snapshots":false,
         "plugins":[],"skills":[],"instructions":[],"references":{},"commands":{},
         "permissions":permissions,

@@ -71,6 +71,10 @@ fn catalog_has_all_tools_and_correct_mcp_annotations() {
             tool["annotations"]["readOnlyHint"],
             tool["name"] != "link_note_mentions"
         );
+        assert_eq!(
+            tool["annotations"]["destructiveHint"],
+            tool["name"] == "link_note_mentions"
+        );
         assert_eq!(tool["annotations"]["openWorldHint"], false);
     }
     let names = tools::names();
@@ -84,6 +88,14 @@ fn catalog_has_all_tools_and_correct_mcp_annotations() {
     ] {
         assert!(names.iter().any(|item| item == name));
     }
+    let link_tool = list
+        .iter()
+        .find(|tool| tool["name"] == "link_note_mentions")
+        .unwrap();
+    assert!(link_tool["description"]
+        .as_str()
+        .unwrap()
+        .contains("explicit user approval"));
 }
 
 #[test]

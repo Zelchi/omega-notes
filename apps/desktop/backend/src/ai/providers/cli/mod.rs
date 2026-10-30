@@ -809,6 +809,7 @@ impl Client {
                 &root,
                 mcp_command,
                 &instructions,
+                purpose,
                 model,
             )?;
         }

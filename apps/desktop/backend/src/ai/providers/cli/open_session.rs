@@ -108,6 +108,7 @@ impl OpenCodeSession {
             &root,
             mcp_command,
             &instructions,
+            crate::ai::task::Purpose::Chat,
             port,
         )?;
         let child = command.spawn().map_err(|_| "AI_START_FAILED")?;

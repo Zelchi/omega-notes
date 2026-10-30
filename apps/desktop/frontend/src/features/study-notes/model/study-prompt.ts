@@ -8,7 +8,7 @@ export const studyPrompt = (kind: StudyKind, locale: string, plan: StudyAssignme
 } = { issues: [] }): string => {
 	const format = generationFormats[kind];
 	return `Generate study material from the authorized vault. This is a new task; ignore prior chat topics. Use only read_study_context.
-Task settings: ${JSON.stringify({ kind, count: 1, language: locale, contextTool: "read_study_context", includeLinkedNotes: true,
+Task settings: ${JSON.stringify({ kind, count: 1, language: locale, contextTool: "read_study_context", itemId: plan[0]?.itemId, includeLinkedNotes: true,
 		previousIssues: feedback.issues })}
 ${preparedContextPrompt}
 Generate exactly one question/card in this request. Return one object in items, with the exact itemId from the single manifest assignment. Never invent, repeat or change an itemId. Supporting sources supplement the original primary subject; ignore unrelated supporting content. Every primary source contains text; sources marked contentAvailable=false cannot support claims and must not be cited. The sources array must contain the exact primarySourceId first and authorized sourceId values actually used, with 1-16 sources total. Cite only manifest aliases, never UUIDs, titles or links. Never substitute another primary source or show source IDs in the learner-facing question.

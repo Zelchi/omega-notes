@@ -88,7 +88,7 @@ fn reply_with_bridge(
             let definitions = tools::definitions_for(purpose);
             let definitions: Vec<_> = definitions.as_array()?.iter().map(|tool|
                 json!({"name":tool["name"],"description":tool["description"],"inputSchema":tool["inputSchema"],
-                    "annotations":{"readOnlyHint":!tools::is_mutation(tool["name"].as_str().unwrap_or_default()),"destructiveHint":false,"openWorldHint":false}})).collect();
+                    "annotations":{"readOnlyHint":!tools::is_mutation(tool["name"].as_str().unwrap_or_default()),"destructiveHint":tools::is_mutation(tool["name"].as_str().unwrap_or_default()),"openWorldHint":false}})).collect();
             json!({"tools":definitions})
         }
         "tools/call" => {
