@@ -65,6 +65,16 @@ test('all lanes start expanded for each vault', async t => {
 	assert.equal(kanban.view.collapsedStatuses().size, 0);
 });
 
+test('resized panel width is retained when switching vaults', async t => {
+	const { kanban, setVaultId } = await setup(t);
+	kanban.setPanelWidth(620);
+
+	setVaultId('vault-b');
+	await settle();
+
+	assert.equal(kanban.panelWidth(), 620);
+});
+
 test('updatedAt changes only when a card moves to another lane', async t => {
 	const { kanban } = await setup(t);
 	kanban.add('Task', 'backlog');

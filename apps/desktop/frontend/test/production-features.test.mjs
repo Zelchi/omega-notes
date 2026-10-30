@@ -132,6 +132,17 @@ test('Kanban card editor has only an icon save action', async () => {
 	assert.match(editor, /type="submit"[\s\S]*?<Icon name="check" size=\{14\} \/>/);
 });
 
+test('Kanban width transition remains active when window resizing moves it to another session', async () => {
+	const [panel, style] = await Promise.all([
+		source('../src/features/manage-kanban/ui/kanban-panel/index.tsx'),
+		source('../src/features/manage-kanban/ui/kanban-panel/style.css.ts'),
+	]);
+	assert.match(style, /transition: "width 100ms cubic-bezier\(0\.2, 0\.7, 0\.3, 1\)"/);
+	assert.doesNotMatch(style, /panelWindowResizing|transition: "none"/);
+	assert.doesNotMatch(panel, /windowResizing|panelWindowResizing/);
+	assert.match(panel, /resizeKanbanPanelForViewport/);
+});
+
 test('static note locks are exposed and excluded from dragging and auto-separation', async () => {
 	const [canvas, controller, style] = await Promise.all([
 		source('../src/pages/canvas/ui/graph-canvas/index.tsx'),

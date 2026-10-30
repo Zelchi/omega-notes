@@ -1,5 +1,22 @@
 import { windowLayout } from "@/shared/ui/window-layout";
 import { style } from "@vanilla-extract/css";
+import { sidePanelViewportGutter, sidePanelWidth } from "@/shared/lib/side-panel-layout";
+import { kanbanStatuses } from "../../model/kanban";
+
+const getLastRowStart = (columnCount: number) => Math.floor((kanbanStatuses.length - 1) / columnCount) * columnCount + 1;
+const getLaneLayout = (columnCount: number) => {
+	const selectors: Record<string, { borderRight?: string; borderBottom?: string }> = {};
+	for (let previousColumnCount = 2; previousColumnCount < columnCount; previousColumnCount += 1) {
+		selectors[`&:nth-child(${previousColumnCount}n)`] = { borderRight: "1px solid var(--border-soft)" };
+	}
+	selectors[`&:nth-child(${columnCount}n)`] = { borderRight: "none" };
+	selectors["&:last-child"] = { borderRight: "none" };
+	for (let index = 1; index < getLastRowStart(columnCount); index += 1) {
+		selectors[`&:nth-child(${index})`] = { borderBottom: "1px solid var(--border-soft)" };
+	}
+	selectors[`&:nth-child(n + ${getLastRowStart(columnCount)})`] = { borderBottom: "none" };
+	return { padding: "12px 8px 18px", borderRight: "1px solid var(--border-soft)", selectors };
+};
 
 const button = style({
 	display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
@@ -12,9 +29,26 @@ export const styles = {
 	button,
 	panel: style({
 		position: "fixed", isolation: "isolate", top: windowLayout.titlebarHeight + 1, left: 1, bottom: 1, zIndex: 8,
-		width: "min(420px, calc(100% - 24px))", background: "var(--surface-panel)",
+		boxSizing: "border-box", width: `min(${sidePanelWidth}px, calc(100vw - ${sidePanelViewportGutter}px))`,
+		minWidth: `min(${sidePanelWidth}px, calc(100vw - ${sidePanelViewportGutter}px))`,
+		maxWidth: `calc(100vw - ${sidePanelViewportGutter}px)`, background: "var(--surface-panel)",
 		borderRight: "1px solid var(--border-strong)", overflow: "hidden",
+		transition: "width 100ms cubic-bezier(0.2, 0.7, 0.3, 1)",
 	}),
+	resizeHandle: style({
+		position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 3,
+		display: "grid", placeItems: "center", width: 10,
+		cursor: "ew-resize", touchAction: "none",
+		selectors: {
+			"&::after": {
+				content: "", display: "block", width: 2, height: 32, borderRadius: 2,
+				backgroundColor: "var(--border-strong)", opacity: 0.65,
+				transition: "opacity 140ms ease, background-color 140ms ease",
+			},
+			"&:hover::after": { backgroundColor: "var(--ink)", opacity: 1 },
+		},
+	}),
+	resizeHandleDisabled: style({ display: "none" }),
 	body: style({ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 16, gap: 14, minHeight: 0 }),
 	header: style({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 14, borderBottom: "1px solid var(--border-soft)" }),
 	title: style({ margin: 0, fontSize: 15, fontWeight: 600 }),
@@ -30,6 +64,7 @@ export const styles = {
 		boxSizing: "border-box",
 		width: "100%",
 	}),
+	lanesFive: style({ gridTemplateColumns: `repeat(${kanbanStatuses.length}, minmax(0, 1fr))` }),
 	lane: style({
 		display: "grid",
 		gap: 0,
@@ -42,6 +77,7 @@ export const styles = {
 		transition: "border-color 140ms ease, background-color 140ms ease",
 		selectors: { "&:last-child": { borderBottom: "none" } },
 	}),
+	laneFive: style({ ...getLaneLayout(kanbanStatuses.length), borderBottom: "none" }),
 	laneHeader: style({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0, padding: "0 6px 8px" }),
 	laneActions: style({ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }),
 	collapseIcon: style({ display: "inline-flex", transition: "transform 160ms ease" }),
