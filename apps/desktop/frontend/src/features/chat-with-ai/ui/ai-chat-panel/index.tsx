@@ -254,6 +254,22 @@ const ChatBody: Component<Props> = (props) => {
                 setTextMenu(undefined);
             }}><Icon name="search" size={15} />{props.t("aiSelectionSearchGoogle")}</Button>
         </div>}</Show>
+        <Show when={props.aiChat.pendingLinkRequest()}>{(request) => <div class={styles.approvalBackdrop} onPointerDown={(event) => event.stopPropagation()}>
+            <section class={styles.approval}>
+                <h3 class={styles.approvalTitle}>{props.t("aiLinkApprovalTitle")}</h3>
+                <div class={styles.approvalDetails}>
+                    <div>{request().patch.title}</div>
+                    <div>{props.t(request().patch.operation === "link" ? "aiLinkInsert" : "aiLinkRemove")}</div>
+                    <ul class={styles.approvalLinks}>
+                        <For each={request().patch.links}>{(link) => <li>{link.title}</li>}</For>
+                    </ul>
+                </div>
+                <div class={styles.approvalActions}>
+                    <Button class={styles.button} type="button" onClick={() => props.aiChat.rejectLinkRequest(request().ticket)}>{props.t("aiLinkCancel")}</Button>
+                    <Button class={styles.button} type="button" onClick={() => props.aiChat.approveLinkRequest(request().ticket)}>{props.t("aiLinkApply")}</Button>
+                </div>
+            </section>
+        </div>}</Show>
     </div>;
 };
 

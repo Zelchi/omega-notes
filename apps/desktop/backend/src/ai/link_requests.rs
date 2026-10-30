@@ -14,6 +14,7 @@ use std::{
 
 type Answer = Result<(), String>;
 const MAX_LINK_RETRIES: usize = 3;
+const LINK_REQUEST_LIFETIME: Duration = Duration::from_secs(30);
 
 #[derive(Default)]
 pub(crate) struct LinkRetryBudget {
@@ -75,8 +76,92 @@ fn is_recoverable_link_error(error: &str) -> bool {
     .any(|code| error.starts_with(code))
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LinkRequestBinding {
+    connection_id: String,
+    vault_id: String,
+    request_id: String,
+}
+
+struct PendingLinkRequest {
+    binding: LinkRequestBinding,
+    created: std::time::Instant,
+    send: mpsc::Sender<Answer>,
+}
+
 #[derive(Default)]
-pub(crate) struct LinkRequests(Mutex<HashMap<String, mpsc::Sender<Answer>>>);
+pub(crate) struct LinkRequests(Mutex<HashMap<String, PendingLinkRequest>>);
+
+impl LinkRequests {
+    fn register(
+        &self,
+        binding: LinkRequestBinding,
+    ) -> Result<(String, mpsc::Receiver<Answer>), String> {
+        let mut requests = self.0.lock().map_err(|_| "AI_REQUEST_FAILED")?;
+        requests.retain(|_, request| request.created.elapsed() < LINK_REQUEST_LIFETIME);
+        if requests.len() >= 16 {
+            return Err("AI_BUSY".into());
+        }
+        let ticket = uuid::Uuid::new_v4().to_string();
+        let (send, receive) = mpsc::channel();
+        requests.insert(
+            ticket.clone(),
+            PendingLinkRequest {
+                binding,
+                created: std::time::Instant::now(),
+                send,
+            },
+        );
+        Ok((ticket, receive))
+    }
+
+    fn complete(
+        &self,
+        ticket: &str,
+        binding: &LinkRequestBinding,
+        approved: bool,
+        error: Option<String>,
+    ) -> Result<(), String> {
+        self.complete_at(ticket, binding, approved, error, std::time::Instant::now())
+    }
+
+    fn complete_at(
+        &self,
+        ticket: &str,
+        binding: &LinkRequestBinding,
+        approved: bool,
+        error: Option<String>,
+        now: std::time::Instant,
+    ) -> Result<(), String> {
+        let pending = {
+            let mut requests = self.0.lock().map_err(|_| "AI_REQUEST_FAILED")?;
+            let request = requests.get(ticket).ok_or("AI_LINK_REQUEST_EXPIRED")?;
+            if now.saturating_duration_since(request.created) >= LINK_REQUEST_LIFETIME {
+                requests.remove(ticket);
+                return Err("AI_LINK_REQUEST_EXPIRED".into());
+            }
+            if &request.binding != binding {
+                return Err("AI_LINK_REQUEST_MISMATCH".into());
+            }
+            requests.remove(ticket).ok_or("AI_LINK_REQUEST_EXPIRED")?
+        };
+        let answer = match (approved, error) {
+            (_, Some(error)) => Err(error),
+            (true, None) => Ok(()),
+            (false, None) => Err("AI_LINK_DENIED: The user declined this link change. Do not retry or make the change through another tool.".into()),
+        };
+        pending
+            .send
+            .send(answer)
+            .map_err(|_| "AI_LINK_REQUEST_EXPIRED".into())
+    }
+
+    fn remove(&self, ticket: &str) {
+        if let Ok(mut requests) = self.0.lock() {
+            requests.remove(ticket);
+        }
+    }
+}
 
 pub(super) fn apply(
     app: &AppContext,
@@ -90,29 +175,24 @@ pub(super) fn apply(
     let result = (|| {
         let directory = tools::resolve_vault(app, vault_id)?;
         let patch = tools::call(&directory, "link_note_mentions", args)?;
-        let ticket = uuid::Uuid::new_v4().to_string();
-        let (send, receive) = mpsc::channel();
         let state = app.state::<LinkRequests>();
-        {
-            let mut requests = state.0.lock().map_err(|_| "AI_REQUEST_FAILED")?;
-            if requests.len() >= 16 {
-                return Err("AI_BUSY".into());
-            }
-            requests.insert(ticket.clone(), send);
-        }
+        let binding = LinkRequestBinding {
+            connection_id: connection_id.into(),
+            vault_id: vault_id.into(),
+            request_id: request_id.into(),
+        };
+        let (ticket, receive) = state.register(binding)?;
         let result = (|| {
             app.emit("ai-link-request", json!({"ticket":ticket,"vaultId":vault_id,"connectionId":connection_id,"requestId":request_id,"patch":patch}))
                 .map_err(|_| "AI_REQUEST_FAILED")?;
             receive
-                .recv_timeout(Duration::from_secs(30))
+                .recv_timeout(LINK_REQUEST_LIFETIME)
                 .map_err(|_| "AI_LINK_APPLY_TIMEOUT")??;
             Ok(
                 json!({"id":patch["noteId"],"reference":format!("[[{}]]", patch["noteId"].as_str().unwrap_or_default()),"applied":patch["links"].as_array().map_or(0, Vec::len),"links":patch["links"]}),
             )
         })();
-        if let Ok(mut requests) = state.0.lock() {
-            requests.remove(&ticket);
-        }
+        state.remove(&ticket);
         result
     })();
     retry_budget.finish_attempt(result)
@@ -121,17 +201,22 @@ pub(super) fn apply(
 pub(crate) fn complete_ai_link_request(
     app: AppContext,
     ticket: String,
+    connection_id: String,
+    vault_id: String,
+    request_id: String,
+    approved: bool,
     error: Option<String>,
 ) -> Result<(), String> {
-    let send = app
-        .state::<LinkRequests>()
-        .0
-        .lock()
-        .map_err(|_| "AI_REQUEST_FAILED")?
-        .remove(&ticket)
-        .ok_or("AI_LINK_REQUEST_EXPIRED")?;
-    send.send(error.map_or(Ok(()), Err))
-        .map_err(|_| "AI_LINK_REQUEST_EXPIRED".into())
+    app.state::<LinkRequests>().complete(
+        &ticket,
+        &LinkRequestBinding {
+            connection_id,
+            vault_id,
+            request_id,
+        },
+        approved,
+        error,
+    )
 }
 
 pub(super) struct Bridge {
@@ -318,7 +403,10 @@ pub(super) fn forward_tool(
 
 #[cfg(test)]
 mod tests {
-    use super::{is_recoverable_link_error, LinkRetryBudget, MAX_LINK_RETRIES};
+    use super::{
+        is_recoverable_link_error, LinkRequestBinding, LinkRequests, LinkRetryBudget,
+        LINK_REQUEST_LIFETIME, MAX_LINK_RETRIES,
+    };
     use serde_json::json;
 
     fn fail(budget: &LinkRetryBudget, error: &str) -> String {
@@ -371,5 +459,66 @@ mod tests {
 
         let error = fail(&budget, "AI_NOTE_REVISION_MISMATCH: stale");
         assert!(error.contains("3 retries remain"));
+    }
+
+    fn binding() -> LinkRequestBinding {
+        LinkRequestBinding {
+            connection_id: "connection-a".into(),
+            vault_id: "vault-a".into(),
+            request_id: "request-a".into(),
+        }
+    }
+
+    #[test]
+    fn link_request_requires_explicit_approval() {
+        let requests = LinkRequests::default();
+        let (ticket, receive) = requests.register(binding()).unwrap();
+        requests.complete(&ticket, &binding(), false, None).unwrap();
+        assert!(receive
+            .recv()
+            .unwrap()
+            .unwrap_err()
+            .starts_with("AI_LINK_DENIED:"));
+    }
+
+    #[test]
+    fn link_request_approval_is_bound_to_connection_vault_and_request() {
+        let requests = LinkRequests::default();
+        let (ticket, receive) = requests.register(binding()).unwrap();
+        for wrong in [
+            LinkRequestBinding {
+                connection_id: "connection-b".into(),
+                ..binding()
+            },
+            LinkRequestBinding {
+                vault_id: "vault-b".into(),
+                ..binding()
+            },
+            LinkRequestBinding {
+                request_id: "request-b".into(),
+                ..binding()
+            },
+        ] {
+            assert_eq!(
+                requests.complete(&ticket, &wrong, true, None).unwrap_err(),
+                "AI_LINK_REQUEST_MISMATCH"
+            );
+        }
+        requests.complete(&ticket, &binding(), true, None).unwrap();
+        assert_eq!(receive.recv().unwrap(), Ok(()));
+    }
+
+    #[test]
+    fn link_request_approval_expires() {
+        let requests = LinkRequests::default();
+        let (ticket, receive) = requests.register(binding()).unwrap();
+        let expired_at = std::time::Instant::now() + LINK_REQUEST_LIFETIME;
+        assert_eq!(
+            requests
+                .complete_at(&ticket, &binding(), true, None, expired_at)
+                .unwrap_err(),
+            "AI_LINK_REQUEST_EXPIRED"
+        );
+        assert!(receive.recv().is_err());
     }
 }

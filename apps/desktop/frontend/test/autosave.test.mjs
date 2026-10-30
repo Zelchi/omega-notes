@@ -6,6 +6,7 @@ import { note, noteSummary, deferred, settle, mockDesktop } from './helpers.mjs'
 
 const setup = async (t, onSave) => {
     const initial = [note('a'), note('b')], writes = [];
+    const disk = new Map(initial.map(value => [value.id, value]));
     const previous = globalThis.window;
     globalThis.window = { omegaDesktop: mockDesktop(async (command, args) => {
         if (command === 'list_notes') return { notes: initial, issues: [], referenceTitles: {} };
@@ -18,7 +19,9 @@ const setup = async (t, onSave) => {
         if (command === 'save_note') {
             writes.push({ id: args.noteId, text: args.document.elements[0].text });
             if (onSave) await onSave(args, writes.length);
-            return { note: { ...note(args.noteId), title: args.noteTitle, document: args.document }, cleanupIssues: [] };
+            const saved = { ...note(args.noteId), title: args.noteTitle, document: args.document };
+            disk.set(args.noteId, saved);
+            return { note: saved, cleanupIssues: [] };
         }
         throw Error('Unexpected command: ' + command);
     }) };
@@ -33,7 +36,7 @@ const setup = async (t, onSave) => {
     assert.equal(library.notes().length, initial.length);
     await library.loadNote('a');
     const edit = (id, text) => library.updateDocument(id, note(id, text).document);
-    return { library, writes, edit, setVault };
+    return { library, writes, disk, edit, setVault };
 };
 test('autosave coalesces edits and flush waits for persistence', async t => {
     const f = await setup(t); f.edit('a', 'first'); f.edit('a', 'latest');
@@ -111,4 +114,52 @@ test('a save response from a previous vault is not published in the active vault
     save.resolve(); await settle();
     assert.equal(f.library.loadedNotes().find(value => value.id === 'a').document.elements[0].text, '');
     assert.equal(await flush, true);
+});
+
+test('link mutation cancelled before the commit does not change memory or disk', async t => {
+    const f = await setup(t);
+    const current = f.library.loadedNotes().find(value => value.id === 'a');
+    const linked = note('a', '[[b]]').document;
+    const patch = { operation: 'link', noteId: 'a', title: 'a', expectedDocument: current.document, document: linked, links: [{ id: 'b', title: 'b', reference: '[[b]]', label: 'b' }] };
+
+    await assert.rejects(f.library.applyLinkedMentions(patch, () => false), error => String(error) === 'AI_CANCELLED');
+
+    assert.equal(f.library.loadedNotes().find(value => value.id === 'a').document.elements[0].text, '');
+    assert.equal(f.disk.get('a').document.elements[0].text, '');
+    assert.deepEqual(f.writes, []);
+});
+
+test('cancellation during link persistence waits for the commit and preserves it in memory and on disk', async t => {
+    const save = deferred(), f = await setup(t, () => save.promise);
+    const current = f.library.loadedNotes().find(value => value.id === 'a');
+    const linked = note('a', '[[b]]').document;
+    const patch = { operation: 'link', noteId: 'a', title: 'a', expectedDocument: current.document, document: linked, links: [{ id: 'b', title: 'b', reference: '[[b]]', label: 'b' }] };
+    let valid = true;
+    const applying = f.library.applyLinkedMentions(patch, () => valid);
+    await settle();
+    assert.equal(f.writes.length, 1);
+    assert.equal(f.library.loadedNotes().find(value => value.id === 'a').document.elements[0].text, '[[b]]');
+
+    valid = false;
+    save.resolve();
+    const undo = await applying;
+
+    assert.equal(typeof undo, 'function');
+    assert.equal(f.disk.get('a').document.elements[0].text, '[[b]]');
+    assert.equal(f.library.loadedNotes().find(value => value.id === 'a').document.elements[0].text, '[[b]]');
+});
+
+test('cancellation after link persistence cannot roll back the committed document', async t => {
+    const f = await setup(t);
+    const current = f.library.loadedNotes().find(value => value.id === 'a');
+    const linked = note('a', '[[b]]').document;
+    const patch = { operation: 'link', noteId: 'a', title: 'a', expectedDocument: current.document, document: linked, links: [{ id: 'b', title: 'b', reference: '[[b]]', label: 'b' }] };
+    let valid = true;
+
+    const undo = await f.library.applyLinkedMentions(patch, () => valid);
+    valid = false;
+
+    assert.equal(typeof undo, 'function');
+    assert.equal(f.disk.get('a').document.elements[0].text, '[[b]]');
+    assert.equal(f.library.loadedNotes().find(value => value.id === 'a').document.elements[0].text, '[[b]]');
 });

@@ -54,6 +54,84 @@ fn source_cache_reuses_exact_revisions_rejects_invalid_files_and_obeys_reset() {
 }
 
 #[test]
+fn study_context_reads_only_sources_assigned_to_the_requested_item() {
+    let directory = std::env::temp_dir().join("omega-study-item-scope");
+    let source = |id: &str, alias: &str, text: &str, used_by: Vec<usize>| Source {
+        id: id.into(),
+        alias: alias.into(),
+        content: Arc::new(SourceContent {
+            title: alias.into(),
+            text: text.into(),
+            characters: text.chars().count(),
+            words: text.split_whitespace().count(),
+            lines: text.lines().count(),
+            segments: segments::build(text),
+        }),
+        used_by,
+    };
+    let context = Context {
+        directory: directory.clone(),
+        created: Instant::now(),
+        memory_bytes: 0,
+        items: vec![
+            Assignment {
+                item_id: "item-a".into(),
+                candidate_id: "candidate-a".into(),
+                note_id: "source-a".into(),
+                source_ids: vec!["source-a".into(), "shared".into()],
+                supporting_note_ids: vec!["shared".into()],
+            },
+            Assignment {
+                item_id: "item-b".into(),
+                candidate_id: "candidate-b".into(),
+                note_id: "source-b".into(),
+                source_ids: vec!["source-b".into(), "shared".into()],
+                supporting_note_ids: vec!["shared".into()],
+            },
+        ],
+        notes: vec![
+            source("source-a", "N1", "primary A", vec![1]),
+            source("source-b", "N2", "primary B", vec![2]),
+            source("shared", "N3", "shared source", vec![1, 2]),
+        ],
+    };
+
+    assert_eq!(
+        read_context(
+            &directory,
+            &context,
+            &json!({"itemId":"item-a","sourceId":"N2"})
+        )
+        .unwrap_err(),
+        "AI_STUDY_SOURCE_NOT_ASSIGNED"
+    );
+    assert_eq!(
+        read_context(
+            &directory,
+            &context,
+            &json!({"itemId":"item-a","sourceId":"N3"})
+        )
+        .unwrap()["text"],
+        "shared source"
+    );
+    assert_eq!(
+        read_context(
+            &directory,
+            &context,
+            &json!({"itemId":"item-b","sourceId":"N3"})
+        )
+        .unwrap()["text"],
+        "shared source"
+    );
+    let manifest = read_context(&directory, &context, &json!({"itemId":"item-a"})).unwrap();
+    let sources = manifest["notes"].as_array().unwrap();
+    assert_eq!(sources.len(), 2);
+    assert!(sources.iter().any(|source| source["sourceId"] == "N1"));
+    assert!(sources.iter().any(|source| source["sourceId"] == "N3"));
+    assert!(!sources.iter().any(|source| source["sourceId"] == "N2"));
+}
+
+#[test]
 #[ignore = "local timing diagnostic; run explicitly with --ignored --nocapture"]
 fn measure_source_preparation_cache() {
     use std::hint::black_box;

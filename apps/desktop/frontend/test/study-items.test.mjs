@@ -6,7 +6,9 @@ import { readStudyPreferences } from '../src/features/study-notes/api/preference
 import { note, noteSummary, deferred, settle } from './helpers.mjs';
 
 const material = call => {
-    const kind = JSON.parse(call.prompt.split('Task settings: ')[1].split('\n')[0]).kind;
+    const settings = JSON.parse(call.prompt.split('Task settings: ')[1].split('\n')[0]);
+    assert.equal(settings.itemId, call.context.items[0].itemId);
+    const kind = settings.kind;
     const item = call.context.items[0];
     const sources = [...item.sourceIds];
     const base = { itemId: item.itemId, sources: ['N' + (sources.indexOf(item.noteId) + 1)], explanation: 'Source evidence' };

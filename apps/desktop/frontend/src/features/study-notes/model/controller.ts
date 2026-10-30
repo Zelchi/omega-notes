@@ -88,7 +88,7 @@ const useStudySession = (options: StudyEnvironment, library: StudyLibrary, initi
 		active: () => options.aiEnabled() && (stage() === "running" || stage() === "grading") && (deck()?.kind === "written" || deck()?.kind === "cloze"),
 		canWrite: () => stage() === "running" && (deck()?.kind === "written" || deck()?.kind === "cloze"),
 		current, itemIndex: () => sessionIndices()[index()],
-		prompt: (item, answer, locale, blankAnswers) => item.blanks ? clozeAnswerPrompt(item, answer, locale, blankAnswers) : writtenAnswerPrompt(item.question, item.answer, answer, locale),
+		prompt: (item, answer, locale, blankAnswers, contextItemId) => item.blanks ? clozeAnswerPrompt(item, answer, locale, contextItemId, blankAnswers) : writtenAnswerPrompt(item.question, item.answer, answer, locale, contextItemId),
 		pauseTimer: () => {
 			const remaining = Math.max(0, deadline - Date.now()); stopTimer();
 			if (!remaining) { if (deck()?.kind === "cloze") cloze.timeout(); else review.timeout(); }
