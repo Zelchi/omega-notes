@@ -1,5 +1,12 @@
 # Histórico de atualizações
 
+## v0.6.4
+
+### Kanban
+
+- Durante o arraste, o cursor fica oculto e o cartão continua visível junto ao ponteiro.
+- O modo expandido reserva espaço para a barra de rolagem.
+
 ## v0.6.3
 
 ### Kanban
