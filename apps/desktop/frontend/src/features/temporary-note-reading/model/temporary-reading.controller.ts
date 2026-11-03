@@ -33,6 +33,7 @@ export const useTemporaryNoteReading = (options: {
 	let savedSelection: SavedSelection | undefined;
 	let frame: number | undefined;
 	let shortcutUsed = false;
+	let leftAltDown = false;
 	const mode = (): Mode => options.enabled() && options.mode() === "edit" && reading() ? "view" : options.mode();
 	const contentRoot = () => document.querySelector<HTMLElement>("[data-omega-element='text'] [data-omega-content]");
 
@@ -82,24 +83,25 @@ export const useTemporaryNoteReading = (options: {
 	});
 
 	onMount(() => {
-		const isAlt = (event: KeyboardEvent) => event.key === "Alt" || event.code === "AltLeft" || event.code === "AltRight";
-		const release = (restoreFocus = true) => { shortcutUsed = false; changeReading(false, restoreFocus); };
+		const isLeftAlt = (event: KeyboardEvent) => event.code === "AltLeft";
+		const release = (restoreFocus = true) => { leftAltDown = false; shortcutUsed = false; changeReading(false, restoreFocus); };
 		const keyDown = (event: KeyboardEvent) => {
-			if (isAlt(event)) {
+			if (isLeftAlt(event)) {
+				leftAltDown = true;
 				if (event.repeat || event.ctrlKey || event.metaKey || event.getModifierState("AltGraph") || shortcutUsed || !options.enabled() || options.mode() !== "edit") return;
 				const target = event.target;
 				if (target instanceof HTMLElement && (target.closest("input, textarea, [role='dialog']") ||
 					(target.isContentEditable && !target.closest("[data-omega-element='text']")))) return;
 				event.preventDefault();
 				changeReading(true);
-			} else if (event.altKey && !["Shift", "Meta"].includes(event.key)) {
+			} else if (leftAltDown && !["Shift", "Meta"].includes(event.key)) {
 				shortcutUsed = true;
 				changeReading(false);
 			}
 		};
 		const keyUp = (event: KeyboardEvent) => {
-			if (isAlt(event) || !event.altKey) {
-				if (isAlt(event) && (reading() || shortcutUsed)) event.preventDefault();
+			if (isLeftAlt(event) || !event.altKey) {
+				if (isLeftAlt(event) && (reading() || shortcutUsed)) event.preventDefault();
 				release();
 			}
 		};

@@ -32,6 +32,8 @@ jobs:
         run: cargo install tauri-cli --version 2.12.3 --locked
       - run: yarn install --frozen-lockfile --non-interactive
       - run: yarn typecheck
+      - if: runner.os == 'Linux'
+        run: yarn check:web
       - run: yarn test:desktop
       - run: cargo fmt --all --manifest-path apps/desktop/backend/Cargo.toml -- --check
       - run: cargo fmt --manifest-path apps/desktop/bridge/tauri/Cargo.toml -- --check
@@ -47,3 +49,6 @@ jobs:
       - name: Smoke Electron com biblioteca temporária
         if: runner.os == 'Linux'
         run: xvfb-run -a node node_modules/electron/cli.js apps/desktop/bridge/electron/smoke.mjs
+      - name: Testar sincronização do menu Tauri
+        if: runner.os == 'Windows'
+        run: cargo test --locked --manifest-path apps/desktop/bridge/tauri/Cargo.toml

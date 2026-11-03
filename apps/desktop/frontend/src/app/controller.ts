@@ -6,18 +6,19 @@ import type { StudiesController } from "@/features/study-notes/model/controller"
 import type { StudyKind } from "@/entities/study";
 import { useNoteDeletion } from "@/features/delete-note/model/controller";
 import { useCanvasHistory } from "@/features/undo-canvas-edit";
-import { useNotes, type NoteSummary } from "@/entities/note";
+import { normalizeNoteTitle, NOTE_TITLE_MAX_LENGTH, useNotes, type NoteSummary } from "@/entities/note";
 import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner } from "solid-js";
 import { translate, type TranslationKey } from "@/shared/lib/i18n";
 import { configureTrayMenu, onTrayAction } from "./api/tray.repository";
 import { showMainWindowIfHidden } from "./api/window.repository";
 import { useVaults } from "@/features/manage-vault/model/vaults.controller";
 import type { Vault } from "@/entities/vault";
-import { matchesAiChatShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
+import { matchesAiChatShortcut, matchesKeyboardShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
 import { matchesCanvasLayoutShortcut } from "@/features/change-preferences/model/canvas-layout-shortcut";
 import { usePreferences } from "@/features/change-preferences/model/preferences.controller";
 import { useWindowControls } from "./model/window-controls.controller";
 import { useNoteNavigationController } from "./model/note-navigation.controller";
+import { shouldHideWindow, type AppWindow } from "./model/window-visibility";
 import { useUpdatesController } from "@/features/check-for-updates/model/updates.controller";
 import type { AiChatController } from "@/features/chat-with-ai/model/ai-chat.controller";
 import { useTemporaryNoteReading } from "@/features/temporary-note-reading";
@@ -61,6 +62,8 @@ export const useAppController = () => {
 	const preferences = usePreferences();
 	const kanban = useKanban(vaults.activeVaultId);
 	const pomodoro = usePomodoro(vaults.activeVaultId, () => {
+		hideOtherWindows("pomodoro");
+		pomodoro.setOpen(true);
 		void showMainWindowIfHidden().catch(console.error);
 	});
 	createEffect(() => lofiPlayer.setPomodoroMuted(pomodoro.muteLofi()));
@@ -181,7 +184,7 @@ export const useAppController = () => {
 		else aiChat.setOpen(open);
 	};
 	const toggleKanban = () => {
-		if (!import.meta.env.DEV || !vaults.activeVaultId()) return;
+		if (!vaults.activeVaultId()) return;
 		if (!kanban.open()) hideOtherWindows("kanban");
 		kanban.setOpen((open) => !open);
 	};
@@ -335,15 +338,15 @@ export const useAppController = () => {
 		enabled: () => navigation.route() === "note" && Boolean(navigation.selectedNote()) &&
 			!navigation.nameDialogVisible() && !vaults.dialogOpen() && !settingsOpen() && !studies.open() && !updates.installing(),
 	});
-	const hideOtherWindows = (keep: "chat" | "kanban" | "pomodoro" | "settings" | "vault" | "study" | "note-name" | "delete") => {
-		if (keep !== "chat") setChatOpen(false);
-		if (keep !== "kanban") kanban.setOpen(false);
-		if (keep !== "pomodoro") pomodoro.setOpen(false);
-		if (keep !== "settings") setSettingsOpen(false);
-		if (keep !== "vault") vaults.hideDialog();
-		if (keep !== "study") studies.close();
-		if (keep !== "note-name") navigation.hideNameDialog();
-		if (keep !== "delete") noteDeletion.close();
+	const hideOtherWindows = (keep: AppWindow) => {
+		if (shouldHideWindow(keep, "chat")) setChatOpen(false);
+		if (shouldHideWindow(keep, "kanban")) kanban.setOpen(false);
+		if (shouldHideWindow(keep, "pomodoro")) pomodoro.setOpen(false);
+		if (shouldHideWindow(keep, "settings")) setSettingsOpen(false);
+		if (shouldHideWindow(keep, "vault")) vaults.hideDialog();
+		if (shouldHideWindow(keep, "study")) studies.close();
+		if (shouldHideWindow(keep, "note-name")) navigation.hideNameDialog();
+		if (shouldHideWindow(keep, "delete")) noteDeletion.close();
 	};
 	const toggleVaultDialog = () => {
 		if (vaults.dialogOpen()) { vaults.closeDialog(); return; }
@@ -424,18 +427,22 @@ export const useAppController = () => {
 		addEventListener("keydown", preventNativeTab, true);
 		onCleanup(() => removeEventListener("keydown", preventNativeTab, true));
 
-		const onKanbanShortcut = (event: KeyboardEvent) => {
-			if (!import.meta.env.DEV || event.defaultPrevented || event.isComposing || isTerminalTarget(event.target) || !vaults.activeVaultId()
+		const onPanelShortcut = (event: KeyboardEvent) => {
+			if (event.defaultPrevented || event.isComposing || isTerminalTarget(event.target) || !vaults.activeVaultId()
 				|| navigation.nameDialogVisible() || vaults.dialogOpen() || settingsOpen() || studies.open()
 				|| noteDeletion.open() || noteDeletion.pending() || updates.installing()) return;
-			if (event.metaKey || event.getModifierState("AltGraph") || event.code !== "KeyB"
-				|| !event.ctrlKey || event.altKey || !event.shiftKey) return;
+			const pomodoroMatch = matchesKeyboardShortcut(event, preferences.pomodoroShortcut());
+			const kanbanMatch = matchesKeyboardShortcut(event, preferences.kanbanShortcut());
+			if (!pomodoroMatch && !kanbanMatch) return;
 			event.preventDefault();
 			event.stopPropagation();
-			if (!event.repeat) toggleKanban();
+			if (!event.repeat) {
+				if (pomodoroMatch) togglePomodoro();
+				else toggleKanban();
+			}
 		};
-		addEventListener("keydown", onKanbanShortcut, true);
-		onCleanup(() => removeEventListener("keydown", onKanbanShortcut, true));
+		addEventListener("keydown", onPanelShortcut, true);
+		onCleanup(() => removeEventListener("keydown", onPanelShortcut, true));
 
 		const onAiShortcut = (event: KeyboardEvent) => {
 			if (event.defaultPrevented || event.isComposing || !chatAvailable() || !vaults.activeVaultId() ||
@@ -524,6 +531,17 @@ export const useAppController = () => {
 		if (!current) return;
 		await navigation.openNote(current);
 	};
+	const createKanbanNote = async (title: string): Promise<NoteSummary | undefined> => {
+		const vaultId = vaults.activeVaultId();
+		const normalized = title.trim();
+		if (!vaultId || notes.loading() || !normalized || normalized.length > NOTE_TITLE_MAX_LENGTH
+			|| !(await beforeShutdown()) || vaultId !== vaults.activeVaultId()) return undefined;
+		const existing = notes.notes().find(note => normalizeNoteTitle(note.title) === normalizeNoteTitle(normalized));
+		if (existing) return existing;
+		const created = await notes.create(normalized);
+		if (vaultId !== vaults.activeVaultId()) return undefined;
+		return notes.notes().find(note => note.id === created.id);
+	};
 	const createVault = async (name: string): Promise<boolean> => {
 		if (vaultActionPending() || canvasHistory.pending() || noteReferences.pending() || navigation.navigating() || navigation.nameDialog()) return false;
 		setVaultActionPending(true);
@@ -561,7 +579,7 @@ export const useAppController = () => {
 		canvasHistory,
 		aiChat, aiChatLoaded: () => Boolean(aiChatLazy.controller()), chatOpen, setChatOpen, chatAvailable,
 		kanban, toggleKanban, pomodoro, togglePomodoro,
-		openAiNote,
+		openAiNote, createKanbanNote,
 		updates,
 		registerBeforeShutdown: (save?: () => Promise<boolean>) => { saveNoteTitle = save; },
 		vaults, toggleVaultDialog,

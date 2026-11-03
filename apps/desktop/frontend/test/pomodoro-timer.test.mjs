@@ -4,7 +4,7 @@ import { createRoot } from 'solid-js';
 import { usePomodoro } from '../src/features/pomodoro/model/controller.ts';
 import { deferred, mockDesktop } from './helpers.mjs';
 
-const setup = (t, invoke) => {
+const setup = (t, invoke, onPhaseEnd) => {
 	const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
 	const previousStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
 	globalThis.window = { omegaDesktop: mockDesktop(invoke) };
@@ -18,7 +18,7 @@ const setup = (t, invoke) => {
 			if (previousStorage) Object.defineProperty(globalThis, 'localStorage', previousStorage);
 			else delete globalThis.localStorage;
 		});
-		pomodoro = usePomodoro(() => undefined);
+		pomodoro = usePomodoro(() => undefined, onPhaseEnd);
 	});
 	return pomodoro;
 };
@@ -60,6 +60,25 @@ test('initialization can be retried after repeated transient failures', async t 
 	assert.equal(pomodoro.timerReady(), true);
 	assert.equal(pomodoro.phase(), 'shortBreak');
 	assert.equal(pomodoro.seconds(), 210);
+});
+
+test('hiding and reopening Pomodoro preserves the running timer controller', async t => {
+	const pomodoro = setup(t, async command => {
+		if (command === 'initialize_pomodoro_timer') return snapshot();
+		if (command === 'start_pomodoro_timer') return snapshot({ running: true, remainingSeconds: 1490 });
+		throw Error(`Unexpected timer command: ${command}`);
+	});
+	await waitFor(() => pomodoro.timerReady());
+	pomodoro.start();
+	assert.equal(pomodoro.running(), true);
+	await waitFor(() => pomodoro.seconds() === 1490);
+
+	pomodoro.setOpen(false);
+	pomodoro.setOpen(true);
+
+	assert.equal(pomodoro.open(), true);
+	assert.equal(pomodoro.running(), true);
+	assert.equal(pomodoro.seconds(), 1490);
 });
 
 test('retry reads authoritative state after a mutation succeeded but its response failed', async t => {
@@ -143,4 +162,47 @@ test('a delayed response from an older timer operation cannot replace a newer ac
 	assert.equal(pomodoro.phase(), 'focus');
 	resetResponse.resolve(resetSnapshot);
 	await waitFor(() => pomodoro.phase() === 'focus' && pomodoro.seconds() === 1_500);
+});
+
+for (const [from, to] of [
+	['focus', 'shortBreak'], ['focus', 'longBreak'], ['shortBreak', 'focus'], ['longBreak', 'focus'],
+]) {
+	test(`a completed ${from} phase notifies its consumer when polling detects ${to}`, async t => {
+		let phaseEnds = 0;
+		const durationSeconds = phase => phase === 'focus' ? 25 * 60 : phase === 'shortBreak' ? 5 * 60 : 15 * 60;
+		const pomodoro = setup(t, async command => {
+			if (command === 'initialize_pomodoro_timer') {
+				const duration = durationSeconds(from);
+				return snapshot({ phase: from, remainingSeconds: duration, durationSeconds: duration });
+			}
+			if (command === 'start_pomodoro_timer') return snapshot({ phase: from, running: true, remainingSeconds: 1 });
+			if (command === 'read_pomodoro_timer') {
+				const duration = durationSeconds(to);
+				return snapshot({ phase: to, running: false, remainingSeconds: duration, durationSeconds: duration });
+			}
+			throw Error(`Unexpected timer command: ${command}`);
+		}, () => { phaseEnds += 1; });
+
+		await waitFor(() => pomodoro.timerReady());
+		pomodoro.start();
+		await waitFor(() => phaseEnds === 1);
+
+		assert.equal(pomodoro.phase(), to);
+		assert.equal(phaseEnds, 1);
+	});
+}
+
+test('manually advancing a phase does not notify the timer phase-end consumer', async t => {
+	let phaseEnds = 0;
+	const pomodoro = setup(t, async command => {
+		if (command === 'initialize_pomodoro_timer') return snapshot();
+		if (command === 'next_pomodoro_phase') return snapshot({ phase: 'shortBreak', remainingSeconds: 5 * 60, durationSeconds: 5 * 60 });
+		throw Error(`Unexpected timer command: ${command}`);
+	}, () => { phaseEnds += 1; });
+
+	await waitFor(() => pomodoro.timerReady());
+	pomodoro.next();
+	await waitFor(() => pomodoro.phase() === 'shortBreak');
+
+	assert.equal(phaseEnds, 0);
 });

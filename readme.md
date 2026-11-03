@@ -17,7 +17,7 @@ e mantenha seus arquivos no seu computador.
 
 </div>
 
-> A branch `experiment/electron-rust` organiza SolidJS compartilhado com Electron no Linux, Tauri no Windows e backend Rust compartilhado. Desenvolvimento e build: [guia do repositório](docs/development/repository.md). A primeira instalação é manual.
+> O desktop usa SolidJS compartilhado com Electron no Linux, Tauri no Windows e backend Rust compartilhado. Desenvolvimento e build: [guia do repositório](docs/development/repository.md). A primeira instalação é manual.
 
 ---
 

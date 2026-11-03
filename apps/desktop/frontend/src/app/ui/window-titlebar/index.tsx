@@ -11,11 +11,15 @@ import { styles } from "./style.css.ts";
 
 const iconUrl = `${import.meta.env.BASE_URL}icon.png`;
 
-const runAppAction = (action: () => void, settingsOpen: boolean, vaultDialogCanHide: boolean, onSettings: () => void) => {
-	if (document.querySelector('[role="dialog"][aria-modal="true"]')) {
-		if (settingsOpen) onSettings();
-		else if (!vaultDialogCanHide) return;
-	}
+const runAppAction = (
+	action: () => void,
+	kind: "panel" | "modal",
+	vaultDialogOpen: boolean,
+	vaultDialogCanHide: boolean,
+) => {
+	const modalOpen = Array.from(document.querySelectorAll('[aria-modal="true"]'))
+		.some(dialog => !dialog.closest("[inert]"));
+	if (modalOpen && (kind === "panel" || (vaultDialogOpen && !vaultDialogCanHide))) return;
 	action();
 };
 
@@ -35,6 +39,7 @@ type Props = {
 	aiChatShortcut: string;
 	aiFeaturesEnabled: boolean;
 	kanbanOpen: boolean;
+	kanbanShortcut: string;
 	onKanban: () => void;
 	pomodoroOpen: boolean;
 	onPomodoro: () => void;
@@ -56,22 +61,20 @@ const WindowTitlebar: Component<Props> = (props) => (
 			<div class={styles.brand} data-omega-drag-region data-tauri-drag-region>
 				<img class={styles.mark} data-omega-drag-region data-tauri-drag-region src={iconUrl} alt="" />
 			</div>
-			<Show when={import.meta.env.DEV}>
-				<Button class={cx(styles.button, styles.kanbanButton)} type="button" disabled={!props.vaultName} aria-label={props.t("kanbanOpen")}
-					aria-expanded={props.kanbanOpen} aria-controls="kanban-panel" aria-keyshortcuts="Control+Shift+B"
-					onClick={() => runAppAction(props.onKanban, props.settingsOpen, props.vaultDialogCanHide, props.onSettings)}>
-					<Icon name="bulletList" size={16} />
-				</Button>
-			</Show>
+			<Button class={cx(styles.button, styles.kanbanButton)} type="button" disabled={!props.vaultName} aria-label={props.t("kanbanOpen")}
+				aria-expanded={props.kanbanOpen} aria-controls="kanban-panel" aria-keyshortcuts={props.kanbanShortcut}
+				onClick={() => runAppAction(props.onKanban, "panel", props.vaultDialogOpen, props.vaultDialogCanHide)}>
+				<Icon name="bulletList" size={16} />
+			</Button>
 			<Button class={cx(styles.button, styles.pomodoroButton)} type="button" disabled={!props.vaultName} aria-label={props.t("pomodoroOpen")}
 				aria-expanded={props.pomodoroOpen} aria-controls="pomodoro-panel"
-				onClick={() => runAppAction(props.onPomodoro, props.settingsOpen, props.vaultDialogCanHide, props.onSettings)}>
+				onClick={() => runAppAction(props.onPomodoro, "panel", props.vaultDialogOpen, props.vaultDialogCanHide)}>
 				<Icon name="clock" size={16} />
 			</Button>
 			<div class={styles.drag} data-omega-drag-region data-tauri-drag-region />
 		</div>
 		<Show when={props.vaultName}>
-			<Button class={styles.vaultName} type="button" onClick={() => props.vaultDialogOpen ? props.onVaultClick() : runAppAction(props.onVaultClick, props.settingsOpen, props.vaultDialogCanHide, props.onSettings)}>
+			<Button class={styles.vaultName} type="button" onClick={() => props.vaultDialogOpen ? props.onVaultClick() : runAppAction(props.onVaultClick, "modal", props.vaultDialogOpen, props.vaultDialogCanHide)}>
 				{props.vaultName}
 			</Button>
 		</Show>
@@ -82,12 +85,12 @@ const WindowTitlebar: Component<Props> = (props) => (
 					<Show when={props.aiFeaturesEnabled}>
 						<Button class={styles.button} type="button" disabled={!props.vaultName} aria-label={props.t("aiChat")}
 							aria-expanded={props.aiChatOpen} aria-controls="ai-chat-panel" aria-keyshortcuts={props.aiChatShortcut}
-							onClick={() => runAppAction(props.onAiChat, props.settingsOpen, props.vaultDialogCanHide, props.onSettings)}>
+							onClick={() => runAppAction(props.onAiChat, "panel", props.vaultDialogOpen, props.vaultDialogCanHide)}>
 							<Icon name="chat" size={15} />
 						</Button>
 					</Show>
 					<Button class={styles.button} type="button" aria-label={props.t("settings")} aria-expanded={props.settingsOpen}
-						onClick={() => props.settingsOpen ? props.onSettings() : runAppAction(props.onSettings, props.settingsOpen, props.vaultDialogCanHide, props.onSettings)}>
+						onClick={() => props.settingsOpen ? props.onSettings() : runAppAction(props.onSettings, "modal", props.vaultDialogOpen, props.vaultDialogCanHide)}>
 						<Icon name="settings" size={15} />
 					</Button>
 					<Show when={props.gnome === false}>

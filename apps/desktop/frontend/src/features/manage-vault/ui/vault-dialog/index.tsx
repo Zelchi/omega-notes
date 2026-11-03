@@ -72,6 +72,7 @@ const VaultDialog: Component<Props> = (props) => {
 		onReorder: ids => props.onReorder(ids),
 	});
 	const selectedVault = () => props.vaults.find((vault) => vault.id === state.selectedVaultId());
+	const toggleVaultActions = (vaultId: string) => setVaultActionsVisibleId(current => current === vaultId ? undefined : vaultId);
 
 	createEffect(() => {
 		const isOpen = props.open;
@@ -235,7 +236,7 @@ const VaultDialog: Component<Props> = (props) => {
 												if (state.editingVaultId() === vault.id) return;
 												event.preventDefault();
 												event.stopPropagation();
-												setVaultActionsVisibleId(current => current === vault.id ? undefined : vault.id);
+												toggleVaultActions(vault.id);
 											}}>
 												<Show
 									when={state.editingVaultId() === vault.id}
@@ -262,7 +263,12 @@ const VaultDialog: Component<Props> = (props) => {
 															>
 																{vault.name}
 															</Button>
-															<div class={styles.vaultActions}>
+											<div class={styles.vaultActions} classList={{
+												[styles.vaultActionsHitArea]: true,
+												[styles.vaultActionsOpen]: vaultActionsVisibleId() === vault.id,
+											}} onClick={event => {
+																if (event.target === event.currentTarget) toggleVaultActions(vault.id);
+															}}>
 																<Button
 																	class={styles.iconAction}
 																	classList={{ [styles.vaultActionReveal]: true, [styles.vaultActionRevealVisible]: vaultActionsVisibleId() === vault.id }}

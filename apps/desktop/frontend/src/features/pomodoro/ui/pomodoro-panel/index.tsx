@@ -12,7 +12,7 @@ import { styles } from "./style.css.ts";
 
 const LofiPlayerPanel = lazy(() => import("@/features/lofi-player/ui/lofi-player-panel"));
 
-type Props = { pomodoro: ReturnType<typeof usePomodoro>; t: (key: TranslationKey) => string };
+type Props = { pomodoro: ReturnType<typeof usePomodoro>; t: (key: TranslationKey) => string; onHideWindow: () => void };
 
 const PomodoroPanel: Component<Props> = (props) => {
 	const presence = createPresence(props.pomodoro.open, 210);
@@ -54,6 +54,14 @@ const PomodoroPanel: Component<Props> = (props) => {
 	const saveTaskEdit = (event: SubmitEvent, id: string) => {
 		event.preventDefault();
 		if (props.pomodoro.renameTask(id, editDraft())) { setEditingTaskId(undefined); setTaskActionsVisibleId(undefined); }
+	};
+	const toggleTimer = (event: MouseEvent): void => {
+		if (props.pomodoro.running()) {
+			props.pomodoro.pause();
+			return;
+		}
+		props.pomodoro.start();
+		if (event.shiftKey) props.onHideWindow();
 	};
 	return <Show when={presence.present()}>
 		<aside id="pomodoro-panel" class={styles.panel} aria-labelledby="pomodoro-heading"
@@ -117,7 +125,7 @@ const PomodoroPanel: Component<Props> = (props) => {
 						<div class={styles.clock} role="timer" aria-live="off">{timeLabel()}</div>
 						<div class={styles.progress} aria-hidden="true"><span class={styles.progressFill} style={{ width: progress() }} /></div>
 						<div class={styles.timerActions}>
-							<Button class={styles.primaryButton} type="button" disabled={!props.pomodoro.timerReady() || showSettings()} onClick={() => props.pomodoro.running() ? props.pomodoro.pause() : props.pomodoro.start()}>
+							<Button class={styles.primaryButton} type="button" disabled={!props.pomodoro.timerReady() || showSettings()} onClick={toggleTimer}>
 								<Icon name={props.pomodoro.running() ? "pause" : "play"} size={16} />
 							</Button>
 							<Show when={props.pomodoro.timerReady() && props.pomodoro.seconds() !== props.pomodoro.phaseSeconds()}>

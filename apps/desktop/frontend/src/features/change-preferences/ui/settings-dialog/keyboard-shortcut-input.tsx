@@ -8,31 +8,31 @@ const KeyboardShortcutInput: Component<{
 	id: string;
 	label: TranslationKey;
 	value: KeyboardShortcut;
-	onChange: (shortcut: KeyboardShortcut) => void;
+	onChange: (shortcut: KeyboardShortcut) => boolean;
 	t: (key: TranslationKey) => string;
 }> = (props) => {
 	const [recording, setRecording] = createSignal(false);
-	const [reserved, setReserved] = createSignal(false);
+	const [feedback, setFeedback] = createSignal<"reserved" | "conflict">();
 	return <Button id={props.id} class={styles.shortcutInput} type="button"
 		aria-label={props.t(props.label)} aria-pressed={recording()}
-		onClick={() => { setReserved(false); setRecording((value) => !value); }}
-		onBlur={() => { setRecording(false); setReserved(false); }}
+		onClick={() => { setFeedback(); setRecording((value) => !value); }}
+		onBlur={() => { setRecording(false); setFeedback(); }}
 		onKeyDown={(event) => {
 			if (!recording()) return;
 			event.preventDefault();
 			event.stopPropagation();
-			if (event.key === "Escape") { setRecording(false); setReserved(false); return; }
+			if (event.key === "Escape") { setRecording(false); setFeedback(); return; }
 			if (event.repeat || event.isComposing || event.metaKey || event.getModifierState("AltGraph")) return;
 			const shortcut = { code: event.code, ctrl: event.ctrlKey, alt: event.altKey, shift: event.shiftKey };
 			if (!isKeyboardShortcut(shortcut)) {
-				if (event.code === "KeyA" && event.ctrlKey && !event.altKey && !event.shiftKey) setReserved(true);
+				if (event.code === "KeyA" && event.ctrlKey && !event.altKey && !event.shiftKey) setFeedback("reserved");
 				return;
 			}
-			props.onChange(shortcut);
+			if (!props.onChange(shortcut)) { setFeedback("conflict"); return; }
 			setRecording(false);
-			setReserved(false);
+			setFeedback();
 		}}>
-		{recording() ? props.t(reserved() ? "aiChatShortcutReserved" : "aiChatShortcutRecord") : formatKeyboardShortcut(props.value)}
+		{recording() ? props.t(feedback() === "reserved" ? "aiChatShortcutReserved" : feedback() === "conflict" ? "shortcutConflict" : "aiChatShortcutRecord") : formatKeyboardShortcut(props.value)}
 	</Button>;
 };
 

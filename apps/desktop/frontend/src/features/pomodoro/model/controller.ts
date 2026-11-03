@@ -10,10 +10,7 @@ const alarmMuteMs = 700;
 export const shouldMuteLofi = (phase: PomodoroPhase, muteDuringBreaks: boolean, alarmActive: boolean): boolean =>
 	alarmActive || (muteDuringBreaks && phase !== "focus");
 
-export const endsFocusPhase = (phase: PomodoroPhase, nextPhase: PomodoroPhase): boolean =>
-	phase === "focus" && nextPhase !== "focus";
-
-export const usePomodoro = (vaultId: Accessor<string | undefined>, onFocusPhaseEnd?: () => void) => {
+export const usePomodoro = (vaultId: Accessor<string | undefined>, onPhaseEnd?: () => void) => {
 	const [open, setOpen] = createSignal(false);
 	const [tasks, setTasks] = createSignal<PomodoroTask[]>([]);
 	const [loading, setLoading] = createSignal(false);
@@ -54,7 +51,7 @@ export const usePomodoro = (vaultId: Accessor<string | undefined>, onFocusPhaseE
 	const clearTimer = () => { clearInterval(timer); timer = undefined; };
 	const applySnapshot = (snapshot: PomodoroTimerSnapshot, playPhaseChange: boolean) => {
 		if (playPhaseChange && phase() !== snapshot.phase) {
-			if (endsFocusPhase(phase(), snapshot.phase)) onFocusPhaseEnd?.();
+			onPhaseEnd?.();
 			setAlarmActive(true);
 			clearTimeout(alarmMuteTimer);
 			alarmMuteTimer = setTimeout(() => { alarmMuteTimer = undefined; setAlarmActive(false); }, alarmMuteMs);

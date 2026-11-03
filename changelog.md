@@ -1,5 +1,21 @@
 # Histórico de atualizações
 
+## v0.6.3
+
+### Kanban
+
+- Cartões agora aceitam prioridade, etiquetas, prazo e vínculo com uma nota; limites WIP por coluna ajudam a acompanhar o fluxo sem bloquear movimentações.
+- O painel se adapta melhor à largura disponível, preserva seu tamanho entre sessões e mantém os dados antigos compatíveis durante a migração.
+
+### IA e estudos
+
+- Autorizações de ferramentas de IA e solicitações de vínculo entre notas ficam mais restritas e resilientes; o contexto de estudos foi aprimorado.
+
+### Preferências e janelas
+
+- Atalhos de ações podem ser configurados nas Preferências, com validação de conflitos.
+- A bandeja acompanha o estado da janela, do Pomodoro e da música; os controles de visibilidade e os painéis receberam ajustes para Electron e Tauri.
+
 ## v0.6.2
 
 ### Vaults

@@ -1,5 +1,6 @@
 import { windowLayout } from "@/shared/ui/window-layout";
 import { style } from "@vanilla-extract/css";
+import { sidePanelFrame } from "@/shared/lib/side-panel-layout";
 
 const button = style({
 	display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
@@ -15,7 +16,8 @@ const taskActions = style({ display: "flex", alignItems: "center", justifyConten
 export const styles = {
 	button,
 	panel: style({ position: "fixed", isolation: "isolate", top: windowLayout.titlebarHeight + 1, left: 1, bottom: 1, zIndex: 8,
-		width: "min(420px, calc(100% - 24px))", background: "var(--surface-panel)", borderRight: "1px solid var(--border-strong)", overflow: "hidden" }),
+		...sidePanelFrame,
+		background: "var(--surface-panel)", borderRight: "1px solid var(--border-strong)", overflow: "hidden" }),
 	body: style({ display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 16, gap: 14, minHeight: 0 }),
 	header: style({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 14, borderBottom: "1px solid var(--border-soft)" }),
 	title: style({ margin: 0, fontSize: 15, fontWeight: 600 }),

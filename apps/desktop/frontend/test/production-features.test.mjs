@@ -4,11 +4,23 @@ import test from 'node:test';
 
 const source = async path => readFile(new URL(path, import.meta.url), 'utf8');
 
-test('Pomodoro entry point and panel remain available in production', async () => {
+test('Pomodoro and Kanban entry points and panels remain available in production', async () => {
 	const titlebar = await source('../src/app/ui/window-titlebar/index.tsx');
 	const app = await source('../src/app/index.tsx');
-	assert.match(titlebar, /<Show when=\{import\.meta\.env\.DEV\}>[\s\S]*?<\/Show>\s*<Button class=\{cx\(styles\.button, styles\.pomodoroButton\)\}[\s\S]*?aria-label=\{props\.t\("pomodoroOpen"\)\}/);
+	assert.match(titlebar, /<Button class=\{cx\(styles\.button, styles\.kanbanButton\)\}[\s\S]*?aria-label=\{props\.t\("kanbanOpen"\)\}/);
+	assert.match(titlebar, /<Button class=\{cx\(styles\.button, styles\.pomodoroButton\)\}[\s\S]*?aria-label=\{props\.t\("pomodoroOpen"\)\}/);
 	assert.match(app, /<Show when=\{pomodoroMounted\(\)\}>[\s\S]*?<PomodoroPanel/);
+	assert.match(app, /<Show when=\{kanbanMounted\(\)\}>[\s\S]*?<KanbanPanel/);
+});
+
+test('Shift-clicking Pomodoro Play starts the timer and hides the main window', async () => {
+	const [panel, app] = await Promise.all([
+		source('../src/features/pomodoro/ui/pomodoro-panel/index.tsx'),
+		source('../src/app/index.tsx'),
+	]);
+	assert.match(panel, /const toggleTimer = \(event: MouseEvent\): void => \{\s*if \(props\.pomodoro\.running\(\)\) \{\s*props\.pomodoro\.pause\(\);\s*return;\s*\}\s*props\.pomodoro\.start\(\);\s*if \(event\.shiftKey\) props\.onHideWindow\(\);\s*\}/);
+	assert.match(panel, /onClick=\{toggleTimer\}/);
+	assert.match(app, /<PomodoroPanel pomodoro=\{app\.pomodoro\} t=\{app\.t\} onHideWindow=\{app\.windowControls\.close\} \/>/);
 });
 
 test('Pomodoro focus completion can reveal a hidden window on both desktop hosts', async () => {
@@ -19,11 +31,21 @@ test('Pomodoro focus completion can reveal a hidden window on both desktop hosts
 		source('../../bridge/electron/main.mjs'),
 		source('../src/shared/lib/desktop-tauri.ts'),
 	]);
-	assert.match(pomodoro, /endsFocusPhase\(phase\(\), snapshot\.phase\)\) onFocusPhaseEnd\?\.\(\)/);
-	assert.match(app, /showMainWindowIfHidden\(\)/);
+	assert.match(pomodoro, /playPhaseChange && phase\(\) !== snapshot\.phase\) \{\s*onPhaseEnd\?\.\(\)/);
+	assert.match(app, /usePomodoro\(vaults\.activeVaultId, \(\) => \{\s*hideOtherWindows\("pomodoro"\);\s*pomodoro\.setOpen\(true\);\s*void showMainWindowIfHidden\(\)/);
 	assert.match(windowApi, /isDesktopRuntime\(\) && !\(await isMainWindowVisible\(\)\)\) await showMainWindow\(\)/);
 	assert.match(electron, /case 'window_is_visible': return window\.isVisible\(\)/);
 	assert.match(tauri, /case 'window_is_visible': return await webviewWindow\.isVisible\(\)/);
+});
+
+test('Chat scroll position updates do not retrigger automatic follow-to-bottom', async () => {
+	const chat = await source('../src/features/chat-with-ai/ui/ai-chat-panel/index.tsx');
+	const scrollEffectStart = chat.indexOf('    createEffect(() => {\n        props.aiChat.chat().messages;');
+	const scrollEffectEnd = chat.indexOf('\n    });', scrollEffectStart);
+	const scrollEffect = chat.slice(scrollEffectStart, scrollEffectEnd);
+	assert.ok(scrollEffectStart >= 0, 'chat scroll effect is present');
+	assert.ok(scrollEffectEnd > scrollEffectStart, 'chat scroll effect has a closing boundary');
+	assert.match(scrollEffect, /const view = untrack\(\(\) => props\.aiChat\.messageView\(\)\)/);
 });
 
 test('tray Exit saves before calling the native app exit command', async () => {
@@ -66,6 +88,19 @@ test('tray clicks open only the context menu on Windows', async () => {
 	assert.doesNotMatch(tauri, /MouseButton|TrayIconEvent/);
 });
 
+test('Tauri tray visibility follows every app-driven window show or hide', async () => {
+	const [desktop, tauri] = await Promise.all([
+		source('../src/shared/lib/desktop-tauri.ts'),
+		source('../../bridge/tauri/src/main.rs'),
+	]);
+	assert.match(desktop, /case 'hide_main_window': return await tauriInvoke\('hide_main_window'\)/);
+	assert.match(desktop, /case 'show_main_window': return await tauriInvoke\('show_main_window'\)/);
+	assert.match(tauri, /fn set_window_visibility\([\s\S]*?refresh_tray_menu\(app\)/);
+	assert.match(tauri, /fn hide_main_window\(app: AppHandle\) -> Result<\(\), String> \{\s*set_window_visibility\(&app, false\)/);
+	assert.match(tauri, /fn show_main_window\(app: AppHandle\) -> Result<\(\), String> \{\s*set_window_visibility\(&app, true\)/);
+	assert.match(tauri, /fn toggle_window_visibility\([\s\S]*?window\.is_visible\(\)[\s\S]*?set_window_visibility\(app, !visible\)/);
+});
+
 test('Tauri updater relaunches after installing and registers the native restart command', async () => {
 	const [updates, desktop, tauri] = await Promise.all([
 		source('../src/features/check-for-updates/api/updates.repository.ts'),
@@ -97,17 +132,22 @@ test('canvas mounts only after a successful full vault load', async () => {
 	assert.match(app, /ready=\{app\.notes\.hasLoadedVault\(\)\}/);
 });
 
-test('Kanban is hidden and cannot be opened in production', async () => {
-	const [titlebar, app, controller] = await Promise.all([
+test('Pomodoro and Kanban shortcuts are configurable and Kanban is available in production', async () => {
+	const [titlebar, app, controller, settings] = await Promise.all([
 		source('../src/app/ui/window-titlebar/index.tsx'),
 		source('../src/app/index.tsx'),
 		source('../src/app/controller.ts'),
+		source('../src/features/change-preferences/ui/settings-dialog/index.tsx'),
 	]);
-	assert.match(titlebar, /<Show when=\{import\.meta\.env\.DEV\}>[\s\S]*?kanbanButton/);
-	assert.match(app, /createPresence\(\(\) => import\.meta\.env\.DEV && app\.kanban\.open\(\)/);
-	assert.match(app, /<Show when=\{import\.meta\.env\.DEV && kanbanMounted\(\)\}>[\s\S]*?<KanbanPanel/);
-	assert.match(controller, /if \(!import\.meta\.env\.DEV \|\| !vaults\.activeVaultId\(\)\) return/);
-	assert.match(controller, /if \(!import\.meta\.env\.DEV \|\| event\.defaultPrevented[\s\S]*?KeyB/);
+	assert.doesNotMatch(titlebar, /import\.meta\.env\.DEV/);
+	assert.match(titlebar, /aria-keyshortcuts=\{props\.kanbanShortcut\}/);
+	assert.match(app, /createPresence\(app\.kanban\.open, 210\)/);
+	assert.match(app, /<Show when=\{kanbanMounted\(\)\}>[\s\S]*?<KanbanPanel/);
+	assert.match(controller, /const toggleKanban = \(\) => \{\s*if \(!vaults\.activeVaultId\(\)\) return/);
+	assert.match(controller, /matchesKeyboardShortcut\(event, preferences\.pomodoroShortcut\(\)\)/);
+	assert.match(controller, /matchesKeyboardShortcut\(event, preferences\.kanbanShortcut\(\)\)/);
+	assert.match(settings, /value=\{props\.pomodoroShortcut\} onChange=\{props\.onPomodoroShortcutChange\}/);
+	assert.match(settings, /value=\{props\.kanbanShortcut\} onChange=\{props\.onKanbanShortcutChange\}/);
 });
 
 test('Electron and Tauri enforce one app instance and focus the existing window', async () => {
@@ -124,12 +164,101 @@ test('Electron and Tauri enforce one app instance and focus the existing window'
 	assert.match(tauri, /tauri_plugin_single_instance::init\(\|app, _args, _cwd\|\s*\{\s*show_window\(app\)\s*\}\)/);
 });
 
-test('Kanban card editor has only an icon save action', async () => {
+test('Kanban card details link to notes instead of exposing a description', async () => {
 	const kanban = await source('../src/features/manage-kanban/ui/kanban-panel/index.tsx');
-	const start = kanban.indexOf('<form class={styles.cardEditor}');
-	const editor = kanban.slice(start, kanban.indexOf('</form>', start));
-	assert.doesNotMatch(editor, /props\.t\("cancel"\)|props\.t\("save"\)/);
-	assert.match(editor, /type="submit"[\s\S]*?<Icon name="check" size=\{14\} \/>/);
+	assert.match(kanban, /props\.t\("kanbanLinkedNote"\)/);
+	assert.match(kanban, /props\.onCreateNote\(noteTitle\)/);
+	assert.match(kanban, /props\.onOpenNote\(note\(\)\)/);
+	assert.match(kanban, /<Dropdown ariaLabel=\{props\.t\("kanbanPriority"\)\} value=\{priorityDraft\(\)\} placeholder="—"/);
+	assert.match(kanban, /options=\{kanbanPriorities\.filter\(priority => priority !== "none"\)\.map\(priority =>/);
+	assert.match(kanban, /<Portal>/);
+	assert.match(kanban, /<CustomScrollArea ariaLabel=\{props\.t\("kanbanLinkedNote"\)\}/);
+	assert.match(kanban, /createBackdropDismiss\(closeDetails\)/);
+	assert.match(kanban, /<Portal mount=\{document\.querySelector\("\[data-omega-app-shell\]"\) \?\? document\.body\}>/);
+	assert.match(kanban, /<AsciiBackdrop placement="modal" \/>/);
+	assert.match(kanban, /registerVisibilityAnimation\(element, detailPresence\.exiting, "dialog"\)/);
+	assert.match(kanban, /role="dialog" aria-modal="true" aria-labelledby=\{detailHeadingId\}/);
+	assert.match(kanban, /window\.addEventListener\("keydown", escape, true\)/);
+	assert.doesNotMatch(kanban, /descriptionDraft|kanbanDescription|cardDescription/);
+	assert.match(kanban, /props\.t\("kanbanPriority"\)/);
+	assert.match(kanban, /type="date"/);
+	assert.match(kanban, /props\.t\("kanbanLabels"\)/);
+	assert.match(kanban, /onSubmit=\{event => void saveDetails\(event\)\}/);
+});
+
+test('temporary note preview activates only with the left Alt key', async () => {
+	const preview = await source('../src/features/temporary-note-reading/model/temporary-reading.controller.ts');
+	assert.match(preview, /event\.code === "AltLeft"/);
+	assert.doesNotMatch(preview, /event\.key === "Alt"|event\.code === "AltRight"/);
+	assert.match(preview, /else if \(leftAltDown && !\["Shift", "Meta"\]\.includes\(event\.key\)\)/);
+});
+
+test('single-column Kanban reserves extra space beside its overlay scrollbar', async () => {
+	const kanban = await source('../src/features/manage-kanban/ui/kanban-panel/index.tsx');
+	assert.match(kanban, /viewportStyle=\{\{ padding: layoutColumnCount\(\) === 1 \? "2px 24px 12px 12px" : "2px 12px 12px" \}\}/);
+});
+
+test('Kanban priority filter uses the shared dropdown component', async () => {
+	const kanban = await source('../src/features/manage-kanban/ui/kanban-panel/index.tsx');
+	assert.match(kanban, /import Dropdown from "@\/shared\/ui\/dropdown"/);
+	assert.match(kanban, /<Dropdown ariaLabel=\{props\.t\("kanbanPriority"\)\} value=\{priorityFilter\(\)\}/);
+	assert.match(kanban, /kanbanPriorities\.filter\(priority => priority !== "none"\)/);
+	assert.match(kanban, /onChange=\{value => setPriorityFilter\(value as KanbanPriority \| "all"\)\}/);
+});
+
+test('Kanban WIP editor opens from the count and zero means unlimited', async () => {
+	const kanban = await source('../src/features/manage-kanban/ui/kanban-panel/index.tsx');
+	assert.match(kanban, /<Show when=\{wipEditorStatus\(\) === status\} fallback=\{[\s\S]*?<Button class=\{styles\.count\}/);
+	assert.match(kanban, /<input class=\{styles\.wipInput\}[\s\S]*?onBlur=\{event => finishWipEditor\(status, event\.currentTarget\)\}/);
+	assert.match(kanban, /document\.addEventListener\("pointerdown", commitWipEditorOutside, true\)/);
+	assert.doesNotMatch(kanban, /styles\.wipEditor/);
+	assert.doesNotMatch(kanban, /Icon name="sliders"/);
+	assert.match(kanban, /type="number" min="0"/);
+	assert.match(kanban, /value === 0 \? undefined : value/);
+});
+
+test('empty Kanban lanes do not show an empty-state message or placeholder', async () => {
+	const kanban = await source('../src/features/manage-kanban/ui/kanban-panel/index.tsx');
+	assert.doesNotMatch(kanban, /kanbanEmpty|styles\.empty/);
+});
+
+test('multi-column Kanban lanes stretch to the available height', async () => {
+	const style = await source('../src/features/manage-kanban/ui/kanban-panel/style.css.ts');
+	assert.match(style, /lanesFive: style\(\{ height: "100%", gridTemplateColumns: `repeat\(\$\{kanbanStatuses\.length\}, minmax\(0, 1fr\)\)`, alignContent: "stretch" \}\)/);
+	assert.match(style, /lane: style\(\{\s*display: "grid",\s*alignContent: "start"/);
+});
+
+test('Kanban uses only a temporary drag insertion gap, not permanent empty slots', async () => {
+	const [kanban, style] = await Promise.all([
+		source('../src/features/manage-kanban/ui/kanban-panel/index.tsx'),
+		source('../src/features/manage-kanban/ui/kanban-panel/style.css.ts'),
+	]);
+	assert.doesNotMatch(kanban, /kanbanSlotCount|slotPositions|positionSlot/);
+	assert.doesNotMatch(kanban, /draggedItem/);
+	assert.match(kanban, /dropPlaceholder\(\)/);
+	assert.match(kanban, /getDropPosition\(event\.currentTarget, event\.clientY\)/);
+	assert.match(kanban, /setDragImage\(event\.currentTarget/);
+	assert.match(kanban, /dragStartFrame = requestAnimationFrame/);
+	assert.match(style, /draggedSource: style\(\{ position: "absolute"/);
+	assert.match(style, /dropPlaceholder: style\(\{ boxSizing: "border-box", width: "100%", minHeight: 56, pointerEvents: "none" \}\)/);
+	assert.match(kanban, /<Show when=\{item\.priority !== "none" \|\| item\.dueDate\}>/);
+});
+
+test('frontend globally suppresses browser default focus outlines', async () => {
+	const css = await source('../src/index.css');
+	assert.match(css, /\*:focus\s*\{\s*outline:\s*none;/);
+});
+
+test('vault action rail stays clickable to close and highlights its open state', async () => {
+	const [dialog, style] = await Promise.all([
+		source('../src/features/manage-vault/ui/vault-dialog/index.tsx'),
+		source('../src/features/manage-vault/ui/vault-dialog/style.css.ts'),
+	]);
+	assert.match(dialog, /\[styles\.vaultActionsHitArea\]: true/);
+	assert.match(dialog, /\[styles\.vaultActionsOpen\]: vaultActionsVisibleId\(\) === vault\.id/);
+	assert.match(dialog, /if \(event\.target === event\.currentTarget\) toggleVaultActions\(vault\.id\)/);
+	assert.match(style, /vaultActionsHitArea: style\(\{ paddingRight: 6, marginRight: -5, cursor: "pointer" \}\)/);
+	assert.match(style, /vaultActionsOpen: style\(\{ selectors: \{ "&::after": \{ content: "", position: "absolute", top: 0, right: 0, bottom: 0, width: 6, backgroundColor: "var\(--border-strong\)", pointerEvents: "none" \} \} \}\)/);
 });
 
 test('Kanban width transition remains active when window resizing moves it to another session', async () => {
@@ -179,11 +308,12 @@ test('Lo-fi radio controls remain in Pomodoro while its player lives for the app
 });
 
 test('tray menu presents Play/Pause while starting playback or toggling mute', async () => {
-	const [tray, controller, player, electron, tauri, tauriBridge, pt, en] = await Promise.all([
+	const [tray, controller, player, electron, electronTray, tauri, tauriBridge, pt, en] = await Promise.all([
 		source('../src/app/api/tray.repository.ts'),
 		source('../src/app/controller.ts'),
 		source('../src/features/lofi-player/model/player.tsx'),
 		source('../../bridge/electron/main.mjs'),
+		source('../../bridge/electron/tray-menu.mjs'),
 		source('../../bridge/tauri/src/main.rs'),
 		source('../src/shared/lib/desktop-tauri.ts'),
 		source('../lang/pt-br.json').then(JSON.parse),
@@ -195,7 +325,8 @@ test('tray menu presents Play/Pause while starting playback or toggling mute', a
 	assert.match(controller, /case "music-play-pause": toggleTrayMusic\(\)/);
 	assert.match(controller, /case "music-next": lofiPlayer\.nextSource\(\)/);
 	assert.match(player, /isNoteMediaPlaying\(\) \|\| muted\(\) \|\| pomodoroMuted\(\) \? 0 : volume\(\)/);
-	assert.match(electron, /trayMusicPlaying \? trayLabels\.musicPause : trayLabels\.musicPlay/);
+	assert.match(electron, /musicPlaying: trayMusicPlaying/);
+	assert.match(electronTray, /music: musicPlaying \? labels\.musicPause : labels\.musicPlay/);
 	assert.match(electron, /'music-play-pause'/);
 	assert.match(electron, /'music-next'/);
 	assert.match(tauri, /music_playing/);
@@ -207,7 +338,7 @@ test('tray menu presents Play/Pause while starting playback or toggling mute', a
 	assert.equal(pt.musicPlayerPause, 'Pausar música');
 	assert.equal(en.musicPlayerPlay, 'Play music');
 	assert.equal(en.musicPlayerPause, 'Pause music');
-	assert.doesNotMatch([tray, controller, electron, tauri, tauriBridge].join(''), /music-toggle-mute|musicMuted|musicMute|musicUnmute/);
+	assert.doesNotMatch([tray, controller, electron, electronTray, tauri, tauriBridge].join(''), /music-toggle-mute|musicMuted|musicMute|musicUnmute/);
 	assert.equal(pt.trayPomodoroStart, 'Iniciar relógio');
 	assert.equal(pt.trayPomodoroPause, 'Pausar relógio');
 	assert.equal(pt.trayPomodoroReset, 'Reiniciar relógio');

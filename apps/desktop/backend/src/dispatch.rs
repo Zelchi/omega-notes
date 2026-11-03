@@ -206,6 +206,7 @@ pub(crate) async fn dispatch(
                 app.clone(),
                 argument(&args, "vaultId")?,
                 argument(&args, "items")?,
+                argument(&args, "wipLimits")?,
             )
             .await?,
         )

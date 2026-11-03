@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Backend } from './backend.mjs';
 import { readSettingsImport, validateStorageSnapshot } from './storage.mjs';
+import { dynamicTrayLabels } from './tray-menu.mjs';
 import { installAndRelaunch } from './updater-install.mjs';
 if (process.platform === 'linux') app.commandLine.appendSwitch('disable-features', 'WaylandWpColorManagerV1');
 let settingsImport = await readSettingsImport(process.argv);
@@ -32,13 +33,16 @@ const show = () => { if (window.isMinimized()) window.restore(); window.show(); 
 const hide = () => { if (tray) window.hide(); else window.minimize(); refreshTray(); };
 function refreshTray() {
     if (!tray || !window || window.isDestroyed()) return;
+    const labels = dynamicTrayLabels(trayLabels, {
+        visible: window.isVisible(), pomodoroRunning: trayRunning, musicPlaying: trayMusicPlaying,
+    });
     tray.setContextMenu(Menu.buildFromTemplate([
-        { label: window.isVisible() ? trayLabels.hide : trayLabels.show, click: () => window.isVisible() ? hide() : show() },
+        { label: labels.visibility, click: () => window.isVisible() ? hide() : show() },
         { type: 'separator' },
-        { label: trayRunning ? trayLabels.pause : trayLabels.start, click: () => emit('omega-tray-action', 'pomodoro-toggle') },
+        { label: labels.pomodoro, click: () => emit('omega-tray-action', 'pomodoro-toggle') },
         { label: trayLabels.reset, click: () => emit('omega-tray-action', 'pomodoro-reset') },
         { type: 'separator' },
-        { label: trayMusicPlaying ? trayLabels.musicPause : trayLabels.musicPlay, click: () => emit('omega-tray-action', 'music-play-pause') },
+        { label: labels.music, click: () => emit('omega-tray-action', 'music-play-pause') },
         { label: trayLabels.musicNext, click: () => emit('omega-tray-action', 'music-next') },
         { type: 'separator' },
         { label: trayLabels.update, click: () => { show(); emit('omega-tray-action', 'update'); } },
@@ -167,7 +171,7 @@ else {
     try {
         await backend.ready();
         const icon = nativeImage.createFromPath(join(directory, 'icons/128x128.png'));
-        window = new BrowserWindow({ width: 1000, height: 700, minWidth: 900, minHeight: 700, title: 'Ômega', frame: false, transparent: true, show: false, backgroundColor: '#00000000', icon, webPreferences: { preload: join(directory, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false } });
+        window = new BrowserWindow({ width: 1000, height: 700, minWidth: 858, minHeight: 700, title: 'Ômega', frame: false, transparent: true, show: false, backgroundColor: '#00000000', icon, webPreferences: { preload: join(directory, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false } });
         Menu.setApplicationMenu(null);
         ipcMain.handle('omega:invoke', (event, command, args = {}) => {
             validateSender(event);

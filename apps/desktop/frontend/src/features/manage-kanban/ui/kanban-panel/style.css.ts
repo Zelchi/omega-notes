@@ -1,22 +1,8 @@
 import { windowLayout } from "@/shared/ui/window-layout";
-import { style } from "@vanilla-extract/css";
+import { motion } from "@/shared/ui/motion.css";
+import { globalStyle, style } from "@vanilla-extract/css";
 import { sidePanelViewportGutter, sidePanelWidth } from "@/shared/lib/side-panel-layout";
 import { kanbanStatuses } from "../../model/kanban";
-
-const getLastRowStart = (columnCount: number) => Math.floor((kanbanStatuses.length - 1) / columnCount) * columnCount + 1;
-const getLaneLayout = (columnCount: number) => {
-	const selectors: Record<string, { borderRight?: string; borderBottom?: string }> = {};
-	for (let previousColumnCount = 2; previousColumnCount < columnCount; previousColumnCount += 1) {
-		selectors[`&:nth-child(${previousColumnCount}n)`] = { borderRight: "1px solid var(--border-soft)" };
-	}
-	selectors[`&:nth-child(${columnCount}n)`] = { borderRight: "none" };
-	selectors["&:last-child"] = { borderRight: "none" };
-	for (let index = 1; index < getLastRowStart(columnCount); index += 1) {
-		selectors[`&:nth-child(${index})`] = { borderBottom: "1px solid var(--border-soft)" };
-	}
-	selectors[`&:nth-child(n + ${getLastRowStart(columnCount)})`] = { borderBottom: "none" };
-	return { padding: "12px 8px 18px", borderRight: "1px solid var(--border-soft)", selectors };
-};
 
 const button = style({
 	display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
@@ -24,6 +10,23 @@ const button = style({
 	background: "var(--surface-input)", color: "var(--ink)", fontSize: 12, cursor: "pointer",
 	selectors: { "&:hover": { background: "var(--surface-hover)" }, "&:disabled": { opacity: .45, cursor: "default" } },
 });
+
+const card = style({
+	position: "relative", boxSizing: "border-box", display: "grid", alignContent: "start", gap: 5,
+	width: "100%", minWidth: 0, minHeight: 56, padding: "7px 9px",
+	border: "1px solid var(--border-soft)", borderRadius: 7, color: "var(--ink)",
+	background: "var(--surface-panel)", cursor: "grab",
+	transition: "border-color 130ms ease, box-shadow 130ms ease",
+	selectors: {
+		"&:hover": { borderColor: "var(--border-strong)", boxShadow: "0 3px 12px rgb(0 0 0 / 10%)" },
+		"&:active": { cursor: "grabbing" },
+	},
+});
+const cardActions = style({
+	display: "flex", alignItems: "center", gap: 2, margin: "-4px -4px 0 0",
+	opacity: 0, pointerEvents: "none", transition: "opacity 130ms ease",
+});
+globalStyle(`${card}:hover ${cardActions}`, { opacity: 1, pointerEvents: "auto" });
 
 export const styles = {
 	button,
@@ -54,59 +57,93 @@ export const styles = {
 	title: style({ margin: 0, fontSize: 15, fontWeight: 600 }),
 	closeButton: style([button, { boxSizing: "border-box", width: 32, height: 32, minWidth: 32, padding: 0, flexShrink: 0 }]),
 	content: style({ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, gap: 12 }),
+	toolbar: style({ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }),
+	searchBox: style({ display: "flex", alignItems: "center", flex: 1, minWidth: 0, height: 34, gap: 7, padding: "0 9px", border: "1px solid var(--border-soft)", borderRadius: 6, color: "var(--muted)", background: "var(--surface-input)" }),
+	searchInput: style({ width: "100%", minWidth: 0, border: 0, outline: 0, color: "var(--ink)", background: "transparent", font: "inherit", fontSize: 12, selectors: { "&::placeholder": { color: "var(--muted)" } } }),
 	error: style({ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--danger)" }),
 	loading: style({ margin: 0, fontSize: 12, color: "var(--muted)" }),
+	noResults: style({ margin: "auto", padding: 24, color: "var(--muted)", fontSize: 12, textAlign: "center" }),
 	lanes: style({
 		display: "grid",
 		gridTemplateColumns: "minmax(0, 1fr)",
 		alignContent: "start",
-		gap: 0,
+		gap: 10,
 		boxSizing: "border-box",
 		width: "100%",
 	}),
-	lanesFive: style({ gridTemplateColumns: `repeat(${kanbanStatuses.length}, minmax(0, 1fr))` }),
+	lanesFive: style({ height: "100%", gridTemplateColumns: `repeat(${kanbanStatuses.length}, minmax(0, 1fr))`, alignContent: "stretch" }),
 	lane: style({
 		display: "grid",
+		alignContent: "start",
 		gap: 0,
 		boxSizing: "border-box",
 		width: "100%",
 		minWidth: 0,
-		padding: "12px 4px 18px",
-		borderBottom: "1px solid var(--border-soft)",
-		background: "transparent",
+		padding: "12px 10px 10px",
+		border: "1px solid var(--border-soft)",
+		borderTop: "2px solid var(--lane-accent, var(--border-strong))",
+		borderRadius: 8,
+		background: "var(--surface-input)",
 		transition: "border-color 140ms ease, background-color 140ms ease",
-		selectors: { "&:last-child": { borderBottom: "none" } },
 	}),
-	laneFive: style({ ...getLaneLayout(kanbanStatuses.length), borderBottom: "none" }),
-	laneHeader: style({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0, padding: "0 6px 8px" }),
-	laneActions: style({ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }),
+	laneBacklog: style({ vars: { "--lane-accent": "#858b9a" } }),
+	laneToDo: style({ vars: { "--lane-accent": "#7398df" } }),
+	laneInProgress: style({ vars: { "--lane-accent": "#d2a04f" } }),
+	laneReview: style({ vars: { "--lane-accent": "#aa83d6" } }),
+	laneFinish: style({ vars: { "--lane-accent": "#66ad8b" } }),
+	laneHeader: style({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, minWidth: 0, padding: "0 0 10px", borderBottom: "1px solid var(--border-soft)" }),
+	laneActions: style({ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }),
 	collapseIcon: style({ display: "inline-flex", transition: "transform 160ms ease" }),
 	collapseIconCollapsed: style({ transform: "rotate(-90deg)" }),
 	laneContent: style({ display: "grid", gap: 0 }),
 	laneContentCollapsed: style({ display: "none" }),
-	laneTitle: style({ display: "flex", alignItems: "center", gap: 8, margin: 0, minWidth: 0, fontSize: 13, fontWeight: 600 }),
-	count: style({ color: "var(--muted)", fontSize: 11, fontWeight: 400, fontVariantNumeric: "tabular-nums" }),
+	laneTitle: style({ display: "flex", alignItems: "center", gap: 7, margin: 0, minWidth: 0, fontSize: 12, fontWeight: 650 }),
+	count: style({ boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, minHeight: 18, padding: "2px 5px", appearance: "none", border: 0, borderRadius: 10, color: "var(--muted)", background: "var(--surface-hover)", fontFamily: "inherit", fontSize: 10, fontWeight: 500, lineHeight: "normal", textAlign: "center", fontVariantNumeric: "tabular-nums", cursor: "pointer" }),
+	countExceeded: style({ color: "var(--danger)", background: "var(--danger-hover)" }),
 	iconButton: style([button, { width: 30, height: 30, minWidth: 30, minHeight: 30, padding: 0 }]),
-	cardList: style({ display: "grid", gap: 0 }),
-	positionSlot: style({ boxSizing: "border-box", display: "flex", alignItems: "center", height: 48, borderBottom: "1px solid var(--border-soft)", transition: "background-color 120ms ease" }),
-	positionSlotDropTarget: style({ background: "var(--surface-hover)" }),
-	empty: style({ margin: 0, fontSize: 12, color: "var(--muted)" }),
-	card: style({ boxSizing: "border-box", display: "flex", alignItems: "center", gap: 8, width: "calc(100% - 8px)", height: 44, minWidth: 0, margin: "0 4px", padding: "5px 8px", border: "1px solid var(--border-soft)", borderRadius: 5, background: "var(--surface-input)", cursor: "grab", selectors: { "&:active": { cursor: "grabbing" } } }),
-	dragging: style({ opacity: 0.5 }),
-	cardTitle: style({ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", fontSize: 13, lineHeight: 1.45, whiteSpace: "nowrap" }),
-	cardMeta: style({ display: "flex", flexDirection: "column", flexShrink: 0, minWidth: 0, color: "var(--muted)", fontSize: 9, lineHeight: "11px", fontVariantNumeric: "tabular-nums" }),
-	cardMetaLine: style({ display: "flex", alignItems: "center", gap: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }),
-	cardEditor: style({ display: "flex", alignItems: "center", flex: 1, minWidth: 0, gap: 5 }),
+	wipInput: style({ boxSizing: "border-box", width: 52, minWidth: 52, height: 22, padding: "2px 5px", border: "1px solid var(--border-strong)", borderRadius: 11, color: "var(--ink)", background: "var(--surface-panel)", font: "inherit", fontSize: 10, lineHeight: "normal", textAlign: "center", fontVariantNumeric: "tabular-nums", appearance: "textfield", outline: "none", selectors: { "&::-webkit-inner-spin-button, &::-webkit-outer-spin-button": { appearance: "none", margin: 0 } } }),
+	cardList: style({ position: "relative", display: "grid", alignContent: "start", gap: 8, paddingTop: 9 }),
+	draggedSource: style({ position: "absolute", top: 0, left: 0, width: 0, minWidth: 0, height: 0, minHeight: 0, gap: 0, margin: 0, padding: 0, border: 0, opacity: 0, overflow: "hidden", pointerEvents: "none" }),
+	dropPlaceholder: style({ boxSizing: "border-box", width: "100%", minHeight: 56, pointerEvents: "none" }),
+	card,
+	cardNoDrag: style({ cursor: "pointer", selectors: { "&:active": { cursor: "pointer" } } }),
+	cardTop: style({ display: "flex", alignItems: "flex-start", gap: 5, minWidth: 0 }),
+	cardTitle: style({ flex: 1, minWidth: 0, display: "-webkit-box", overflow: "hidden", textOverflow: "ellipsis", fontSize: 12, lineHeight: 1.45, fontWeight: 550, WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }),
+	cardNote: style({ display: "flex", alignItems: "center", gap: 5, width: "fit-content", maxWidth: "100%", minWidth: 0, padding: 0, border: 0, color: "var(--muted)", background: "transparent", font: "inherit", fontSize: 10, textAlign: "left", textOverflow: "ellipsis", whiteSpace: "nowrap", overflow: "hidden", cursor: "pointer", selectors: { "&:hover": { color: "var(--ink)" } } }),
+	cardNoteUnavailable: style({ overflow: "hidden", color: "var(--muted)", fontSize: 10, textOverflow: "ellipsis", whiteSpace: "nowrap" }),
+	cardActions,
+	cardAction: style({ boxSizing: "border-box", display: "grid", placeItems: "center", width: 22, height: 22, minWidth: 22, minHeight: 22, padding: 0, border: "1px solid transparent", borderRadius: 5, color: "var(--muted)", background: "transparent", cursor: "pointer", selectors: { "&:hover": { borderColor: "var(--border-soft)", color: "var(--ink)", background: "var(--surface-hover)" } } }),
+	cardActionDelete: style({ selectors: { "&:hover": { color: "var(--danger)" } } }),
+	cardLabels: style({ display: "flex", flexWrap: "wrap", gap: 4, minWidth: 0 }),
+	cardLabel: style({ maxWidth: "100%", overflow: "hidden", padding: "2px 6px", border: "1px solid var(--border-soft)", borderRadius: 9, color: "var(--muted)", fontSize: 9, lineHeight: 1.3, textOverflow: "ellipsis", whiteSpace: "nowrap" }),
+	cardFooter: style({ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5, minHeight: 16 }),
+	priorityBadge: style({ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 6px", borderRadius: 8, fontSize: 9, lineHeight: 1.3, background: "var(--surface-hover)" }),
+	priorityLow: style({ color: "#6b9a79" }),
+	priorityMedium: style({ color: "#c18c39" }),
+	priorityHigh: style({ color: "var(--danger)" }),
+	dueBadge: style({ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 6px", borderRadius: 8, color: "var(--muted)", background: "var(--surface-hover)", fontSize: 9, lineHeight: 1.3, fontVariantNumeric: "tabular-nums" }),
+	dueOverdue: style({ color: "var(--danger)", background: "var(--danger-hover)" }),
 	cardInput: style({ boxSizing: "border-box", width: "100%", minWidth: 0, height: 34, padding: "7px 9px", border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-input)", color: "var(--ink)", font: "inherit", fontSize: 12, outline: "none", selectors: { "&:focus-visible": { borderColor: "var(--ink)" } } }),
-	cardEditorInput: style({ flex: "1 1 0", width: "auto", height: 30, minWidth: 0, padding: "5px 8px" }),
-	cardActions: style({ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0, flexShrink: 0 }),
 	createForm: style({ display: "grid", gap: 7, padding: 8, border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-input)" }),
 	formActions: style({ display: "flex", justifyContent: "flex-end", gap: 6 }),
 	formButton: style([button, { minHeight: 29, padding: "5px 8px" }]),
-	actionReveal: style([button, { boxSizing: "border-box", flexShrink: 0, width: 0, minWidth: 0, height: 30, minHeight: 0, padding: 0, borderWidth: 0, overflow: "hidden", opacity: 0, pointerEvents: "none", transition: "width 150ms ease-in, opacity 130ms ease-in, border-width 150ms ease-in", selectors: { "&:disabled": { opacity: 0 } } }]),
-	actionRevealVisible: style({ width: 30, minHeight: 30, borderWidth: 1, opacity: 1, pointerEvents: "auto", transition: "width 210ms cubic-bezier(0.2, 0.7, 0.3, 1), opacity 180ms ease-out, border-width 210ms ease-out", selectors: { "&:disabled": { opacity: 0.45 } } }),
-	actionRevealTrailing: style({ marginInlineStart: 0, transition: "margin-inline-start 210ms cubic-bezier(0.2, 0.7, 0.3, 1)" }),
-	actionRevealTrailingVisible: style({ marginInlineStart: 5 }),
 	deleteButton: style([button, { color: "var(--danger)" }]),
+	detailBackdrop: style([motion.fade, { position: "fixed", inset: windowLayout.contentInset, zIndex: 10, display: "grid", placeItems: "center", overflow: "hidden", padding: 20, background: "var(--overlay)" }]),
+	detailDialog: style([motion.dialog, { position: "relative", isolation: "isolate", display: "flex", flexDirection: "column", width: "min(560px, 100%)", maxHeight: "100%", minHeight: 0, overflow: "hidden", border: "1px solid var(--border-strong)", borderRadius: 7, color: "var(--ink)", background: "var(--surface-panel)", boxShadow: "0 14px 48px rgb(0 0 0 / 24%)" }]),
+	detailHeader: style({ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 16px", borderBottom: "1px solid var(--border-soft)" }),
+	detailTitle: style({ margin: 0, fontSize: 14, fontWeight: 600 }),
+	detailForm: style({ display: "grid", gap: 13, minHeight: 0, overflowY: "auto", padding: 16 }),
+	detailField: style({ display: "grid", gap: 6, color: "var(--muted)", fontSize: 11 }),
+	detailInput: style({ boxSizing: "border-box", width: "100%", minWidth: 0, minHeight: 34, padding: "7px 9px", border: "1px solid var(--border-soft)", borderRadius: 5, outline: "none", color: "var(--ink)", background: "var(--surface-input)", font: "inherit", fontSize: 12, selectors: { "&:focus": { borderColor: "var(--border-strong)" } } }),
+	notePicker: style({ position: "relative", display: "grid", gap: 6 }),
+	notePickerLabel: style({ color: "var(--muted)", fontSize: 11 }),
+	noteOptions: style({ position: "fixed", zIndex: 40, overflow: "hidden", border: "1px solid var(--border-soft)", borderRadius: 5, background: "var(--surface-panel)", boxShadow: "0 8px 24px rgb(0 0 0 / 22%)" }),
+	noteOptionsScroll: style({ height: "100%", maxHeight: "100%", flex: "none" }),
+	noteOptionList: style({ display: "grid", alignContent: "start", minHeight: "100%" }),
+	noteOption: style({ display: "flex", alignItems: "center", gap: 7, minHeight: 32, padding: "6px 9px", border: 0, color: "var(--ink)", background: "transparent", font: "inherit", fontSize: 11, textAlign: "left", cursor: "pointer", selectors: { "&:hover": { background: "var(--surface-hover)" } } }),
+	noteCreateOption: style({ borderTop: "1px solid var(--border-soft)", color: "var(--accent, var(--ink))" }),
+	detailRow: style({ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }),
+	detailActions: style({ display: "flex", justifyContent: "space-between", gap: 8, paddingTop: 4 }),
+	detailPrimaryActions: style({ display: "flex", justifyContent: "flex-end", gap: 7 }),
 	noVault: style({ margin: 0, padding: 12, fontSize: 12, color: "var(--muted)" }),
 };
