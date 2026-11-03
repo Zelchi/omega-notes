@@ -1,6 +1,14 @@
 import type { BackgroundTheme, CanvasLayout, NoteMode, TextCursor, Theme } from "../model/preferences";
 import type { Language } from "@/shared/lib/i18n";
-import { DEFAULT_AI_CHAT_SHORTCUT, isAiChatShortcut, type AiChatShortcut } from "../model/ai-chat-shortcut";
+import {
+    DEFAULT_AI_CHAT_SHORTCUT,
+    DEFAULT_KANBAN_SHORTCUT,
+    DEFAULT_POMODORO_SHORTCUT,
+    isAiChatShortcut,
+    isKeyboardShortcut,
+    type AiChatShortcut,
+    type KeyboardShortcut,
+} from "../model/ai-chat-shortcut";
 import { DEFAULT_SEARCH_SHORTCUT, isSearchShortcut, type SearchShortcut } from "../model/search-shortcut";
 import { DEFAULT_CANVAS_LAYOUT_SHORTCUT, isCanvasLayoutShortcut, type CanvasLayoutShortcut } from "../model/canvas-layout-shortcut";
 import { DEFAULT_NOTE_LOCK_SHORTCUT, isNoteLockShortcut, type NoteLockShortcut } from "../model/note-lock-shortcut";
@@ -15,6 +23,8 @@ const TEXT_CURSOR_KEY = "omega-notes.settings.text-cursor";
 const AI_FEATURES_KEY = "omega-notes.settings.ai-features-enabled";
 const GAMBIARRA_KEY = "omega-notes.settings.gambiarra-enabled";
 const AI_CHAT_SHORTCUT_KEY = "omega-notes.settings.ai-chat-shortcut";
+const POMODORO_SHORTCUT_KEY = "omega-notes.settings.pomodoro-shortcut";
+const KANBAN_SHORTCUT_KEY = "omega-notes.settings.kanban-shortcut";
 const SEARCH_SHORTCUT_KEY = "omega-notes.settings.search-shortcut";
 const CANVAS_LAYOUT_SHORTCUT_KEY = "omega-notes.settings.canvas-layout-shortcut";
 const NOTE_LOCK_SHORTCUT_KEY = "omega-notes.settings.note-lock-shortcut";
@@ -46,6 +56,23 @@ export const saveAiChatShortcut = (value: AiChatShortcut): void => {
     try { localStorage.setItem(AI_CHAT_SHORTCUT_KEY, JSON.stringify(value)); }
     catch (error) { console.error(error); }
 };
+
+const readKeyboardShortcut = (key: string, fallback: KeyboardShortcut): KeyboardShortcut => {
+    try {
+        const value: unknown = JSON.parse(localStorage.getItem(key) ?? "null");
+        return isKeyboardShortcut(value) ? value : { ...fallback };
+    } catch { return { ...fallback }; }
+};
+
+const saveKeyboardShortcut = (key: string, value: KeyboardShortcut): void => {
+    try { localStorage.setItem(key, JSON.stringify(value)); }
+    catch (error) { console.error(error); }
+};
+
+export const readPomodoroShortcut = (): KeyboardShortcut => readKeyboardShortcut(POMODORO_SHORTCUT_KEY, DEFAULT_POMODORO_SHORTCUT);
+export const savePomodoroShortcut = (value: KeyboardShortcut): void => saveKeyboardShortcut(POMODORO_SHORTCUT_KEY, value);
+export const readKanbanShortcut = (): KeyboardShortcut => readKeyboardShortcut(KANBAN_SHORTCUT_KEY, DEFAULT_KANBAN_SHORTCUT);
+export const saveKanbanShortcut = (value: KeyboardShortcut): void => saveKeyboardShortcut(KANBAN_SHORTCUT_KEY, value);
 
 export const readSearchShortcut = (): SearchShortcut => {
     try {

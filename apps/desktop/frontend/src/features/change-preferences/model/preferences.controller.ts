@@ -2,7 +2,7 @@ import { createSignal } from "solid-js";
 import { setSoundVolume as applySoundVolume } from "@/shared/ui/sound";
 import type { Language } from "@/shared/lib/i18n";
 import type { BackgroundTheme, CanvasLayout, TextCursor, Theme } from "./preferences";
-import { isAiChatShortcut, type AiChatShortcut } from "./ai-chat-shortcut";
+import { hasKeyboardShortcutConflict, isAiChatShortcut, isKeyboardShortcut, resolveShortcutConflicts, type AiChatShortcut, type KeyboardShortcut } from "./ai-chat-shortcut";
 import { isSearchShortcut, type SearchShortcut } from "./search-shortcut";
 import { isCanvasLayoutShortcut, type CanvasLayoutShortcut } from "./canvas-layout-shortcut";
 import { isNoteLockShortcut, type NoteLockShortcut } from "./note-lock-shortcut";
@@ -14,6 +14,10 @@ import {
 	saveSoundVolume,
 	readAiChatShortcut,
 	saveAiChatShortcut,
+	readPomodoroShortcut,
+	savePomodoroShortcut,
+	readKanbanShortcut,
+	saveKanbanShortcut,
 	readSearchShortcut,
 	readCanvasLayoutShortcut,
 	saveSearchShortcut,
@@ -40,14 +44,31 @@ import {
 } from "../api/preferences.repository";
 
 export const usePreferences = () => {
+	const savedShortcuts = {
+		aiChat: readAiChatShortcut(),
+		pomodoro: readPomodoroShortcut(),
+		kanban: readKanbanShortcut(),
+		search: readSearchShortcut(),
+		canvasLayout: readCanvasLayoutShortcut(),
+		noteLock: readNoteLockShortcut(),
+	};
+	const shortcuts = resolveShortcutConflicts(savedShortcuts);
+	if (JSON.stringify(savedShortcuts.aiChat) !== JSON.stringify(shortcuts.aiChat)) saveAiChatShortcut(shortcuts.aiChat as AiChatShortcut);
+	if (JSON.stringify(savedShortcuts.pomodoro) !== JSON.stringify(shortcuts.pomodoro)) savePomodoroShortcut(shortcuts.pomodoro);
+	if (JSON.stringify(savedShortcuts.kanban) !== JSON.stringify(shortcuts.kanban)) saveKanbanShortcut(shortcuts.kanban);
+	if (JSON.stringify(savedShortcuts.search) !== JSON.stringify(shortcuts.search)) saveSearchShortcut(shortcuts.search);
+	if (JSON.stringify(savedShortcuts.canvasLayout) !== JSON.stringify(shortcuts.canvasLayout)) saveCanvasLayoutShortcut(shortcuts.canvasLayout);
+	if (JSON.stringify(savedShortcuts.noteLock) !== JSON.stringify(shortcuts.noteLock)) saveNoteLockShortcut(shortcuts.noteLock);
 	const [soundVolume, setSoundVolume] = createSignal(readSoundVolume());
 	applySoundVolume(soundVolume());
 	const [aiFeaturesEnabled, setAiFeaturesEnabled] = createSignal(readAiFeaturesEnabled());
 	const [gambiarraEnabled, setGambiarraEnabled] = createSignal(!aiFeaturesEnabled() && readGambiarraEnabled());
-	const [aiChatShortcut, setAiChatShortcut] = createSignal(readAiChatShortcut());
-	const [searchShortcut, setSearchShortcut] = createSignal(readSearchShortcut());
-	const [canvasLayoutShortcut, setCanvasLayoutShortcut] = createSignal(readCanvasLayoutShortcut());
-	const [noteLockShortcut, setNoteLockShortcut] = createSignal(readNoteLockShortcut());
+	const [aiChatShortcut, setAiChatShortcut] = createSignal(shortcuts.aiChat);
+	const [pomodoroShortcut, setPomodoroShortcut] = createSignal(shortcuts.pomodoro);
+	const [kanbanShortcut, setKanbanShortcut] = createSignal(shortcuts.kanban);
+	const [searchShortcut, setSearchShortcut] = createSignal(shortcuts.search);
+	const [canvasLayoutShortcut, setCanvasLayoutShortcut] = createSignal(shortcuts.canvasLayout);
+	const [noteLockShortcut, setNoteLockShortcut] = createSignal(shortcuts.noteLock);
 	const [canvasLayout, setCanvasLayout] = createSignal<CanvasLayout>(readCanvasLayout());
 	const [centerCanvasOnLaunch, setCenterCanvasOnLaunch] = createSignal(readCenterCanvasOnLaunch());
 	const [hideCanvasControls, setHideCanvasControls] = createSignal(readHideCanvasControls());
@@ -85,28 +106,58 @@ export const usePreferences = () => {
 		aiFeaturesEnabled,
 		gambiarraEnabled,
 		aiChatShortcut,
+		pomodoroShortcut,
+		setPomodoroShortcut: (value: KeyboardShortcut) => {
+			if (!isKeyboardShortcut(value) || hasKeyboardShortcutConflict(value, [
+				kanbanShortcut(), searchShortcut(), canvasLayoutShortcut(), noteLockShortcut(), aiChatShortcut(),
+			])) return false;
+			setPomodoroShortcut(value);
+			savePomodoroShortcut(value);
+			return true;
+		},
+		kanbanShortcut,
+		setKanbanShortcut: (value: KeyboardShortcut) => {
+			if (!isKeyboardShortcut(value) || hasKeyboardShortcutConflict(value, [
+				pomodoroShortcut(), searchShortcut(), canvasLayoutShortcut(), noteLockShortcut(), aiChatShortcut(),
+			])) return false;
+			setKanbanShortcut(value);
+			saveKanbanShortcut(value);
+			return true;
+		},
 		searchShortcut,
 		setAiChatShortcut: (value: AiChatShortcut) => {
-			if (!isAiChatShortcut(value)) return;
+			if (!isAiChatShortcut(value) || hasKeyboardShortcutConflict(value, [
+				pomodoroShortcut(), kanbanShortcut(), searchShortcut(), canvasLayoutShortcut(), noteLockShortcut(),
+			])) return false;
 			setAiChatShortcut(value);
 			saveAiChatShortcut(value);
+			return true;
 		},
 		setSearchShortcut: (value: SearchShortcut) => {
-			if (!isSearchShortcut(value)) return;
+			if (!isSearchShortcut(value) || hasKeyboardShortcutConflict(value, [
+				pomodoroShortcut(), kanbanShortcut(), canvasLayoutShortcut(), noteLockShortcut(), aiChatShortcut(),
+			])) return false;
 			setSearchShortcut(value);
 			saveSearchShortcut(value);
+			return true;
 		},
 		canvasLayoutShortcut,
 		setCanvasLayoutShortcut: (value: CanvasLayoutShortcut) => {
-			if (!isCanvasLayoutShortcut(value)) return;
+			if (!isCanvasLayoutShortcut(value) || hasKeyboardShortcutConflict(value, [
+				pomodoroShortcut(), kanbanShortcut(), searchShortcut(), noteLockShortcut(), aiChatShortcut(),
+			])) return false;
 			setCanvasLayoutShortcut(value);
 			saveCanvasLayoutShortcut(value);
+			return true;
 		},
 		noteLockShortcut,
 		setNoteLockShortcut: (value: NoteLockShortcut) => {
-			if (!isNoteLockShortcut(value)) return;
+			if (!isNoteLockShortcut(value) || hasKeyboardShortcutConflict(value, [
+				pomodoroShortcut(), kanbanShortcut(), searchShortcut(), canvasLayoutShortcut(), aiChatShortcut(),
+			])) return false;
 			setNoteLockShortcut(value);
 			saveNoteLockShortcut(value);
+			return true;
 		},
 		setAiFeaturesEnabled: (value: boolean) => {
 			if (value) { setGambiarraEnabled(false); saveGambiarraEnabled(false); }

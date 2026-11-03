@@ -1,5 +1,6 @@
 import { motion } from "@/shared/ui/motion.css";
 import { globalStyle, style } from "@vanilla-extract/css";
+import { sidePanelFrame } from "@/shared/lib/side-panel-layout";
 
 const messageText = style({ whiteSpace: "pre-wrap", userSelect: "text", WebkitUserSelect: "text", cursor: "text" });
 globalStyle(`${messageText} *`, { userSelect: "text", WebkitUserSelect: "text" });
@@ -14,7 +15,7 @@ export const styles = {
     button,
     closeButton: style([button, { boxSizing: "border-box", width: 32, height: 32, minWidth: 32, padding: 0, flexShrink: 0 }]),
     panel: style({ position: "fixed", isolation: "isolate", top: 39, right: 1, bottom: 1, zIndex: 8,
-        width: "min(420px, calc(100% - 24px))", background: "var(--surface-panel)",
+        ...sidePanelFrame, background: "var(--surface-panel)",
         borderLeft: "1px solid var(--border-strong)", overflow: "hidden",
     }),
     body: style({ position: "relative", display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: 16, gap: 14, minHeight: 0 }),

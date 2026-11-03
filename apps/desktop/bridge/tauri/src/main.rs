@@ -42,6 +42,37 @@ struct TrayMenuState {
     exit: MenuItem<tauri::Wry>,
 }
 
+struct DynamicTrayLabels {
+    visibility: String,
+    pomodoro: String,
+    music_play_pause: String,
+}
+
+fn dynamic_tray_labels(
+    labels: &TrayLabels,
+    visible: bool,
+    pomodoro_running: bool,
+    music_playing: bool,
+) -> DynamicTrayLabels {
+    DynamicTrayLabels {
+        visibility: if visible {
+            labels.hide.clone()
+        } else {
+            labels.show.clone()
+        },
+        pomodoro: if pomodoro_running {
+            labels.pause.clone()
+        } else {
+            labels.start.clone()
+        },
+        music_play_pause: if music_playing {
+            labels.music_pause.clone()
+        } else {
+            labels.music_play.clone()
+        },
+    }
+}
+
 impl TrayMenuState {
     fn refresh(&self, app: &AppHandle) -> Result<(), String> {
         let labels = self
@@ -59,22 +90,21 @@ impl TrayMenuState {
             .map_err(|_| "Tray menu unavailable")?;
         let visible = app
             .get_webview_window("main")
-            .is_some_and(|window| window.is_visible().unwrap_or(true));
+            .map(|window| window.is_visible().map_err(|error| error.to_string()))
+            .transpose()?
+            .unwrap_or(false);
+        let dynamic = dynamic_tray_labels(&labels, visible, running, music_playing);
         self.visibility
-            .set_text(if visible { labels.hide } else { labels.show })
+            .set_text(dynamic.visibility)
             .map_err(|error| error.to_string())?;
         self.pomodoro
-            .set_text(if running { labels.pause } else { labels.start })
+            .set_text(dynamic.pomodoro)
             .map_err(|error| error.to_string())?;
         self.reset
             .set_text(labels.reset)
             .map_err(|error| error.to_string())?;
         self.music_play_pause
-            .set_text(if music_playing {
-                labels.music_pause
-            } else {
-                labels.music_play
-            })
+            .set_text(dynamic.music_play_pause)
             .map_err(|error| error.to_string())?;
         self.music_next
             .set_text(labels.music_next)
@@ -167,6 +197,48 @@ fn configure_tray_menu(
     tray.refresh(&app)
 }
 
+fn refresh_tray_menu(app: &AppHandle) -> Result<(), String> {
+    if let Some(tray) = app.try_state::<TrayMenuState>() {
+        tray.refresh(app)?;
+    }
+    Ok(())
+}
+
+fn set_window_visibility(app: &AppHandle, visible: bool) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "Main window unavailable".to_string())?;
+    let operation = if visible {
+        window
+            .show()
+            .map_err(|error| error.to_string())
+            .and_then(|()| window.set_focus().map_err(|error| error.to_string()))
+    } else {
+        window.hide().map_err(|error| error.to_string())
+    };
+    let refresh = refresh_tray_menu(app);
+    operation?;
+    refresh
+}
+
+fn toggle_window_visibility(app: &AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "Main window unavailable".to_string())?;
+    let visible = window.is_visible().map_err(|error| error.to_string())?;
+    set_window_visibility(app, !visible)
+}
+
+#[tauri::command]
+fn hide_main_window(app: AppHandle) -> Result<(), String> {
+    set_window_visibility(&app, false)
+}
+
+#[tauri::command]
+fn show_main_window(app: AppHandle) -> Result<(), String> {
+    set_window_visibility(&app, true)
+}
+
 #[tauri::command]
 fn exit_app(app: AppHandle) {
     app.exit(0);
@@ -185,9 +257,8 @@ fn emit_tray_action(app: &AppHandle, action: &str) {
 }
 
 fn show_window(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.set_focus();
+    if let Err(error) = set_window_visibility(app, true) {
+        eprintln!("Could not show main window: {error}");
     }
 }
 
@@ -277,15 +348,8 @@ fn main() {
                 .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "visibility" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            if window.is_visible().unwrap_or(false) {
-                                let _ = window.hide();
-                            } else {
-                                show_window(app);
-                            }
-                        }
-                        if let Some(tray) = app.try_state::<TrayMenuState>() {
-                            let _ = tray.refresh(app);
+                        if let Err(error) = toggle_window_visibility(app) {
+                            eprintln!("Could not toggle main window visibility: {error}");
                         }
                     }
                     "pomodoro" => {
@@ -324,7 +388,9 @@ fn main() {
                     json!({"event":"window-close-requested","payload":null}),
                 );
             }
-            tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) | tauri::WindowEvent::ScaleFactorChanged { .. } => {
+            tauri::WindowEvent::Resized(_)
+            | tauri::WindowEvent::Moved(_)
+            | tauri::WindowEvent::ScaleFactorChanged { .. } => {
                 let _ = window.emit(
                     "omega:event",
                     json!({"event":"window-resized","payload":null}),
@@ -334,10 +400,46 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             desktop_dispatch,
+            hide_main_window,
+            show_main_window,
             exit_app,
             relaunch_app,
             configure_tray_menu
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o host Tauri");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{dynamic_tray_labels, TrayLabels};
+
+    fn labels() -> TrayLabels {
+        TrayLabels {
+            show: "Show".into(),
+            hide: "Hide".into(),
+            start: "Start".into(),
+            pause: "Pause".into(),
+            reset: "Reset".into(),
+            music_play: "Play music".into(),
+            music_pause: "Pause music".into(),
+            music_next: "Next station".into(),
+            update: "Update".into(),
+            exit: "Exit".into(),
+        }
+    }
+
+    #[test]
+    fn tray_labels_reflect_current_window_and_playback_state() {
+        let labels = labels();
+        let hidden = dynamic_tray_labels(&labels, false, false, false);
+        assert_eq!(hidden.visibility, "Show");
+        assert_eq!(hidden.pomodoro, "Start");
+        assert_eq!(hidden.music_play_pause, "Play music");
+
+        let active = dynamic_tray_labels(&labels, true, true, true);
+        assert_eq!(active.visibility, "Hide");
+        assert_eq!(active.pomodoro, "Pause");
+        assert_eq!(active.music_play_pause, "Pause music");
+    }
 }

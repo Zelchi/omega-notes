@@ -1,7 +1,7 @@
-import { formatKeyboardShortcut, isKeyboardShortcut, type KeyboardShortcut } from "./ai-chat-shortcut";
+import { DEFAULT_CANVAS_LAYOUT_SHORTCUT, formatKeyboardShortcut, isKeyboardShortcut, type KeyboardShortcut } from "./ai-chat-shortcut";
+export { DEFAULT_CANVAS_LAYOUT_SHORTCUT };
 
 export type CanvasLayoutShortcut = KeyboardShortcut;
-export const DEFAULT_CANVAS_LAYOUT_SHORTCUT: CanvasLayoutShortcut = { code: "KeyV", ctrl: true, alt: false, shift: true };
 export const isCanvasLayoutShortcut = isKeyboardShortcut;
 export const formatCanvasLayoutShortcut = formatKeyboardShortcut;
 

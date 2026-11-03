@@ -136,7 +136,7 @@ const ChatBody: Component<Props> = (props) => {
     createEffect(() => {
         props.aiChat.chat().messages;
         props.aiChat.chat().busy;
-        const view = props.aiChat.messageView();
+        const view = untrack(() => props.aiChat.messageView());
         cancelAnimationFrame(scrollFrame);
         scrollFrame = requestAnimationFrame(() => {
             if (messages) messages.scrollTop = view.follow ? messages.scrollHeight : view.scrollTop;

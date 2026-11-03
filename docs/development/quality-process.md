@@ -6,7 +6,7 @@
 ## Contexto atual
 
 - O desktop tem 20 pastas em `apps/desktop/frontend/src/features`; o inventário e os testes conhecidos estão no [índice da documentação](../readme.md).
-- `.github/workflows/quality.yml` executa typecheck, testes desktop e testes Rust em pull requests e pushes para `main`; release e publicação do site permanecem em workflows próprios.
+- `.github/workflows/quality.yml` executa typecheck, validação Astro, testes desktop e verificações Rust em pull requests e pushes para `main`; release e publicação do site permanecem em workflows próprios.
 - A documentação está separada entre features, arquitetura e desenvolvimento. Cada feature tem um arquivo Markdown plano `docs/features/<slug>.md`, usando o slug de `apps/desktop/frontend/src/features/`; não criar `README.md` nem subpastas por feature.
 
 ## Princípios
@@ -52,7 +52,7 @@ Adicionar uma verificação de qualidade para pull requests e atualizações da 
 
 O workflow que implementa essa verificação é [quality.yml](../../.github/workflows/quality.yml). Ele não empacota instaladores; isso continua no workflow de release.
 
-A CI roda em Linux. Smoke tests de janela nativa e validação do instalador Windows continuam manuais; registre essa limitação no `TASK.md` quando fizer parte da correção.
+A CI de qualidade usa uma matriz Linux/Windows. O Linux executa o smoke do Electron e valida o site; o Windows compila o host Tauri sem empacotar instalador. Validações de instaladores e fluxos nativos completos continuam manuais; registre essa limitação no `TASK.md` quando fizer parte da correção.
 
 Quando uma feature depender de comportamento específico de Windows ou Linux, seus testes devem ser executados num runner do sistema correspondente. O workflow de release continua responsável pelo empacotamento; não substitui a verificação rápida de pull requests.
 

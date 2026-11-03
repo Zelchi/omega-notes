@@ -1,8 +1,8 @@
-import { formatKeyboardShortcut, isKeyboardShortcut, type KeyboardShortcut } from "./ai-chat-shortcut";
+import { DEFAULT_SEARCH_SHORTCUT, formatKeyboardShortcut, isKeyboardShortcut, type KeyboardShortcut } from "./ai-chat-shortcut";
+export { DEFAULT_SEARCH_SHORTCUT };
 
 export type SearchShortcut = KeyboardShortcut;
 
-export const DEFAULT_SEARCH_SHORTCUT: SearchShortcut = { code: "KeyP", ctrl: true, alt: false, shift: false };
 export const isSearchShortcut = isKeyboardShortcut;
 export const formatSearchShortcut = formatKeyboardShortcut;
 

@@ -42,7 +42,9 @@ export const styles = {
 		cursor: "text",
 		caretColor: "transparent",
 	}),
-	caret: caretStyle,
+	caret: style([caretStyle, {
+		transition: "left 80ms ease-out, top 80ms ease-out",
+	}]),
 	fragment: style({
 		position: "absolute",
 		display: "block",

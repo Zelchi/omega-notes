@@ -2,7 +2,7 @@ import Button from "@/shared/ui/button";
 import { createEffect, createSignal, lazy, Show, Suspense, type Component } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
 
-import { formatAiChatShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
+import { formatAiChatShortcut, formatKeyboardShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
 import WindowTitlebar from "./ui/window-titlebar";
 import FloatingSearch from "./ui/floating-search";
 
@@ -44,7 +44,7 @@ const AppView: Component = () => {
 	const deleteDialogMounted = createPresence(app.noteDeletion.open, 210).present;
 	const noteNameDialogMounted = createPresence(app.navigation.nameDialogVisible, 210).present;
 	const chatMounted = createPresence(app.chatOpen, 210).present;
-	const kanbanMounted = createPresence(() => import.meta.env.DEV && app.kanban.open(), 210).present;
+	const kanbanMounted = createPresence(app.kanban.open, 210).present;
 	const pomodoroMounted = createPresence(app.pomodoro.open, 210).present;
 
 	return (
@@ -68,6 +68,7 @@ const AppView: Component = () => {
 						aiChatShortcut={formatAiChatShortcut(app.preferences.aiChatShortcut(), true)}
 						aiFeaturesEnabled={app.chatAvailable()}
 						kanbanOpen={app.kanban.open()}
+						kanbanShortcut={formatKeyboardShortcut(app.preferences.kanbanShortcut(), true)}
 						onKanban={app.toggleKanban}
 						pomodoroOpen={app.pomodoro.open()}
 						onPomodoro={app.togglePomodoro}
@@ -212,6 +213,10 @@ const AppView: Component = () => {
 								aiFeaturesEnabled={app.preferences.aiFeaturesEnabled()}
 								aiChatShortcut={app.preferences.aiChatShortcut()}
 								onAiChatShortcutChange={app.preferences.setAiChatShortcut}
+								pomodoroShortcut={app.preferences.pomodoroShortcut()}
+								onPomodoroShortcutChange={app.preferences.setPomodoroShortcut}
+								kanbanShortcut={app.preferences.kanbanShortcut()}
+								onKanbanShortcutChange={app.preferences.setKanbanShortcut}
 								searchShortcut={app.preferences.searchShortcut()}
 								onSearchShortcutChange={app.preferences.setSearchShortcut}
 										canvasLayoutShortcut={app.preferences.canvasLayoutShortcut()}
@@ -296,14 +301,15 @@ const AppView: Component = () => {
 							</Show>
 						</Suspense>
 					</Show>
-					<Show when={import.meta.env.DEV && kanbanMounted()}>
+					<Show when={kanbanMounted()}>
 						<Suspense fallback={null}>
-						<KanbanPanel kanban={app.kanban} t={app.t} />
+						<KanbanPanel kanban={app.kanban} notes={app.notes} t={app.t}
+							onOpenNote={note => void app.openAiNote(note)} onCreateNote={app.createKanbanNote} />
 						</Suspense>
 					</Show>
 					<Show when={pomodoroMounted()}>
 						<Suspense fallback={null}>
-						<PomodoroPanel pomodoro={app.pomodoro} t={app.t} />
+						<PomodoroPanel pomodoro={app.pomodoro} t={app.t} onHideWindow={app.windowControls.close} />
 						</Suspense>
 					</Show>
 

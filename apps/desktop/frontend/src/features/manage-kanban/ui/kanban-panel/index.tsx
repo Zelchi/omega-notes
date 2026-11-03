@@ -1,37 +1,209 @@
-import { createMemo, createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js";
+import { createEffect, createMemo, createSignal, createUniqueId, For, on, onCleanup, onMount, Show, type Component } from "solid-js";
 import Button from "@/shared/ui/button";
+import Dropdown from "@/shared/ui/dropdown";
 import CustomScrollArea from "@/shared/ui/custom-scroll-area";
 import Icon from "@/shared/ui/icon";
 import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
+import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
+import { displayNoteTitle, normalizeNoteTitle, NOTE_TITLE_MAX_LENGTH, type NotesLibrary, type NoteSummary } from "@/entities/note";
+import { Portal } from "solid-js/web";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { clampKanbanPanelWidth, getKanbanLayoutColumnCount, getKanbanPanelSnapPoints, getKanbanPanelStage, getKanbanPanelWidthLimits, resizeKanbanPanelForViewport, snapKanbanPanelWidth } from "../../model/panel-size";
-import { kanbanSlotCount, kanbanStatusLabels, kanbanStatuses, maxKanbanItems, type KanbanItem, type KanbanStatus } from "../../model/kanban";
+import { kanbanPriorityLabels, kanbanPriorities, kanbanStatusLabels, kanbanStatuses, maxKanbanItems, type KanbanItem, type KanbanPriority, type KanbanStatus } from "../../model/kanban";
 import type { useKanban } from "../../model/controller";
 import { styles } from "./style.css.ts";
 
 type Props = {
 	kanban: ReturnType<typeof useKanban>;
+	notes: NotesLibrary;
 	vaultId?: string;
 	t: (key: TranslationKey) => string;
+	onOpenNote: (note: NoteSummary) => void | Promise<void>;
+	onCreateNote: (title: string) => Promise<NoteSummary | undefined>;
 };
 
-const cardDateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeStyle: "short" });
-const formatCardDate = (value: number | null) => value === null ? "—" : cardDateFormatter.format(value);
+const dueDateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" });
+const formatDueDate = (value: string) => dueDateFormatter.format(new Date(`${value}T00:00:00.000Z`));
+const currentDateKey = () => {
+	const now = new Date();
+	return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
 
 const KanbanPanel: Component<Props> = (props) => {
 	const presence = createPresence(props.kanban.open, 210);
-	const { adding, setAdding, draft, setDraft, editing, setEditing, editDraft, setEditDraft,
-		actionsVisibleId, setActionsVisibleId, collapsedStatuses, setCollapsedStatuses } = props.kanban.view;
+	const { adding, setAdding, draft, setDraft, collapsedStatuses, setCollapsedStatuses } = props.kanban.view;
 	const [canResize, setCanResize] = createSignal(false);
 	const [viewportWidth, setViewportWidth] = createSignal(0);
 	const [draggedId, setDraggedId] = createSignal<string>();
+	const [draggedHeight, setDraggedHeight] = createSignal(56);
 	const [dropTarget, setDropTarget] = createSignal<{ status: KanbanStatus; position: number }>();
+	const [searchText, setSearchText] = createSignal("");
+	const [priorityFilter, setPriorityFilter] = createSignal<KanbanPriority | "all">("all");
+	const [detailsId, setDetailsId] = createSignal<string>();
+	const [titleDraft, setTitleDraft] = createSignal("");
+	const [noteIdDraft, setNoteIdDraft] = createSignal<string | null>(null);
+	const [noteQueryDraft, setNoteQueryDraft] = createSignal("");
+	const [notePickerOpen, setNotePickerOpen] = createSignal(false);
+	const [noteOptionsPosition, setNoteOptionsPosition] = createSignal({ left: 0, top: 0, width: 180, maxHeight: 180 });
+	const [savingDetails, setSavingDetails] = createSignal(false);
+	const [noteLinkError, setNoteLinkError] = createSignal(false);
+	const [priorityDraft, setPriorityDraft] = createSignal<KanbanPriority>("low");
+	const [labelsDraft, setLabelsDraft] = createSignal("");
+	const [dueDateDraft, setDueDateDraft] = createSignal("");
+	const [wipEditorStatus, setWipEditorStatus] = createSignal<KanbanStatus>();
+	const detailHeadingId = createUniqueId();
 	let panelElement: HTMLElement | undefined;
+	let notePickerInput: HTMLInputElement | undefined;
+	let wipInputElement: HTMLInputElement | undefined;
 	let resizePointer: { pointerId: number; startX: number; startWidth: number } | undefined;
+	let dragStartFrame: number | undefined;
+	let noteOptionsFrame: number | undefined;
 	const mutationsBlocked = () => props.kanban.loading() || props.kanban.readFailed();
 	const layoutColumnCount = createMemo(() => getKanbanLayoutColumnCount(props.kanban.panelStage()));
+	const filtering = () => Boolean(searchText().trim()) || priorityFilter() !== "all";
+	const noteForId = (noteId: string | null | undefined) => noteId ? props.notes.notes().find(note => note.id === noteId) : undefined;
+	const filteredItems = createMemo(() => {
+		const query = searchText().trim().toLocaleLowerCase();
+		return props.kanban.items().filter(item =>
+			(priorityFilter() === "all" || item.priority === priorityFilter())
+			&& (!query || [item.title, noteForId(item.noteId) ? displayNoteTitle(noteForId(item.noteId)!) : "", ...item.labels].some(value => value.toLocaleLowerCase().includes(query))),
+		);
+	});
+	const selectedItem = createMemo(() => props.kanban.items().find(item => item.id === detailsId()));
+	const detailPresence = createPresence(() => Boolean(detailsId()), 210);
+	const displayedItem = createMemo<KanbanItem | undefined>((previous) =>
+		selectedItem() ?? (detailPresence.present() ? previous : undefined),
+	);
+	const matchingNotes = () => {
+		const query = normalizeNoteTitle(noteQueryDraft());
+		return props.notes.sortedNotes().filter(note => !query
+			|| normalizeNoteTitle(note.title).includes(query)
+			|| normalizeNoteTitle(displayNoteTitle(note)).includes(query)).slice(0, 10);
+	};
+	const exactNotes = () => {
+		const query = normalizeNoteTitle(noteQueryDraft().trim());
+		return query ? props.notes.notes().filter(note => normalizeNoteTitle(note.title) === query) : [];
+	};
+	const canCreateNote = () => {
+		const title = noteQueryDraft().trim();
+		return Boolean(title) && title.length <= NOTE_TITLE_MAX_LENGTH && !noteIdDraft() && exactNotes().length === 0;
+	};
+	const updateNoteOptionsPosition = () => {
+		const input = notePickerInput;
+		if (!input?.isConnected) return;
+		const bounds = input.getBoundingClientRect();
+		const margin = 8;
+		const below = window.innerHeight - bounds.bottom - margin;
+		const above = bounds.top - margin;
+		const requestedHeight = Math.min(240, Math.max(36, matchingNotes().length * 34 + (canCreateNote() ? 35 : 0) + 2));
+		const opensBelow = below >= requestedHeight || below >= above;
+		const maxHeight = Math.max(0, Math.min(requestedHeight, opensBelow ? below : above));
+		const top = opensBelow ? bounds.bottom + 4 : bounds.top - 4 - maxHeight;
+		const left = Math.max(margin, Math.min(bounds.left, window.innerWidth - bounds.width - margin));
+		setNoteOptionsPosition({ left, top, width: bounds.width, maxHeight });
+	};
+	const scheduleNoteOptionsPosition = () => {
+		if (noteOptionsFrame !== undefined) cancelAnimationFrame(noteOptionsFrame);
+		noteOptionsFrame = requestAnimationFrame(() => {
+			noteOptionsFrame = undefined;
+			if (notePickerOpen()) updateNoteOptionsPosition();
+		});
+	};
+	const openDetails = (item: KanbanItem) => {
+		setDetailsId(item.id);
+		setTitleDraft(item.title);
+		setNoteIdDraft(item.noteId);
+		setNoteQueryDraft(noteForId(item.noteId) ? displayNoteTitle(noteForId(item.noteId)!) : item.noteId ? props.notes.referenceTitles()[item.noteId] ?? "" : "");
+		setNotePickerOpen(false);
+		setNoteLinkError(false);
+		setPriorityDraft(item.priority === "none" ? "low" : item.priority);
+		setLabelsDraft(item.labels.join(", "));
+		setDueDateDraft(item.dueDate ?? "");
+	};
+	const closeDetails = () => {
+		if (savingDetails()) return;
+		setDetailsId(undefined);
+		setNotePickerOpen(false);
+	};
+	const detailBackdropDismiss = createBackdropDismiss(closeDetails);
+	const finishWipEditor = (status: KanbanStatus, input: HTMLInputElement) => {
+		if (wipEditorStatus() !== status) return;
+		const value = input.valueAsNumber;
+		props.kanban.setWipLimit(status, Number.isNaN(value) || value === 0 ? undefined : value);
+		setWipEditorStatus(undefined);
+	};
+	const commitWipEditorOutside = (event: PointerEvent) => {
+		const status = wipEditorStatus();
+		const input = wipInputElement;
+		if (!status || !input || event.target === input || event.target instanceof Node && input.contains(event.target)) return;
+		finishWipEditor(status, input);
+	};
+	const parsedLabels = () => labelsDraft().split(",").map(label => label.trim()).filter(Boolean);
+	const detailsValid = () => {
+		const labels = parsedLabels();
+		return Boolean(titleDraft().trim()) && titleDraft().trim().length <= 500
+			&& (noteIdDraft() !== null || noteQueryDraft().trim().length <= NOTE_TITLE_MAX_LENGTH) && labels.length <= 8
+			&& labels.every(label => label.length <= 32) && new Set(labels).size === labels.length;
+	};
+	const saveDetails = async (event?: SubmitEvent, forceCreateNote = false) => {
+		event?.preventDefault();
+		const item = selectedItem();
+		if (!item || mutationsBlocked() || savingDetails() || !detailsValid()) return;
+		const itemId = item.id;
+		const vaultId = props.kanban.activeVaultId();
+		setSavingDetails(true);
+		setNoteLinkError(false);
+		try {
+			let noteId = noteIdDraft() && props.notes.notes().some(note => note.id === noteIdDraft()) ? noteIdDraft() : null;
+			const noteTitle = noteQueryDraft().trim();
+			if (forceCreateNote) noteId = null;
+			if (!noteId && noteTitle) {
+				const exact = forceCreateNote ? [] : exactNotes();
+				if (exact.length > 1) {
+					setNoteLinkError(true);
+					setNotePickerOpen(true);
+					return;
+				}
+				if (exact.length === 1) noteId = exact[0]!.id;
+				else {
+					if (noteTitle.length > NOTE_TITLE_MAX_LENGTH || props.notes.loading()) {
+						setNoteLinkError(true);
+						return;
+					}
+					const created = await props.onCreateNote(noteTitle);
+					if (!created) {
+						setNoteLinkError(true);
+						return;
+					}
+					noteId = created.id;
+				}
+			}
+			if (vaultId !== props.kanban.activeVaultId() || detailsId() !== itemId
+				|| !props.kanban.items().some(current => current.id === itemId)) return;
+			props.kanban.update(itemId, {
+				title: titleDraft(), noteId, priority: priorityDraft(),
+				labels: parsedLabels(), dueDate: dueDateDraft() || null,
+			});
+			setDetailsId(undefined);
+			setNotePickerOpen(false);
+		} catch (error) {
+			console.error(error);
+			setNoteLinkError(true);
+		} finally { setSavingDetails(false); }
+	};
+	const deleteCard = (item: KanbanItem) => { props.kanban.remove(item.id); };
+	createEffect(on(props.kanban.activeVaultId, () => {
+		setSearchText("");
+		setPriorityFilter("all");
+		setDetailsId(undefined);
+		setWipEditorStatus(undefined);
+	}, { defer: false }));
+	onCleanup(() => {
+		if (dragStartFrame !== undefined) cancelAnimationFrame(dragStartFrame);
+		if (noteOptionsFrame !== undefined) cancelAnimationFrame(noteOptionsFrame);
+	});
 	const setSnappedPanelWidth = (width: number, nextViewportWidth: number) => {
 		const nextWidth = snapKanbanPanelWidth(width, nextViewportWidth);
 		props.kanban.setPanelWidth(nextWidth);
@@ -79,20 +251,78 @@ const KanbanPanel: Component<Props> = (props) => {
 	onMount(() => {
 		updatePanelBounds();
 		window.addEventListener("resize", updatePanelBounds);
+		window.addEventListener("resize", scheduleNoteOptionsPosition);
+		document.addEventListener("scroll", scheduleNoteOptionsPosition, true);
+		document.addEventListener("pointerdown", commitWipEditorOutside, true);
+		const escape = (event: KeyboardEvent) => {
+			if (!detailsId() || event.key !== "Escape") return;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			closeDetails();
+		};
+		window.addEventListener("keydown", escape, true);
 		onCleanup(() => {
 			window.removeEventListener("resize", updatePanelBounds);
+			window.removeEventListener("resize", scheduleNoteOptionsPosition);
+			document.removeEventListener("scroll", scheduleNoteOptionsPosition, true);
+			document.removeEventListener("pointerdown", commitWipEditorOutside, true);
+			window.removeEventListener("keydown", escape, true);
 		});
 	});
 
-	const byStatus = createMemo(() => {
-		const grouped = new Map<KanbanStatus, Map<number, KanbanItem>>(kanbanStatuses.map((status) => [status, new Map()]));
-		for (const item of props.kanban.items()) grouped.get(item.status)?.set(item.position, item);
-		return grouped;
-	});
-	const slotPositions = (status: KanbanStatus) => {
-		const positions = byStatus().get(status) ?? new Map<number, KanbanItem>();
-		const lastPosition = Math.max(-1, ...positions.keys());
-		return Array.from({ length: kanbanSlotCount(lastPosition) }, (_, index) => index);
+	const laneItems = (status: KanbanStatus) => props.kanban.items().filter(item => item.status === status);
+	const visibleLaneItems = (status: KanbanStatus) => filteredItems()
+		.filter(item => item.status === status)
+		.sort((left, right) => left.position - right.position);
+	const getDropPosition = (lane: HTMLElement, clientY: number) => {
+		const cards = [...lane.querySelectorAll<HTMLElement>("[data-kanban-card]")]
+			.filter(card => card.dataset.kanbanCard !== draggedId());
+		let low = 0;
+		let high = cards.length;
+		while (low < high) {
+			const middle = Math.floor((low + high) / 2);
+			const rect = cards[middle]!.getBoundingClientRect();
+			if (clientY < rect.top + rect.height / 2) high = middle;
+			else low = middle + 1;
+		}
+		return low;
+	};
+	const updateDropTarget = (event: DragEvent, status: KanbanStatus) => {
+		if (filtering() || mutationsBlocked() || !draggedId() || !event.dataTransfer || isCollapsed(status)) return;
+		event.preventDefault();
+		event.dataTransfer.dropEffect = "move";
+		const position = getDropPosition(event.currentTarget as HTMLElement, event.clientY);
+		setDropTarget(current => current?.status === status && current.position === position ? current : { status, position });
+	};
+	const startDrag = (event: DragEvent & { currentTarget: HTMLElement }, item: KanbanItem) => {
+		if (filtering() || mutationsBlocked() || (event.target instanceof Element && event.target.closest("button")) || !event.dataTransfer) {
+			event.preventDefault();
+			return;
+		}
+		const rect = event.currentTarget.getBoundingClientRect();
+		event.dataTransfer.effectAllowed = "move";
+		event.dataTransfer.setData("text/plain", item.id);
+		event.dataTransfer.setDragImage(event.currentTarget, event.clientX - rect.left, event.clientY - rect.top);
+		setDraggedHeight(rect.height);
+		setDropTarget(undefined);
+		if (dragStartFrame !== undefined) cancelAnimationFrame(dragStartFrame);
+		dragStartFrame = requestAnimationFrame(() => {
+			dragStartFrame = undefined;
+			setDraggedId(item.id);
+		});
+	};
+	const finishDrag = () => {
+		if (dragStartFrame !== undefined) cancelAnimationFrame(dragStartFrame);
+		dragStartFrame = undefined;
+		setDraggedId(undefined);
+		setDropTarget(undefined);
+	};
+	const laneClass: Record<KanbanStatus, string> = {
+		backlog: styles.laneBacklog,
+		toDo: styles.laneToDo,
+		inProgress: styles.laneInProgress,
+		review: styles.laneReview,
+		finish: styles.laneFinish,
 	};
 	const isCollapsed = (status: KanbanStatus) => collapsedStatuses().has(status);
 	const setStatusCollapsed = (status: KanbanStatus, collapsed: boolean) => setCollapsedStatuses(current => {
@@ -109,64 +339,49 @@ const KanbanPanel: Component<Props> = (props) => {
 		setDraft("");
 		setAdding(undefined);
 	};
-	const submitEdit = (event: SubmitEvent, itemId: string) => {
-		event.preventDefault();
-		if (mutationsBlocked() || !editDraft().trim()) return;
-		props.kanban.rename(itemId, editDraft());
-		setEditing(undefined);
-	};
 	const renderCard = (item: KanbanItem) => {
-		const actionsVisible = () => actionsVisibleId() === item.id;
 		return (
-			<article class={styles.card} classList={{ [styles.dragging]: draggedId() === item.id }}
-				draggable={editing() !== item.id && !mutationsBlocked()}
-				onContextMenu={(event) => {
-					event.preventDefault();
-					event.stopPropagation();
-					setActionsVisibleId(current => current === item.id ? undefined : item.id);
-				}}
-				onDragStart={(event) => {
-					if (editing() === item.id || mutationsBlocked()) { event.preventDefault(); return; }
-					if (!event.dataTransfer) return;
-					setDraggedId(item.id);
-					event.dataTransfer.effectAllowed = "move";
-					event.dataTransfer.setData("text/plain", item.id);
-				}}
-				onDragEnd={() => { setDraggedId(undefined); setDropTarget(undefined); }}>
-				<Show when={editing() === item.id} fallback={<div class={styles.cardTitle}>{item.title}</div>}>
-					<form class={styles.cardEditor} onSubmit={(event) => submitEdit(event, item.id)}>
-						<input class={`${styles.cardInput} ${styles.cardEditorInput}`} value={editDraft()} maxLength={500}
-							aria-label={props.t("kanbanItemTitle")} disabled={mutationsBlocked()} onInput={(event) => setEditDraft(event.currentTarget.value)} />
-						<div class={styles.formActions}>
-							<Button class={styles.formButton} type="submit" disabled={mutationsBlocked() || !editDraft().trim()}>
-								<Icon name="check" size={14} />
-							</Button>
-						</div>
-					</form>
-				</Show>
-				<div class={styles.cardMeta}>
-					<span class={styles.cardMetaLine} aria-label={`${props.t("kanbanCreatedAt")}: ${formatCardDate(item.createdAt)}`}>
-						<Icon name="calendar" size={11} />{formatCardDate(item.createdAt)}
-					</span>
-					<span class={styles.cardMetaLine} aria-label={`${props.t("kanbanUpdatedAt")}: ${formatCardDate(item.updatedAt)}`}>
-						<Icon name="clock" size={11} />{formatCardDate(item.updatedAt)}
-					</span>
-				</div>
-				<Show when={editing() !== item.id}>
+			<article class={styles.card} classList={{ [styles.draggedSource]: draggedId() === item.id, [styles.cardNoDrag]: filtering() }}
+				data-kanban-card={item.id}
+				draggable={!mutationsBlocked() && !filtering()}
+				onClick={() => openDetails(item)}
+				onDragStart={(event) => startDrag(event, item)}
+				onDragEnd={finishDrag}>
+				<div class={styles.cardTop}>
+					<div class={styles.cardTitle}>{item.title}</div>
 					<div class={styles.cardActions}>
-						<Button class={styles.actionReveal} classList={{ [styles.actionRevealVisible]: actionsVisible() }}
-							type="button" disabled={!actionsVisible() || mutationsBlocked()} aria-hidden={!actionsVisible()} tabIndex={actionsVisible() ? 0 : -1}
-							aria-label={props.t("kanbanEditItem")}
-							onClick={() => { setActionsVisibleId(undefined); setEditing(item.id); setEditDraft(item.title); }}>
-							<Icon name="edit" size={14} />
-						</Button>
-						<Button class={`${styles.deleteButton} ${styles.actionReveal} ${styles.actionRevealTrailing}`}
-							classList={{ [styles.actionRevealVisible]: actionsVisible(), [styles.actionRevealTrailingVisible]: actionsVisible() }}
-							type="button" disabled={!actionsVisible() || mutationsBlocked()} aria-hidden={!actionsVisible()} tabIndex={actionsVisible() ? 0 : -1}
-							aria-label={props.t("kanbanDeleteItem")}
-							onClick={() => { setActionsVisibleId(undefined); props.kanban.remove(item.id); }}>
-							<Icon name="delete" size={14} />
-						</Button>
+						<Button class={styles.cardAction} type="button" disabled={mutationsBlocked()} aria-label={props.t("kanbanEditItem")}
+							onClick={event => { event.stopPropagation(); openDetails(item); }}><Icon name="edit" size={13} /></Button>
+						<Button class={`${styles.cardAction} ${styles.cardActionDelete}`} type="button" disabled={mutationsBlocked()} aria-label={props.t("kanbanDeleteItem")}
+							onClick={event => { event.stopPropagation(); deleteCard(item); }}><Icon name="delete" size={13} /></Button>
+					</div>
+				</div>
+				<Show when={item.noteId && !props.notes.loading()}>
+					<Show when={noteForId(item.noteId)} fallback={
+						<span class={styles.cardNoteUnavailable}>{props.notes.referenceTitles()[item.noteId!] ?? props.t("kanbanNoteUnavailable")}</span>
+					}>
+						{note => <Button class={styles.cardNote} type="button" onClick={event => {
+							event.stopPropagation();
+							void props.onOpenNote(note());
+						}}><Icon name="link" size={11} />{displayNoteTitle(note())}</Button>}
+					</Show>
+				</Show>
+				<Show when={item.labels.length}><div class={styles.cardLabels}>
+					<For each={item.labels}>{label => <span class={styles.cardLabel}>{label}</span>}</For>
+				</div></Show>
+				<Show when={item.priority !== "none" || item.dueDate}>
+					<div class={styles.cardFooter}>
+						<Show when={item.priority !== "none"}>
+							<span class={`${styles.priorityBadge} ${item.priority === "low" ? styles.priorityLow : item.priority === "medium" ? styles.priorityMedium : styles.priorityHigh}`}>
+								{props.t(kanbanPriorityLabels[item.priority])}
+							</span>
+						</Show>
+						<Show when={item.dueDate}>{dueDate => {
+							const overdue = dueDate() < currentDateKey() && item.status !== "finish";
+							return <span class={`${styles.dueBadge} ${overdue ? styles.dueOverdue : ""}`}>
+								<Icon name="calendar" size={11} />{formatDueDate(dueDate())}
+							</span>;
+						}}</Show>
 					</div>
 				</Show>
 			</article>
@@ -182,7 +397,8 @@ const KanbanPanel: Component<Props> = (props) => {
 				if (event.key !== "Escape") return;
 				event.preventDefault();
 				event.stopPropagation();
-				props.kanban.setOpen(false);
+								if (detailsId()) closeDetails();
+				else props.kanban.setOpen(false);
 			}}>
 			<AsciiBackdrop placement="modal" />
 			<div class={styles.resizeHandle} classList={{ [styles.resizeHandleDisabled]: !canResize() }}
@@ -196,6 +412,20 @@ const KanbanPanel: Component<Props> = (props) => {
 					</Button>
 				</header>
 				<div class={styles.content}>
+					<div class={styles.toolbar}>
+						<label class={styles.searchBox}>
+							<Icon name="search" size={14} />
+							<input class={styles.searchInput} type="search" value={searchText()} placeholder={props.t("kanbanSearch")}
+								onInput={event => setSearchText(event.currentTarget.value)} />
+						</label>
+						<Dropdown ariaLabel={props.t("kanbanPriority")} value={priorityFilter()}
+							style={{ width: "142px", "max-width": "40%", "flex-shrink": 0 }}
+							options={[
+								{ value: "all", label: props.t("kanbanPriorityAll") },
+								...kanbanPriorities.filter(priority => priority !== "none").map(priority => ({ value: priority, label: props.t(kanbanPriorityLabels[priority]) })),
+							]}
+							onChange={value => setPriorityFilter(value as KanbanPriority | "all")} />
+					</div>
 					<Show when={props.kanban.error() || props.kanban.readFailed()}>
 						<div class={styles.formActions} style={{ "align-items": "center" }}>
 							<p class={styles.error} role="alert">{props.t("kanbanStorageFailed")}</p>
@@ -206,86 +436,184 @@ const KanbanPanel: Component<Props> = (props) => {
 					</Show>
 					<Show when={props.kanban.items().length >= maxKanbanItems}><p class={styles.loading} role="status">{props.t("kanbanLimitReached")}</p></Show>
 					<Show when={props.kanban.loading()}><p class={styles.loading}>{props.t("kanbanLoading")}</p></Show>
-					<CustomScrollArea ariaLabel={props.t("kanbanTitle")}
-						contentClass={`${styles.lanes} ${layoutColumnCount() === 5 ? styles.lanesFive : ""}`}
-						viewportStyle={{ padding: "2px 12px 12px 2px" }}>
-						<For each={kanbanStatuses}>{(status) => {
-							const items = () => byStatus().get(status) ?? new Map<number, KanbanItem>();
-							return (
-								<section class={styles.lane} classList={{ [styles.laneFive]: layoutColumnCount() === 5 }}
-									aria-labelledby={`kanban-lane-${status}`}>
-									<div class={styles.laneHeader}>
+					<Show when={!filtering() || filteredItems().length > 0} fallback={<p class={styles.noResults}>{props.t("kanbanNoSearchResults")}</p>}>
+						<CustomScrollArea ariaLabel={props.t("kanbanTitle")}
+							contentClass={`${styles.lanes} ${layoutColumnCount() === 5 ? styles.lanesFive : ""}`}
+							viewportStyle={{ padding: layoutColumnCount() === 1 ? "2px 24px 12px 12px" : "2px 12px 12px" }}>
+							<For each={kanbanStatuses}>{(status) => {
+								const count = () => laneItems(status).length;
+								const remainingItems = () => visibleLaneItems(status).filter(item => item.id !== draggedId());
+								const dropPlaceholder = () => <div class={styles.dropPlaceholder} style={{ height: `${draggedHeight()}px` }} />;
+								const wipLimit = () => props.kanban.wipLimits()[status];
+								const exceeded = () => wipLimit() !== undefined && count() > wipLimit()!;
+								return (
+									<section class={`${styles.lane} ${laneClass[status]}`} aria-labelledby={`kanban-lane-${status}`}
+										data-kanban-lane={status}
+										onDragOver={event => updateDropTarget(event, status)}
+										onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(undefined); }}
+										onDrop={event => {
+											if (filtering() || mutationsBlocked() || !draggedId() || isCollapsed(status)) return;
+											event.preventDefault();
+											event.stopPropagation();
+											const itemId = event.dataTransfer?.getData("text/plain") || draggedId();
+											const position = getDropPosition(event.currentTarget, event.clientY);
+											if (itemId) props.kanban.move(itemId, status, position);
+											finishDrag();
+										}}>
+										<div class={styles.laneHeader}>
 										<h3 id={`kanban-lane-${status}`} class={styles.laneTitle}>
-											{props.t(kanbanStatusLabels[status])}<span class={styles.count}>{items().size}</span>
+											{props.t(kanbanStatusLabels[status])}
+											<Show when={wipEditorStatus() === status} fallback={
+												<Button class={styles.count} classList={{ [styles.countExceeded]: exceeded() }} type="button"
+													sound={false}
+													onClick={() => setWipEditorStatus(status)}>
+													{count()}{wipLimit() === undefined ? "" : ` / ${wipLimit()}`}
+												</Button>
+											}>
+												<input class={styles.wipInput} classList={{ [styles.countExceeded]: exceeded() }} type="number" min="0" max={maxKanbanItems} value={wipLimit() ?? ""} placeholder="∞"
+													ref={element => { wipInputElement = element; element.focus({ preventScroll: true }); element.select(); }}
+													onBlur={event => finishWipEditor(status, event.currentTarget)}
+													onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
+											</Show>
 										</h3>
-										<div class={styles.laneActions}>
+											<div class={styles.laneActions}>
+												<Button class={styles.iconButton} type="button"
+													aria-label={`${props.t(isCollapsed(status) ? "kanbanExpandCategory" : "kanbanCollapseCategory")} · ${props.t(kanbanStatusLabels[status])}`}
+													aria-expanded={!isCollapsed(status)} aria-controls={`kanban-content-${status}`}
+													onClick={() => setStatusCollapsed(status, !isCollapsed(status))}>
+													<span class={styles.collapseIcon} classList={{ [styles.collapseIconCollapsed]: isCollapsed(status) }}>
+														<Icon name="chevronDown" size={15} />
+													</span>
+												</Button>
 											<Button class={styles.iconButton} type="button"
-												aria-label={`${props.t(isCollapsed(status) ? "kanbanExpandCategory" : "kanbanCollapseCategory")} · ${props.t(kanbanStatusLabels[status])}`}
-												aria-expanded={!isCollapsed(status)} aria-controls={`kanban-content-${status}`}
-												onClick={() => setStatusCollapsed(status, !isCollapsed(status))}>
-												<span class={styles.collapseIcon} classList={{ [styles.collapseIconCollapsed]: isCollapsed(status) }}>
-													<Icon name="chevronDown" size={15} />
-												</span>
-											</Button>
-											<Button class={styles.iconButton} type="button"
-												aria-label={`${props.t("kanbanAddItem")} · ${props.t(kanbanStatusLabels[status])}`}
-												disabled={mutationsBlocked() || props.kanban.items().length >= maxKanbanItems}
-												onClick={() => { setStatusCollapsed(status, false); setDraft(""); setAdding(status); }}>
-												<Icon name="add" size={15} />
-											</Button>
-										</div>
-									</div>
-									<div id={`kanban-content-${status}`} class={styles.laneContent}
-										classList={{ [styles.laneContentCollapsed]: isCollapsed(status) }}>
-										<Show when={adding() === status}>
-										<form class={styles.createForm} onSubmit={(event) => submitNew(event, status)}>
-											<input class={styles.cardInput} value={draft()} maxLength={500}
-												placeholder={props.t("kanbanItemPlaceholder")} aria-label={props.t("kanbanItemTitle")}
-												disabled={mutationsBlocked()} onInput={(event) => setDraft(event.currentTarget.value)} />
-											<div class={styles.formActions}>
-												<Button class={styles.formButton} type="button"
-													onClick={() => { setAdding(undefined); setDraft(""); }}>{props.t("cancel")}</Button>
-												<Button class={styles.formButton} type="submit" disabled={mutationsBlocked() || !draft().trim() || props.kanban.items().length >= maxKanbanItems}>{props.t("save")}</Button>
+													aria-label={`${props.t("kanbanAddItem")} · ${props.t(kanbanStatusLabels[status])}`}
+													disabled={mutationsBlocked() || props.kanban.items().length >= maxKanbanItems}
+													onClick={() => { setStatusCollapsed(status, false); setDraft(""); setAdding(status); }}>
+													<Icon name="add" size={15} />
+												</Button>
 											</div>
-										</form>
-										</Show>
-										<div class={styles.cardList}>
-										<For each={slotPositions(status)}>{(position) => {
-											const item = () => items().get(position);
-											const isDropTarget = () => dropTarget()?.status === status && dropTarget()?.position === position;
-											return (
-												<div class={styles.positionSlot} classList={{ [styles.positionSlotDropTarget]: isDropTarget() }}
-													aria-hidden={item() ? undefined : "true"}
-													onDragOver={(event) => {
-														if (mutationsBlocked() || !draggedId() || !event.dataTransfer) return;
-														event.preventDefault();
-														event.dataTransfer.dropEffect = "move";
-														setDropTarget({ status, position });
-													}}
-													onDragLeave={(event) => {
-														if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(undefined);
-													}}
-													onDrop={(event) => {
-														event.preventDefault();
-														event.stopPropagation();
-														const itemId = event.dataTransfer?.getData("text/plain") || draggedId();
-														if (!mutationsBlocked() && itemId) props.kanban.move(itemId, status, position, item()?.id);
-														setDraggedId(undefined);
-														setDropTarget(undefined);
-													}}>
-													<Show when={item()}>{(currentItem) => renderCard(currentItem())}</Show>
-												</div>
-											);
-										}}</For>
 										</div>
-									</div>
-								</section>
-							);
-						}}</For>
-					</CustomScrollArea>
+										<div id={`kanban-content-${status}`} class={styles.laneContent}
+											classList={{ [styles.laneContentCollapsed]: isCollapsed(status) }}>
+											<Show when={adding() === status}>
+											<form class={styles.createForm} onSubmit={(event) => submitNew(event, status)}>
+												<input class={styles.cardInput} value={draft()} maxLength={500}
+													placeholder={props.t("kanbanItemPlaceholder")} aria-label={props.t("kanbanItemTitle")}
+													disabled={mutationsBlocked()} onInput={(event) => setDraft(event.currentTarget.value)} />
+												<div class={styles.formActions}>
+													<Button class={styles.formButton} type="button"
+														onClick={() => { setAdding(undefined); setDraft(""); }}>{props.t("cancel")}</Button>
+													<Button class={styles.formButton} type="submit" disabled={mutationsBlocked() || !draft().trim() || props.kanban.items().length >= maxKanbanItems}>{props.t("save")}</Button>
+												</div>
+											</form>
+											</Show>
+											<div class={styles.cardList}>
+											<For each={visibleLaneItems(status)}>{item => {
+												const isDragged = () => draggedId() === item.id;
+												const insertionIndex = () => remainingItems().findIndex(candidate => candidate.id === item.id);
+												return <>
+													<Show when={!isDragged() && dropTarget()?.status === status && dropTarget()?.position === insertionIndex()}>
+														{dropPlaceholder()}
+													</Show>
+													{renderCard(item)}
+												</>;
+											}}</For>
+											<Show when={dropTarget()?.status === status && dropTarget()?.position === remainingItems().length}>
+												{dropPlaceholder()}
+											</Show>
+										</div>
+										</div>
+									</section>
+								);
+							}}</For>
+						</CustomScrollArea>
+					</Show>
 				</div>
 			</div>
-		</aside>
+			<Portal mount={document.querySelector("[data-omega-app-shell]") ?? document.body}>
+				<Show when={detailPresence.present() && displayedItem()}>{item =>
+					<div class={styles.detailBackdrop} inert={detailPresence.exiting()} aria-hidden={detailPresence.exiting() || undefined}
+						ref={element => registerVisibilityAnimation(element, detailPresence.exiting, "fade")}
+						{...detailBackdropDismiss}>
+						<section class={styles.detailDialog} role="dialog" aria-modal="true" aria-labelledby={detailHeadingId}
+							ref={element => registerVisibilityAnimation(element, detailPresence.exiting, "dialog")}>
+							<AsciiBackdrop placement="modal" />
+							<header class={styles.detailHeader}>
+							<h2 id={detailHeadingId} class={styles.detailTitle}>{props.t("kanbanEditItem")}</h2>
+							<Button class={styles.closeButton} type="button" aria-label={props.t("close")} onClick={closeDetails}><Icon name="close" size={15} /></Button>
+						</header>
+						<form class={styles.detailForm} onSubmit={event => void saveDetails(event)}>
+							<label class={styles.detailField}><span>{props.t("kanbanItemTitle")}</span>
+								<input class={styles.detailInput} value={titleDraft()} maxLength={500} disabled={savingDetails()} onInput={event => setTitleDraft(event.currentTarget.value)} />
+							</label>
+							<div class={styles.notePicker}>
+								<label class={styles.notePickerLabel} for="kanban-note-picker">{props.t("kanbanLinkedNote")}</label>
+								<input id="kanban-note-picker" class={styles.detailInput} type="search" value={noteQueryDraft()} maxLength={NOTE_TITLE_MAX_LENGTH}
+									placeholder={props.t("kanbanNoteSearchOrCreate")} disabled={savingDetails() || props.notes.loading()}
+									ref={element => { notePickerInput = element; }}
+									onFocus={() => { setNotePickerOpen(true); scheduleNoteOptionsPosition(); }}
+									onBlur={() => setNotePickerOpen(false)}
+									onInput={event => {
+										setNoteQueryDraft(event.currentTarget.value);
+									setNoteIdDraft(null);
+									setNoteLinkError(false);
+									setNotePickerOpen(true);
+									scheduleNoteOptionsPosition();
+									}} />
+								<Show when={notePickerOpen()}>
+									<Portal>
+										<div class={styles.noteOptions} style={{ left: `${noteOptionsPosition().left}px`, top: `${noteOptionsPosition().top}px`, width: `${noteOptionsPosition().width}px`, height: `${noteOptionsPosition().maxHeight}px` }}>
+										<CustomScrollArea ariaLabel={props.t("kanbanLinkedNote")} class={styles.noteOptionsScroll}
+											contentClass={styles.noteOptionList} viewportStyle={{ padding: "0 18px 0 0" }}>
+											<For each={matchingNotes()}>{note => <button class={styles.noteOption} type="button"
+												onPointerDown={event => event.preventDefault()}
+												onClick={() => {
+													setNoteIdDraft(note.id);
+													setNoteQueryDraft(displayNoteTitle(note));
+													setNotePickerOpen(false);
+													setNoteLinkError(false);
+												}}>{displayNoteTitle(note)}</button>}</For>
+											<Show when={canCreateNote()}>
+												<button class={`${styles.noteOption} ${styles.noteCreateOption}`} type="button" disabled={savingDetails() || props.notes.loading()}
+													onPointerDown={event => event.preventDefault()}
+													onClick={() => void saveDetails(undefined, true)}>
+													<Icon name="add" size={13} />{props.t("kanbanCreateAndLinkNote").replace("{title}", noteQueryDraft().trim())}
+												</button>
+											</Show>
+										</CustomScrollArea>
+									</div>
+								</Portal>
+								</Show>
+							</div>
+							<Show when={noteLinkError()}><p class={styles.error}>{props.t("kanbanNoteLinkFailed")}</p></Show>
+							<div class={styles.detailRow}>
+								<label class={styles.detailField}><span>{props.t("kanbanPriority")}</span>
+									<Dropdown ariaLabel={props.t("kanbanPriority")} value={priorityDraft()} placeholder="—" disabled={savingDetails()}
+										options={kanbanPriorities.filter(priority => priority !== "none").map(priority => ({ value: priority, label: props.t(kanbanPriorityLabels[priority]) }))}
+										onChange={value => setPriorityDraft(value as KanbanPriority)} />
+								</label>
+								<label class={styles.detailField}><span>{props.t("kanbanDueDate")}</span>
+									<input class={styles.detailInput} type="date" value={dueDateDraft()} onInput={event => setDueDateDraft(event.currentTarget.value)} />
+								</label>
+							</div>
+							<label class={styles.detailField}><span>{props.t("kanbanLabels")}</span>
+								<input class={styles.detailInput} value={labelsDraft()} maxLength={270} placeholder={props.t("kanbanLabelsPlaceholder")} disabled={savingDetails()} onInput={event => setLabelsDraft(event.currentTarget.value)} />
+							</label>
+							<div class={styles.detailActions}>
+								<Button class={`${styles.formButton} ${styles.deleteButton}`} type="button" disabled={mutationsBlocked() || savingDetails()} onClick={() => { deleteCard(item()); closeDetails(); }}>
+									<Icon name="delete" size={13} />{props.t("kanbanDeleteItem")}
+								</Button>
+								<div class={styles.detailPrimaryActions}>
+									<Button class={styles.formButton} type="button" disabled={savingDetails()} onClick={closeDetails}>{props.t("cancel")}</Button>
+									<Button class={styles.formButton} type="submit" disabled={mutationsBlocked() || savingDetails() || !detailsValid()}>{props.t("save")}</Button>
+								</div>
+							</div>
+						</form>
+						</section>
+					</div>
+				}</Show>
+			</Portal>
+						</aside>
 	</Show>;
 };
 

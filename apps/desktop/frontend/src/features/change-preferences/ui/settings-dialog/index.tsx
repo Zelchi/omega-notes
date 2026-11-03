@@ -16,6 +16,7 @@ import type { AiChatShortcut } from "../../model/ai-chat-shortcut";
 import type { SearchShortcut } from "../../model/search-shortcut";
 import type { CanvasLayoutShortcut } from "../../model/canvas-layout-shortcut";
 import type { NoteLockShortcut } from "../../model/note-lock-shortcut";
+import type { KeyboardShortcut } from "../../model/ai-chat-shortcut";
 import { styles } from "./style.css.ts";
 import BlockSlider from "@/shared/ui/block-slider";
 import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
@@ -37,13 +38,17 @@ type Props = {
 	gambiarraEnabled: boolean;
 	onGambiarraEnabledChange: (value: boolean) => void;
 	aiChatShortcut: AiChatShortcut;
-	onAiChatShortcutChange: (value: AiChatShortcut) => void;
+	onAiChatShortcutChange: (value: AiChatShortcut) => boolean;
+	pomodoroShortcut: KeyboardShortcut;
+	onPomodoroShortcutChange: (value: KeyboardShortcut) => boolean;
+	kanbanShortcut: KeyboardShortcut;
+	onKanbanShortcutChange: (value: KeyboardShortcut) => boolean;
 	searchShortcut: SearchShortcut;
-	onSearchShortcutChange: (value: SearchShortcut) => void;
+	onSearchShortcutChange: (value: SearchShortcut) => boolean;
 	canvasLayoutShortcut: CanvasLayoutShortcut;
-	onCanvasLayoutShortcutChange: (value: CanvasLayoutShortcut) => void;
+	onCanvasLayoutShortcutChange: (value: CanvasLayoutShortcut) => boolean;
 	noteLockShortcut: NoteLockShortcut;
-	onNoteLockShortcutChange: (value: NoteLockShortcut) => void;
+	onNoteLockShortcutChange: (value: NoteLockShortcut) => boolean;
 	aiResetting?: boolean;
 	aiCleanupError?: string;
 	onAiFeaturesEnabledChange: (value: boolean) => void;
@@ -111,6 +116,16 @@ const SettingsDialog: Component<Props> = (props) => {
 									<label for="settings-noteLockShortcut">{props.t("noteLockShortcut")}</label>
 									<KeyboardShortcutInput id="settings-noteLockShortcut" label="noteLockShortcut"
 										value={props.noteLockShortcut} onChange={props.onNoteLockShortcutChange} t={props.t} />
+								</div>
+								<div class={styles.option}>
+									<label for="settings-pomodoroShortcut">{props.t("pomodoroShortcut")}</label>
+									<KeyboardShortcutInput id="settings-pomodoroShortcut" label="pomodoroShortcut"
+										value={props.pomodoroShortcut} onChange={props.onPomodoroShortcutChange} t={props.t} />
+								</div>
+								<div class={styles.option}>
+									<label for="settings-kanbanShortcut">{props.t("kanbanShortcut")}</label>
+									<KeyboardShortcutInput id="settings-kanbanShortcut" label="kanbanShortcut"
+										value={props.kanbanShortcut} onChange={props.onKanbanShortcutChange} t={props.t} />
 								</div>
 								<div class={styles.option}>
 									<label for="settings-aiChatShortcut">{props.t("aiChatShortcut")}</label>
