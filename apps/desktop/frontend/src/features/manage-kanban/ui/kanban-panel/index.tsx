@@ -58,7 +58,20 @@ const KanbanPanel: Component<Props> = (props) => {
 	let notePickerInput: HTMLInputElement | undefined;
 	let wipInputElement: HTMLInputElement | undefined;
 	let resizePointer: { pointerId: number; startX: number; startWidth: number } | undefined;
-	let dragStartFrame: number | undefined;
+	let cardDrag: {
+		pointerId: number;
+		itemId: string;
+		startX: number;
+		startY: number;
+		height: number;
+		width: number;
+		offsetX: number;
+		offsetY: number;
+		source: HTMLElement;
+		preview?: HTMLElement;
+	} | undefined;
+	let suppressCardClick = false;
+	let suppressCardClickFrame: number | undefined;
 	let noteOptionsFrame: number | undefined;
 	const mutationsBlocked = () => props.kanban.loading() || props.kanban.readFailed();
 	const layoutColumnCount = createMemo(() => getKanbanLayoutColumnCount(props.kanban.panelStage()));
@@ -200,9 +213,8 @@ const KanbanPanel: Component<Props> = (props) => {
 		setDetailsId(undefined);
 		setWipEditorStatus(undefined);
 	}, { defer: false }));
-	onCleanup(() => {
-		if (dragStartFrame !== undefined) cancelAnimationFrame(dragStartFrame);
-		if (noteOptionsFrame !== undefined) cancelAnimationFrame(noteOptionsFrame);
+	createEffect(() => {
+		document.documentElement.classList.toggle(styles.dragging, Boolean(draggedId()));
 	});
 	const setSnappedPanelWidth = (width: number, nextViewportWidth: number) => {
 		const nextWidth = snapKanbanPanelWidth(width, nextViewportWidth);
@@ -287,36 +299,99 @@ const KanbanPanel: Component<Props> = (props) => {
 		}
 		return low;
 	};
-	const updateDropTarget = (event: DragEvent, status: KanbanStatus) => {
-		if (filtering() || mutationsBlocked() || !draggedId() || !event.dataTransfer || isCollapsed(status)) return;
-		event.preventDefault();
-		event.dataTransfer.dropEffect = "move";
-		const position = getDropPosition(event.currentTarget as HTMLElement, event.clientY);
-		setDropTarget(current => current?.status === status && current.position === position ? current : { status, position });
-	};
-	const startDrag = (event: DragEvent & { currentTarget: HTMLElement }, item: KanbanItem) => {
-		if (filtering() || mutationsBlocked() || (event.target instanceof Element && event.target.closest("button")) || !event.dataTransfer) {
-			event.preventDefault();
-			return;
-		}
-		const rect = event.currentTarget.getBoundingClientRect();
-		event.dataTransfer.effectAllowed = "move";
-		event.dataTransfer.setData("text/plain", item.id);
-		event.dataTransfer.setDragImage(event.currentTarget, event.clientX - rect.left, event.clientY - rect.top);
-		setDraggedHeight(rect.height);
-		setDropTarget(undefined);
-		if (dragStartFrame !== undefined) cancelAnimationFrame(dragStartFrame);
-		dragStartFrame = requestAnimationFrame(() => {
-			dragStartFrame = undefined;
-			setDraggedId(item.id);
-		});
-	};
+	const isCollapsed = (status: KanbanStatus) => collapsedStatuses().has(status);
 	const finishDrag = () => {
-		if (dragStartFrame !== undefined) cancelAnimationFrame(dragStartFrame);
-		dragStartFrame = undefined;
+		if (cardDrag) {
+			window.removeEventListener("pointermove", moveCardDrag, true);
+			window.removeEventListener("pointerup", finishCardDrag, true);
+			window.removeEventListener("pointercancel", cancelCardDrag, true);
+			window.removeEventListener("blur", cancelDragOnBlur);
+			cardDrag.preview?.remove();
+		}
+		cardDrag = undefined;
 		setDraggedId(undefined);
 		setDropTarget(undefined);
 	};
+	const updateDropTargetAt = (clientX: number, clientY: number) => {
+		if (!draggedId() || filtering() || mutationsBlocked()) {
+			setDropTarget(undefined);
+			return;
+		}
+		const lane = document.elementFromPoint(clientX, clientY)?.closest<HTMLElement>("[data-kanban-lane]");
+		const status = lane?.dataset.kanbanLane as KanbanStatus | undefined;
+		if (!lane || !status || !kanbanStatuses.includes(status) || !panelElement?.contains(lane) || isCollapsed(status)) {
+			setDropTarget(undefined);
+			return;
+		}
+		const position = getDropPosition(lane, clientY);
+		setDropTarget(current => current?.status === status && current.position === position ? current : { status, position });
+	};
+	const moveCardDrag = (event: PointerEvent) => {
+		const drag = cardDrag;
+		if (!drag || drag.pointerId !== event.pointerId) return;
+		if (!draggedId()) {
+			if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 5) return;
+			if (filtering() || mutationsBlocked()) {
+				finishDrag();
+				return;
+			}
+			drag.preview = drag.source.cloneNode(true) as HTMLElement;
+			drag.preview.classList.add(styles.dragPreview);
+			drag.preview.style.left = `${event.clientX - drag.offsetX}px`;
+			drag.preview.style.top = `${event.clientY - drag.offsetY}px`;
+			drag.preview.style.width = `${drag.width}px`;
+			document.body.append(drag.preview);
+			setDraggedHeight(drag.height);
+			setDropTarget(undefined);
+			setDraggedId(drag.itemId);
+		}
+		event.preventDefault();
+		if (drag.preview) {
+			drag.preview.style.left = `${event.clientX - drag.offsetX}px`;
+			drag.preview.style.top = `${event.clientY - drag.offsetY}px`;
+		}
+		updateDropTargetAt(event.clientX, event.clientY);
+	};
+	const finishCardDrag = (event: PointerEvent) => {
+		const drag = cardDrag;
+		if (!drag || drag.pointerId !== event.pointerId) return;
+		if (draggedId()) {
+			updateDropTargetAt(event.clientX, event.clientY);
+			const target = dropTarget();
+			if (target && !filtering() && !mutationsBlocked()) props.kanban.move(drag.itemId, target.status, target.position);
+			suppressCardClick = true;
+			if (suppressCardClickFrame !== undefined) cancelAnimationFrame(suppressCardClickFrame);
+			suppressCardClickFrame = requestAnimationFrame(() => {
+				suppressCardClick = false;
+				suppressCardClickFrame = undefined;
+			});
+		}
+		finishDrag();
+	};
+	const cancelCardDrag = (event: PointerEvent) => {
+		if (cardDrag?.pointerId === event.pointerId) finishDrag();
+	};
+	const cancelDragOnBlur = () => finishDrag();
+	const startDrag = (event: PointerEvent & { currentTarget: HTMLElement }, item: KanbanItem) => {
+		if (event.button !== 0 || event.isPrimary === false || filtering() || mutationsBlocked() || cardDrag
+			|| (event.target instanceof Element && event.target.closest("button"))) return;
+		const rect = event.currentTarget.getBoundingClientRect();
+		cardDrag = {
+			pointerId: event.pointerId, itemId: item.id, startX: event.clientX, startY: event.clientY,
+			height: rect.height, width: rect.width, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top,
+			source: event.currentTarget,
+		};
+		window.addEventListener("pointermove", moveCardDrag, { capture: true, passive: false });
+		window.addEventListener("pointerup", finishCardDrag, true);
+		window.addEventListener("pointercancel", cancelCardDrag, true);
+		window.addEventListener("blur", cancelDragOnBlur);
+	};
+	onCleanup(() => {
+		finishDrag();
+		document.documentElement.classList.remove(styles.dragging);
+		if (suppressCardClickFrame !== undefined) cancelAnimationFrame(suppressCardClickFrame);
+		if (noteOptionsFrame !== undefined) cancelAnimationFrame(noteOptionsFrame);
+	});
 	const laneClass: Record<KanbanStatus, string> = {
 		backlog: styles.laneBacklog,
 		toDo: styles.laneToDo,
@@ -324,7 +399,6 @@ const KanbanPanel: Component<Props> = (props) => {
 		review: styles.laneReview,
 		finish: styles.laneFinish,
 	};
-	const isCollapsed = (status: KanbanStatus) => collapsedStatuses().has(status);
 	const setStatusCollapsed = (status: KanbanStatus, collapsed: boolean) => setCollapsedStatuses(current => {
 		if (current.has(status) === collapsed) return current;
 		const next = new Set(current);
@@ -343,10 +417,17 @@ const KanbanPanel: Component<Props> = (props) => {
 		return (
 			<article class={styles.card} classList={{ [styles.draggedSource]: draggedId() === item.id, [styles.cardNoDrag]: filtering() }}
 				data-kanban-card={item.id}
-				draggable={!mutationsBlocked() && !filtering()}
-				onClick={() => openDetails(item)}
-				onDragStart={(event) => startDrag(event, item)}
-				onDragEnd={finishDrag}>
+				draggable={false}
+				onPointerDown={event => startDrag(event, item)}
+				onClick={() => {
+					if (suppressCardClick) {
+						suppressCardClick = false;
+						if (suppressCardClickFrame !== undefined) cancelAnimationFrame(suppressCardClickFrame);
+						suppressCardClickFrame = undefined;
+						return;
+					}
+					openDetails(item);
+				}}>
 				<div class={styles.cardTop}>
 					<div class={styles.cardTitle}>{item.title}</div>
 					<div class={styles.cardActions}>
@@ -439,7 +520,7 @@ const KanbanPanel: Component<Props> = (props) => {
 					<Show when={!filtering() || filteredItems().length > 0} fallback={<p class={styles.noResults}>{props.t("kanbanNoSearchResults")}</p>}>
 						<CustomScrollArea ariaLabel={props.t("kanbanTitle")}
 							contentClass={`${styles.lanes} ${layoutColumnCount() === 5 ? styles.lanesFive : ""}`}
-							viewportStyle={{ padding: layoutColumnCount() === 1 ? "2px 24px 12px 12px" : "2px 12px 12px" }}>
+							viewportStyle={{ padding: layoutColumnCount() === 1 || layoutColumnCount() === 5 ? "2px 24px 12px 12px" : "2px 12px 12px" }}>
 							<For each={kanbanStatuses}>{(status) => {
 								const count = () => laneItems(status).length;
 								const remainingItems = () => visibleLaneItems(status).filter(item => item.id !== draggedId());
@@ -448,18 +529,7 @@ const KanbanPanel: Component<Props> = (props) => {
 								const exceeded = () => wipLimit() !== undefined && count() > wipLimit()!;
 								return (
 									<section class={`${styles.lane} ${laneClass[status]}`} aria-labelledby={`kanban-lane-${status}`}
-										data-kanban-lane={status}
-										onDragOver={event => updateDropTarget(event, status)}
-										onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget(undefined); }}
-										onDrop={event => {
-											if (filtering() || mutationsBlocked() || !draggedId() || isCollapsed(status)) return;
-											event.preventDefault();
-											event.stopPropagation();
-											const itemId = event.dataTransfer?.getData("text/plain") || draggedId();
-											const position = getDropPosition(event.currentTarget, event.clientY);
-											if (itemId) props.kanban.move(itemId, status, position);
-											finishDrag();
-										}}>
+										data-kanban-lane={status}>
 										<div class={styles.laneHeader}>
 										<h3 id={`kanban-lane-${status}`} class={styles.laneTitle}>
 											{props.t(kanbanStatusLabels[status])}

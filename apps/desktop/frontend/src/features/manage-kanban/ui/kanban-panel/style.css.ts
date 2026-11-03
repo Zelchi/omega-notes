@@ -15,7 +15,7 @@ const card = style({
 	position: "relative", boxSizing: "border-box", display: "grid", alignContent: "start", gap: 5,
 	width: "100%", minWidth: 0, minHeight: 56, padding: "7px 9px",
 	border: "1px solid var(--border-soft)", borderRadius: 7, color: "var(--ink)",
-	background: "var(--surface-panel)", cursor: "grab",
+	background: "var(--surface-panel)", cursor: "grab", userSelect: "none", WebkitUserSelect: "none",
 	transition: "border-color 130ms ease, box-shadow 130ms ease",
 	selectors: {
 		"&:hover": { borderColor: "var(--border-strong)", boxShadow: "0 3px 12px rgb(0 0 0 / 10%)" },
@@ -27,6 +27,8 @@ const cardActions = style({
 	opacity: 0, pointerEvents: "none", transition: "opacity 130ms ease",
 });
 globalStyle(`${card}:hover ${cardActions}`, { opacity: 1, pointerEvents: "auto" });
+const dragging = style({ cursor: "none" });
+globalStyle(`${dragging}, ${dragging} *`, { cursor: "none !important" });
 
 export const styles = {
 	button,
@@ -38,6 +40,8 @@ export const styles = {
 		borderRight: "1px solid var(--border-strong)", overflow: "hidden",
 		transition: "width 100ms cubic-bezier(0.2, 0.7, 0.3, 1)",
 	}),
+	dragging,
+	dragPreview: style({ position: "fixed", zIndex: 20, pointerEvents: "none", opacity: 0.92, boxShadow: "0 8px 24px rgb(0 0 0 / 22%)" }),
 	resizeHandle: style({
 		position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 3,
 		display: "grid", placeItems: "center", width: 10,
