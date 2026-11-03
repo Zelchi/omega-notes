@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const source = async path => readFile(new URL(path, import.meta.url), 'utf8');
+const source = async path => (await readFile(new URL(path, import.meta.url), 'utf8')).replaceAll('\r\n', '\n');
 
 test('Pomodoro and Kanban entry points and panels remain available in production', async () => {
 	const titlebar = await source('../src/app/ui/window-titlebar/index.tsx');
