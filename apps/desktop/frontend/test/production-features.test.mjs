@@ -193,9 +193,9 @@ test('temporary note preview activates only with the left Alt key', async () => 
 	assert.match(preview, /else if \(leftAltDown && !\["Shift", "Meta"\]\.includes\(event\.key\)\)/);
 });
 
-test('single-column Kanban reserves extra space beside its overlay scrollbar', async () => {
+test('single-column and expanded Kanban reserve extra space beside the overlay scrollbar', async () => {
 	const kanban = await source('../src/features/manage-kanban/ui/kanban-panel/index.tsx');
-	assert.match(kanban, /viewportStyle=\{\{ padding: layoutColumnCount\(\) === 1 \? "2px 24px 12px 12px" : "2px 12px 12px" \}\}/);
+	assert.match(kanban, /viewportStyle=\{\{ padding: layoutColumnCount\(\) === 1 \|\| layoutColumnCount\(\) === 5 \? "2px 24px 12px 12px" : "2px 12px 12px" \}\}/);
 });
 
 test('Kanban priority filter uses the shared dropdown component', async () => {
@@ -236,9 +236,19 @@ test('Kanban uses only a temporary drag insertion gap, not permanent empty slots
 	assert.doesNotMatch(kanban, /kanbanSlotCount|slotPositions|positionSlot/);
 	assert.doesNotMatch(kanban, /draggedItem/);
 	assert.match(kanban, /dropPlaceholder\(\)/);
-	assert.match(kanban, /getDropPosition\(event\.currentTarget, event\.clientY\)/);
-	assert.match(kanban, /setDragImage\(event\.currentTarget/);
-	assert.match(kanban, /dragStartFrame = requestAnimationFrame/);
+	assert.match(kanban, /getDropPosition\(lane, clientY\)/);
+	assert.match(kanban, /draggable=\{false\}/);
+	assert.match(kanban, /onPointerDown=\{event => startDrag\(event, item\)\}/);
+	assert.match(kanban, /window\.addEventListener\("pointermove", moveCardDrag, \{ capture: true, passive: false \}\)/);
+	assert.match(kanban, /Math\.hypot\(event\.clientX - drag\.startX, event\.clientY - drag\.startY\) < 5/);
+	assert.match(kanban, /drag\.source\.cloneNode\(true\)/);
+	assert.match(kanban, /cardDrag\.preview\?\.remove\(\)/);
+	assert.doesNotMatch(kanban, /onDragStart|onDragOver|onDrop|setDragImage|dataTransfer/);
+	assert.match(kanban, /document\.documentElement\.classList\.toggle\(styles\.dragging, Boolean\(draggedId\(\)\)\)/);
+	assert.match(kanban, /document\.documentElement\.classList\.remove\(styles\.dragging\)/);
+	assert.match(style, /const dragging = style\(\{ cursor: "none" \}\)/);
+	assert.match(style, /globalStyle\(`\$\{dragging\}, \$\{dragging\} \*`, \{ cursor: "none !important" \}\)/);
+	assert.match(style, /dragPreview: style\(\{ position: "fixed", zIndex: 20, pointerEvents: "none", opacity: 0\.92/);
 	assert.match(style, /draggedSource: style\(\{ position: "absolute"/);
 	assert.match(style, /dropPlaceholder: style\(\{ boxSizing: "border-box", width: "100%", minHeight: 56, pointerEvents: "none" \}\)/);
 	assert.match(kanban, /<Show when=\{item\.priority !== "none" \|\| item\.dueDate\}>/);
