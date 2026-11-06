@@ -61,6 +61,7 @@ export const styles = {
 	title: style({ margin: 0, fontSize: 15, fontWeight: 600 }),
 	closeButton: style([button, { boxSizing: "border-box", width: 32, height: 32, minWidth: 32, padding: 0, flexShrink: 0 }]),
 	content: style({ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, gap: 12 }),
+	kanbanScrollArea: style({ vars: { "--omega-scrollbar-right": "0px" } }),
 	toolbar: style({ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }),
 	searchBox: style({ display: "flex", alignItems: "center", flex: 1, minWidth: 0, height: 34, gap: 7, padding: "0 9px", border: "1px solid var(--border-soft)", borderRadius: 6, color: "var(--muted)", background: "var(--surface-input)" }),
 	searchInput: style({ width: "100%", minWidth: 0, border: 0, outline: 0, color: "var(--ink)", background: "transparent", font: "inherit", fontSize: 12, selectors: { "&::placeholder": { color: "var(--muted)" } } }),
