@@ -13,6 +13,12 @@ test('Pomodoro and Kanban entry points and panels remain available in production
 	assert.match(app, /<Show when=\{kanbanMounted\(\)\}>[\s\S]*?<KanbanPanel/);
 });
 
+test('Vault switcher occupies the titlebar center track instead of overlapping drag regions', async () => {
+	const styles = await source('../src/app/ui/window-titlebar/style.css.ts');
+	assert.match(styles, /vaultName: style\(\{[\s\S]*?gridColumn: 2,[\s\S]*?justifySelf: "center"/);
+	assert.doesNotMatch(styles, /vaultName: style\(\{\s*position: "absolute"/);
+});
+
 test('Shift-clicking Pomodoro Play starts the timer and hides the main window', async () => {
 	const [panel, app] = await Promise.all([
 		source('../src/features/pomodoro/ui/pomodoro-panel/index.tsx'),
@@ -259,15 +265,16 @@ test('frontend globally suppresses browser default focus outlines', async () => 
 	assert.match(css, /\*:focus\s*\{\s*outline:\s*none;/);
 });
 
-test('vault action rail stays clickable to close and highlights its open state', async () => {
+test('clicking the right edge of a vault row selects it, with hover feedback', async () => {
 	const [dialog, style] = await Promise.all([
 		source('../src/features/manage-vault/ui/vault-dialog/index.tsx'),
 		source('../src/features/manage-vault/ui/vault-dialog/style.css.ts'),
 	]);
-	assert.match(dialog, /\[styles\.vaultActionsHitArea\]: true/);
-	assert.match(dialog, /\[styles\.vaultActionsOpen\]: vaultActionsVisibleId\(\) === vault\.id/);
-	assert.match(dialog, /if \(event\.target === event\.currentTarget\) toggleVaultActions\(vault\.id\)/);
+	assert.match(dialog, /const selectVault = \(vaultId: string\) => \{[\s\S]*?state\.setSelectedVaultId\(vaultId\);\s*\}/);
+	assert.match(dialog, /if \(event\.target === event\.currentTarget\) selectVault\(vault\.id\)/);
+	assert.match(dialog, /event\.stopPropagation\(\);\s*toggleVaultActions\(vault\.id\)/);
 	assert.match(style, /vaultActionsHitArea: style\(\{ paddingRight: 6, marginRight: -5, cursor: "pointer" \}\)/);
+	assert.match(style, /selectors: \{ "&:hover": \{ backgroundColor: "var\(--surface-hover\)" \} \}/);
 	assert.match(style, /vaultActionsOpen: style\(\{ selectors: \{ "&::after": \{ content: "", position: "absolute", top: 0, right: 0, bottom: 0, width: 6, backgroundColor: "var\(--border-strong\)", pointerEvents: "none" \} \} \}\)/);
 });
 

@@ -35,10 +35,9 @@ export const styles = {
 		letterSpacing: "0.02em",
 	}),
 	vaultName: style({
-		position: "absolute",
-		zIndex: 2,
-		left: "50%",
-		transform: "translateX(-50%)",
+		gridColumn: 2,
+		justifySelf: "center",
+		minWidth: 0,
 		maxWidth: "min(45vw, 420px)",
 		height: 27,
 		overflow: "hidden",
