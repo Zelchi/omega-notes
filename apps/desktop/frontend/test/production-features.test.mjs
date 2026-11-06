@@ -199,9 +199,9 @@ test('temporary note preview activates only with the left Alt key', async () => 
 	assert.match(preview, /else if \(leftAltDown && !\["Shift", "Meta"\]\.includes\(event\.key\)\)/);
 });
 
-test('single-column and expanded Kanban reserve extra space beside the overlay scrollbar', async () => {
+test('Kanban lanes keep equal horizontal padding beside the overlay scrollbar', async () => {
 	const kanban = await source('../src/features/manage-kanban/ui/kanban-panel/index.tsx');
-	assert.match(kanban, /viewportStyle=\{\{ padding: layoutColumnCount\(\) === 1 \|\| layoutColumnCount\(\) === 5 \? "2px 24px 12px 12px" : "2px 12px 12px" \}\}/);
+	assert.match(kanban, /viewportStyle=\{\{ padding: "2px 12px 12px" \}\}/);
 });
 
 test('Kanban priority filter uses the shared dropdown component', async () => {

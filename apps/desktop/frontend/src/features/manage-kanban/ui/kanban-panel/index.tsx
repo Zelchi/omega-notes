@@ -518,9 +518,9 @@ const KanbanPanel: Component<Props> = (props) => {
 					<Show when={props.kanban.items().length >= maxKanbanItems}><p class={styles.loading} role="status">{props.t("kanbanLimitReached")}</p></Show>
 					<Show when={props.kanban.loading()}><p class={styles.loading}>{props.t("kanbanLoading")}</p></Show>
 					<Show when={!filtering() || filteredItems().length > 0} fallback={<p class={styles.noResults}>{props.t("kanbanNoSearchResults")}</p>}>
-						<CustomScrollArea ariaLabel={props.t("kanbanTitle")}
+						<CustomScrollArea ariaLabel={props.t("kanbanTitle")} class={styles.kanbanScrollArea}
 							contentClass={`${styles.lanes} ${layoutColumnCount() === 5 ? styles.lanesFive : ""}`}
-							viewportStyle={{ padding: layoutColumnCount() === 1 || layoutColumnCount() === 5 ? "2px 24px 12px 12px" : "2px 12px 12px" }}>
+							viewportStyle={{ padding: "2px 12px 12px" }}>
 							<For each={kanbanStatuses}>{(status) => {
 								const count = () => laneItems(status).length;
 								const remainingItems = () => visibleLaneItems(status).filter(item => item.id !== draggedId());
