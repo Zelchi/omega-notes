@@ -73,6 +73,11 @@ const VaultDialog: Component<Props> = (props) => {
 	});
 	const selectedVault = () => props.vaults.find((vault) => vault.id === state.selectedVaultId());
 	const toggleVaultActions = (vaultId: string) => setVaultActionsVisibleId(current => current === vaultId ? undefined : vaultId);
+	const selectVault = (vaultId: string) => {
+		props.onClearError();
+		setVaultActionsVisibleId(undefined);
+		state.setSelectedVaultId(vaultId);
+	};
 
 	createEffect(() => {
 		const isOpen = props.open;
@@ -267,7 +272,7 @@ const VaultDialog: Component<Props> = (props) => {
 												[styles.vaultActionsHitArea]: true,
 												[styles.vaultActionsOpen]: vaultActionsVisibleId() === vault.id,
 											}} onClick={event => {
-																if (event.target === event.currentTarget) toggleVaultActions(vault.id);
+																if (event.target === event.currentTarget) selectVault(vault.id);
 															}}>
 																<Button
 																	class={styles.iconAction}

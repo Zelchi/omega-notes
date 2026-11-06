@@ -149,7 +149,16 @@ export const styles = {
 	}),
 	activeVault: style({ fontWeight: 600 }),
 	previewVault: style({ backgroundColor: "var(--surface-hover)" }),
-	vaultActions: style({ position: "relative", display: "flex", alignItems: "center", alignSelf: "stretch", gap: 0, paddingRight: 3, borderLeft: "1px solid var(--border-soft)" }),
+	vaultActions: style({
+		position: "relative",
+		display: "flex",
+		alignItems: "center",
+		alignSelf: "stretch",
+		gap: 0,
+		paddingRight: 3,
+		borderLeft: "1px solid var(--border-soft)",
+		selectors: { "&:hover": { backgroundColor: "var(--surface-hover)" } },
+	}),
 	vaultActionsHitArea: style({ paddingRight: 6, marginRight: -5, cursor: "pointer" }),
 	vaultActionsOpen: style({ selectors: { "&::after": { content: "", position: "absolute", top: 0, right: 0, bottom: 0, width: 6, backgroundColor: "var(--border-strong)", pointerEvents: "none" } } }),
 	iconAction: style({
