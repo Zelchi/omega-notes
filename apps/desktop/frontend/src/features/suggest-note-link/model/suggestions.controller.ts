@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, type Accessor } from "solid-js";
+import { createEffect, createMemo, createSignal, untrack, type Accessor } from "solid-js";
 import { displayNoteTitle, normalizeNoteTitle, type NoteSummary } from "@/entities/note";
 import { noteLinkAtCaret, type NoteLinkContext } from "./link-context";
 
@@ -10,7 +10,7 @@ export const useNoteLinkSuggestions = (options: {
 }) => {
 	const context = createMemo(() => noteLinkAtCaret(options.text(), options.caretOffset()));
 	const [dismissed, setDismissed] = createSignal<string>();
-	const [selectedIndex, setSelectedIndex] = createSignal(0);
+	const [selectedNoteId, setSelectedNoteId] = createSignal<string>();
 	let titleCache = new Map<string, { raw: string; title: string }>();
 	const titles = createMemo(() => {
 		if (!context()) return [];
@@ -35,11 +35,25 @@ export const useNoteLinkSuggestions = (options: {
 			.slice(0, 6).map(({ note }) => note);
 	});
 	const open = () => Boolean(context() && context()!.key !== dismissed());
+	const selectedIndex = createMemo(() => {
+		const selectedId = selectedNoteId();
+		const index = suggestions().findIndex(note => note.id === selectedId);
+		return index < 0 ? 0 : index;
+	});
+	let selectedContext: string | undefined;
 	createEffect(() => {
-		context()?.key;
-		suggestions();
-		setSelectedIndex(0);
-		if (!context()) setDismissed(undefined);
+		const current = context();
+		const notes = suggestions();
+		if (!current) {
+			setDismissed(undefined);
+			return;
+		}
+		const contextKey = `${current.start}:${normalizeNoteTitle(current.query)}`;
+		const currentSelection = untrack(selectedNoteId);
+		if (contextKey !== selectedContext || !notes.some(note => note.id === currentSelection)) {
+			selectedContext = contextKey;
+			setSelectedNoteId(notes[0]?.id);
+		}
 	});
 	const select = (note: NoteSummary) => {
 		const current = context();
@@ -61,7 +75,8 @@ export const useNoteLinkSuggestions = (options: {
 		if (event.key === "ArrowUp" || event.key === "ArrowDown") {
 			event.preventDefault();
 			event.stopPropagation();
-			setSelectedIndex((index) => (index + (event.key === "ArrowDown" ? 1 : -1) + notes.length) % notes.length);
+			const nextIndex = (selectedIndex() + (event.key === "ArrowDown" ? 1 : -1) + notes.length) % notes.length;
+			setSelectedNoteId(notes[nextIndex]!.id);
 			return true;
 		}
 		if (event.key === "Enter" || event.key === "Tab") {
