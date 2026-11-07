@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, screen, shell, Tray } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, screen, shell, Tray } from 'electron';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -6,7 +6,12 @@ import { Backend } from './backend.mjs';
 import { readSettingsImport, validateStorageSnapshot } from './storage.mjs';
 import { dynamicTrayLabels } from './tray-menu.mjs';
 import { installAndRelaunch } from './updater-install.mjs';
+import { serveNoteImage } from './image-protocol.mjs';
 if (process.platform === 'linux') app.commandLine.appendSwitch('disable-features', 'WaylandWpColorManagerV1');
+protocol.registerSchemesAsPrivileged([{
+    scheme: 'omega-image',
+    privileges: { standard: true, secure: true, stream: true },
+}]);
 let settingsImport = await readSettingsImport(process.argv);
 
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -170,6 +175,10 @@ else {
     }, error => { if (!quitting && window) dialog.showErrorBox('Ômega Notes', `O backend encerrou. Copie qualquer texto não salvo antes de reabrir o aplicativo.\n\n${error.message}`); });
     try {
         await backend.ready();
+        protocol.handle('omega-image', request => serveNoteImage(
+            request,
+            (vaultId, imageId) => backend.invoke('resolve_note_image_path', { vaultId, imageId }),
+        ));
         const icon = nativeImage.createFromPath(join(directory, 'icons/128x128.png'));
         window = new BrowserWindow({ width: 1000, height: 700, minWidth: 858, minHeight: 700, title: 'Ômega', frame: false, transparent: true, show: false, backgroundColor: '#00000000', icon, webPreferences: { preload: join(directory, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false } });
         Menu.setApplicationMenu(null);

@@ -44,6 +44,7 @@ const NoteEditor: Component<NoteEditorProps> = (props) => {
 				</Show>
 			</div>
 			<NoteCanvasEditor
+				vaultId={props.vaultId}
 				noteId={props.note.id}
 				noteTitle={props.note.title}
 				document={props.note.document}

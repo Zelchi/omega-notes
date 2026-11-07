@@ -1,4 +1,3 @@
-import { createImageObjectUrl } from "@/shared/lib/images";
 import { isDesktopRuntime, pathForFile } from "@/shared/lib/desktop";
 import type { ImportedMedia } from "./media";
 import {
@@ -6,7 +5,6 @@ import {
 	importNoteImage,
 	importNoteMedia,
 	importClipboardImage,
-	readNoteImage,
 	selectMediaPaths,
 } from "../api/media.repository";
 
@@ -113,11 +111,6 @@ export const importMediaPaths = async (
 
 export const selectMediaFiles = (title: string): Promise<string[]> =>
 	selectMediaPaths(title, [...imageExtensions, ...audioExtensions, ...videoExtensions]);
-
-export const readImageSource = async (imageId: string): Promise<string> => {
-	const data = await readNoteImage(imageId);
-	return createImageObjectUrl(data);
-};
 
 export const readMediaSource = (mediaId: string, mediaType: "audio" | "video"): Promise<string> =>
 	getNoteMediaStreamUrl(mediaId, mediaType);

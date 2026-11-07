@@ -4,7 +4,7 @@ import type { NoteImageElement, NotePositionedElement } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { isDesktopRuntime } from "@/shared/lib/desktop";
 import { createEdgeAutoScroll } from "../../model/edge-auto-scroll";
-import { readImageSource } from "../../model/media-import";
+import { noteImageUrl } from "../../model/note-image-url";
 
 type Point = { x: number; y: number; width: number; height: number };
 type Interaction = {
@@ -20,6 +20,7 @@ type Interaction = {
 };
 
 export type NoteImageNodeProps = {
+	vaultId: string;
 	element: Accessor<NoteImageElement>;
 	pageWidth: number;
 	pageHeight: number;
@@ -80,21 +81,8 @@ export const useNoteImageNodeController = (props: NoteImageNodeProps) => {
 			setSource(key);
 			return;
 		}
-		if (!key || !isDesktopRuntime()) return;
-
-		let active = true;
-		let objectUrl: string | undefined;
-		void readImageSource(key)
-			.then((value) => {
-				objectUrl = value;
-				if (active) setSource(value);
-				else URL.revokeObjectURL(value);
-			})
-			.catch(console.error);
-		onCleanup(() => {
-			active = false;
-			if (objectUrl) URL.revokeObjectURL(objectUrl);
-		});
+		if (!key || !isDesktopRuntime() || !props.vaultId) return;
+		setSource(noteImageUrl(props.vaultId, key));
 	});
 
 	const currentPoint = (): Point => {

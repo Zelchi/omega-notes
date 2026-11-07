@@ -129,21 +129,3 @@ export const confirm = (message: string, options: { title?: string; kind?: strin
 export const open = (options: { title?: string; multiple?: boolean; directory?: boolean; filters?: { name: string; extensions: string[] }[] }): Promise<string | string[] | null> => invoke('dialog_open', { options });
 export const openUrl = (url: string): Promise<void> => invoke('open_url', { url });
 export const pathForFile = (file: File): Promise<string> => Promise.resolve(desktop().pathForFile(file));
-
-export async function readBinary(command: string, args: Record<string, unknown>): Promise<ArrayBuffer> {
-    const chunks: Uint8Array[] = [];
-    const channel = new Channel<string>();
-    let failure: unknown;
-    channel.onmessage = value => {
-        try { chunks.push(Uint8Array.from(atob(value), character => character.charCodeAt(0))); }
-        catch (error) { failure = error; }
-    };
-    const length = await invoke<number>(command, { ...args, onChunk: channel });
-    if (failure) throw failure;
-    if (!Number.isSafeInteger(length) || length < 0) throw Error("Invalid binary response length");
-    const bytes = new Uint8Array(length);
-    let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-    if (offset !== length) throw Error('Incomplete binary response');
-    return bytes.buffer;
-}

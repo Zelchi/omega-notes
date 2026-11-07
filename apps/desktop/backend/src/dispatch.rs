@@ -8,6 +8,25 @@ fn argument<T: DeserializeOwned>(args: &Value, key: &str) -> Result<T, String> {
         .map_err(|error| format!("Invalid argument {key}: {error}"))
 }
 
+pub(crate) async fn dispatch_host(
+    app: AppContext,
+    command: String,
+    args: Value,
+) -> Result<Value, String> {
+    if command == "resolve_note_image_path" {
+        return serde_json::to_value(
+            crate::images::commands::resolve_note_image_path(
+                app,
+                argument(&args, "vaultId")?,
+                argument(&args, "imageId")?,
+            )
+            .await?,
+        )
+        .map_err(|error| error.to_string());
+    }
+    dispatch(app, command, args).await
+}
+
 pub(crate) async fn dispatch(
     app: AppContext,
     command: String,
@@ -253,15 +272,6 @@ pub(crate) async fn dispatch(
         .map_err(|error| error.to_string()),
         "music_stream_url" => serde_json::to_value(
             crate::media::commands::music_stream_url(app.clone(), argument(&args, "url")?).await?,
-        )
-        .map_err(|error| error.to_string()),
-        "read_note_image" => serde_json::to_value(
-            crate::images::commands::read_note_image(
-                app.clone(),
-                argument(&args, "imageId")?,
-                Channel::from_argument(&app, &args, "onChunk")?,
-            )
-            .await?,
         )
         .map_err(|error| error.to_string()),
         "import_clipboard_image" => serde_json::to_value(

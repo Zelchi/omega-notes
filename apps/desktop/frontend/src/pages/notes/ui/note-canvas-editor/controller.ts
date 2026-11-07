@@ -21,6 +21,7 @@ import type { TextFormat, TextFormatHandler } from "@/features/format-text";
 import type { ParagraphAlignmentHandler } from "@/features/align-text";
 
 export type NoteCanvasEditorProps = {
+	vaultId: string;
 	noteId: string;
 	noteTitle: string;
 	document: NoteDocument;

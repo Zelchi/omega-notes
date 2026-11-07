@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,14 +41,11 @@ test('real Rust process preserves vaults, notes, streams, images and errors acro
     png.push(...new Uint8Array(1));
     const payload = [...png, ...new Uint8Array(512 * 1024)];
     const imageId = await backend.invoke('import_clipboard_image', { bytes: payload });
-    const imageChannel = randomUUID();
-    const byteLength = await backend.invoke('read_note_image', { imageId, onChunk: { __omegaChannel: imageChannel } });
-    assert.equal(byteLength, payload.length);
-    const downloaded = Buffer.concat(events.filter(event => event.channel === imageChannel).map(event => Buffer.from(event.payload, 'base64')));
-    assert.deepEqual([...downloaded], payload);
-    assert.ok(events.filter(event => event.channel === imageChannel).length > 1);
-    assert.ok(events.filter(event => event.channel === imageChannel).every(event => event.payload.length <= 256 * 1024));
-    await assert.rejects(backend.invoke('read_note_image', { imageId: '../../outside', onChunk: { __omegaChannel: randomUUID() } }));
+    const resolvedImagePath = await backend.invoke('resolve_note_image_path', { vaultId, imageId });
+    assert.ok(resolvedImagePath.endsWith(`${imageId}.png`));
+    await assert.rejects(backend.invoke('resolve_note_image_path', { vaultId: randomUUID(), imageId }), /NOTE_IMAGE_VAULT_CHANGED/);
+    await assert.rejects(backend.invoke('resolve_note_image_path', { vaultId, imageId: '../../outside' }), /Identificador de imagem inválido/);
+    assert.equal((await stat(resolvedImagePath)).size, payload.length);
     await assert.rejects(backend.invoke('save_note', { vaultId, noteId: original.id, noteTitle: original.title, document: original.document, expectedNote: { title: original.title, document: original.document } }), /CONFLICT|ALTERAD|changed/i);
     await assert.rejects(backend.invoke('not_a_command'), /Unknown backend command/);
     await assert.rejects(backend.invoke('get_note', { vaultId }), /Invalid argument noteId/);

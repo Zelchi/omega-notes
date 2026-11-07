@@ -103,7 +103,8 @@ const AppView: Component = () => {
 										when={app.navigation.route() === "canvas"}
 										fallback={
 											<Note
-												note={app.navigation.selectedNote()}
+												vaultId={app.vaults.activeVaultId() ?? ""}
+								note={app.navigation.selectedNote()}
 												notes={app.notes.notes()}
 												referenceTitles={app.notes.referenceTitles()}
 												mode={app.temporaryReading.mode()}

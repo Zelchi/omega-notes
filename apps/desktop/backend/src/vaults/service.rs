@@ -36,20 +36,29 @@ fn active_vault_directories(
 
 pub(crate) fn initialize_active_vault(
     resolve_app_directory: &impl Fn() -> Result<PathBuf, String>,
-    set_active_vault: &impl Fn(Option<(PathBuf, PathBuf)>, &str) -> Result<(), String>,
+    set_active_vault: &impl Fn(Option<(PathBuf, PathBuf)>, Option<String>, &str) -> Result<(), String>,
 ) -> Result<(), String> {
     let directory = resolve_app_directory()?;
     let mut registry = read_vault_registry(&directory)?;
     recover_vault_deletions(&directory, &registry)?;
-    let active_directories = registry
+    let active_vault = registry
         .active_vault_id
         .as_ref()
         .and_then(|active_id| registry.vaults.iter().find(|vault| &vault.id == active_id))
-        .map(|vault| active_vault_directories(&directory, vault))
+        .map(|vault| -> Result<(String, (PathBuf, PathBuf)), String> {
+            Ok((
+                vault.id.clone(),
+                active_vault_directories(&directory, vault)?,
+            ))
+        })
         .transpose()?;
 
-    if let Some(directories) = active_directories {
-        set_active_vault(Some(directories), "Não foi possível ativar o vault.")?;
+    if let Some((vault_id, directories)) = active_vault {
+        set_active_vault(
+            Some(directories),
+            Some(vault_id),
+            "Não foi possível ativar o vault.",
+        )?;
     } else if registry.active_vault_id.is_some() {
         registry.active_vault_id = None;
         write_vault_registry(&directory, &registry)?;
@@ -151,7 +160,7 @@ pub(super) fn reorder_vaults(
 
 pub(super) fn switch_vault(
     resolve_app_directory: &impl Fn() -> Result<PathBuf, String>,
-    set_active_vault: &impl Fn(Option<(PathBuf, PathBuf)>, &str) -> Result<(), String>,
+    set_active_vault: &impl Fn(Option<(PathBuf, PathBuf)>, Option<String>, &str) -> Result<(), String>,
     vault_id: String,
 ) -> Result<VaultLibrary, String> {
     let _title_mutations = crate::app::library::lock_title_mutations()?;
@@ -168,9 +177,13 @@ pub(super) fn switch_vault(
         .ok_or_else(|| "VAULT_NOT_FOUND".to_string())?;
     let directories = active_vault_directories(&directory, vault)?;
 
-    registry.active_vault_id = Some(vault_id);
+    registry.active_vault_id = Some(vault_id.clone());
     write_vault_registry(&directory, &registry)?;
-    if let Err(error) = set_active_vault(Some(directories), "Não foi possível ativar o vault.") {
+    if let Err(error) = set_active_vault(
+        Some(directories),
+        Some(vault_id),
+        "Não foi possível ativar o vault.",
+    ) {
         return match write_vault_registry(&directory, &previous_registry) {
             Ok(()) => Err(error),
             Err(rollback_error) => Err(format!(
@@ -227,7 +240,7 @@ pub(super) fn rename_vault(
 
 pub(super) fn delete_vault(
     resolve_app_directory: &impl Fn() -> Result<PathBuf, String>,
-    set_active_vault: &impl Fn(Option<(PathBuf, PathBuf)>, &str) -> Result<(), String>,
+    set_active_vault: &impl Fn(Option<(PathBuf, PathBuf)>, Option<String>, &str) -> Result<(), String>,
     vault_id: String,
 ) -> Result<VaultDeleteResult, String> {
     let _registry_lock = lock_vault_registry_mutations()?;
@@ -261,7 +274,8 @@ pub(super) fn delete_vault(
     }
 
     if was_active {
-        if let Err(error) = set_active_vault(None, "Não foi possível desativar o vault removido.")
+        if let Err(error) =
+            set_active_vault(None, None, "Não foi possível desativar o vault removido.")
         {
             let registry_error = write_vault_registry(&directory, &previous_registry).err();
             let restore_error = deletion_stage

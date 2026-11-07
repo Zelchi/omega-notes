@@ -28,6 +28,7 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 	const mediaCatalogPresence = createPresence(editor.catalogOpen, 210);
 	const mediaCatalog = useMediaCatalogDialogController({
 		get open() { return mediaCatalogPresence.present(); },
+		vaultId: props.vaultId,
 		currentNote: () => {
 			const summary = props.notes.find((note) => note.id === props.noteId);
 			return { id: props.noteId, title: props.noteTitle, updatedAt: summary?.updatedAt ?? 0, document: props.document };
@@ -128,7 +129,8 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 									>
 										<Suspense fallback={null}>
 											<NoteImageNode
-												element={() => getElement() as NoteImageElement}
+												vaultId={props.vaultId}
+														element={() => getElement() as NoteImageElement}
 											pageWidth={props.document.page.width}
 											pageHeight={editor.renderedPageHeight()}
 											editable={editor.editable()}
