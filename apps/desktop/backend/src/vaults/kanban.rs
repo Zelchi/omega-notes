@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Mutex,
 };
 
@@ -67,6 +67,22 @@ pub(crate) struct KanbanData {
     pub(crate) wip_limits: WipLimits,
 }
 
+pub(crate) struct AiItem {
+    pub(crate) id: String,
+    pub(crate) title: String,
+    pub(crate) note_id: Option<String>,
+    pub(crate) status: Status,
+    pub(crate) position: Option<usize>,
+    pub(crate) priority: Priority,
+    pub(crate) labels: Vec<String>,
+    pub(crate) due_date: Option<String>,
+}
+
+pub(crate) struct AiBoard {
+    pub(crate) items: Vec<AiItem>,
+    pub(crate) wip_limits: WipLimits,
+}
+
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum StoredKanban {
@@ -74,15 +90,7 @@ enum StoredKanban {
     Legacy(Vec<Item>),
 }
 
-fn file_path(app: &AppContext, vault_id: &str) -> Result<PathBuf, String> {
-    let directory = crate::app::runtime::app_directory(app)?;
-    let registry = crate::vaults::read_vault_registry(&directory)?;
-    let vault = registry
-        .vaults
-        .iter()
-        .find(|vault| vault.id == vault_id)
-        .ok_or("KANBAN_STORAGE_FAILED")?;
-    let root = crate::vaults::vault_directory(&directory, vault)?;
+fn file_path_for_root(root: &Path) -> Result<PathBuf, String> {
     let metadata = fs::symlink_metadata(&root).map_err(|_| "KANBAN_STORAGE_FAILED")?;
     if !metadata.is_dir() || metadata.file_type().is_symlink() {
         return Err("KANBAN_STORAGE_FAILED".into());
@@ -96,8 +104,19 @@ fn file_path(app: &AppContext, vault_id: &str) -> Result<PathBuf, String> {
     Ok(path)
 }
 
-fn read(app: &AppContext, vault_id: &str) -> Result<KanbanData, String> {
-    let path = file_path(app, vault_id)?;
+fn file_path(app: &AppContext, vault_id: &str) -> Result<PathBuf, String> {
+    let directory = crate::app::runtime::app_directory(app)?;
+    let registry = crate::vaults::read_vault_registry(&directory)?;
+    let vault = registry
+        .vaults
+        .iter()
+        .find(|vault| vault.id == vault_id)
+        .ok_or("KANBAN_STORAGE_FAILED")?;
+    let root = crate::vaults::vault_directory(&directory, vault)?;
+    file_path_for_root(&root)
+}
+
+fn read_path(path: PathBuf) -> Result<KanbanData, String> {
     let metadata = match fs::symlink_metadata(&path) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -121,6 +140,41 @@ fn read(app: &AppContext, vault_id: &str) -> Result<KanbanData, String> {
     validate(&data.items)?;
     validate_wip_limits(&data.wip_limits)?;
     Ok(data)
+}
+
+fn read(app: &AppContext, vault_id: &str) -> Result<KanbanData, String> {
+    read_path(file_path(app, vault_id)?)
+}
+
+pub(crate) fn read_for_ai(notes_directory: &Path) -> Result<AiBoard, String> {
+    let _guard = STORAGE.lock().map_err(|_| "KANBAN_STORAGE_FAILED")?;
+    let notes_metadata =
+        fs::symlink_metadata(notes_directory).map_err(|_| "KANBAN_STORAGE_FAILED")?;
+    if !notes_metadata.is_dir()
+        || notes_metadata.file_type().is_symlink()
+        || notes_directory.file_name().and_then(|name| name.to_str()) != Some("notes")
+    {
+        return Err("KANBAN_STORAGE_FAILED".into());
+    }
+    let root = notes_directory.parent().ok_or("KANBAN_STORAGE_FAILED")?;
+    let data = read_path(file_path_for_root(root)?)?;
+    Ok(AiBoard {
+        items: data
+            .items
+            .into_iter()
+            .map(|item| AiItem {
+                id: item.id,
+                title: item.title,
+                note_id: item.note_id,
+                status: item.status,
+                position: item.position,
+                priority: item.priority,
+                labels: item.labels,
+                due_date: item.due_date,
+            })
+            .collect(),
+        wip_limits: data.wip_limits,
+    })
 }
 
 fn validate_wip_limits(limits: &WipLimits) -> Result<(), String> {

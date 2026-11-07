@@ -1,6 +1,10 @@
 use crate::ai::tools;
 use serde_json::{json, Value};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::PathBuf,
+    time::{Duration, UNIX_EPOCH},
+};
 
 struct Vault {
     root: PathBuf,
@@ -63,7 +67,7 @@ fn catalog_has_all_tools_and_correct_mcp_annotations() {
     )
     .unwrap();
     let list = response["result"]["tools"].as_array().unwrap();
-    assert_eq!(list.len(), 13);
+    assert_eq!(list.len(), 15);
     for tool in list {
         assert_ne!(tool["name"], "read_study_context");
         assert!(!tool["description"].as_str().unwrap().is_empty());
@@ -85,9 +89,27 @@ fn catalog_has_all_tools_and_correct_mcp_annotations() {
         "read_note_section",
         "find_unresolved_links",
         "find_connection_path",
+        "get_kanban_board",
+        "get_recent_notes",
     ] {
         assert!(names.iter().any(|item| item == name));
     }
+    let board_tool = list
+        .iter()
+        .find(|tool| tool["name"] == "get_kanban_board")
+        .unwrap();
+    assert!(board_tool["description"]
+        .as_str()
+        .unwrap()
+        .contains("legacy descriptions are deliberately omitted"));
+    let recent_tool = list
+        .iter()
+        .find(|tool| tool["name"] == "get_recent_notes")
+        .unwrap();
+    assert!(recent_tool["description"]
+        .as_str()
+        .unwrap()
+        .contains("never includes note text"));
     let link_tool = list
         .iter()
         .find(|tool| tool["name"] == "link_note_mentions")
@@ -96,6 +118,137 @@ fn catalog_has_all_tools_and_correct_mcp_annotations() {
         .as_str()
         .unwrap()
         .contains("explicit user approval"));
+}
+
+#[test]
+fn recent_notes_are_ordered_paginated_and_omit_note_text() {
+    let vault = Vault::new();
+    let older = vault.note(1, "Older", "old note text");
+    let newest = vault.note(2, "Newest", "new note text");
+    let empty = vault.note(3, "Empty", "");
+    let set_modified = |id: &str, seconds: u64| {
+        fs::File::open(vault.directory.join(format!("{id}.omega")))
+            .unwrap()
+            .set_times(fs::FileTimes::new().set_modified(UNIX_EPOCH + Duration::from_secs(seconds)))
+            .unwrap();
+    };
+    set_modified(&older, 1_800_000_000);
+    set_modified(&newest, 1_800_000_004);
+    set_modified(&empty, 1_800_000_002);
+
+    let result = vault.rpc("get_recent_notes", json!({}));
+    assert_eq!(result["total"], 3);
+    assert_eq!(result["limit"], 20);
+    assert_eq!(result["nextOffset"], Value::Null);
+    assert_eq!(result["notes"][0]["title"], "Newest");
+    assert_eq!(result["notes"][0]["id"], newest);
+    assert_eq!(result["notes"][0]["reference"], format!("[[{newest}]]"));
+    assert_eq!(result["notes"][0]["updatedAt"], 1_800_000_004_000_u64);
+    assert_eq!(result["notes"][0]["contentAvailable"], true);
+    assert!(result["notes"][0].get("text").is_none());
+    assert_eq!(result["notes"][1]["title"], "Empty");
+    assert_eq!(result["notes"][1]["contentAvailable"], false);
+
+    let page = vault.call("get_recent_notes", json!({"offset":1,"limit":1}));
+    assert_eq!(page["notes"][0]["title"], "Empty");
+    assert_eq!(page["nextOffset"], 2);
+    assert!(tools::call(&vault.directory, "get_recent_notes", &json!({"offset":3})).is_err());
+
+    let empty_vault = Vault::new();
+    let empty_result = empty_vault.rpc("get_recent_notes", json!({}));
+    assert_eq!(empty_result["total"], 0);
+    assert_eq!(
+        empty_result["message"],
+        "The vault contains no readable notes."
+    );
+}
+
+#[test]
+fn kanban_board_returns_visible_cards_columns_filters_and_pages() {
+    let vault = Vault::new();
+    fs::write(
+        vault.directory.parent().unwrap().join(".kanban.json"),
+        json!({
+            "items": [
+                {"id":"00000000-0000-4000-8000-000000000002","title":"Later","description":"legacy secret","status":"backlog","position":1,"priority":"high","labels":["planning"],"dueDate":"2026-12-31"},
+                {"id":"00000000-0000-4000-8000-000000000003","title":"Todo","status":"toDo","position":0,"priority":"none"},
+                {"id":"00000000-0000-4000-8000-000000000001","title":"First","description":"another legacy secret","status":"backlog","position":0,"priority":"high"},
+                {"id":"00000000-0000-4000-8000-000000000004","title":"Doing","status":"inProgress","position":0,"priority":"medium","noteId":"00000000-0000-4000-8000-000000000005"}
+            ],
+            "wipLimits":{"inProgress":2}
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    let board = vault.rpc("get_kanban_board", json!({}));
+    assert_eq!(board["total"], 4);
+    assert_eq!(board["limit"], 50);
+    assert_eq!(board["nextOffset"], Value::Null);
+    assert_eq!(
+        board["cards"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|card| card["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["First", "Later", "Todo", "Doing"]
+    );
+    assert_eq!(board["cards"][1]["labels"], json!(["planning"]));
+    assert_eq!(board["cards"][1]["dueDate"], "2026-12-31");
+    assert_eq!(
+        board["cards"][3]["noteId"],
+        "00000000-0000-4000-8000-000000000005"
+    );
+    assert!(board["cards"][0].get("description").is_none());
+    assert!(board["cards"][1].get("description").is_none());
+    assert_eq!(board["columns"].as_array().unwrap().len(), 5);
+    assert_eq!(board["columns"][0]["status"], "backlog");
+    assert_eq!(board["columns"][0]["cardCount"], 2);
+    assert_eq!(board["columns"][0]["wipLimit"], Value::Null);
+    assert_eq!(board["columns"][2]["status"], "inProgress");
+    assert_eq!(board["columns"][2]["cardCount"], 1);
+    assert_eq!(board["columns"][2]["wipLimit"], 2);
+
+    let filtered = vault.call(
+        "get_kanban_board",
+        json!({"column":"backlog","priority":"high"}),
+    );
+    assert_eq!(filtered["total"], 2);
+    assert!(filtered["cards"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|card| { card["column"] == "backlog" && card["priority"] == "high" }));
+
+    let page = vault.call("get_kanban_board", json!({"offset":1,"limit":1}));
+    assert_eq!(page["total"], 4);
+    assert_eq!(page["cards"][0]["title"], "Later");
+    assert_eq!(page["nextOffset"], 2);
+    assert!(tools::call(&vault.directory, "get_kanban_board", &json!({"offset":4})).is_err());
+}
+
+#[test]
+fn kanban_board_reads_legacy_arrays_without_exposing_descriptions() {
+    let vault = Vault::new();
+    fs::write(
+        vault.directory.parent().unwrap().join(".kanban.json"),
+        json!([{
+            "id":"00000000-0000-4000-8000-000000000001",
+            "title":"Legacy card",
+            "description":"not visible in the UI",
+            "status":"backlog"
+        }])
+        .to_string(),
+    )
+    .unwrap();
+
+    let board = vault.rpc("get_kanban_board", json!({}));
+    assert_eq!(board["total"], 1);
+    assert_eq!(board["cards"][0]["title"], "Legacy card");
+    assert_eq!(board["cards"][0]["column"], "backlog");
+    assert_eq!(board["cards"][0]["priority"], "none");
+    assert!(board["cards"][0].get("description").is_none());
 }
 
 #[test]
@@ -114,6 +267,8 @@ fn all_tools_work_through_mcp_dispatch() {
         ("read_note_section", json!({"noteId":b,"sectionId":1})),
         ("find_unresolved_links", json!({})),
         ("find_connection_path", json!({"sourceId":a,"targetId":b})),
+        ("get_kanban_board", json!({})),
+        ("get_recent_notes", json!({})),
     ] {
         assert!(vault.rpc(tool, args).is_object(), "{tool}");
     }
@@ -174,6 +329,16 @@ fn invalid_arguments_and_unknown_tools_are_rejected() {
             json!({"sourceId":a,"targetId":a,"maxDepth":33}),
         ),
         ("get_vault_overview", json!({"vaultId":"other"})),
+        ("get_kanban_board", json!({"column":"unknown"})),
+        ("get_kanban_board", json!({"priority":"urgent"})),
+        ("get_kanban_board", json!({"limit":0})),
+        ("get_kanban_board", json!({"limit":101})),
+        ("get_kanban_board", json!({"offset":1})),
+        ("get_kanban_board", json!({"vaultId":"other"})),
+        ("get_recent_notes", json!({"limit":0})),
+        ("get_recent_notes", json!({"limit":101})),
+        ("get_recent_notes", json!({"offset":-1})),
+        ("get_recent_notes", json!({"vaultId":"other"})),
     ];
     for (tool, args) in cases {
         assert!(
@@ -391,6 +556,7 @@ fn unreadable_notes_are_reported_and_requested_missing_notes_fail() {
         ("get_vault_overview", json!({})),
         ("list_notes", json!({})),
         ("find_unresolved_links", json!({})),
+        ("get_recent_notes", json!({})),
     ] {
         assert_eq!(vault.call(tool, args)["unreadableNotes"], 1);
     }
@@ -415,13 +581,15 @@ fn vault_boundary_rejects_other_vault_and_active_vault_changes() {
         json!({"version":1,"activeVaultId":null,"vaults":[]}).to_string(),
     )
     .unwrap();
-    let response = super::reply(
-        &vault.root,
-        &vault.id,
-        json!({"id":1,"method":"tools/call","params":{"name":"get_vault_overview","arguments":{}}}),
-    )
-    .unwrap();
-    assert_eq!(response["result"]["isError"], true);
+    for tool in ["get_vault_overview", "get_kanban_board", "get_recent_notes"] {
+        let response = super::reply(
+            &vault.root,
+            &vault.id,
+            json!({"id":1,"method":"tools/call","params":{"name":tool,"arguments":{}}}),
+        )
+        .unwrap();
+        assert_eq!(response["result"]["isError"], true, "{tool}");
+    }
 }
 
 #[cfg(unix)]
@@ -441,6 +609,24 @@ fn symbolic_links_cannot_read_another_vault() {
         1
     );
     assert_eq!(vault.call("list_notes", json!({}))["total"], 0);
+}
+
+#[cfg(unix)]
+#[test]
+fn kanban_board_rejects_symbolic_link_storage() {
+    let vault = Vault::new();
+    let other = Vault::new();
+    fs::write(
+        other.directory.parent().unwrap().join(".kanban.json"),
+        json!([]).to_string(),
+    )
+    .unwrap();
+    std::os::unix::fs::symlink(
+        other.directory.parent().unwrap().join(".kanban.json"),
+        vault.directory.parent().unwrap().join(".kanban.json"),
+    )
+    .unwrap();
+    assert!(tools::call(&vault.directory, "get_kanban_board", &json!({})).is_err());
 }
 
 #[test]
@@ -498,6 +684,13 @@ fn queries_do_not_change_note_files() {
     let vault = Vault::new();
     let b = vault.note(2, "B", "# Header\nBody");
     let a = vault.note(1, "A", "[[B]] [[Missing]]");
+    let kanban_path = vault.directory.parent().unwrap().join(".kanban.json");
+    fs::write(
+        &kanban_path,
+        json!({"items":[{"id":"00000000-0000-4000-8000-000000000003","title":"Task","status":"backlog"}]}).to_string(),
+    )
+    .unwrap();
+    let kanban_before = fs::read(&kanban_path).unwrap();
     let before: Vec<_> = fs::read_dir(&vault.directory)
         .unwrap()
         .map(|entry| {
@@ -517,12 +710,15 @@ fn queries_do_not_change_note_files() {
         ("read_note_section", json!({"noteId":b,"sectionId":1})),
         ("find_unresolved_links", json!({})),
         ("find_connection_path", json!({"sourceId":a,"targetId":b})),
+        ("get_kanban_board", json!({})),
+        ("get_recent_notes", json!({})),
     ] {
         vault.rpc(tool, args);
     }
     for (path, bytes) in before {
         assert_eq!(fs::read(path).unwrap(), bytes);
     }
+    assert_eq!(fs::read(&kanban_path).unwrap(), kanban_before);
     let note_file_count = fs::read_dir(&vault.directory)
         .unwrap()
         .filter_map(Result::ok)
