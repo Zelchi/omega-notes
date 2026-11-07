@@ -1,5 +1,11 @@
 # Histórico de atualizações
 
+## v0.6.5
+
+### Editor
+
+- A seleção das sugestões de links entre notas é preservada quando a lista atualiza ou o cursor é medido novamente.
+
 ## v0.6.4
 
 ### Kanban
