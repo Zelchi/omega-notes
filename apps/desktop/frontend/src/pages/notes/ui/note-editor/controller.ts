@@ -3,6 +3,7 @@ import { displayNoteTitle, type NoteDocument, type NoteSummary, type StudyNote }
 import type { TranslationKey } from "@/shared/lib/i18n";
 
 export type NoteEditorProps = {
+	vaultId: string;
 	onRegisterBeforeShutdown?: (save?: () => Promise<boolean>) => void;
 	note: StudyNote;
 	notes: NoteSummary[];

@@ -16,9 +16,12 @@ impl std::fmt::Display for SetupFailure {
 impl std::error::Error for SetupFailure {}
 
 pub(crate) fn initialize(app: AppContext) -> Result<(), SetupFailure> {
-    vaults::initialize_active_vault(&|| runtime::app_directory(&app), &|directory, message| {
-        runtime::set_active_vault(&app, directory, message)
-    })
+    vaults::initialize_active_vault(
+        &|| runtime::app_directory(&app),
+        &|directory, vault_id, message| {
+            runtime::set_active_vault(&app, vault_id, directory, message)
+        },
+    )
     .map_err(SetupFailure)?;
 
     Ok(())

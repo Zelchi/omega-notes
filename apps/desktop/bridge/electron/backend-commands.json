@@ -35,7 +35,6 @@
   "import_note_media",
   "note_media_stream_url",
   "music_stream_url",
-  "read_note_image",
   "import_clipboard_image",
   "cleanup_orphaned_media",
   "read_ai_chat",

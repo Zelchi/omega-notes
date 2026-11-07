@@ -1,5 +1,4 @@
-use crate::runtime::{AppContext, Channel};
-use base64::{engine::general_purpose::STANDARD, Engine};
+use crate::runtime::AppContext;
 
 use crate::app::runtime;
 
@@ -17,20 +16,22 @@ pub(crate) async fn import_note_image(
     .map_err(|error| format!("Não foi possível importar a imagem: {error}"))?
 }
 
-pub(crate) async fn read_note_image(
+pub(crate) async fn resolve_note_image_path(
     app: AppContext,
+    vault_id: String,
     image_id: String,
-    on_chunk: Channel<String>,
-) -> Result<usize, String> {
-    let bytes = crate::runtime::spawn_blocking(move || {
-        service::read_note_image(&|| runtime::notes_dir(&app), &image_id)
+) -> Result<String, String> {
+    crate::runtime::spawn_blocking(move || {
+        let path = service::resolve_note_image_path(
+            &|| runtime::notes_dir_for_vault(&app, &vault_id),
+            &image_id,
+        )?;
+        path.to_str()
+            .map(str::to_owned)
+            .ok_or_else(|| "Caminho de imagem inválido.".to_string())
     })
     .await
-    .map_err(|_| "IMAGE_READ_FAILED".to_string())??;
-    for chunk in bytes.chunks(192 * 1024) {
-        on_chunk.send(STANDARD.encode(chunk))?;
-    }
-    Ok(bytes.len())
+    .map_err(|_| "IMAGE_READ_FAILED".to_string())?
 }
 
 pub(crate) async fn import_clipboard_image(

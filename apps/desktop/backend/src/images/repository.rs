@@ -132,14 +132,24 @@ pub(super) fn store_bytes(directory: &Path, image_id: &str, bytes: &[u8]) -> Res
     atomic_write(&images.join(format!("{image_id}.{extension}")), bytes, None)
 }
 
-pub(super) fn read_image(directory: &Path, image_id: &str) -> Result<Vec<u8>, String> {
+pub(super) fn resolve_image_path(directory: &Path, image_id: &str) -> Result<PathBuf, String> {
     let images = image_store_dir(directory)?;
-    let path = IMAGE_EXTENSIONS
-        .into_iter()
-        .map(|extension| images.join(format!("{image_id}.{extension}")))
-        .find(|path| path.is_file())
-        .ok_or_else(|| "Imagem não encontrada.".to_string())?;
-    fs::read(path).map_err(|error| format!("Não foi possível ler a imagem: {error}"))
+    if !verify_image_directory(&images)? {
+        return Err("Imagem não encontrada.".to_string());
+    }
+    for extension in IMAGE_EXTENSIONS {
+        let path = images.join(format!("{image_id}.{extension}"));
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(format!("Não foi possível verificar a imagem: {error}")),
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            continue;
+        }
+        return Ok(path);
+    }
+    Err("Imagem não encontrada.".to_string())
 }
 
 pub(super) fn remove_image(directory: &Path, image_id: &str) -> Result<usize, String> {

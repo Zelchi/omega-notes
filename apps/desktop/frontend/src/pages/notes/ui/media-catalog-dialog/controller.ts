@@ -4,13 +4,15 @@ import type { TranslationKey } from "@/shared/lib/i18n";
 import { noteMediaSource, type NoteMediaCatalogItem, type NoteSummary, type StudyNote } from "@/entities/note";
 import { isDesktopRuntime } from "@/shared/lib/desktop";
 import type { ImportedMedia } from "../../model/media";
-import { readImageSource, readVideoThumbnailSource, selectMediaFiles } from "../../model/media-import";
+import { readVideoThumbnailSource, selectMediaFiles } from "../../model/media-import";
+import { noteImageUrl } from "../../model/note-image-url";
 
 type CatalogMedia = { id: string; source: ImportedMedia; noteTitles: string[] };
 const PREVIEW_LOAD_CONCURRENCY = 4;
 
 export type MediaCatalogDialogProps = {
 	open: boolean;
+	vaultId: string;
 	currentNote: () => StudyNote;
 	notes: () => NoteSummary[];
 	loadMediaCatalog: () => Promise<NoteMediaCatalogItem[]>;
@@ -43,6 +45,7 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 	const [sources, setSources] = createSignal<Record<string, string>>({});
 	let fileInput!: HTMLInputElement;
 	let requestId = 0;
+	let loadedVaultId = props.vaultId;
 	const objectUrls = new Set<string>();
 	let catalogRequestId = 0;
 	const media = createMemo(() => {
@@ -119,6 +122,11 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 		const open = props.open;
 		const catalog = media();
 		const desktop = isDesktopRuntime();
+		const vaultId = props.vaultId;
+		if (vaultId !== loadedVaultId) {
+			loadedVaultId = vaultId;
+			clearSources();
+		}
 		if (!open || !catalog.length) {
 			clearSources();
 			return;
@@ -136,7 +144,7 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 		const retained: Record<string, string> = {};
 		for (const [id, source] of Object.entries(cached)) {
 			if (previewIds.has(id)) retained[id] = source;
-			else {
+			else if (objectUrls.has(source)) {
 				URL.revokeObjectURL(source);
 				objectUrls.delete(source);
 			}
@@ -151,16 +159,16 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 				if (!item) return;
 				try {
 					const source = item.source.type === "image" && "imageId" in item.source
-						? await readImageSource(item.source.imageId)
+						? noteImageUrl(vaultId, item.source.imageId)
 						: item.source.type === "video"
 							? await readVideoThumbnailSource(item.source, abortController.signal)
 							: undefined;
 					if (!source) continue;
 					if (!isCurrent()) {
-						URL.revokeObjectURL(source);
+						if (item.source.type === "video") URL.revokeObjectURL(source);
 						return;
 					}
-					objectUrls.add(source);
+					if (item.source.type === "video") objectUrls.add(source);
 					setSources((current) => ({ ...current, [item.id]: source }));
 				} catch (error) {
 					if (isCurrent()) console.error(error);

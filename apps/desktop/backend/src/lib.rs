@@ -40,6 +40,14 @@ impl DesktopBackend {
         dispatch::dispatch(self.app.clone(), command, args).await
     }
 
+    pub async fn resolve_note_image_path(
+        &self,
+        vault_id: String,
+        image_id: String,
+    ) -> Result<String, String> {
+        images::commands::resolve_note_image_path(self.app.clone(), vault_id, image_id).await
+    }
+
     pub fn shutdown(&self) {
         self.app.shutdown();
     }
@@ -116,7 +124,7 @@ pub fn run() -> Result<(), String> {
         let context = app.clone();
         tasks.retain(|task: &tokio::task::JoinHandle<()>| !task.is_finished());
         tasks.push(runtime::spawn(async move {
-            let operation = runtime::spawn(dispatch::dispatch(
+            let operation = runtime::spawn(dispatch::dispatch_host(
                 context.clone(),
                 request.command,
                 request.args,

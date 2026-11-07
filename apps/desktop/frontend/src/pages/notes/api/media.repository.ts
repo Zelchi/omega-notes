@@ -1,4 +1,4 @@
-import { invoke, isTauriRuntime, readBinary } from "@/shared/lib/desktop";
+import { invoke, isTauriRuntime } from "@/shared/lib/desktop";
 import { pathForFile } from "@/shared/lib/desktop";
 import { open } from "@/shared/lib/desktop";
 
@@ -52,6 +52,3 @@ export const getNoteMediaStreamUrl = (mediaId: string, mediaType: "audio" | "vid
 
 export const cleanupOrphanedMedia = (): Promise<MediaCleanupSummary> =>
 	invoke<MediaCleanupSummary>("cleanup_orphaned_media");
-
-export const readNoteImage = (imageId: string): Promise<ArrayBuffer> =>
-	readBinary("read_note_image", { imageId });

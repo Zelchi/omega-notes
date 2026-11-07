@@ -32,12 +32,16 @@ pub(super) fn import_clipboard_image(directory: &Path, bytes: &[u8]) -> Result<S
     Ok(image_id)
 }
 
-pub(super) fn read_note_image(
+pub(super) fn resolve_note_image_path(
     resolve_notes_directory: &impl Fn() -> Result<PathBuf, String>,
     image_id: &str,
-) -> Result<Vec<u8>, String> {
-    Uuid::parse_str(image_id).map_err(|_| "Identificador de imagem inválido.".to_string())?;
-    repository::read_image(&resolve_notes_directory()?, image_id)
+) -> Result<PathBuf, String> {
+    let parsed =
+        Uuid::parse_str(image_id).map_err(|_| "Identificador de imagem inválido.".to_string())?;
+    if parsed.to_string() != image_id {
+        return Err("Identificador de imagem inválido.".to_string());
+    }
+    repository::resolve_image_path(&resolve_notes_directory()?, image_id)
 }
 
 pub(crate) fn collect_unreferenced_images(
@@ -66,4 +70,57 @@ pub(crate) fn remove_orphaned_image_files(
     candidates.iter().try_fold(0, |removed, image_id| {
         repository::remove_image(directory, image_id).map(|count| removed + count)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_note_image_path;
+    use std::fs;
+    use tempfile::tempdir;
+    use uuid::Uuid;
+
+    #[test]
+    fn resolves_only_an_existing_image_with_a_canonical_uuid() {
+        let temporary = tempdir().unwrap();
+        let notes = temporary.path().join("vault/notes");
+        let images = temporary.path().join("vault/images");
+        fs::create_dir_all(&notes).unwrap();
+        fs::create_dir_all(&images).unwrap();
+        let image_id = Uuid::now_v7().to_string();
+        let image_path = images.join(format!("{image_id}.png"));
+        fs::write(&image_path, b"image").unwrap();
+
+        let resolved = resolve_note_image_path(&|| Ok(notes.clone()), &image_id).unwrap();
+
+        assert_eq!(resolved, image_path);
+        assert_eq!(
+            resolve_note_image_path(&|| Ok(notes.clone()), "../../outside"),
+            Err("Identificador de imagem inválido.".to_string())
+        );
+        assert_eq!(
+            resolve_note_image_path(&|| Ok(notes.clone()), &Uuid::now_v7().to_string()),
+            Err("Imagem não encontrada.".to_string())
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn does_not_resolve_symlinked_image_files() {
+        use std::os::unix::fs::symlink;
+
+        let temporary = tempdir().unwrap();
+        let notes = temporary.path().join("vault/notes");
+        let images = temporary.path().join("vault/images");
+        fs::create_dir_all(&notes).unwrap();
+        fs::create_dir_all(&images).unwrap();
+        let image_id = Uuid::now_v7().to_string();
+        let outside = temporary.path().join("outside.png");
+        fs::write(&outside, b"outside").unwrap();
+        symlink(&outside, images.join(format!("{image_id}.png"))).unwrap();
+
+        assert_eq!(
+            resolve_note_image_path(&|| Ok(notes.clone()), &image_id),
+            Err("Imagem não encontrada.".to_string())
+        );
+    }
 }

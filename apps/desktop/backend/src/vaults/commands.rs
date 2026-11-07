@@ -36,7 +36,9 @@ pub(crate) async fn switch_vault(
     crate::runtime::spawn_blocking(move || {
         service::switch_vault(
             &|| runtime::app_directory(&app),
-            &|directory, message| runtime::set_active_vault(&app, directory, message),
+            &|directory, vault_id, message| {
+                runtime::set_active_vault(&app, vault_id, directory, message)
+            },
             vault_id,
         )
     })
@@ -65,7 +67,9 @@ pub(crate) async fn delete_vault(
             .close_vault(&vault_id)?;
         service::delete_vault(
             &|| runtime::app_directory(&app),
-            &|directory, message| runtime::set_active_vault(&app, directory, message),
+            &|directory, vault_id, message| {
+                runtime::set_active_vault(&app, vault_id, directory, message)
+            },
             vault_id,
         )
     })

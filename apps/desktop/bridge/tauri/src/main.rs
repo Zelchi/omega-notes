@@ -2,8 +2,9 @@
 
 use omega_notes_lib::DesktopBackend;
 use serde_json::{json, Value};
-use std::{io, io::Write, sync::Mutex};
+use std::{io, io::Write, path::Path, sync::Mutex};
 use tauri::{
+    http::{Request, Response, StatusCode, Uri},
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
     AppHandle, Emitter, Manager, State,
@@ -262,8 +263,112 @@ fn show_window(app: &AppHandle) {
     }
 }
 
+fn image_response(
+    status: StatusCode,
+    content_type: &'static str,
+    body: Vec<u8>,
+) -> Response<Vec<u8>> {
+    Response::builder()
+        .status(status)
+        .header("Content-Type", content_type)
+        .header("Cache-Control", "no-store")
+        .header("X-Content-Type-Options", "nosniff")
+        .body(body)
+        .expect("valid image response")
+}
+
+fn is_canonical_uuid(value: &str) -> bool {
+    uuid::Uuid::parse_str(value).is_ok_and(|id| id.to_string() == value)
+}
+
+fn parse_image_uri(uri: &Uri) -> Result<(String, String), StatusCode> {
+    let vault_id = uri.host().ok_or(StatusCode::NOT_FOUND)?;
+    let image_id = uri.path().strip_prefix('/').ok_or(StatusCode::NOT_FOUND)?;
+    if image_id.is_empty()
+        || image_id.contains('/')
+        || uri.query().is_some()
+        || !is_canonical_uuid(vault_id)
+        || !is_canonical_uuid(image_id)
+    {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    Ok((vault_id.to_owned(), image_id.to_owned()))
+}
+
+fn image_content_type(path: &Path) -> Option<&'static str> {
+    match path.extension()?.to_str()?.to_ascii_lowercase().as_str() {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif" => Some("image/gif"),
+        "webp" => Some("image/webp"),
+        "bmp" => Some("image/bmp"),
+        "avif" => Some("image/avif"),
+        _ => None,
+    }
+}
+
 fn main() {
     tauri::Builder::default()
+        .register_asynchronous_uri_scheme_protocol(
+            "omega-image",
+            |_ctx, request: Request<Vec<u8>>, responder| {
+                let app = _ctx.app_handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if request.method() != "GET" {
+                        responder.respond(image_response(
+                            StatusCode::METHOD_NOT_ALLOWED,
+                            "text/plain",
+                            Vec::new(),
+                        ));
+                        return;
+                    }
+                    let (vault_id, image_id) = match parse_image_uri(request.uri()) {
+                        Ok(ids) => ids,
+                        Err(status) => {
+                            responder.respond(image_response(status, "text/plain", Vec::new()));
+                            return;
+                        }
+                    };
+                    let resolved = app
+                        .state::<DesktopBackend>()
+                        .resolve_note_image_path(vault_id, image_id)
+                        .await;
+                    let path = match resolved {
+                        Ok(path) => path,
+                        Err(error) => {
+                            let status = if error == "NOTE_IMAGE_VAULT_CHANGED" {
+                                StatusCode::FORBIDDEN
+                            } else {
+                                StatusCode::NOT_FOUND
+                            };
+                            responder.respond(image_response(status, "text/plain", Vec::new()));
+                            return;
+                        }
+                    };
+                    let content_type = match image_content_type(Path::new(&path)) {
+                        Some(content_type) => content_type,
+                        None => {
+                            responder.respond(image_response(
+                                StatusCode::NOT_FOUND,
+                                "text/plain",
+                                Vec::new(),
+                            ));
+                            return;
+                        }
+                    };
+                    match tauri::async_runtime::spawn_blocking(move || std::fs::read(path)).await {
+                        Ok(Ok(bytes)) => {
+                            responder.respond(image_response(StatusCode::OK, content_type, bytes))
+                        }
+                        _ => responder.respond(image_response(
+                            StatusCode::NOT_FOUND,
+                            "text/plain",
+                            Vec::new(),
+                        )),
+                    }
+                });
+            },
+        )
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_window(app)
         }))
@@ -412,7 +517,9 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{dynamic_tray_labels, TrayLabels};
+    use super::{dynamic_tray_labels, parse_image_uri, TrayLabels};
+    use tauri::http::{StatusCode, Uri};
+    use uuid::Uuid;
 
     fn labels() -> TrayLabels {
         TrayLabels {
@@ -427,6 +534,21 @@ mod tests {
             update: "Update".into(),
             exit: "Exit".into(),
         }
+    }
+
+    #[test]
+    fn image_uri_requires_canonical_vault_and_image_uuids() {
+        let vault_id = Uuid::now_v7().to_string();
+        let image_id = Uuid::now_v7().to_string();
+        let uri: Uri = format!("omega-image://{vault_id}/{image_id}")
+            .parse()
+            .unwrap();
+        assert_eq!(parse_image_uri(&uri).unwrap(), (vault_id.clone(), image_id));
+
+        let traversal: Uri = format!("omega-image://{vault_id}/../outside")
+            .parse()
+            .unwrap();
+        assert_eq!(parse_image_uri(&traversal), Err(StatusCode::NOT_FOUND));
     }
 
     #[test]

@@ -13,6 +13,7 @@ const Note: Component<NoteProps> = (props) => (
 		<Show when={props.note} fallback={<div aria-busy="true" />}>
 			{(note) => (
 				<NoteEditor
+					vaultId={props.vaultId}
 					note={note()}
 					notes={props.notes}
 					referenceTitles={props.referenceTitles}
