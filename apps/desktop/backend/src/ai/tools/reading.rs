@@ -123,3 +123,48 @@ pub(super) fn list(directory: &Path, args: &Value, search: bool) -> Result<Value
         "nextOffset":(end < total).then_some(end),"message":message}),
     )
 }
+
+pub(super) fn recent(directory: &Path, args: &Value) -> Result<Value, String> {
+    let library = Library::load(directory)?;
+    let mut notes: Vec<_> = library.notes.iter().collect();
+    notes.sort_by(|first, second| {
+        second
+            .updated_at
+            .cmp(&first.updated_at)
+            .then_with(|| first.id.cmp(&second.id))
+    });
+
+    let total = notes.len();
+    let offset = offset(args);
+    let limit = args["limit"].as_u64().unwrap_or(20) as usize;
+    if offset > 0 && offset >= total {
+        return Err("AI_OFFSET_OUT_OF_RANGE".into());
+    }
+
+    let page: Vec<_> = notes
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .map(|note| {
+            json!({
+                "id": note.id,
+                "title": note.title,
+                "reference": super::reference(&note.id),
+                "updatedAt": note.updated_at,
+                "contentAvailable": note.has_text,
+            })
+        })
+        .collect();
+    let end = offset.saturating_add(page.len());
+    let message = (total == 0).then_some("The vault contains no readable notes.");
+
+    Ok(json!({
+        "notes": page,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "nextOffset": (end < total).then_some(end),
+        "unreadableNotes": library.unreadable,
+        "message": message,
+    }))
+}

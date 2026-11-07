@@ -6,6 +6,7 @@ use crate::{app::runtime, notes, vaults};
 
 mod catalog;
 mod connections;
+mod kanban;
 mod library;
 mod linking;
 mod reading;
@@ -172,6 +173,7 @@ pub(super) fn call(directory: &Path, tool: &str, args: &Value) -> Result<Value, 
     catalog::validate(&definition["inputSchema"], args)?;
     match tool {
         "list_notes" | "search_notes" => reading::list(directory, args, tool == "search_notes"),
+        "get_recent_notes" => reading::recent(directory, args),
         "read_note" => reading::read_one(directory, args),
         "read_notes" => reading::read_many(directory, args),
         "get_note_outline" => structure::outline(directory, args),
@@ -182,6 +184,7 @@ pub(super) fn call(directory: &Path, tool: &str, args: &Value) -> Result<Value, 
         "get_vault_overview" => connections::overview(directory),
         "find_unresolved_links" => connections::unresolved(directory, args),
         "find_connection_path" => connections::path(directory, args),
+        "get_kanban_board" => kanban::get_board(directory, args),
         "link_note_mentions" => linking::prepare(directory, args),
         _ => Err("AI_UNKNOWN_TOOL".into()),
     }

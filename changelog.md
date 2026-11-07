@@ -1,5 +1,11 @@
 # Histórico de atualizações
 
+## v0.6.6
+
+### IA
+
+- O Chat pode consultar o Kanban do vault ativo em modo somente leitura e listar notas recentes sem carregar o conteúdo delas.
+
 ## v0.6.5
 
 ### Editor

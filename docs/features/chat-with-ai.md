@@ -125,8 +125,10 @@ balão, e permitem interpretar mensagens anteriores sem confundir com a nota atu
 - As ferramentas recebem a pasta autorizada pelo Rust. A IA não pode fornecer
   outro vault nem um caminho de arquivo.
 - Antes de cada leitura, o Rust verifica se o vault continua registrado e ativo.
-- O host oferece dez ferramentas de consulta e uma ferramenta restrita de vinculação, com
+- O host oferece quatorze ferramentas de consulta e uma ferramenta restrita de vinculação, com
   paginação e limites de leitura.
+  `get_kanban_board` consulta as colunas, os limites WIP e os cartões visíveis do Kanban,
+  com filtros por coluna/prioridade e paginação; descrições legadas não são expostas.
   Claude, OpenCode e Antigravity recebem essas ferramentas por um endpoint MCP via stdio
   do próprio executável do Ômega Notes. Cada consulta verifica novamente o vault ativo.
   As consultas não executam recuperação, limpeza ou gravação de notas.
@@ -217,6 +219,7 @@ a usar esses links também em listas, resumos e confirmações, em vez de apenas
 | Ferramenta | Consulta e limites |
 |---|---|
 | `list_notes` | Lista IDs e títulos; 100 notas por página. `contentAvailable` indica se há texto na nota. |
+| `get_recent_notes` | Lista notas pela data de atualização (mais recentes primeiro), com título, referência clicável e `contentAvailable`; não inclui texto. 20 por página, máximo 100. |
 | `search_notes` | Busca em títulos e textos; 20 resultados por página. Resultados com correspondência no texto incluem apenas `matchOffset`; leia a nota para consultar o trecho correspondente. |
 | `read_note` | Lê até 16 mil caracteres. Nota sem texto e deslocamento fora do conteúdo retornam erros explícitos em vez de uma página vazia. |
 | `read_notes` | Lê até oito notas distintas; até 4 mil caracteres por nota, com erros individuais para notas vazias ou deslocamentos inválidos. |
@@ -229,6 +232,7 @@ a usar esses links também em listas, resumos e confirmações, em vez de apenas
 | `read_note_segment` | Lê um segmento de texto ou uma tabela pelo `segmentId`, com seu caminho de títulos, em páginas de até 16 mil caracteres. |
 | `find_unresolved_links` | Lista links para notas ausentes, com ID/título da origem e destino escrito; permite filtrar a origem por `noteId`, com 100 resultados por página. |
 | `find_connection_path` | Encontra um caminho mínimo entre duas notas, considerando ambas as direções ou somente as saídas; profundidade padrão de 12 conexões e máxima de 32. |
+| `get_kanban_board` | Consulta as cinco colunas, limites WIP e cartões do vault ativo; filtros por coluna e prioridade, 50 cartões por página (máximo 100). Descrições legadas não são expostas. |
 
 Consultas paginadas usam `offset` e retornam `nextOffset`; valor nulo indica o fim. Uma busca sem resultados retorna uma mensagem explícita. Não solicite outra página depois do fim; offsets fora do conteúdo retornam erro.
 Deslocamentos de texto contam caracteres Unicode. A busca retorna `matchOffset`
@@ -384,4 +388,3 @@ conferidas no binário oficial 1.4.2, baixado apenas para `/tmp`, com SHA-512
 verificado pelo manifesto do instalador. Não foi feita uma solicitação de IA
 nem um login neste ambiente. A comunicação local do CLI usa sockets, bloqueados
 pelo sandbox deste ambiente, portanto o fluxo completo requer validação no app.
-
