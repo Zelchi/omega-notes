@@ -24,6 +24,7 @@ const AiChatPanel = lazy(() => import("@/features/chat-with-ai/ui/ai-chat-panel"
 const GambiarraPanel = lazy(() => import("@/features/gambiarra-terminal/ui/terminal-panel"));
 const CheckForUpdatesButton = lazy(() => import("@/features/check-for-updates/ui/check-for-updates-button").then((module) => ({ default: module.CheckForUpdatesButton })));
 const KanbanPanel = lazy(() => import("@/features/manage-kanban/ui/kanban-panel"));
+const PdfPanel = lazy(() => import("@/features/manage-pdfs/ui/pdf-panel"));
 const PomodoroPanel = lazy(() => import("@/features/pomodoro/ui/pomodoro-panel"));
 
 const mountOnFirstOpen = (isOpen: () => boolean) => {
@@ -45,6 +46,7 @@ const AppView: Component = () => {
 	const noteNameDialogMounted = createPresence(app.navigation.nameDialogVisible, 210).present;
 	const chatMounted = createPresence(app.chatOpen, 210).present;
 	const kanbanMounted = createPresence(app.kanban.open, 210).present;
+	const pdfsMounted = createPresence(app.pdfs.open, 210).present;
 	const pomodoroMounted = createPresence(app.pomodoro.open, 210).present;
 
 	return (
@@ -70,6 +72,7 @@ const AppView: Component = () => {
 						kanbanOpen={app.kanban.open()}
 						kanbanShortcut={formatKeyboardShortcut(app.preferences.kanbanShortcut(), true)}
 						onKanban={app.toggleKanban}
+						onPdfs={app.togglePdfLibrary}
 						pomodoroOpen={app.pomodoro.open()}
 						onPomodoro={app.togglePomodoro}
 						onMinimize={app.windowControls.minimize}
@@ -111,9 +114,9 @@ const AppView: Component = () => {
 												t={app.t}
 													onDelete={() => { const note = app.navigation.selectedNote(); const summary = note && app.notes.notes().find(item => item.id === note.id); if (summary) void app.requestDeleteNote(summary); }}
 												deleteDisabled={app.noteDeletion.pending() || app.canvasHistory.pending() || app.notes.loading()}
-												onTitleChange={app.navigation.updateTitle}
-												onDocumentChange={app.navigation.updateDocument}
-												onDeleteMedia={app.deleteMediaFromAllVaults}
+														onTitleChange={app.navigation.updateTitle}
+														onDocumentChange={app.navigation.updateDocument}
+														onDeleteMedia={app.deleteMediaFromAllVaults}
 												onOpenMissingNote={(target) => void app.noteReferences.open(target)}
 												onOpenNote={app.navigation.openNote}
 												onRegisterBeforeShutdown={app.registerBeforeShutdown}
@@ -134,7 +137,7 @@ const AppView: Component = () => {
 											busy={app.canvasHistory.pending() || app.vaultActionPending() || app.navigation.navigating()}
 											suspended={app.navigation.navigating()}
 											noteLockShortcut={app.preferences.noteLockShortcut()}
-											noteLockShortcutEnabled={!!app.vaults.activeVaultId() && !app.settingsOpen() && !app.chatOpen() && !app.kanban.open() && !app.pomodoro.open() && !app.vaults.dialogOpen() && !app.studies.open() && !app.noteDeletion.open() && !app.noteDeletion.pending() && !app.navigation.nameDialogVisible() && !app.updates.installing()}
+											noteLockShortcutEnabled={!!app.vaults.activeVaultId() && !app.settingsOpen() && !app.chatOpen() && !app.kanban.open() && !app.pdfs.open() && !app.pomodoro.open() && !app.vaults.dialogOpen() && !app.studies.open() && !app.noteDeletion.open() && !app.noteDeletion.pending() && !app.navigation.nameDialogVisible() && !app.updates.installing()}
 											restoration={app.canvasHistory.restoration()?.vaultId === app.vaults.activeVaultId() ? app.canvasHistory.restoration() : undefined}
 											onRegisterHistory={app.canvasHistory.register}
 											onHistoryRestored={app.canvasHistory.restored}
@@ -307,6 +310,12 @@ const AppView: Component = () => {
 						<Suspense fallback={null}>
 						<KanbanPanel kanban={app.kanban} notes={app.notes} t={app.t}
 							onOpenNote={note => void app.openAiNote(note)} onCreateNote={app.createKanbanNote} />
+						</Suspense>
+					</Show>
+					<Show when={pdfsMounted()}>
+						<Suspense fallback={null}>
+							<PdfPanel library={app.pdfs} notes={app.notes.sortedNotes()} referenceTitles={app.notes.referenceTitles()} t={app.t}
+								onClose={() => app.pdfs.setOpen(false)} onOpenNote={app.navigation.openNote} />
 						</Suspense>
 					</Show>
 					<Show when={pomodoroMounted()}>

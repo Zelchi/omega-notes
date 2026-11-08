@@ -9,6 +9,15 @@ import { Backend } from '../backend.mjs';
 const directory = dirname(fileURLToPath(import.meta.url));
 const executable = join(directory, '../../../backend/target/debug', `omega-notes-backend${process.platform === 'win32' ? '.exe' : ''}`);
 
+test('Electron backend allowlist includes PDF and global media deletion commands', async () => {
+    const commands = JSON.parse(await readFile(join(directory, '../backend-commands.json'), 'utf8'));
+    for (const command of [
+        'read_pdf_documents', 'import_pdf_document', 'rename_pdf_document',
+        'delete_pdf_document', 'save_pdf_progress', 'pdf_document_stream_url',
+        'read_pdf_highlights', 'add_pdf_highlight', 'update_pdf_highlight', 'delete_pdf_highlight', 'delete_note_media',
+    ]) assert.ok(commands.includes(command), `Missing Electron backend command: ${command}`);
+});
+
 test('real Rust process preserves vaults, notes, streams, images and errors across RPC', async t => {
     const temp = await mkdtemp(join(tmpdir(), 'omega-electron-test-'));
     const events = [];
@@ -19,6 +28,22 @@ test('real Rust process preserves vaults, notes, streams, images and errors acro
     const created = await backend.invoke('create_vault', { name: 'Electron test' });
     const vaultId = created.vaults.at(-1).id;
     await backend.invoke('switch_vault', { vaultId });
+    assert.deepEqual(await backend.invoke('read_pdf_documents', { vaultId }), []);
+    const pdfSource = join(temp, 'highlight-test.pdf');
+    await writeFile(pdfSource, Buffer.from('%PDF-1.7\nfixture'));
+    const pdf = await backend.invoke('import_pdf_document', { vaultId, sourcePath: pdfSource, title: 'Highlight test' });
+    const highlight = {
+        id: randomUUID(), page: 1, text: 'selected text',
+        rects: [{ x: 0.1, y: 0.2, width: 0.3, height: 0.04 }],
+        color: 'yellow', noteId: null,
+    };
+    assert.deepEqual(await backend.invoke('add_pdf_highlight', { vaultId, documentId: pdf.id, highlight }), [highlight]);
+    assert.deepEqual(await backend.invoke('read_pdf_highlights', { vaultId, documentId: pdf.id }), [highlight]);
+    const editedHighlight = { ...highlight, color: 'blue', noteId: randomUUID() };
+    assert.deepEqual(await backend.invoke('update_pdf_highlight', { vaultId, documentId: pdf.id, highlight: editedHighlight }), [editedHighlight]);
+    assert.deepEqual(await backend.invoke('read_pdf_highlights', { vaultId, documentId: pdf.id }), [editedHighlight]);
+    assert.deepEqual(await backend.invoke('delete_pdf_highlight', { vaultId, documentId: pdf.id, highlightId: highlight.id }), []);
+    await backend.invoke('delete_pdf_document', { vaultId, documentId: pdf.id });
     const original = await backend.invoke('create_note', { noteTitle: 'First note' });
     const document = structuredClone(original.document);
     document.elements[0].text = 'Saved through Electron IPC';

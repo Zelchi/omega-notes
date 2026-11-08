@@ -41,6 +41,7 @@ type Props = {
 	kanbanOpen: boolean;
 	kanbanShortcut: string;
 	onKanban: () => void;
+	onPdfs: () => void;
 	pomodoroOpen: boolean;
 	onPomodoro: () => void;
 	onMinimize: () => void;
@@ -82,6 +83,10 @@ const WindowTitlebar: Component<Props> = (props) => (
 			<div class={styles.right}>
 				<div class={styles.drag} data-omega-drag-region data-tauri-drag-region />
 				<div class={styles.controls} onPointerDown={(event) => event.stopPropagation()}>
+					<Button class={styles.button} type="button" disabled={!props.vaultName}
+						onClick={() => runAppAction(props.onPdfs, "panel", props.vaultDialogOpen, props.vaultDialogCanHide)}>
+						<Icon name="file" size={16} />
+					</Button>
 					<Show when={props.aiFeaturesEnabled}>
 						<Button class={styles.button} type="button" disabled={!props.vaultName} aria-label={props.t("aiChat")}
 							aria-expanded={props.aiChatOpen} aria-controls="ai-chat-panel" aria-keyshortcuts={props.aiChatShortcut}

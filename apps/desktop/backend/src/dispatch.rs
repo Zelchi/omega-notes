@@ -230,6 +230,99 @@ pub(crate) async fn dispatch(
             .await?,
         )
         .map_err(|error| error.to_string()),
+        "read_pdf_documents" => serde_json::to_value(
+            crate::vaults::pdfs::read_pdf_documents(app.clone(), argument(&args, "vaultId")?)
+                .await?,
+        )
+        .map_err(|error| error.to_string()),
+        "import_pdf_document" => serde_json::to_value(
+            crate::vaults::pdfs::import_pdf_document(
+                app.clone(),
+                argument(&args, "vaultId")?,
+                argument(&args, "sourcePath")?,
+                argument(&args, "title")?,
+            )
+            .await?,
+        )
+        .map_err(|error| error.to_string()),
+        "rename_pdf_document" => serde_json::to_value(
+            crate::vaults::pdfs::rename_pdf_document(
+                app.clone(),
+                argument(&args, "vaultId")?,
+                argument(&args, "documentId")?,
+                argument(&args, "title")?,
+            )
+            .await?,
+        )
+        .map_err(|error| error.to_string()),
+        "delete_pdf_document" => serde_json::to_value(
+            crate::vaults::pdfs::delete_pdf_document(
+                app.clone(),
+                argument(&args, "vaultId")?,
+                argument(&args, "documentId")?,
+            )
+            .await?,
+        )
+        .map_err(|error| error.to_string()),
+        "save_pdf_progress" => serde_json::to_value(
+            crate::vaults::pdfs::save_pdf_progress(
+                app.clone(),
+                argument(&args, "vaultId")?,
+                argument(&args, "documentId")?,
+                argument(&args, "page")?,
+                argument(&args, "pageCount")?,
+            )
+            .await?,
+        )
+        .map_err(|error| error.to_string()),
+        "read_pdf_highlights" => serde_json::to_value(
+            crate::vaults::pdfs::read_pdf_highlights(
+                app.clone(),
+                argument(&args, "vaultId")?,
+                argument(&args, "documentId")?,
+            )
+            .await?,
+        )
+        .map_err(|error| error.to_string()),
+        "add_pdf_highlight" => serde_json::to_value(
+            crate::vaults::pdfs::add_pdf_highlight(
+                app.clone(),
+                argument(&args, "vaultId")?,
+                argument(&args, "documentId")?,
+                argument(&args, "highlight")?,
+            )
+            .await?,
+        )
+        .map_err(|error| error.to_string()),
+        "update_pdf_highlight" => serde_json::to_value(
+            crate::vaults::pdfs::update_pdf_highlight(
+                app.clone(),
+                argument(&args, "vaultId")?,
+                argument(&args, "documentId")?,
+                argument(&args, "highlight")?,
+            )
+            .await?,
+        )
+        .map_err(|error| error.to_string()),
+        "delete_pdf_highlight" => serde_json::to_value(
+            crate::vaults::pdfs::delete_pdf_highlight(
+                app.clone(),
+                argument(&args, "vaultId")?,
+                argument(&args, "documentId")?,
+                argument(&args, "highlightId")?,
+            )
+            .await?,
+        )
+        .map_err(|error| error.to_string()),
+        "pdf_document_stream_url" => serde_json::to_value(
+            crate::media::commands::pdf_document_stream_url(
+                app.clone(),
+                argument(&args, "vaultId")?,
+                argument(&args, "documentId")?,
+            )
+            .await?,
+        )
+        .map_err(|error| error.to_string()),
         "read_pomodoro_tasks" => serde_json::to_value(
             crate::vaults::pomodoro_tasks::read_pomodoro_tasks(
                 app.clone(),

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -49,4 +49,31 @@ test('returns not found for missing files and unsupported image extensions', asy
     const unsupported = await serveNoteImage(requestFor(vaultId, imageId), async () => '/private/file.txt');
     assert.equal(missing.status, 404);
     assert.equal(unsupported.status, 404);
+});
+
+test('serves bundled PDF.js assets from the allowlisted folders only', async t => {
+    const directory = await mkdtemp(join(tmpdir(), 'omega-pdf-assets-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const asset = join(directory, 'pdfjs', 'cmaps', 'sample.bcmap');
+    await mkdir(join(directory, 'pdfjs', 'cmaps'), { recursive: true });
+    await writeFile(asset, Buffer.from([0, 1, 2, 3]));
+
+    const response = await serveNoteImage(new Request('omega-image://static/pdfjs/cmaps/sample.bcmap'), async () => {
+        assert.fail('static PDF.js assets do not resolve through the note-image backend');
+    }, directory);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('access-control-allow-origin'), '*');
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), Buffer.from([0, 1, 2, 3]));
+
+    const developmentAsset = join(directory, 'cmaps', 'development.bcmap');
+    await mkdir(join(directory, 'cmaps'), { recursive: true });
+    await writeFile(developmentAsset, Buffer.from([4, 5, 6]));
+    const development = await serveNoteImage(new Request('omega-image://static/pdfjs/cmaps/development.bcmap'), async () => undefined, directory);
+    assert.equal(development.status, 200);
+    assert.deepEqual(Buffer.from(await development.arrayBuffer()), Buffer.from([4, 5, 6]));
+
+    const traversal = await serveNoteImage(new Request('omega-image://static/pdfjs/cmaps/%2e%2e/private.txt'), async () => undefined, directory);
+    const otherFolder = await serveNoteImage(new Request('omega-image://static/pdfjs/build/pdf.worker.mjs'), async () => undefined, directory);
+    assert.equal(traversal.status, 404);
+    assert.equal(otherFolder.status, 404);
 });

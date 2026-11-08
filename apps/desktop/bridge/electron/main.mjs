@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, 
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 import { Backend } from './backend.mjs';
 import { readSettingsImport, validateStorageSnapshot } from './storage.mjs';
 import { dynamicTrayLabels } from './tray-menu.mjs';
@@ -16,6 +17,9 @@ let settingsImport = await readSettingsImport(process.argv);
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const desktop = resolve(directory, '../..');
+const pdfjsPackageRoot = process.env.OMEGA_DEV_URL
+    ? dirname(createRequire(import.meta.url).resolve('pdfjs-dist/package.json'))
+    : undefined;
 process.env.VITE_DESKTOP_RUNTIME = 'electron';
 const commands = new Set(JSON.parse(await readFile(join(directory, 'backend-commands.json'), 'utf8')));
 const development = !app.isPackaged;
@@ -178,6 +182,7 @@ else {
         protocol.handle('omega-image', request => serveNoteImage(
             request,
             (vaultId, imageId) => backend.invoke('resolve_note_image_path', { vaultId, imageId }),
+            process.env.OMEGA_DEV_URL ? pdfjsPackageRoot : join(desktop, 'frontend/dist'),
         ));
         const icon = nativeImage.createFromPath(join(directory, 'icons/128x128.png'));
         window = new BrowserWindow({ width: 1000, height: 700, minWidth: 858, minHeight: 700, title: 'Ômega', frame: false, transparent: true, show: false, backgroundColor: '#00000000', icon, webPreferences: { preload: join(directory, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false } });
