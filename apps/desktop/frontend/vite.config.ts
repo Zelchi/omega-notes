@@ -3,13 +3,18 @@ import { fileURLToPath, URL } from "node:url";
 import solid from "vite-plugin-solid";
 import { defineConfig } from "vite";
 
+const imageSource = process.env.VITE_DESKTOP_RUNTIME === "tauri"
+	? "http://omega-image.localhost"
+	: "omega-image:";
+
 export default defineConfig({
 	base: "./",
 	plugins: [vanillaExtractPlugin(), solid(), {
 		name: "desktop-csp",
 		transformIndexHtml(html, context) {
 			if (context.server) return html;
-			return [{ tag: "meta", attrs: { "http-equiv": "Content-Security-Policy", content: "default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: omega-image:; media-src 'self' blob: data: http://127.0.0.1:*; font-src 'self' data:; connect-src 'self' https://*.api.radio-browser.info https://api.somafm.com; object-src 'none'; base-uri 'none'; frame-src 'none'" }, injectTo: "head" }];
+			const content = `default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: ${imageSource}; media-src 'self' blob: data: http://127.0.0.1:*; font-src 'self' data:; connect-src 'self' https://*.api.radio-browser.info https://api.somafm.com; object-src 'none'; base-uri 'none'; frame-src 'none'`;
+			return [{ tag: "meta", attrs: { "http-equiv": "Content-Security-Policy", content }, injectTo: "head" }];
 		},
 	}],
 	resolve: {
