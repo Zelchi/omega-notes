@@ -127,7 +127,10 @@ fn recent_notes_are_ordered_paginated_and_omit_note_text() {
     let newest = vault.note(2, "Newest", "new note text");
     let empty = vault.note(3, "Empty", "");
     let set_modified = |id: &str, seconds: u64| {
-        fs::File::open(vault.directory.join(format!("{id}.omega")))
+        fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(vault.directory.join(format!("{id}.omega")))
             .unwrap()
             .set_times(fs::FileTimes::new().set_modified(UNIX_EPOCH + Duration::from_secs(seconds)))
             .unwrap();
