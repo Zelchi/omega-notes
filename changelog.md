@@ -1,5 +1,11 @@
 # Histórico de atualizações
 
+## v0.6.8
+
+### Windows
+
+- Corrigido o carregamento de imagens nos vaults.
+
 ## v0.6.7
 
 ### PDFs
