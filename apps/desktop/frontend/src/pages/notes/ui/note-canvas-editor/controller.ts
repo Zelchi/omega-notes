@@ -7,6 +7,7 @@ import {
 	createVideoElement,
 	type NoteDocument,
 	type NoteElement,
+	type NoteMediaType,
 	type NotePositionedElement,
 	type NoteSummary,
 	type NoteTextElement,
@@ -30,6 +31,7 @@ export type NoteCanvasEditorProps = {
 	mode: "edit" | "view";
 	t: (key: TranslationKey) => string;
 	onChange: (document: NoteDocument) => void;
+	onDeleteMedia?: (mediaType: NoteMediaType, mediaId: string) => Promise<void>;
 	onDelete?: () => void;
 	deleteDisabled?: boolean;
 	onOpenNote: (note: NoteSummary) => void;

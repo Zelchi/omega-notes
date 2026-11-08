@@ -15,6 +15,8 @@ export type NoteMediaSource =
 	| { type: "video"; videoId: string; extension: string }
 	| { type: "video"; dataUrl: string; extension: string };
 
+export type NoteMediaType = NoteMediaSource["type"];
+
 export type NoteMediaCatalogItem = {
 	noteId: string;
 	noteTitle: string;

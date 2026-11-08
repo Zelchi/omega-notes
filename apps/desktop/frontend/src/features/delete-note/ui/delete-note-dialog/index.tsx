@@ -13,6 +13,10 @@ import { styles } from "./style.css.ts";
 type Props = {
 	open: boolean;
 	note?: NoteSummary;
+	name?: string;
+	title?: string;
+	message?: string;
+	errorMessage?: string;
 	pending: boolean;
 	error: boolean;
 	t: (key: TranslationKey) => string;
@@ -22,7 +26,7 @@ type Props = {
 };
 const DeleteNoteDialog: Component<Props> = (props) => {
 	const presence = createPresence(() => props.open, 210);
-	const title = createMemo<string>(previous => props.note ? displayNoteTitle(props.note) : previous ?? "");
+	const name = createMemo<string | undefined>(previous => props.name ?? (props.note ? displayNoteTitle(props.note) : previous));
 	const headingId = createUniqueId(), messageId = createUniqueId();
 	const backdrop = createBackdropDismiss(() => props.onClose());
 	onMount(() => {
@@ -39,10 +43,10 @@ const DeleteNoteDialog: Component<Props> = (props) => {
 			<section class={styles.dialog} role="alertdialog" aria-modal="true" aria-labelledby={headingId} aria-describedby={messageId}
 				ref={element => registerVisibilityAnimation(element, presence.exiting, "dialog")}>
 				<AsciiBackdrop placement="modal" />
-				<h2 class={styles.title} id={headingId}>{props.t("deleteNote")}</h2>
-				<strong class={styles.name}>{title()}</strong>
-				<p class={styles.message} id={messageId}>{props.t("deleteNoteConfirmation")}</p>
-				<Show when={props.error}><p class={styles.error} role="alert">{props.t("deleteNoteFailed")}</p></Show>
+				<h2 class={styles.title} id={headingId}>{props.title ?? props.t("deleteNote")}</h2>
+				<Show when={name()}>{value => <strong class={styles.name}>{value()}</strong>}</Show>
+				<p class={styles.message} id={messageId}>{props.message ?? props.t("deleteNoteConfirmation")}</p>
+				<Show when={props.error}><p class={styles.error} role="alert">{props.errorMessage ?? props.t("deleteNoteFailed")}</p></Show>
 				<div class={styles.actions}>
 					<Button class={styles.button} type="button" disabled={props.pending} onClick={props.onCancel}
 						ref={button => { const frame = requestAnimationFrame(() => button.focus({ preventScroll: true })); onCleanup(() => cancelAnimationFrame(frame)); }}>{props.t("cancel")}</Button>

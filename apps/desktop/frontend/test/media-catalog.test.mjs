@@ -93,7 +93,7 @@ test('media catalog exposes retry and supports selecting all media types', async
 	assert.match(source, /props\.catalog\.retryLoad/);
 	assert.match(source, /styles\.mediaIcon/);
 	assert.match(source, /media\.source\.type === "image" \|\| \(media\.source\.type === "video" && !!props\.catalog\.sources\(\)\[media\.id\]\)/);
-	assert.match(source, /<Portal mount=\{document\.querySelector\("\[data-omega-main\]"\) \?\? document\.body\}><div/);
+	assert.match(source, /<Portal mount=\{document\.querySelector\("\[data-omega-main\]"\) \?\? document\.body\}><>/);
 	assert.doesNotMatch(source, /cleanupMedia|cleanOrphanedMedia/);
 	assert.match(source, /accept="[^\"]*\.aac[^\"]*\.mp4[^\"]*\.webm/);
 	assert.match(styles, /height: "min\(680px, calc\(100dvh - 80px\)\)"/);

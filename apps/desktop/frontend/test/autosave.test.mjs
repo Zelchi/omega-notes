@@ -43,6 +43,31 @@ test('autosave coalesces edits and flush waits for persistence', async t => {
     assert.equal(await f.library.flushSave(), true);
     assert.deepEqual(f.writes, [{ id: 'a', text: 'latest' }]);
 });
+test('removing media globally updates loaded note state without queuing stale data back to disk', async t => {
+	const f = await setup(t);
+	const targetImage = { id: 'image-element', type: 'image', x: 1, y: 2, width: 30, height: 40, imageId: 'shared-image' };
+	const targetAudio = { id: 'audio-element', type: 'audio', x: 1, y: 2, width: 30, height: 40, audioId: 'shared-audio', extension: 'mp3', volume: 1 };
+	const targetVideo = { id: 'video-element', type: 'video', x: 1, y: 2, width: 30, height: 40, videoId: 'shared-video', extension: 'mp4' };
+	const keepImage = { id: 'other-image-element', type: 'image', x: 5, y: 6, width: 50, height: 60, imageId: 'other-image' };
+	const keepAudio = { id: 'other-audio-element', type: 'audio', x: 5, y: 6, width: 50, height: 60, audioId: 'other-audio', extension: 'wav', volume: 0.5 };
+	const keepVideo = { id: 'other-video-element', type: 'video', x: 5, y: 6, width: 50, height: 60, videoId: 'other-video', extension: 'webm' };
+	f.library.updateDocument('a', note('a', 'keep text', [targetImage, targetImage, targetAudio, targetVideo, keepImage, keepAudio, keepVideo]).document);
+	assert.equal(await f.library.flushSave(), true);
+	const writesBeforeRemoval = f.writes.length;
+
+	f.library.removeMediaReferences('image', 'shared-image');
+	f.library.removeMediaReferences('audio', 'shared-audio');
+	f.library.removeMediaReferences('video', 'shared-video');
+
+	const updated = f.library.loadedNotes().find(value => value.id === 'a');
+	assert.deepEqual(updated.document.elements.filter(element => element.type === 'image').map(element => element.imageId), ['other-image']);
+	assert.deepEqual(updated.document.elements.filter(element => element.type === 'audio').map(element => element.audioId), ['other-audio']);
+	assert.deepEqual(updated.document.elements.filter(element => element.type === 'video').map(element => element.videoId), ['other-video']);
+	assert.equal(updated.document.elements.find(element => element.type === 'text').text, 'keep text');
+	assert.equal(f.writes.length, writesBeforeRemoval);
+	assert.equal(await f.library.flushSave(), true);
+	assert.equal(f.writes.length, writesBeforeRemoval);
+});
 test('failed old save cannot overwrite a newer queued save', async t => {
     const first = deferred(), f = await setup(t, (_args, count) => count === 1 ? first.promise : undefined);
     void first.promise.catch(() => undefined);

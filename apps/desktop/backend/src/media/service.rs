@@ -24,6 +24,14 @@ pub(crate) fn media_file_path(
     repository::media_path(notes_directory, media_id, media_type)
 }
 
+pub(crate) fn remove_media_asset(
+    notes_directory: &Path,
+    media_id: &str,
+    media_type: &str,
+) -> Result<usize, String> {
+    repository::remove_media(notes_directory, media_id, media_type)
+}
+
 pub(crate) fn orphaned_media_candidates(
     notes_directory: &Path,
     media_type: &str,

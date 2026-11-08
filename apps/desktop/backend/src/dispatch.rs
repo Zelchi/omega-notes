@@ -252,6 +252,15 @@ pub(crate) async fn dispatch(
                 .await?,
         )
         .map_err(|error| error.to_string()),
+        "delete_note_media" => serde_json::to_value(
+            crate::media::commands::delete_note_media(
+                app.clone(),
+                argument(&args, "mediaId")?,
+                argument(&args, "mediaType")?,
+            )
+            .await?,
+        )
+        .map_err(|error| error.to_string()),
         "import_note_media" => serde_json::to_value(
             crate::media::commands::import_note_media(
                 app.clone(),

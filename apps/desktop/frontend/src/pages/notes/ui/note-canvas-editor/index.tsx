@@ -40,6 +40,7 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 		onSelect: (media) => editor.insertMedia([media]),
 		onImportFiles: editor.importFiles,
 		onImportPaths: editor.importPaths,
+		onDeleteMedia: props.onDeleteMedia ?? (async () => { throw new Error("MEDIA_DELETE_UNAVAILABLE"); }),
 	});
 	const toolbar = createPresence(() => (editor.editable() || find.open()) && !editor.positioningElementId(), 220);
 	const notesByTitle = createMemo(() => createNoteTitleIndex(props.notes));

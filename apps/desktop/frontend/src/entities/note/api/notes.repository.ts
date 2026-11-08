@@ -14,6 +14,8 @@ export const getNote = (vaultId: string, noteId: string, signal?: AbortSignal): 
 
 export const listNoteMedia = (): Promise<NoteMediaCatalogItem[]> =>
 	isDesktopRuntime() ? desktopNotesRepository.listNoteMedia() : browserNotesRepository.listNoteMedia();
+export const deleteNoteMediaEverywhere = (mediaId: string, mediaType: "image" | "audio" | "video"): Promise<number> =>
+	isDesktopRuntime() ? desktopNotesRepository.deleteNoteMediaEverywhere(mediaId, mediaType) : Promise.reject(new Error("DESKTOP_UNAVAILABLE"));
 export const notesChanges = (vaultId: string, observerId: string, signal?: AbortSignal): Promise<NoteChangeSet> =>
 	isDesktopRuntime() ? desktopNotesRepository.notesChanges(vaultId, observerId, signal) : browserNotesRepository.notesChanges(vaultId, observerId, signal);
 export const acknowledgeNoteChanges = (observerId: string, changeToken: string): Promise<void> =>

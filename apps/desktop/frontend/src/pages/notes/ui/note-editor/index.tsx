@@ -43,7 +43,7 @@ const NoteEditor: Component<NoteEditorProps> = (props) => {
 					</span>
 				</Show>
 			</div>
-			<NoteCanvasEditor
+						<NoteCanvasEditor
 				vaultId={props.vaultId}
 				noteId={props.note.id}
 				noteTitle={props.note.title}
@@ -53,6 +53,7 @@ const NoteEditor: Component<NoteEditorProps> = (props) => {
 				mode={props.mode}
 				t={props.t}
 				onChange={props.onDocumentChange}
+				onDeleteMedia={props.onDeleteMedia}
 				onDelete={props.onDelete}
 				deleteDisabled={props.deleteDisabled}
 				onOpenNote={props.onOpenNote}

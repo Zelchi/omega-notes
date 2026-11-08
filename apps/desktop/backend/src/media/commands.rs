@@ -20,6 +20,22 @@ pub(crate) async fn import_note_media(
     .map_err(|error| format!("Não foi possível importar a mídia: {error}"))?
 }
 
+pub(crate) async fn delete_note_media(
+    app: AppContext,
+    media_id: String,
+    media_type: String,
+) -> Result<usize, String> {
+    crate::runtime::spawn_blocking(move || {
+        let _title_lock = crate::app::library::lock_title_mutations()?;
+        let _registry_lock = crate::vaults::lock_vault_registry_mutations()?;
+        let _asset_lock = crate::images::lock_asset_mutations()?;
+        let app_directory = runtime::app_directory(&app)?;
+        crate::images::delete_media_from_all_vaults(&app_directory, &media_type, &media_id)
+    })
+    .await
+    .map_err(|error| format!("Não foi possível apagar a mídia: {error}"))?
+}
+
 pub(crate) async fn note_media_stream_url(
     app: AppContext,
     media_id: String,

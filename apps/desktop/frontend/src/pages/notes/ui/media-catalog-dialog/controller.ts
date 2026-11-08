@@ -1,13 +1,15 @@
 import { createEffect, createMemo, createSignal, onCleanup, untrack } from "solid-js";
 import { createNoteDisplayTitleIndex } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
-import { noteMediaSource, type NoteMediaCatalogItem, type NoteSummary, type StudyNote } from "@/entities/note";
+import { noteMediaSource, type NoteMediaCatalogItem, type NoteMediaType, type NoteSummary, type StudyNote } from "@/entities/note";
 import { isDesktopRuntime } from "@/shared/lib/desktop";
 import type { ImportedMedia } from "../../model/media";
 import { readVideoThumbnailSource, selectMediaFiles } from "../../model/media-import";
 import { noteImageUrl } from "../../model/note-image-url";
 
 type CatalogMedia = { id: string; source: ImportedMedia; noteTitles: string[] };
+type DeletableMedia = { mediaType: NoteMediaType; mediaId: string };
+type MediaContextMenu = DeletableMedia & { x: number; y: number };
 const PREVIEW_LOAD_CONCURRENCY = 4;
 
 export type MediaCatalogDialogProps = {
@@ -16,6 +18,7 @@ export type MediaCatalogDialogProps = {
 	currentNote: () => StudyNote;
 	notes: () => NoteSummary[];
 	loadMediaCatalog: () => Promise<NoteMediaCatalogItem[]>;
+	onDeleteMedia: (mediaType: NoteMediaType, mediaId: string) => Promise<void>;
 	t: (key: TranslationKey) => string;
 	onClose: () => void;
 	onSelect: (media: ImportedMedia) => void;
@@ -37,12 +40,38 @@ const sourceKey = (source: ImportedMedia, elementId: string): string => {
 	return `video:${"videoId" in source ? source.videoId : elementId}`;
 };
 
+const deletionTarget = (item: CatalogMedia): DeletableMedia | undefined => {
+	const { source } = item;
+	if (source.type === "image" && "imageId" in source) {
+		return { mediaType: "image", mediaId: source.imageId };
+	}
+	if (source.type === "audio" && "audioId" in source) {
+		return { mediaType: "audio", mediaId: source.audioId };
+	}
+	if (source.type === "video" && "videoId" in source) {
+		return { mediaType: "video", mediaId: source.videoId };
+	}
+	return undefined;
+};
+
+const isSameMedia = (source: ImportedMedia, target: DeletableMedia): boolean => {
+	switch (target.mediaType) {
+		case "image": return source.type === "image" && "imageId" in source && source.imageId === target.mediaId;
+		case "audio": return source.type === "audio" && "audioId" in source && source.audioId === target.mediaId;
+		case "video": return source.type === "video" && "videoId" in source && source.videoId === target.mediaId;
+	}
+};
+
 export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) => {
 	const [query, setQuery] = createSignal("");
 	const [catalogEntries, setCatalogEntries] = createSignal<NoteMediaCatalogItem[]>([]);
 	const [loadingCatalog, setLoadingCatalog] = createSignal(false);
 	const [loadError, setLoadError] = createSignal(false);
 	const [sources, setSources] = createSignal<Record<string, string>>({});
+	const [contextMenu, setContextMenu] = createSignal<MediaContextMenu>();
+	const [confirmationMedia, setConfirmationMedia] = createSignal<DeletableMedia>();
+	const [deletingMedia, setDeletingMedia] = createSignal(false);
+	const [deleteError, setDeleteError] = createSignal(false);
 	let fileInput!: HTMLInputElement;
 	let requestId = 0;
 	let loadedVaultId = props.vaultId;
@@ -105,6 +134,9 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 
 	createEffect(() => {
 		if (!props.open) {
+			setContextMenu(undefined);
+			setConfirmationMedia(undefined);
+			setDeleteError(false);
 			catalogRequestId += 1;
 			setCatalogEntries([]);
 			setLoadError(false);
@@ -187,13 +219,59 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 	onCleanup(clearSources);
 
 	const close = (): void => {
+		setContextMenu(undefined);
 		props.onClose();
 	};
 	const retryLoad = (): void => { loadCatalog(props.notes()); };
 
 	const selectMedia = (item: CatalogMedia): void => {
+		setContextMenu(undefined);
 		props.onSelect(item.source);
 		close();
+	};
+
+	const openContextMenu = (item: CatalogMedia, event: MouseEvent, bounds?: DOMRect): void => {
+		const target = deletionTarget(item);
+		if (!isDesktopRuntime() || !target || !bounds) return;
+		event.preventDefault();
+		event.stopPropagation();
+		setDeleteError(false);
+		setContextMenu({
+			...target,
+			x: Math.min(Math.max(8, event.clientX - bounds.left), Math.max(8, bounds.width - 194)),
+			y: Math.min(Math.max(8, event.clientY - bounds.top), Math.max(8, bounds.height - 52)),
+		});
+	};
+
+	const requestMediaDeletion = (target: DeletableMedia): void => {
+		setContextMenu(undefined);
+		if (!isDesktopRuntime() || deletingMedia()) return;
+		setDeleteError(false);
+		setConfirmationMedia(target);
+	};
+
+	const cancelMediaDeletion = (): void => {
+		if (deletingMedia()) return;
+		setConfirmationMedia(undefined);
+		setDeleteError(false);
+	};
+
+	const confirmMediaDeletion = async (): Promise<void> => {
+		const target = confirmationMedia();
+		if (!target || !props.open || !isDesktopRuntime() || deletingMedia()) return;
+
+		setDeletingMedia(true);
+		setDeleteError(false);
+		try {
+			await props.onDeleteMedia(target.mediaType, target.mediaId);
+			setCatalogEntries((entries) => entries.filter((entry) => !isSameMedia(entry.source, target)));
+			setConfirmationMedia(undefined);
+		} catch (error) {
+			console.error("Could not delete media from all vaults", error);
+			setDeleteError(true);
+		} finally {
+			setDeletingMedia(false);
+		}
 	};
 
 	const importFiles = (event: Event & { currentTarget: HTMLInputElement }): void => {
@@ -223,8 +301,17 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 		filtered,
 		loadingCatalog,
 		loadError,
+		contextMenu,
+		confirmationMedia,
+		deletingMedia,
+		deleteError,
 		retryLoad,
 		close,
+		closeContextMenu: () => setContextMenu(undefined),
+		openContextMenu,
+		requestMediaDeletion,
+		cancelMediaDeletion,
+		confirmMediaDeletion,
 		selectMedia,
 		importFiles,
 		openFilePicker,

@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { displayNoteTitle, type NoteDocument, type NoteSummary, type StudyNote } from "@/entities/note";
+import { displayNoteTitle, type NoteDocument, type NoteMediaType, type NoteSummary, type StudyNote } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 
 export type NoteEditorProps = {
@@ -12,6 +12,7 @@ export type NoteEditorProps = {
 	t: (key: TranslationKey) => string;
 	onTitleChange: (title: string) => Promise<boolean>;
 	onDocumentChange: (document: NoteDocument) => void;
+	onDeleteMedia?: (mediaType: NoteMediaType, mediaId: string) => Promise<void>;
 	onDelete?: () => void;
 	deleteDisabled?: boolean;
 	onOpenNote: (note: NoteSummary) => void;

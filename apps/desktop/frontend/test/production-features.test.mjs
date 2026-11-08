@@ -199,6 +199,27 @@ test('temporary note preview activates only with the left Alt key', async () => 
 	assert.match(preview, /else if \(leftAltDown && !\["Shift", "Meta"\]\.includes\(event\.key\)\)/);
 });
 
+test('media catalog offers confirmed global deletion from the right-click menu', async () => {
+	const [catalog, view, backend, command] = await Promise.all([
+		source('../src/pages/notes/ui/media-catalog-dialog/controller.ts'),
+		source('../src/pages/notes/ui/media-catalog-dialog/index.tsx'),
+		source('../../backend/src/images/service.rs'),
+		source('../../backend/src/dispatch.rs'),
+	]);
+	assert.match(view, /onContextMenu=\{\(event\) => props\.catalog\.openContextMenu\(media, event/);
+	assert.match(view, /data-media-context-menu/);
+	assert.match(catalog, /setConfirmationMedia\(target\)/);
+	assert.match(catalog, /await props\.onDeleteMedia\(target\.mediaType, target\.mediaId\)/);
+	assert.match(catalog, /mediaType: "audio", mediaId: source\.audioId/);
+	assert.match(catalog, /mediaType: "video", mediaId: source\.videoId/);
+	assert.match(view, /<DeleteNoteDialog/);
+	assert.match(view, /onConfirm=\{props\.catalog\.confirmMediaDeletion\}/);
+	assert.doesNotMatch(catalog + view, /\b(?:confirm|alert)\s*\(/);
+	assert.match(backend, /remove_media_reference_from_note_file/);
+	assert.match(backend, /delete_media_from_all_vaults/);
+	assert.match(command, /"delete_note_media"\s*=>/);
+});
+
 test('Kanban lanes keep equal horizontal padding beside the overlay scrollbar', async () => {
 	const kanban = await source('../src/features/manage-kanban/ui/kanban-panel/index.tsx');
 	assert.match(kanban, /viewportStyle=\{\{ padding: "2px 12px 12px" \}\}/);
