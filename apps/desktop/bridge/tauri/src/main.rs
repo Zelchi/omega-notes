@@ -283,8 +283,8 @@ fn is_canonical_uuid(value: &str) -> bool {
 
 fn parse_image_uri(uri: &Uri) -> Result<(String, String), StatusCode> {
     let authority = uri.authority().ok_or(StatusCode::NOT_FOUND)?;
-    if uri.scheme_str() != Some("http")
-        || authority.as_str() != "omega-image.localhost"
+    if uri.scheme_str() != Some("omega-image")
+        || authority.as_str() != "localhost"
         || uri.query().is_some()
     {
         return Err(StatusCode::NOT_FOUND);
@@ -539,10 +539,10 @@ mod tests {
     }
 
     #[test]
-    fn windows_image_uri_uses_the_registered_localhost_protocol() {
+    fn windows_image_uri_is_rewritten_before_reaching_the_handler() {
         let vault_id = Uuid::now_v7().to_string();
         let image_id = Uuid::now_v7().to_string();
-        let uri: Uri = format!("http://omega-image.localhost/{vault_id}/{image_id}")
+        let uri: Uri = format!("omega-image://localhost/{vault_id}/{image_id}")
             .parse()
             .unwrap();
         assert_eq!(
@@ -550,18 +550,19 @@ mod tests {
             (vault_id.clone(), image_id.clone())
         );
 
-        let traversal: Uri = format!("http://omega-image.localhost/{vault_id}/../outside")
+        let traversal: Uri = format!("omega-image://localhost/{vault_id}/../outside")
             .parse()
             .unwrap();
         assert_eq!(parse_image_uri(&traversal), Err(StatusCode::NOT_FOUND));
 
-        let wrong_origin: Uri = format!("http://{vault_id}/{image_id}").parse().unwrap();
+        let wrong_origin: Uri = format!("omega-image://{vault_id}/{image_id}")
+            .parse()
+            .unwrap();
         assert_eq!(parse_image_uri(&wrong_origin), Err(StatusCode::NOT_FOUND));
 
-        let wrong_scheme: Uri =
-            format!("omega-image://omega-image.localhost/{vault_id}/{image_id}")
-                .parse()
-                .unwrap();
+        let wrong_scheme: Uri = format!("http://omega-image.localhost/{vault_id}/{image_id}")
+            .parse()
+            .unwrap();
         assert_eq!(parse_image_uri(&wrong_scheme), Err(StatusCode::NOT_FOUND));
     }
 
