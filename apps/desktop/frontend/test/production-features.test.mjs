@@ -13,6 +13,52 @@ test('Pomodoro and Kanban entry points and panels remain available in production
 	assert.match(app, /<Show when=\{kanbanMounted\(\)\}>[\s\S]*?<KanbanPanel/);
 });
 
+test('PDF reader opens on the right as a Vault side panel with the shared backdrop', async () => {
+	const [titlebar, app, visibility, panelStyle, panel, ptBr, en] = await Promise.all([
+		source('../src/app/ui/window-titlebar/index.tsx'),
+		source('../src/app/index.tsx'),
+		source('../src/app/model/window-visibility.ts'),
+		source('../src/features/manage-pdfs/ui/pdf-panel/style.css.ts'),
+		source('../src/features/manage-pdfs/ui/pdf-panel/index.tsx'),
+		source('../lang/pt-br.json').then(JSON.parse),
+		source('../lang/en.json').then(JSON.parse),
+	]);
+	const pdfButtonPosition = titlebar.indexOf('runAppAction(props.onPdfs, "panel"');
+	assert.ok(pdfButtonPosition > titlebar.indexOf('<div class={styles.right}>'));
+	assert.ok(pdfButtonPosition > titlebar.indexOf('<div class={styles.controls}'));
+	assert.match(app, /const PdfPanel = lazy\([\s\S]*?manage-pdfs\/ui\/pdf-panel/);
+	assert.match(app, /<Show when=\{pdfsMounted\(\)\}>[\s\S]*?<PdfPanel/);
+	assert.match(visibility, /pdfs: "right"/);
+	assert.match(panelStyle, /top: windowLayout\.titlebarHeight \+ 1, right: 1, bottom: 1/);
+	assert.match(panelStyle, /position: "absolute", top: 0, left: 0, bottom: 0/);
+	assert.match(panel, /<AsciiBackdrop placement="modal" \/>/);
+	assert.match(panelStyle, /readerSurface: style\([\s\S]*?background: "transparent"/);
+	assert.match(panelStyle, /resizeHandle: style\(\{[\s\S]*?display: "grid", placeItems: "center", width: 10/);
+	assert.match(panelStyle, /height: 32, borderRadius: 2,[\s\S]*?opacity: 0\.65/);
+	assert.equal(ptBr.pdfLibraryTitle, 'Leitor');
+	assert.equal(en.pdfLibraryTitle, 'Reader');
+	assert.equal(ptBr.pdfHighlightSelection, 'Marcar');
+	assert.equal(ptBr.pdfRemoveHighlight, 'Desmarcar');
+	assert.equal(ptBr.pdfSearch, 'Pesquisar');
+	assert.equal(ptBr.pdfEditHighlight, 'Editar');
+	assert.equal(ptBr.pdfHighlightNoteSearch, 'Buscar nota…');
+	assert.equal(en.pdfHighlightSelection, 'Mark');
+	assert.equal(en.pdfRemoveHighlight, 'Unmark');
+	assert.equal(en.pdfSearch, 'Search');
+	assert.equal(en.pdfEditHighlight, 'Edit');
+});
+
+test('chat selection context actions use concise localized labels', async () => {
+	const [ptBr, en] = await Promise.all([
+		source('../lang/pt-br.json').then(JSON.parse),
+		source('../lang/en.json').then(JSON.parse),
+	]);
+	assert.equal(ptBr.aiSelectionAsk, 'Perguntar');
+	assert.equal(ptBr.aiSelectionSearchGoogle, 'Pesquisar');
+	assert.equal(en.aiSelectionAsk, 'Ask');
+	assert.equal(en.aiSelectionSearchGoogle, 'Search');
+});
+
 test('Vault switcher occupies the titlebar center track instead of overlapping drag regions', async () => {
 	const styles = await source('../src/app/ui/window-titlebar/style.css.ts');
 	assert.match(styles, /vaultName: style\(\{[\s\S]*?gridColumn: 2,[\s\S]*?justifySelf: "center"/);

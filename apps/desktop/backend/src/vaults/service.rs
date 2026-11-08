@@ -14,7 +14,7 @@ use super::repository::{
 
 static VAULT_REGISTRY_MUTATION_LOCK: Mutex<()> = Mutex::new(());
 
-fn lock_vault_registry_mutations() -> Result<MutexGuard<'static, ()>, String> {
+pub(crate) fn lock_vault_registry_mutations() -> Result<MutexGuard<'static, ()>, String> {
     VAULT_REGISTRY_MUTATION_LOCK
         .lock()
         .map_err(|_| "Não foi possível atualizar a lista de vaults.".to_string())

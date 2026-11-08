@@ -108,6 +108,7 @@ Inclua materiais que ajudem a explicar, lembrar ou revisar um assunto.
 | **Áudio** | Inserir e reproduzir arquivos dentro da nota. |
 | **Vídeo** | Inserir, reproduzir, posicionar e redimensionar dentro da nota. |
 | **Catálogo de mídias** | Encontrar imagens, áudios e vídeos da biblioteca e inseri-los nas notas. |
+| [**Biblioteca de PDFs**](docs/features/manage-pdfs.md) | Guardar PDFs offline no Vault, abrir no leitor integrado e retomar a última página. |
 
 Importe imagens, GIFs, áudios e vídeos pelo seletor ou arraste-os para o aplicativo.
 Você também pode colar imagens copiadas e capturas de tela com **Ctrl+V** dentro

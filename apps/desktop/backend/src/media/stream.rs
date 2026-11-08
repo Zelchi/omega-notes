@@ -201,8 +201,12 @@ fn serve_request(
         return respond_empty(stream, "400 Bad Request", &[]);
     }
 
-    if method != "GET" && method != "HEAD" {
-        return respond_empty(stream, "405 Method Not Allowed", &["Allow: GET, HEAD"]);
+    if method != "GET" && method != "HEAD" && method != "OPTIONS" {
+        return respond_empty(
+            stream,
+            "405 Method Not Allowed",
+            &["Allow: GET, HEAD, OPTIONS"],
+        );
     }
 
     let mut range_header = None;
@@ -240,6 +244,21 @@ fn serve_request(
     let Some((media_type, media_id, extension)) = parse_media_path(path, token) else {
         return respond_empty(stream, "404 Not Found", &[]);
     };
+    if method == "OPTIONS" {
+        if media_type != "pdf" || resolve_media_path(media_id, media_type).is_err() {
+            return respond_empty(stream, "404 Not Found", &[]);
+        }
+        return respond_empty(
+            stream,
+            "204 No Content",
+            &[
+                "Access-Control-Allow-Origin: *",
+                "Access-Control-Allow-Methods: GET, HEAD, OPTIONS",
+                "Access-Control-Allow-Headers: Range",
+                "Access-Control-Max-Age: 600",
+            ],
+        );
+    }
     let Ok(media_path) = resolve_media_path(media_id, media_type) else {
         return respond_empty(stream, "404 Not Found", &[]);
     };
@@ -282,10 +301,10 @@ fn serve_request(
         ),
         None => ("200 OK", 0, size, None),
     };
-    let cors_header = if media_type == "video" {
-        "Access-Control-Allow-Origin: *\r\n"
-    } else {
-        ""
+    let cors_header = match media_type {
+        "video" => "Access-Control-Allow-Origin: *\r\n",
+        "pdf" => "Access-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: Accept-Ranges, Content-Length, Content-Range\r\n",
+        _ => "",
     };
 
     write!(
@@ -432,7 +451,7 @@ fn parse_media_path<'a>(path: &'a str, token: &str) -> Option<(&'a str, &'a str,
         return None;
     }
     let media_type = segments.next()?;
-    if media_type != "audio" && media_type != "video" {
+    if !matches!(media_type, "audio" | "video" | "pdf") {
         return None;
     }
     let filename = segments.next()?;
@@ -440,7 +459,22 @@ fn parse_media_path<'a>(path: &'a str, token: &str) -> Option<(&'a str, &'a str,
         return None;
     }
     let (media_id, extension) = filename.rsplit_once('.')?;
-    Uuid::parse_str(media_id).ok()?;
+    if media_type == "pdf" {
+        let (vault_id, document_id) = media_id.split_once('~')?;
+        let vault = Uuid::parse_str(vault_id).ok()?;
+        let document = Uuid::parse_str(document_id).ok()?;
+        if vault.to_string() != vault_id
+            || document.to_string() != document_id
+            || extension != "pdf"
+        {
+            return None;
+        }
+    } else {
+        let id = Uuid::parse_str(media_id).ok()?;
+        if id.to_string() != media_id {
+            return None;
+        }
+    }
     Some((media_type, media_id, extension))
 }
 
@@ -470,6 +504,7 @@ fn media_content_type(media_type: &str, extension: &str) -> Option<&'static str>
         ("video", "mp4") => Some("video/mp4"),
         ("video", "webm") => Some("video/webm"),
         ("video", "ogv") => Some("video/ogg"),
+        ("pdf", "pdf") => Some("application/pdf"),
         _ => None,
     }
 }
@@ -547,6 +582,38 @@ mod tests {
     }
 
     #[test]
+    fn pdf_path_requires_the_token_and_canonical_vault_and_document_ids() {
+        const VAULT_ID: &str = "018f4f1a-7b2c-7abc-8def-0123456789ab";
+        const DOCUMENT_ID: &str = "019f4f1a-7b2c-7abc-8def-0123456789ac";
+        assert_eq!(
+            parse_media_path(
+                &format!("/media/{TOKEN}/pdf/{VAULT_ID}~{DOCUMENT_ID}.pdf"),
+                TOKEN,
+            ),
+            Some((
+                "pdf",
+                "018f4f1a-7b2c-7abc-8def-0123456789ab~019f4f1a-7b2c-7abc-8def-0123456789ac",
+                "pdf"
+            )),
+        );
+        assert!(parse_media_path(
+            &format!("/media/wrong-token/pdf/{VAULT_ID}~{DOCUMENT_ID}.pdf"),
+            TOKEN,
+        )
+        .is_none());
+        assert!(parse_media_path(
+            &format!("/media/{TOKEN}/pdf/{VAULT_ID}~not-a-uuid.pdf"),
+            TOKEN,
+        )
+        .is_none());
+        assert!(parse_media_path(
+            &format!("/media/{TOKEN}/pdf/{VAULT_ID}~{DOCUMENT_ID}.txt"),
+            TOKEN,
+        )
+        .is_none());
+    }
+
+    #[test]
     fn music_path_requires_the_token_and_a_source_id() {
         const SOURCE_ID: &str = "018f4f1a-7b2c-7abc-8def-0123456789ab";
         assert_eq!(
@@ -594,6 +661,63 @@ mod tests {
             assert_eq!(parse_byte_range(Some(header), 10), Err(()), "{header}");
         }
         assert_eq!(parse_byte_range(Some("bytes=0-0"), 0), Err(()));
+    }
+
+    #[test]
+    fn pdf_media_uses_pdf_mime_type_and_exposes_range_headers() {
+        assert_eq!(media_content_type("pdf", "pdf"), Some("application/pdf"));
+    }
+
+    #[test]
+    fn serves_authorized_pdf_ranges_with_cors_exposed_headers() {
+        const VAULT_ID: &str = "018f4f1a-7b2c-7abc-8def-0123456789ab";
+        const DOCUMENT_ID: &str = "019f4f1a-7b2c-7abc-8def-0123456789ac";
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("book.pdf");
+        std::fs::write(&path, b"%PDF-1.7abcdefghij").unwrap();
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let address = listener.local_addr().unwrap();
+        let token = TOKEN.to_string();
+        let server_path = path.clone();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            serve_request(
+                &mut stream,
+                &|requested_id, media_type| {
+                    if requested_id == format!("{VAULT_ID}~{DOCUMENT_ID}") && media_type == "pdf" {
+                        Ok(server_path.clone())
+                    } else {
+                        Err("document not found".into())
+                    }
+                },
+                &Mutex::new(None),
+                &token,
+            )
+            .unwrap();
+        });
+        let mut client = TcpStream::connect(address).unwrap();
+        client
+            .set_read_timeout(Some(RESPONSE_WRITE_TIMEOUT))
+            .unwrap();
+        write!(
+            client,
+            "GET /media/{TOKEN}/pdf/{VAULT_ID}~{DOCUMENT_ID}.pdf HTTP/1.1\r\nHost: localhost\r\nRange: bytes=5-9\r\n\r\n"
+        )
+        .unwrap();
+        let mut response = Vec::new();
+        client.read_to_end(&mut response).unwrap();
+        server.join().unwrap();
+
+        let response = String::from_utf8(response).unwrap();
+        let (headers, body) = response.split_once("\r\n\r\n").unwrap();
+        assert!(headers.starts_with("HTTP/1.1 206 Partial Content"));
+        assert!(headers.contains("Content-Type: application/pdf"));
+        assert!(headers.contains("Content-Range: bytes 5-9/18"));
+        assert!(headers.contains("Access-Control-Allow-Origin: *"));
+        assert!(headers.contains(
+            "Access-Control-Expose-Headers: Accept-Ranges, Content-Length, Content-Range"
+        ));
+        assert_eq!(body, "1.7ab");
     }
 
     #[test]

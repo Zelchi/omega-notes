@@ -1,10 +1,11 @@
-export type AppWindow = "chat" | "kanban" | "pomodoro" | "settings" | "vault" | "study" | "note-name" | "delete";
+export type AppWindow = "chat" | "kanban" | "pdfs" | "pomodoro" | "settings" | "vault" | "study" | "note-name" | "delete";
 
 type WindowCategory = "left" | "right" | "modal";
 
 const windowCategory: Record<AppWindow, WindowCategory> = {
 	chat: "right",
 	kanban: "left",
+	pdfs: "right",
 	pomodoro: "left",
 	settings: "modal",
 	vault: "modal",

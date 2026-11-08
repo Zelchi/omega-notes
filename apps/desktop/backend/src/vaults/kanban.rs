@@ -91,7 +91,7 @@ enum StoredKanban {
 }
 
 fn file_path_for_root(root: &Path) -> Result<PathBuf, String> {
-    let metadata = fs::symlink_metadata(&root).map_err(|_| "KANBAN_STORAGE_FAILED")?;
+    let metadata = fs::symlink_metadata(root).map_err(|_| "KANBAN_STORAGE_FAILED")?;
     if !metadata.is_dir() || metadata.file_type().is_symlink() {
         return Err("KANBAN_STORAGE_FAILED".into());
     }

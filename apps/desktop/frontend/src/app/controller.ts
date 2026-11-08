@@ -24,6 +24,7 @@ import type { AiChatController } from "@/features/chat-with-ai/model/ai-chat.con
 import { useTemporaryNoteReading } from "@/features/temporary-note-reading";
 import { disposeSounds, prepareSounds } from "@/shared/ui/sound";
 import { useKanban } from "@/features/manage-kanban/model/controller";
+import { usePdfLibrary } from "@/features/manage-pdfs/model/controller";
 import { usePomodoro } from "@/features/pomodoro/model/controller";
 import { useLofiPlayer } from "@/features/lofi-player/model/player";
 import { useGambiarraTerminal } from "@/features/gambiarra-terminal/model/controller";
@@ -61,6 +62,7 @@ export const useAppController = () => {
 	const vaults = useVaults();
 	const preferences = usePreferences();
 	const kanban = useKanban(vaults.activeVaultId);
+	const pdfs = usePdfLibrary(vaults.activeVaultId, (key) => translate(preferences.language(), key));
 	const pomodoro = usePomodoro(vaults.activeVaultId, () => {
 		hideOtherWindows("pomodoro");
 		pomodoro.setOpen(true);
@@ -82,6 +84,7 @@ export const useAppController = () => {
 	const beforeShutdown = async () => {
 		if (!(await beforeAiRequest())) return false;
 		if (!(await kanban.flushSave())) return false;
+		if (!(await pdfs.flushSave())) return false;
 		if (!(await pomodoro.flushSave())) return false;
 		return saveStudies ? saveStudies() : true;
 	};
@@ -187,6 +190,11 @@ export const useAppController = () => {
 		if (!vaults.activeVaultId()) return;
 		if (!kanban.open()) hideOtherWindows("kanban");
 		kanban.setOpen((open) => !open);
+	};
+	const togglePdfLibrary = () => {
+		if (!vaults.activeVaultId()) return;
+		if (!pdfs.open()) hideOtherWindows("pdfs");
+		pdfs.setOpen((open) => !open);
 	};
 	const togglePomodoro = () => {
 		if (!vaults.activeVaultId()) return;
@@ -334,7 +342,6 @@ export const useAppController = () => {
 		await deleteNoteMediaEverywhere(mediaId, mediaType);
 		notes.removeMediaReferences(mediaType, mediaId);
 	};
-
 	const noteReferences = useCreateNoteFromLink({
 		notes, vaultId: vaults.activeVaultId, sourceNoteId: () => navigation.selectedNote()?.id,
 		enabled: () => !notes.loading() && !vaultActionPending() && !canvasHistory.pending() &&
@@ -353,6 +360,7 @@ export const useAppController = () => {
 	const hideOtherWindows = (keep: AppWindow) => {
 		if (shouldHideWindow(keep, "chat")) setChatOpen(false);
 		if (shouldHideWindow(keep, "kanban")) kanban.setOpen(false);
+		if (shouldHideWindow(keep, "pdfs")) pdfs.setOpen(false);
 		if (shouldHideWindow(keep, "pomodoro")) pomodoro.setOpen(false);
 		if (shouldHideWindow(keep, "settings")) setSettingsOpen(false);
 		if (shouldHideWindow(keep, "vault")) vaults.hideDialog();
@@ -489,6 +497,8 @@ export const useAppController = () => {
 				setChatOpen(false);
 			} else if (kanban.open()) {
 				kanban.setOpen(false);
+			} else if (pdfs.open()) {
+				pdfs.setOpen(false);
 			} else if (pomodoro.open()) {
 				pomodoro.setOpen(false);
 			} else {
@@ -590,7 +600,7 @@ export const useAppController = () => {
 		noteReferences,
 		canvasHistory,
 		aiChat, aiChatLoaded: () => Boolean(aiChatLazy.controller()), chatOpen, setChatOpen, chatAvailable,
-		kanban, toggleKanban, pomodoro, togglePomodoro,
+		kanban, toggleKanban, pdfs, togglePdfLibrary, pomodoro, togglePomodoro,
 		openAiNote, createKanbanNote,
 		updates,
 		registerBeforeShutdown: (save?: () => Promise<boolean>) => { saveNoteTitle = save; },

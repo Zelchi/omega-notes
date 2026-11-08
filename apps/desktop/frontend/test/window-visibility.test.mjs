@@ -5,7 +5,7 @@ import { shouldHideWindow } from '../src/app/model/window-visibility.ts';
 test('windows only hide other windows in their own category', () => {
 	const categories = {
 		left: ['kanban', 'pomodoro'],
-		right: ['chat'],
+		right: ['chat', 'pdfs'],
 		modal: ['settings', 'vault', 'study', 'note-name', 'delete'],
 	};
 	const windows = Object.entries(categories).flatMap(([category, entries]) => entries.map(window => ({ category, window })));

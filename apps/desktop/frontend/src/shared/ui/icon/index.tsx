@@ -47,6 +47,8 @@ export type IconName =
 	| "resizeDiagonal"
 	| "resizeDiagonalReverse"
 	| "resizeHorizontal"
+	| "zoomIn"
+	| "zoomOut"
 	| "add"
 	| "view"
 	| "attachment"
@@ -138,6 +140,8 @@ const paths: Record<IconName, Component> = {
 	resizeDiagonal: () => <path d="M5 10V5h5M5 5l14 14M14 19h5v-5" />,
 	resizeDiagonalReverse: () => <path d="M14 5h5v5M19 5 5 19M5 14v5h5" />,
 	resizeHorizontal: () => <path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4" />,
+	zoomIn: () => <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5M10.8 7.8v6m-3-3h6" /></>,
+	zoomOut: () => <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5m-12.7-5.2h6" /></>,
 	add: () => <path d="M12 5v14M5 12h14" />,
 	view: () => (
 		<>

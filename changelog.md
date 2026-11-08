@@ -1,5 +1,16 @@
 # Histórico de atualizações
 
+## v0.6.7
+
+### PDFs
+
+- Importe e organize PDFs em cada vault, retome a leitura da última página e salve destaques no documento.
+
+### Mídia e Windows
+
+- A exclusão de mídia compartilhada considera os vaults que ainda a utilizam.
+- Corrigido o carregamento de imagens no Tauri para Windows.
+
 ## v0.6.6
 
 ### IA
