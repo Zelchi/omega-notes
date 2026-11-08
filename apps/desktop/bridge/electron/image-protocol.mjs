@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { lstat, realpath } from 'node:fs/promises';
 import { Readable } from 'node:stream';
-import { extname, resolve, sep } from 'node:path';
+import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 const isCanonicalUuid = value => typeof value === 'string'
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
@@ -11,6 +11,14 @@ const imageTypes = new Map([
 ]);
 const pdfAssetFolders = new Set(['cmaps', 'iccs', 'standard_fonts', 'wasm']);
 
+const isWithinDirectory = (directory, candidate) => {
+    const pathFromDirectory = relative(directory, candidate);
+    return pathFromDirectory !== ''
+        && pathFromDirectory !== '..'
+        && !pathFromDirectory.startsWith(`..${sep}`)
+        && !isAbsolute(pathFromDirectory);
+};
+
 const safePdfAssetPath = async (assetRoot, pathname) => {
     if (!assetRoot || typeof pathname !== 'string') return undefined;
     const segments = pathname.split('/').filter(Boolean);
@@ -18,11 +26,17 @@ const safePdfAssetPath = async (assetRoot, pathname) => {
         || segments.some(segment => segment === '.' || segment === '..' || !/^[A-Za-z0-9_.-]+$/.test(segment))) return undefined;
     const root = resolve(assetRoot);
     const candidates = [resolve(root, ...segments), resolve(root, ...segments.slice(1))];
+    let actualRoot;
+    try {
+        actualRoot = await realpath(root);
+    } catch {
+        return undefined;
+    }
     for (const candidate of candidates) {
-        if (!candidate.startsWith(`${root}${sep}`)) continue;
+        if (!isWithinDirectory(root, candidate)) continue;
         try {
             const actual = await realpath(candidate);
-            if (actual.startsWith(`${root}${sep}`) && (await lstat(actual)).isFile()) return actual;
+            if (isWithinDirectory(actualRoot, actual) && (await lstat(actual)).isFile()) return actual;
         } catch {
             continue;
         }
