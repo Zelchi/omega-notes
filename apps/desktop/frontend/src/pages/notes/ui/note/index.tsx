@@ -21,6 +21,7 @@ const Note: Component<NoteProps> = (props) => (
 					t={props.t}
 					onTitleChange={props.onTitleChange}
 					onDocumentChange={props.onDocumentChange}
+					onDeleteMedia={props.onDeleteMedia}
 					onDelete={props.onDelete}
 					deleteDisabled={props.deleteDisabled}
 					onOpenNote={props.onOpenNote}

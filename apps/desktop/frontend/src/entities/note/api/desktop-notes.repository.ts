@@ -107,6 +107,9 @@ export const getNote = (vaultId: string, noteId: string, signal?: AbortSignal): 
 
 export const listNoteMedia = (): Promise<NoteMediaCatalogItem[]> => invoke("list_note_media");
 
+export const deleteNoteMediaEverywhere = (mediaId: string, mediaType: "image" | "audio" | "video"): Promise<number> =>
+	invoke<number>("delete_note_media", { mediaId, mediaType });
+
 export const listNotes = (vaultId?: string, external = false): Promise<NoteLibrary> => invoke<NoteLibrary>("list_notes", { vaultId: vaultId ?? null, external });
 export const notesChanges = (vaultId: string, observerId: string, signal?: AbortSignal): Promise<NoteChangeSet> =>
 	signal ? invokeCancellable<NoteChangeSet>("notes_changes", { vaultId, observerId }, signal) : invoke<NoteChangeSet>("notes_changes", { vaultId, observerId });

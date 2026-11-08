@@ -113,6 +113,7 @@ const AppView: Component = () => {
 												deleteDisabled={app.noteDeletion.pending() || app.canvasHistory.pending() || app.notes.loading()}
 												onTitleChange={app.navigation.updateTitle}
 												onDocumentChange={app.navigation.updateDocument}
+												onDeleteMedia={app.deleteMediaFromAllVaults}
 												onOpenMissingNote={(target) => void app.noteReferences.open(target)}
 												onOpenNote={app.navigation.openNote}
 												onRegisterBeforeShutdown={app.registerBeforeShutdown}

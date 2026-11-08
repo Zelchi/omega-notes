@@ -366,6 +366,52 @@ pub(crate) fn write_note_checked(
     note_from_contents(&path, note_id, stored)
 }
 
+pub(crate) fn remove_media_reference_from_note_file(
+    path: &Path,
+    note_id: &str,
+    media_type: &str,
+    media_id: &str,
+) -> Result<Option<StudyNote>, String> {
+    super::validation::validate_note_id(note_id)?;
+    if !matches!(media_type, "image" | "audio" | "video") {
+        return Err("Tipo de mídia inválido.".into());
+    }
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("Não foi possível verificar a nota: {error}"))?;
+    if !metadata.is_file() || metadata.file_type().is_symlink() {
+        return Err("O arquivo da nota não é seguro.".into());
+    }
+    let stored = fs::read_to_string(path)
+        .map_err(|error| format!("Não foi possível ler a nota: {error}"))?;
+    let mut note = note_from_contents(path, note_id, &stored)?;
+    let original_count = note.document.elements.len();
+    note.document.elements.retain(|element| {
+        !matches!(
+            (media_type, element),
+            ("image", super::models::NoteElement::Image { image_id: current, .. })
+                | ("audio", super::models::NoteElement::Audio { audio_id: current, .. })
+                | ("video", super::models::NoteElement::Video { video_id: current, .. })
+                if current == media_id
+        )
+    });
+    if note.document.elements.len() == original_count {
+        return Ok(None);
+    }
+
+    let serialized = serde_json::to_vec_pretty(&OmegaNoteFile {
+        format: "omega-page".to_string(),
+        version: 2,
+        id: note_id.to_string(),
+        title: note.title.clone(),
+        document: note.document,
+    })
+    .map_err(|error| format!("Não foi possível preparar a nota: {error}"))?;
+    crate::storage::atomic_write_checked(path, &serialized, None, Some(stored.as_bytes()))?;
+    let serialized = std::str::from_utf8(&serialized)
+        .map_err(|_| "Não foi possível preparar a nota.".to_string())?;
+    note_from_contents(path, note_id, serialized).map(Some)
+}
+
 pub(crate) fn existing_note(directory: &Path, note_id: &str) -> Result<Option<StudyNote>, String> {
     let path = note_path(directory, note_id);
     if path.is_file() {

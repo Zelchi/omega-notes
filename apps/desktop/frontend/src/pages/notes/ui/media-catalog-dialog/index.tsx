@@ -1,6 +1,8 @@
 import Button from "@/shared/ui/button";
 import Input from "@/shared/ui/input";
 import Tooltip from "@/shared/ui/tooltip";
+import Icon from "@/shared/ui/icon";
+import DeleteNoteDialog from "@/features/delete-note/ui/delete-note-dialog";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { For, Show, type Component } from "solid-js";
@@ -13,9 +15,11 @@ import { styles } from "./style.css.ts";
 const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 	const backdropDismiss = createBackdropDismiss(() => props.catalog.close());
 	let mediaGrid: HTMLDivElement | undefined;
+	let dialogElement: HTMLElement | undefined;
 
 	return (
-		<Portal mount={document.querySelector("[data-omega-main]") ?? document.body}><div
+		<Portal mount={document.querySelector("[data-omega-main]") ?? document.body}><>
+		<div
 			class={styles.backdrop}
 			inert={props.exiting} aria-hidden={props.exiting || undefined}
 			ref={(element) => {
@@ -25,11 +29,16 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 			{...backdropDismiss}
 		>
 			<section
-				ref={(element) => registerVisibilityAnimation(element, () => props.exiting, "dialog")}
+				ref={(element) => { dialogElement = element; registerVisibilityAnimation(element, () => props.exiting, "dialog"); }}
 				class={styles.dialog}
 				role="dialog"
 				aria-modal="true"
 				aria-labelledby="media-catalog-title"
+				onPointerDown={(event) => {
+					if (!(event.target instanceof Element) || !event.target.closest("[data-media-context-menu]")) {
+						props.catalog.closeContextMenu();
+					}
+				}}
 				onKeyDown={(event) => {
 					if (event.key === "Escape") {
 						event.preventDefault();
@@ -108,8 +117,10 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 							<Button
 								class={styles.item}
 								type="button"
+								disabled={props.catalog.deletingMedia()}
 								aria-label={`${props.t(media.source.type === "audio" ? "audioMedia" : media.source.type === "video" ? "videoMedia" : "imageMedia")}: ${media.noteTitles.join(", ")}`}
 								onClick={() => props.catalog.selectMedia(media)}
+								onContextMenu={(event) => props.catalog.openContextMenu(media, event, dialogElement?.getBoundingClientRect())}
 							>
 								<Show
 									when={media.source.type === "image" || (media.source.type === "video" && !!props.catalog.sources()[media.id])}
@@ -134,9 +145,40 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 						)}
 					</For>
 				</div>
+				<Show when={props.catalog.contextMenu()}>{(menu) => (
+					<div
+						class={styles.contextMenu}
+						data-media-context-menu
+						style={{ left: `${menu().x}px`, top: `${menu().y}px` }}
+						onPointerDown={(event) => event.stopPropagation()}
+						onContextMenu={(event) => event.preventDefault()}
+					>
+						<Button
+							class={styles.menuButton}
+							type="button"
+							disabled={props.catalog.deletingMedia()}
+							onClick={() => props.catalog.requestMediaDeletion({ mediaType: menu().mediaType, mediaId: menu().mediaId })}
+						>
+							<Icon name="delete" size={15} />{props.t("deleteMedia")}
+						</Button>
+					</div>
+				)}</Show>
 				<Tooltip root={() => mediaGrid} enabled={!props.exiting} />
 			</section>
-		</div></Portal>
+		</div>
+		<DeleteNoteDialog
+			open={Boolean(props.catalog.confirmationMedia())}
+			pending={props.catalog.deletingMedia()}
+			error={props.catalog.deleteError()}
+			title={props.t("deleteMedia")}
+			message={props.t("deleteMediaConfirmation")}
+			errorMessage={props.t("deleteMediaFailed")}
+			t={props.t}
+			onClose={props.catalog.cancelMediaDeletion}
+			onCancel={props.catalog.cancelMediaDeletion}
+			onConfirm={props.catalog.confirmMediaDeletion}
+		/>
+		</></Portal>
 	);
 };
 

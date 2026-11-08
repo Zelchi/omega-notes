@@ -33,6 +33,7 @@
   "save_pomodoro_tasks",
   "import_note_image",
   "import_note_media",
+  "delete_note_media",
   "note_media_stream_url",
   "music_stream_url",
   "import_clipboard_image",

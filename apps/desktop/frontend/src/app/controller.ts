@@ -6,7 +6,7 @@ import type { StudiesController } from "@/features/study-notes/model/controller"
 import type { StudyKind } from "@/entities/study";
 import { useNoteDeletion } from "@/features/delete-note/model/controller";
 import { useCanvasHistory } from "@/features/undo-canvas-edit";
-import { normalizeNoteTitle, NOTE_TITLE_MAX_LENGTH, useNotes, type NoteSummary } from "@/entities/note";
+import { deleteNoteMediaEverywhere, normalizeNoteTitle, NOTE_TITLE_MAX_LENGTH, useNotes, type NoteMediaType, type NoteSummary } from "@/entities/note";
 import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner } from "solid-js";
 import { translate, type TranslationKey } from "@/shared/lib/i18n";
 import { configureTrayMenu, onTrayAction } from "./api/tray.repository";
@@ -323,6 +323,18 @@ export const useAppController = () => {
 			if (navigation.route() === "note" && !navigation.selectedNote()) void navigation.backToCanvas();
 		},
 	});
+	const deleteMediaFromAllVaults = async (mediaType: NoteMediaType, mediaId: string): Promise<void> => {
+		const vaultId = vaults.activeVaultId();
+		if (!vaultId || notes.loading() || notes.resolvingConflict() || canvasHistory.pending() ||
+			vaultActionPending() || noteDeletion.pending() || navigation.navigating()) {
+			throw new Error("MEDIA_DELETE_BLOCKED");
+		}
+		if (saveNoteTitle && !(await saveNoteTitle())) throw new Error("NOTE_SAVE_FAILED");
+		if (!(await notes.flushSave()) || vaultId !== vaults.activeVaultId()) throw new Error("NOTE_SAVE_FAILED");
+		await deleteNoteMediaEverywhere(mediaId, mediaType);
+		notes.removeMediaReferences(mediaType, mediaId);
+	};
+
 	const noteReferences = useCreateNoteFromLink({
 		notes, vaultId: vaults.activeVaultId, sourceNoteId: () => navigation.selectedNote()?.id,
 		enabled: () => !notes.loading() && !vaultActionPending() && !canvasHistory.pending() &&
@@ -596,6 +608,7 @@ export const useAppController = () => {
 		setConfirmGambiarra,
 		toggleSettings,
 		vaultActionPending,
+		deleteMediaFromAllVaults,
 		selectVault,
 		createVault,
 		renameVault,

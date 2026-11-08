@@ -13,7 +13,7 @@ import {
 	setNotesVaultId,
 	streamNoteSummaries,
 } from "../api/notes.repository";
-import type { NoteChangeSet, NoteLoadIssue, NoteSummary, StudyNote } from "./note";
+import type { NoteChangeSet, NoteLoadIssue, NoteMediaType, NoteSummary, StudyNote } from "./note";
 import { summarizeNote } from "./note-summary";
 import { type NoteDocument } from "./note-document";
 import { withDocumentReadSlot } from "./document-read-limiter";
@@ -547,6 +547,33 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		queueSave({ ...current, document, updatedAt: Date.now() });
 	};
 
+	const removeMediaReferences = (mediaType: NoteMediaType, mediaId: string): void => {
+		const current = loadedNotes();
+		const updated = new Map(current);
+		let changed = false;
+		for (const [id, note] of current) {
+			const elements = note.document.elements.filter((element) => {
+				switch (mediaType) {
+					case "image": return element.type !== "image" || element.imageId !== mediaId;
+					case "audio": return element.type !== "audio" || element.audioId !== mediaId;
+					case "video": return element.type !== "video" || element.videoId !== mediaId;
+				}
+			});
+			if (elements.length === note.document.elements.length) continue;
+			const next = { ...note, document: { ...note.document, elements }, updatedAt: Date.now() };
+			updated.set(id, next);
+			baselines.set(id, next);
+			pendingSaves.delete(id);
+			latestSaves.delete(id);
+			updateSummary(summarizeNote(next));
+			changed = true;
+		}
+		if (changed) {
+			++changeRevision;
+			setLoadedNotes(updated);
+		}
+	};
+
 	const applyLinkedMentions = async (patch: NoteLinkPatch, stillValid: () => boolean): Promise<() => Promise<void>> => {
 		const vaultId = activeVaultId();
 		if (!(await flushSave())) throw "AI_SAVE_FAILED";
@@ -597,6 +624,7 @@ export const useNotes = (activeVaultId: Accessor<string | undefined>, observeExt
 		restore,
 		listDeleted: (vaultId: string, signal?: AbortSignal) => listDeletedNoteIds(vaultId, signal),
 		updateDocument,
+		removeMediaReferences,
 		applyLinkedMentions, conflicts, resolvingConflict, resolveConflict,
 	};
 };
