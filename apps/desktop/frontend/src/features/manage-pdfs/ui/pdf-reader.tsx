@@ -5,6 +5,7 @@ import { displayNoteTitle, NOTE_TITLE_MAX_LENGTH, type NoteSummary } from "@/ent
 import { NoteLinkSuggestions, useNoteLinkSuggestions } from "@/features/suggest-note-link";
 import Icon from "@/shared/ui/icon";
 import { openUrl } from "@/shared/lib/desktop";
+import { CustomScrollbars, useCustomScrollArea } from "@/shared/ui/custom-scroll-area";
 import { addPdfHighlight, deletePdfHighlight, getPdfDocumentStreamUrl, maxPdfHighlightRects, maxPdfHighlightTextLength, pdfHighlightColors, readPdfHighlights, updatePdfHighlight, type PdfDocument, type PdfHighlight, type PdfHighlightColor, type PdfHighlightRect } from "../api/pdfs.repository";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { styles } from "./pdf-panel/style.css.ts";
@@ -12,8 +13,8 @@ import { styles } from "./pdf-panel/style.css.ts";
 GlobalWorkerOptions.workerSrc = workerUrl;
 
 type Props = {
-	open: boolean;
 	vaultId?: string;
+	documentId: string;
 	document: PdfDocument;
 	notes: NoteSummary[];
 	referenceTitles: Record<string, string>;
@@ -45,6 +46,7 @@ const highlightColors: Record<PdfHighlightColor, { swatch: string; background: s
 };
 
 const PdfReader: Component<Props> = props => {
+	const scroll = useCustomScrollArea();
 	const [pdf, setPdf] = createSignal<PDFDocumentProxy>();
 	const [pageCount, setPageCount] = createSignal(0);
 	const [pageNumber, setPageNumber] = createSignal(Math.max(1, props.document.lastPage));
@@ -70,6 +72,7 @@ const PdfReader: Component<Props> = props => {
 	let renderTask: RenderTask | undefined;
 	let textLayerTask: TextLayer | undefined;
 	let loadRevision = 0;
+	let centerHorizontalScrollOnRender = false;
 	const noteSuggestionsId = createUniqueId();
 	const noteLinkSuggestions = useNoteLinkSuggestions({
 			notes: () => props.notes,
@@ -104,7 +107,7 @@ const PdfReader: Component<Props> = props => {
 		});
 	});
 
-	createEffect(on(() => [props.open, props.vaultId, props.document.id] as const, ([isOpen, vaultId, documentId]) => {
+	createEffect(on(() => [props.vaultId, props.documentId] as const, ([vaultId, documentId]) => {
 		const revision = ++loadRevision;
 		let loadingTask: ReturnType<typeof getDocument> | undefined;
 		let loadedDocument: PDFDocumentProxy | undefined;
@@ -119,7 +122,7 @@ const PdfReader: Component<Props> = props => {
 		setTextLayerReady(false);
 		setHighlightError(undefined);
 		setHighlightSaving(false);
-		if (isOpen && vaultId && documentId) {
+		if (vaultId && documentId) {
 			void (async () => {
 				try {
 					const url = await getPdfDocumentStreamUrl(vaultId, documentId);
@@ -203,6 +206,10 @@ const PdfReader: Component<Props> = props => {
 				canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
 				canvas.style.width = `${Math.floor(viewport.width)}px`;
 				canvas.style.height = `${Math.floor(viewport.height)}px`;
+				if (centerHorizontalScrollOnRender && host) {
+					host.scrollLeft = Math.max(0, (host.scrollWidth - host.clientWidth) / 2);
+					centerHorizontalScrollOnRender = false;
+				}
 				const context = canvas.getContext("2d");
 				if (!context) throw Error("PDF_CANVAS_UNAVAILABLE");
 				const textLayerPromise = (async () => {
@@ -448,7 +455,11 @@ const PdfReader: Component<Props> = props => {
 		window.getSelection()?.removeAllRanges();
 		setPageNumber(current => Math.max(1, Math.min(pageCount(), current + delta)));
 	};
-	const changeZoom = (delta: number) => setZoom(current => Math.max(0.5, Math.min(2, Math.round((current + delta) * 10) / 10)));
+	const changeZoom = (delta: number) => setZoom(current => {
+		const next = Math.max(0.5, Math.min(2, Math.round((current + delta) * 10) / 10));
+		if (next !== current) centerHorizontalScrollOnRender = true;
+		return next;
+	});
 
 	return (
 		<>
@@ -467,8 +478,14 @@ const PdfReader: Component<Props> = props => {
 				<button class={styles.iconButton} type="button" disabled={zoom() >= 2} onClick={() => changeZoom(0.1)}><Icon name="zoomIn" size={15} /></button>
 			</div>
 			<Show when={highlightError()}>{key => <p class={styles.highlightError}>{props.t(key())}</p>}</Show>
-			<div class={styles.readerSurface} ref={host}>
-				<div class={styles.pageFrame}>
+			<div class={styles.readerScrollRoot} ref={scroll.setRoot}
+				onPointerMove={scroll.moveThumb}
+				onPointerUp={scroll.finishDrag}
+				onPointerCancel={scroll.finishDrag}
+				onLostPointerCapture={scroll.finishDrag}
+			>
+				<div class={styles.readerSurface} ref={element => { host = element; scroll.setViewport(element); }} data-omega-scroll-viewport="" onScroll={scroll.updateMetrics}>
+				<div class={styles.pageFrame} ref={scroll.setContent}>
 					<canvas class={styles.canvas} ref={canvas} />
 					<div class={styles.highlightLayer}>
 						<For each={highlights().filter(highlight => highlight.page === pageNumber())}>{highlight =>
@@ -577,6 +594,8 @@ const PdfReader: Component<Props> = props => {
 				</Show>
 				<Show when={busy()}><div class={styles.readerStatus}>{props.t("pdfLoading")}</div></Show>
 				<Show when={renderFailed()}><div class={styles.readerStatus}>{props.t("pdfRenderFailed")}</div></Show>
+				</div>
+				<CustomScrollbars scroll={scroll} />
 			</div>
 		</>
 	);

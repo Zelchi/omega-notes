@@ -1,8 +1,11 @@
 import { createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js";
 import type { NoteSummary } from "@/entities/note";
+import DeleteNoteDialog from "@/features/delete-note/ui/delete-note-dialog";
 import Icon from "@/shared/ui/icon";
 import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import type { TranslationKey } from "@/shared/lib/i18n";
+import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
+import { Portal } from "solid-js/web";
 import { clampPdfPanelWidth, getPdfPanelWidthLimits } from "../../model/panel-size";
 import type { PdfLibraryController } from "../../model/controller";
 import PdfReader from "../pdf-reader";
@@ -73,9 +76,15 @@ const PdfPanel: Component<Props> = props => {
 		const key = props.library.actionError();
 		return key ? props.t(key as TranslationKey) : "";
 	};
+	const deleteConfirmationMessage = () => {
+		const target = props.library.deleteTarget();
+		return target ? props.t("pdfDeleteConfirmation").replace("{title}", target.title) : "";
+	};
 
 	return (
-		<aside class={styles.panel} id="pdf-panel" style={{ width: `${props.library.panelWidth()}px` }} ref={panelElement}>
+		<>
+		<aside class={styles.panel} id="pdf-panel" style={{ width: `${props.library.panelWidth()}px` }}
+			ref={element => { panelElement = element; registerVisibilityAnimation(element, () => !props.library.open(), "panel"); }}>
 			<AsciiBackdrop placement="modal" />
 			<Show when={canResize()}>
 				<div class={styles.resizeHandle} onPointerDown={startResize} onPointerMove={resize} onPointerUp={stopResize} onPointerCancel={stopResize} onLostPointerCapture={stopResize} />
@@ -91,7 +100,7 @@ const PdfPanel: Component<Props> = props => {
 						</div>
 						<div class={styles.content}>
 							<Show when={props.library.importSource()}>
-								<form class={styles.editForm} onSubmit={event => { event.preventDefault(); void props.library.importSelected(); }}>
+								<form class={styles.importForm} onSubmit={event => { event.preventDefault(); void props.library.importSelected(); }}>
 									<input
 										class={styles.textInput}
 										value={props.library.titleDraft()}
@@ -140,8 +149,8 @@ const PdfPanel: Component<Props> = props => {
 					</>
 				}>
 					{document => <PdfReader
-						open={props.library.open()}
 						vaultId={props.library.activeVaultId()}
+						documentId={props.library.openedId()!}
 						document={document()}
 						notes={props.notes}
 						referenceTitles={props.referenceTitles}
@@ -154,6 +163,21 @@ const PdfPanel: Component<Props> = props => {
 				</Show>
 			</div>
 		</aside>
+		<Portal mount={document.querySelector("[data-omega-app-shell]") ?? document.body}>
+			<DeleteNoteDialog
+				open={Boolean(props.library.deleteTarget())}
+				title={props.t("pdfDeleteTitle")}
+				message={deleteConfirmationMessage()}
+				errorMessage={props.t("pdfDeleteFailed")}
+				pending={props.library.deletePending()}
+				error={props.library.deleteError()}
+				t={props.t}
+				onClose={props.library.cancelRemoveDocument}
+				onCancel={props.library.cancelRemoveDocument}
+				onConfirm={props.library.confirmRemoveDocument}
+			/>
+		</Portal>
+		</>
 	);
 };
 

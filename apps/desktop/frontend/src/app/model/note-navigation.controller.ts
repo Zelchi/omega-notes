@@ -164,13 +164,16 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		setNavigating(true);
 		try {
 			if (dependencies.beforeNavigate && !(await dependencies.beforeNavigate())) return;
-			if (!(await notes.flushSave()) || disposed || vaultId !== dependencies.activeVaultId()) return;
 			if (location.route === "note" && !noteIds().has(location.noteId)) return;
-			if (location.route === "note") {
-				try { await notes.loadNote(location.noteId); }
-				catch (error) { console.error("Could not load note", error); return; }
-				if (disposed || vaultId !== dependencies.activeVaultId() || !noteIds().has(location.noteId)) return;
-			}
+			const noteLoad = location.route === "note"
+				? notes.loadNote(location.noteId).catch(error => {
+					console.error("Could not load note", error);
+					return undefined;
+				})
+				: Promise.resolve(undefined);
+			const [saved, loadedNote] = await Promise.all([notes.flushSave(), noteLoad]);
+			if (!saved || disposed || vaultId !== dependencies.activeVaultId()) return;
+			if (location.route === "note" && (!loadedNote || !noteIds().has(location.noteId))) return;
 			const commit = () => {
 				if (disposed || vaultId !== dependencies.activeVaultId() || location.route === "note" && !noteIds().has(location.noteId)) return;
 				batch(() => {
@@ -252,4 +255,3 @@ export const useNoteNavigationController = (dependencies: NoteNavigationDependen
 		resetToCanvas: () => setRoute("canvas"),
 	};
 };
-

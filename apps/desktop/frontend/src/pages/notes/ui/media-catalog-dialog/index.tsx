@@ -18,7 +18,7 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 	let dialogElement: HTMLElement | undefined;
 
 	return (
-		<Portal mount={document.querySelector("[data-omega-main]") ?? document.body}><>
+		<Portal mount={document.querySelector("[data-omega-app-shell]") ?? document.body}><>
 		<div
 			class={styles.backdrop}
 			inert={props.exiting} aria-hidden={props.exiting || undefined}

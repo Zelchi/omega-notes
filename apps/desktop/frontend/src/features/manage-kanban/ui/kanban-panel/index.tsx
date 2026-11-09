@@ -24,11 +24,14 @@ type Props = {
 	onCreateNote: (title: string) => Promise<NoteSummary | undefined>;
 };
 
-const dueDateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" });
-const formatDueDate = (value: string) => dueDateFormatter.format(new Date(`${value}T00:00:00.000Z`));
 const currentDateKey = () => {
 	const now = new Date();
 	return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
+const getDaysUntilDueDate = (value: string) => {
+	const today = Date.parse(`${currentDateKey()}T00:00:00.000Z`);
+	const dueDate = Date.parse(`${value}T00:00:00.000Z`);
+	return Math.round((dueDate - today) / 86_400_000);
 };
 
 const KanbanPanel: Component<Props> = (props) => {
@@ -429,13 +432,19 @@ const KanbanPanel: Component<Props> = (props) => {
 					openDetails(item);
 				}}>
 				<div class={styles.cardTop}>
+					<Show when={item.priority !== "none"}>
+						<span class={`${styles.priorityBadge} ${item.priority === "low" ? styles.priorityLow : item.priority === "medium" ? styles.priorityMedium : styles.priorityHigh}`}>
+							{props.t(kanbanPriorityLabels[item.priority])}
+						</span>
+					</Show>
 					<div class={styles.cardTitle}>{item.title}</div>
-					<div class={styles.cardActions}>
-						<Button class={styles.cardAction} type="button" disabled={mutationsBlocked()} aria-label={props.t("kanbanEditItem")}
-							onClick={event => { event.stopPropagation(); openDetails(item); }}><Icon name="edit" size={13} /></Button>
-						<Button class={`${styles.cardAction} ${styles.cardActionDelete}`} type="button" disabled={mutationsBlocked()} aria-label={props.t("kanbanDeleteItem")}
-							onClick={event => { event.stopPropagation(); deleteCard(item); }}><Icon name="delete" size={13} /></Button>
-					</div>
+					<Show when={item.dueDate}>{dueDate => {
+						const daysUntilDueDate = getDaysUntilDueDate(dueDate());
+						const overdue = daysUntilDueDate < 0 && item.status !== "finish";
+						return <span class={`${styles.dueBadge} ${overdue ? styles.dueOverdue : ""}`}>
+							{daysUntilDueDate}
+						</span>;
+					}}</Show>
 				</div>
 				<Show when={item.noteId && !props.notes.loading()}>
 					<Show when={noteForId(item.noteId)} fallback={
@@ -450,21 +459,6 @@ const KanbanPanel: Component<Props> = (props) => {
 				<Show when={item.labels.length}><div class={styles.cardLabels}>
 					<For each={item.labels}>{label => <span class={styles.cardLabel}>{label}</span>}</For>
 				</div></Show>
-				<Show when={item.priority !== "none" || item.dueDate}>
-					<div class={styles.cardFooter}>
-						<Show when={item.priority !== "none"}>
-							<span class={`${styles.priorityBadge} ${item.priority === "low" ? styles.priorityLow : item.priority === "medium" ? styles.priorityMedium : styles.priorityHigh}`}>
-								{props.t(kanbanPriorityLabels[item.priority])}
-							</span>
-						</Show>
-						<Show when={item.dueDate}>{dueDate => {
-							const overdue = dueDate() < currentDateKey() && item.status !== "finish";
-							return <span class={`${styles.dueBadge} ${overdue ? styles.dueOverdue : ""}`}>
-								<Icon name="calendar" size={11} />{formatDueDate(dueDate())}
-							</span>;
-						}}</Show>
-					</div>
-				</Show>
 			</article>
 		);
 	};

@@ -13,6 +13,22 @@ test('Pomodoro and Kanban entry points and panels remain available in production
 	assert.match(app, /<Show when=\{kanbanMounted\(\)\}>[\s\S]*?<KanbanPanel/);
 });
 
+test('Kanban cards open their edit modal and show priority, title, and date without action buttons', async () => {
+	const [panel, styles] = await Promise.all([
+		source('../src/features/manage-kanban/ui/kanban-panel/index.tsx'),
+		source('../src/features/manage-kanban/ui/kanban-panel/style.css.ts'),
+	]);
+	assert.match(panel, /onClick=\{\(\) => \{[\s\S]*?openDetails\(item\);\s*\}\}/);
+	assert.match(panel, /<div class=\{styles\.cardTop\}>[\s\S]*?kanbanPriorityLabels\[item\.priority\][\s\S]*?<div class=\{styles\.cardTitle\}>\{item\.title\}<\/div>[\s\S]*?getDaysUntilDueDate\(dueDate\(\)\)[\s\S]*?\{daysUntilDueDate\}/);
+	assert.doesNotMatch(panel, /formatDueDate|<Icon name="calendar"/);
+	assert.match(panel, /onClick=\{\(\) => \{ deleteCard\(item\(\)\); closeDetails\(\); \}\}/);
+	assert.doesNotMatch(panel, /styles\.cardActions|styles\.cardAction/);
+	assert.match(styles, /cardTop: style\(\{ display: "grid"/);
+	assert.match(styles, /gridColumn: 2[\s\S]*?textAlign: "center"/);
+	assert.match(styles, /priorityBadge: style\(\{ gridColumn: 1, justifySelf: "start"/);
+	assert.match(styles, /dueBadge: style\(\{ gridColumn: 3, justifySelf: "end"/);
+});
+
 test('PDF reader opens on the right as a Vault side panel with the shared backdrop', async () => {
 	const [titlebar, app, visibility, panelStyle, panel, ptBr, en] = await Promise.all([
 		source('../src/app/ui/window-titlebar/index.tsx'),
@@ -46,6 +62,99 @@ test('PDF reader opens on the right as a Vault side panel with the shared backdr
 	assert.equal(en.pdfRemoveHighlight, 'Unmark');
 	assert.equal(en.pdfSearch, 'Search');
 	assert.equal(en.pdfEditHighlight, 'Edit');
+});
+
+test('PDF panel animates its entrance and exit like the other side panels', async () => {
+	const panel = await source('../src/features/manage-pdfs/ui/pdf-panel/index.tsx');
+	assert.match(panel, /registerVisibilityAnimation\(element, \(\) => !props\.library\.open\(\), "panel"\)/);
+});
+
+test('closing the PDF panel keeps its active reader mounted until returning to the library', async () => {
+	const [app, panel, reader] = await Promise.all([
+		source('../src/app/index.tsx'),
+		source('../src/features/manage-pdfs/ui/pdf-panel/index.tsx'),
+		source('../src/features/manage-pdfs/ui/pdf-reader.tsx'),
+	]);
+	assert.match(app, /const pdfPanelPresence = createPresence\(app\.pdfs\.open, 210\)\.present;\s*const pdfsMounted = \(\) => pdfPanelPresence\(\) \|\| Boolean\(app\.pdfs\.openedId\(\)\);/);
+	assert.match(panel, /<Show when=\{activeDocument\(\)\} fallback=/);
+	assert.match(panel, /onBack=\{\(\) => props\.library\.openDocument\(undefined\)\}/);
+	assert.match(panel, /documentId=\{props\.library\.openedId\(\)!\}/);
+	assert.match(reader, /createEffect\(on\(\(\) => \[props\.vaultId, props\.documentId\] as const/);
+	assert.doesNotMatch(reader, /props\.open/);
+});
+
+test('canvas starts loading a note on pointer down before navigation commits', async () => {
+	const [app, staticCanvas, dynamicCanvas, navigation] = await Promise.all([
+		source('../src/app/index.tsx'),
+		source('../src/pages/canvas/ui/graph-canvas/index.tsx'),
+		source('../src/pages/canvas/ui/dynamic-graph/index.tsx'),
+		source('../src/app/model/note-navigation.controller.ts'),
+	]);
+	assert.match(app, /onPreloadNote=\{\(noteId\) => \{ void app\.notes\.loadNote\(noteId\)\.catch\(\(\) => undefined\); \}\}/);
+	assert.match(staticCanvas, /event\.button === 0 && !graph\.shouldIgnoreClick\(event\)\) props\.onPreloadNote\(note\.id\)/);
+	assert.match(dynamicCanvas, /event\.button === 0 && hit && !graph\.shouldIgnoreClick\(\)\) props\.onPreloadNote\(note\.id\)/);
+	assert.match(navigation, /const \[saved, loadedNote\] = await Promise\.all\(\[notes\.flushSave\(\), noteLoad\]\)/);
+});
+
+test('PDF panel overlays page content without moving search and stays under modal layers', async () => {
+	const [app, appStyle, panelStyle, searchStyle, deleteDialogStyle, mediaDialog] = await Promise.all([
+		source('../src/app/index.tsx'),
+		source('../src/app/style.css.ts'),
+		source('../src/features/manage-pdfs/ui/pdf-panel/style.css.ts'),
+		source('../src/app/ui/floating-search/style.css.ts'),
+		source('../src/features/delete-note/ui/delete-note-dialog/style.css.ts'),
+		source('../src/pages/notes/ui/media-catalog-dialog/index.tsx'),
+	]);
+	assert.match(app, /<main class=\{styles\.main\} data-omega-main[^>]*>\s*<FloatingSearch/);
+	assert.match(appStyle, /main: style\(\{[\s\S]*?zIndex: 1/);
+	assert.match(searchStyle, /position: "absolute"[\s\S]*?left: "50%"[\s\S]*?zIndex: 5/);
+	assert.match(panelStyle, /right: 1, bottom: 1, zIndex: 7/);
+	assert.match(deleteDialogStyle, /position: "fixed"[^}]*zIndex: 22/);
+	assert.match(mediaDialog, /data-omega-app-shell/);
+});
+
+test('PDF deletion uses the app confirmation dialog instead of a native dialog', async () => {
+	const [panel, controller] = await Promise.all([
+		source('../src/features/manage-pdfs/ui/pdf-panel/index.tsx'),
+		source('../src/features/manage-pdfs/model/controller.ts'),
+	]);
+	assert.match(panel, /<DeleteNoteDialog/);
+	assert.match(panel, /pdfDeleteConfirmation/);
+	assert.match(panel, /pdfDeleteFailed/);
+	assert.match(controller, /confirmRemoveDocument/);
+	assert.doesNotMatch(controller, /import \{ confirm, open \}/);
+});
+
+test('PDF import title input stays at the start of the library content', async () => {
+	const [panel, style] = await Promise.all([
+		source('../src/features/manage-pdfs/ui/pdf-panel/index.tsx'),
+		source('../src/features/manage-pdfs/ui/pdf-panel/style.css.ts'),
+	]);
+	assert.match(panel, /<form class=\{styles\.importForm\} onSubmit=\{event => \{ event\.preventDefault\(\); void props\.library\.importSelected\(\); \}\}>/);
+	assert.ok(panel.indexOf('<form class={styles.importForm}') < panel.indexOf('<div class={styles.list}>'));
+	assert.match(style, /importForm: style\(\{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, flex: "0 0 auto" \}\)/);
+});
+
+test('PDF reader uses the shared custom scrollbar component', async () => {
+	const [reader, style, scrollbarStyle] = await Promise.all([
+		source('../src/features/manage-pdfs/ui/pdf-reader.tsx'),
+		source('../src/features/manage-pdfs/ui/pdf-panel/style.css.ts'),
+		source('../src/shared/ui/custom-scroll-area/style.css.ts'),
+	]);
+	assert.match(reader, /import \{ CustomScrollbars, useCustomScrollArea \} from "@\/shared\/ui\/custom-scroll-area"/);
+	assert.match(reader, /const scroll = useCustomScrollArea\(\)/);
+	assert.match(reader, /class=\{styles\.readerSurface\} ref=\{element => \{ host = element; scroll\.setViewport\(element\); \}\} data-omega-scroll-viewport=""/);
+	assert.match(reader, /<CustomScrollbars scroll=\{scroll\} \/>/);
+	assert.match(style, /readerScrollRoot: style\(\{[^}]*overflow: "hidden"[^}]*vars: \{ "--omega-scrollbar-right": "0px", "--omega-scrollbar-bottom": "0px" \}/);
+	assert.match(style, /readerSurface: style\(\{ position: "relative", display: "block", width: "100%", height: "100%", overflow: "auto", overscrollBehavior: "contain" \}\)/);
+	assert.doesNotMatch(style, /::-webkit-scrollbar/);
+	assert.match(scrollbarStyle, /horizontalTrack: style\(\{[\s\S]*?bottom: "var\(--omega-scrollbar-bottom, 4px\)"/);
+});
+
+test('PDF zoom recenters horizontal scrolling after resizing the page', async () => {
+	const reader = await source('../src/features/manage-pdfs/ui/pdf-reader.tsx');
+	assert.match(reader, /if \(next !== current\) centerHorizontalScrollOnRender = true/);
+	assert.match(reader, /if \(centerHorizontalScrollOnRender && host\) \{\s*host\.scrollLeft = Math\.max\(0, \(host\.scrollWidth - host\.clientWidth\) \/ 2\);\s*centerHorizontalScrollOnRender = false;/);
 });
 
 test('chat selection context actions use concise localized labels', async () => {
@@ -324,7 +433,6 @@ test('Kanban uses only a temporary drag insertion gap, not permanent empty slots
 	assert.match(style, /dragPreview: style\(\{ position: "fixed", zIndex: 20, pointerEvents: "none", opacity: 0\.92/);
 	assert.match(style, /draggedSource: style\(\{ position: "absolute"/);
 	assert.match(style, /dropPlaceholder: style\(\{ boxSizing: "border-box", width: "100%", minHeight: 56, pointerEvents: "none" \}\)/);
-	assert.match(kanban, /<Show when=\{item\.priority !== "none" \|\| item\.dueDate\}>/);
 });
 
 test('frontend globally suppresses browser default focus outlines', async () => {
@@ -332,17 +440,28 @@ test('frontend globally suppresses browser default focus outlines', async () => 
 	assert.match(css, /\*:focus\s*\{\s*outline:\s*none;/);
 });
 
-test('clicking the right edge of a vault row selects it, with hover feedback', async () => {
+test('left-clicking the right edge of a vault row toggles its actions without selecting it', async () => {
 	const [dialog, style] = await Promise.all([
 		source('../src/features/manage-vault/ui/vault-dialog/index.tsx'),
 		source('../src/features/manage-vault/ui/vault-dialog/style.css.ts'),
 	]);
-	assert.match(dialog, /const selectVault = \(vaultId: string\) => \{[\s\S]*?state\.setSelectedVaultId\(vaultId\);\s*\}/);
-	assert.match(dialog, /if \(event\.target === event\.currentTarget\) selectVault\(vault\.id\)/);
+	assert.match(dialog, /if \(event\.target === event\.currentTarget\) \{\s*props\.onClearError\(\);\s*toggleVaultActions\(vault\.id\);\s*\}/);
 	assert.match(dialog, /event\.stopPropagation\(\);\s*toggleVaultActions\(vault\.id\)/);
 	assert.match(style, /vaultActionsHitArea: style\(\{ paddingRight: 6, marginRight: -5, cursor: "pointer" \}\)/);
-	assert.match(style, /selectors: \{ "&:hover": \{ backgroundColor: "var\(--surface-hover\)" \} \}/);
-	assert.match(style, /vaultActionsOpen: style\(\{ selectors: \{ "&::after": \{ content: "", position: "absolute", top: 0, right: 0, bottom: 0, width: 6, backgroundColor: "var\(--border-strong\)", pointerEvents: "none" \} \} \}\)/);
+	assert.match(style, /"&:hover:not\(:has\(button:hover\)\)::after": \{ backgroundColor: "var\(--surface-hover\)" \}/);
+	const vaultActionsStyle = style.match(/vaultActions: style\(\{([\s\S]*?)\n\t\}\),/)?.[1] ?? "";
+	assert.doesNotMatch(vaultActionsStyle, /:hover/);
+});
+
+test('vault edit and delete actions do not change their background on hover', async () => {
+	const [dialog, style] = await Promise.all([
+		source('../src/features/manage-vault/ui/vault-dialog/index.tsx'),
+		source('../src/features/manage-vault/ui/vault-dialog/style.css.ts'),
+	]);
+	assert.equal((dialog.match(/class=\{cx\(styles\.iconAction, styles\.vaultActionNoBackground\)\}/g) ?? []).length, 2);
+	assert.match(style, /"&:hover": \{ color: "var\(--ink\)", backgroundColor: "var\(--surface-hover\)" \}/);
+	assert.doesNotMatch(style, /"&:has\(button:hover\)"/);
+	assert.match(style, /vaultActionNoBackground: style\(\{\s*selectors: \{ "&&:hover": \{ backgroundColor: "transparent" \} \}/);
 });
 
 test('Kanban width transition remains active when window resizing moves it to another session', async () => {

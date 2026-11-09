@@ -46,7 +46,8 @@ const AppView: Component = () => {
 	const noteNameDialogMounted = createPresence(app.navigation.nameDialogVisible, 210).present;
 	const chatMounted = createPresence(app.chatOpen, 210).present;
 	const kanbanMounted = createPresence(app.kanban.open, 210).present;
-	const pdfsMounted = createPresence(app.pdfs.open, 210).present;
+	const pdfPanelPresence = createPresence(app.pdfs.open, 210).present;
+	const pdfsMounted = () => pdfPanelPresence() || Boolean(app.pdfs.openedId());
 	const pomodoroMounted = createPresence(app.pomodoro.open, 210).present;
 
 	return (
@@ -131,8 +132,9 @@ const AppView: Component = () => {
 											onReload={app.notes.reload}
 											notes={app.notes.sortedNotes()}
 							onCreateNote={app.createNoteAtCanvas}
-											onOpenNote={app.navigation.openNote}
-							onRequestRename={app.requestRenameNote}
+												onOpenNote={app.navigation.openNote}
+												onPreloadNote={(noteId) => { void app.notes.loadNote(noteId).catch(() => undefined); }}
+												onRequestRename={app.requestRenameNote}
 							onDeleteNote={app.requestDeleteNote}
 											busy={app.canvasHistory.pending() || app.vaultActionPending() || app.navigation.navigating()}
 											suspended={app.navigation.navigating()}

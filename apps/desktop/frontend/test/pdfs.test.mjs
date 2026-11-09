@@ -110,6 +110,63 @@ test('an import finishing after a Vault switch is never attached to the new Vaul
 	});
 });
 
+test('PDF deletion is confirmed in-app and cancellation leaves the document untouched', async () => {
+	const commands = [];
+	await withDesktop((command, args) => {
+		commands.push(command);
+		if (command === 'read_pdf_documents') return Promise.resolve([document()]);
+		if (command === 'delete_pdf_document') return Promise.resolve([]);
+		throw Error(`Unexpected command: ${command}`);
+	}, async () => {
+		let dispose;
+		const [vaultId] = createSignal('vault-a');
+		let library;
+		createRoot(unmount => { dispose = unmount; library = usePdfLibrary(vaultId, key => key); });
+		await tick();
+
+		library.removeDocument(document().id);
+		assert.equal(library.deleteTarget().id, document().id);
+		assert.equal(commands.includes('dialog_confirm'), false);
+		library.cancelRemoveDocument();
+		assert.equal(library.deleteTarget(), undefined);
+		assert.equal(commands.includes('delete_pdf_document'), false);
+
+		library.removeDocument(document().id);
+		await library.confirmRemoveDocument();
+		assert.deepEqual(library.documents(), []);
+		assert.equal(library.deleteTarget(), undefined);
+		assert.equal(commands.includes('dialog_confirm'), false);
+		dispose();
+	});
+});
+
+test('failed PDF deletion keeps the in-app confirmation open and allows retry', async () => {
+	let attempts = 0;
+	await withDesktop((command) => {
+		if (command === 'read_pdf_documents') return Promise.resolve([document()]);
+		if (command === 'delete_pdf_document') {
+			attempts++;
+			return attempts === 1 ? Promise.reject(Error('storage failure')) : Promise.resolve([]);
+		}
+		throw Error(`Unexpected command: ${command}`);
+	}, async () => {
+		let dispose;
+		const [vaultId] = createSignal('vault-a');
+		let library;
+		createRoot(unmount => { dispose = unmount; library = usePdfLibrary(vaultId, key => key); });
+		await tick();
+		library.removeDocument(document().id);
+		await library.confirmRemoveDocument();
+		assert.equal(library.deleteTarget().id, document().id);
+		assert.equal(library.deleteError(), true);
+		assert.equal(library.deletePending(), false);
+		await library.confirmRemoveDocument();
+		assert.equal(library.deleteTarget(), undefined);
+		assert.equal(attempts, 2);
+		dispose();
+	});
+});
+
 test('reading progress is restored from the catalog and duplicate renders are not rewritten', async () => {
 	const saved = [];
 	await withDesktop((command, args) => {
@@ -177,5 +234,6 @@ test('PDF library and reader are included in the desktop app and use range strea
 	assert.match(reader, /<Icon name="highlight" size=\{15\} \/>/);
 	assert.match(vite, /connect-src 'self' http:\/\/127\.0\.0\.1:\*/);
 	assert.match(tauri, /connect-src 'self' http:\/\/127\.0\.0\.1:\*/);
-	assert.doesNotMatch(panel, /\stitle=/);
+	assert.doesNotMatch(panel, /<[a-z][\w-]*\b[^>]*\stitle=/s);
+	assert.doesNotMatch(panel, /<title\b/i);
 });

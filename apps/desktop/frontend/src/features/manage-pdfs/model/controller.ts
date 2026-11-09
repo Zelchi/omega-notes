@@ -1,5 +1,5 @@
 import { createEffect, createSignal, on, type Accessor } from "solid-js";
-import { confirm, open } from "@/shared/lib/desktop";
+import { open } from "@/shared/lib/desktop";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { deletePdfDocument, importPdfDocument, maxPdfTitleLength, readPdfDocuments, renamePdfDocument, savePdfProgress, type PdfDocument } from "../api/pdfs.repository";
 
@@ -28,6 +28,9 @@ export const usePdfLibrary = (vaultId: Accessor<string | undefined>, t: (key: Tr
 	const [titleDraft, setTitleDraft] = createSignal("");
 	const [importing, setImporting] = createSignal(false);
 	const [busy, setBusy] = createSignal(false);
+	const [deleteTarget, setDeleteTarget] = createSignal<PdfDocument>();
+	const [deletePending, setDeletePending] = createSignal(false);
+	const [deleteError, setDeleteError] = createSignal(false);
 	let loadRevision = 0;
 	const writes = new Map<string, Promise<void>>();
 	const queuedProgress = new Map<string, { page: number; pageCount: number }>();
@@ -53,6 +56,8 @@ export const usePdfLibrary = (vaultId: Accessor<string | undefined>, t: (key: Tr
 		setOpenedId(undefined);
 		setImportSource(undefined);
 		setTitleDraft("");
+		setDeleteTarget(undefined);
+		setDeleteError(false);
 		setActionError(undefined);
 		setReadFailed(false);
 		if (!id) { setLoading(false); return; }
@@ -126,32 +131,40 @@ export const usePdfLibrary = (vaultId: Accessor<string | undefined>, t: (key: Tr
 		}
 	};
 
-	const removeDocument = async (documentId: string) => {
+	const removeDocument = (documentId: string) => {
+		const document = documents().find(entry => entry.id === documentId);
+		if (!document || busy() || readFailed()) return;
+		setActionError(undefined);
+		setDeleteError(false);
+		setDeleteTarget(document);
+	};
+
+	const cancelRemoveDocument = () => {
+		if (deletePending()) return;
+		setDeleteTarget(undefined);
+		setDeleteError(false);
+	};
+
+	const confirmRemoveDocument = async () => {
 		const id = vaultId();
 		const revision = loadRevision;
-		const document = documents().find(entry => entry.id === documentId);
+		const document = deleteTarget();
 		if (!id || !document || busy() || readFailed()) return;
-		let accepted: boolean;
-		try {
-			accepted = await confirm(t("pdfDeleteConfirmation").replace("{title}", document.title), {
-				title: t("pdfDeleteTitle"), kind: "warning", okLabel: t("delete"), cancelLabel: t("cancel"),
-			});
-		} catch {
-			if (revision === loadRevision && vaultId() === id) setActionError("pdfDeleteFailed");
-			return;
-		}
-		if (!accepted || revision !== loadRevision || vaultId() !== id) return;
+		setDeletePending(true);
 		setBusy(true);
 		setActionError(undefined);
+		setDeleteError(false);
 		try {
-			const next = await deletePdfDocument(id, documentId);
+			const next = await deletePdfDocument(id, document.id);
 			if (revision === loadRevision && vaultId() === id) {
 				setDocuments(sortDocuments(next));
-				if (openedId() === documentId) setOpenedId(undefined);
+				if (openedId() === document.id) setOpenedId(undefined);
+				setDeleteTarget(undefined);
 			}
 		} catch {
-			if (revision === loadRevision && vaultId() === id) setActionError("pdfDeleteFailed");
+			if (revision === loadRevision && vaultId() === id) setDeleteError(true);
 		} finally {
+			setDeletePending(false);
 			setBusy(false);
 		}
 	};
@@ -188,7 +201,8 @@ export const usePdfLibrary = (vaultId: Accessor<string | undefined>, t: (key: Tr
 		open: openPanel, setOpen: setOpenPanel, panelWidth, setPanelWidth, activeVaultId: vaultId,
 		documents, loading, readFailed, retryRead, actionError, clearActionError: () => setActionError(undefined),
 		openedId, openDocument: setOpenedId, importSource, titleDraft, setTitleDraft, importing, busy,
-		selectPdf, cancelImport, importSelected, renameDocument, removeDocument, saveProgress, flushSave,
+		deleteTarget, deletePending, deleteError,
+		selectPdf, cancelImport, importSelected, renameDocument, removeDocument, cancelRemoveDocument, confirmRemoveDocument, saveProgress, flushSave,
 	};
 };
 

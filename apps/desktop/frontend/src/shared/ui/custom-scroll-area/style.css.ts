@@ -55,7 +55,7 @@ export const styles = {
 		position: "absolute",
 		zIndex: 5,
 		right: 20,
-		bottom: 4,
+		bottom: "var(--omega-scrollbar-bottom, 4px)",
 		left: 8,
 		height: 14,
 		touchAction: "none",
