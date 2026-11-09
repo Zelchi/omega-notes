@@ -157,10 +157,14 @@ export const styles = {
 		gap: 0,
 		paddingRight: 3,
 		borderLeft: "1px solid var(--border-soft)",
-		selectors: { "&:hover": { backgroundColor: "var(--surface-hover)" } },
 	}),
 	vaultActionsHitArea: style({ paddingRight: 6, marginRight: -5, cursor: "pointer" }),
-	vaultActionsOpen: style({ selectors: { "&::after": { content: "", position: "absolute", top: 0, right: 0, bottom: 0, width: 6, backgroundColor: "var(--border-strong)", pointerEvents: "none" } } }),
+	vaultActionsOpen: style({
+		selectors: {
+			"&::after": { content: "", position: "absolute", top: 0, right: 0, bottom: 0, width: 6, backgroundColor: "var(--border-strong)", pointerEvents: "none" },
+			"&:hover:not(:has(button:hover))::after": { backgroundColor: "var(--surface-hover)" },
+		},
+	}),
 	iconAction: style({
 		display: "grid",
 		placeItems: "center",
@@ -177,6 +181,9 @@ export const styles = {
 			"&:hover": { color: "var(--ink)", backgroundColor: "var(--surface-hover)" },
 			"&:disabled": { cursor: "default" },
 		},
+	}),
+	vaultActionNoBackground: style({
+		selectors: { "&&:hover": { backgroundColor: "transparent" } },
 	}),
 	vaultActionReveal: style({ width: 0, minWidth: 0, height: "100%", padding: 0, borderWidth: 0, borderRadius: 0, overflow: "hidden", opacity: 0, pointerEvents: "none", transition: "width 210ms cubic-bezier(0.2, 0.7, 0.3, 1), opacity 180ms ease-out" }),
 	vaultActionRevealVisible: style({ width: 36, borderWidth: 0, opacity: 1, pointerEvents: "auto" }),

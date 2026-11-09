@@ -223,7 +223,7 @@
   "kanbanUpdatedAt": "Movido",
   "kanbanItemPlaceholder": "O que precisa ser feito?",
   "kanbanEditItem": "Editar cartão",
-  "kanbanDeleteItem": "Apagar cartão",
+  "kanbanDeleteItem": "Apagar",
   "kanbanMoveItem": "Mover cartão para outra etapa",
   "kanbanCollapseCategory": "Minimizar categoria",
   "kanbanExpandCategory": "Expandir categoria",

@@ -1,5 +1,21 @@
 # Histórico de atualizações
 
+## v0.6.9
+
+### Notas
+
+- A leitura da nota começa no clique e acontece em paralelo ao salvamento atual, reduzindo a espera para abrir documentos.
+
+### PDFs
+
+- O leitor preserva página, zoom e rolagem ao fechar o painel, mantém o PDF carregado até voltar à biblioteca e recentraliza a rolagem horizontal ao alterar o zoom.
+- A exclusão de PDFs agora usa a confirmação integrada ao app.
+
+### Organização
+
+- Cartões do Kanban mostram prioridade e dias até o vencimento; edição e exclusão ficam nos detalhes do cartão.
+- Ajustes visuais no seletor de vaults e no catálogo de mídia.
+
 ## v0.6.8
 
 ### Windows

@@ -223,7 +223,7 @@
   "kanbanUpdatedAt": "Moved",
   "kanbanItemPlaceholder": "What needs to be done?",
   "kanbanEditItem": "Edit card",
-  "kanbanDeleteItem": "Delete card",
+  "kanbanDeleteItem": "Delete",
   "kanbanMoveItem": "Move card to another stage",
   "kanbanCollapseCategory": "Collapse category",
   "kanbanExpandCategory": "Expand category",

@@ -22,11 +22,6 @@ const card = style({
 		"&:active": { cursor: "grabbing" },
 	},
 });
-const cardActions = style({
-	display: "flex", alignItems: "center", gap: 2, margin: "-4px -4px 0 0",
-	opacity: 0, pointerEvents: "none", transition: "opacity 130ms ease",
-});
-globalStyle(`${card}:hover ${cardActions}`, { opacity: 1, pointerEvents: "auto" });
 const dragging = style({ cursor: "none" });
 globalStyle(`${dragging}, ${dragging} *`, { cursor: "none !important" });
 
@@ -112,21 +107,17 @@ export const styles = {
 	dropPlaceholder: style({ boxSizing: "border-box", width: "100%", minHeight: 56, pointerEvents: "none" }),
 	card,
 	cardNoDrag: style({ cursor: "pointer", selectors: { "&:active": { cursor: "pointer" } } }),
-	cardTop: style({ display: "flex", alignItems: "flex-start", gap: 5, minWidth: 0 }),
-	cardTitle: style({ flex: 1, minWidth: 0, display: "-webkit-box", overflow: "hidden", textOverflow: "ellipsis", fontSize: 12, lineHeight: 1.45, fontWeight: 550, WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }),
+	cardTop: style({ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr)", alignItems: "center", gap: 5, minWidth: 0 }),
+	cardTitle: style({ gridColumn: 2, minWidth: 0, display: "-webkit-box", overflow: "hidden", textOverflow: "ellipsis", fontSize: 12, lineHeight: 1.45, fontWeight: 550, textAlign: "center", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }),
 	cardNote: style({ display: "flex", alignItems: "center", gap: 5, width: "fit-content", maxWidth: "100%", minWidth: 0, padding: 0, border: 0, color: "var(--muted)", background: "transparent", font: "inherit", fontSize: 10, textAlign: "left", textOverflow: "ellipsis", whiteSpace: "nowrap", overflow: "hidden", cursor: "pointer", selectors: { "&:hover": { color: "var(--ink)" } } }),
 	cardNoteUnavailable: style({ overflow: "hidden", color: "var(--muted)", fontSize: 10, textOverflow: "ellipsis", whiteSpace: "nowrap" }),
-	cardActions,
-	cardAction: style({ boxSizing: "border-box", display: "grid", placeItems: "center", width: 22, height: 22, minWidth: 22, minHeight: 22, padding: 0, border: "1px solid transparent", borderRadius: 5, color: "var(--muted)", background: "transparent", cursor: "pointer", selectors: { "&:hover": { borderColor: "var(--border-soft)", color: "var(--ink)", background: "var(--surface-hover)" } } }),
-	cardActionDelete: style({ selectors: { "&:hover": { color: "var(--danger)" } } }),
 	cardLabels: style({ display: "flex", flexWrap: "wrap", gap: 4, minWidth: 0 }),
 	cardLabel: style({ maxWidth: "100%", overflow: "hidden", padding: "2px 6px", border: "1px solid var(--border-soft)", borderRadius: 9, color: "var(--muted)", fontSize: 9, lineHeight: 1.3, textOverflow: "ellipsis", whiteSpace: "nowrap" }),
-	cardFooter: style({ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5, minHeight: 16 }),
-	priorityBadge: style({ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 6px", borderRadius: 8, fontSize: 9, lineHeight: 1.3, background: "var(--surface-hover)" }),
+	priorityBadge: style({ gridColumn: 1, justifySelf: "start", maxWidth: "100%", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 6px", borderRadius: 8, fontSize: 9, lineHeight: 1.3, background: "var(--surface-hover)" }),
 	priorityLow: style({ color: "#6b9a79" }),
 	priorityMedium: style({ color: "#c18c39" }),
 	priorityHigh: style({ color: "var(--danger)" }),
-	dueBadge: style({ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 6px", borderRadius: 8, color: "var(--muted)", background: "var(--surface-hover)", fontSize: 9, lineHeight: 1.3, fontVariantNumeric: "tabular-nums" }),
+	dueBadge: style({ gridColumn: 3, justifySelf: "end", maxWidth: "100%", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 6px", borderRadius: 8, color: "var(--muted)", background: "var(--surface-hover)", fontSize: 9, lineHeight: 1.3, fontVariantNumeric: "tabular-nums" }),
 	dueOverdue: style({ color: "var(--danger)", background: "var(--danger-hover)" }),
 	cardInput: style({ boxSizing: "border-box", width: "100%", minWidth: 0, height: 34, padding: "7px 9px", border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-input)", color: "var(--ink)", font: "inherit", fontSize: 12, outline: "none", selectors: { "&:focus-visible": { borderColor: "var(--ink)" } } }),
 	createForm: style({ display: "grid", gap: 7, padding: 8, border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-input)" }),

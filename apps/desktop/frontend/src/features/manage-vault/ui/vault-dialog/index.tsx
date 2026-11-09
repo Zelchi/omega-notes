@@ -73,12 +73,6 @@ const VaultDialog: Component<Props> = (props) => {
 	});
 	const selectedVault = () => props.vaults.find((vault) => vault.id === state.selectedVaultId());
 	const toggleVaultActions = (vaultId: string) => setVaultActionsVisibleId(current => current === vaultId ? undefined : vaultId);
-	const selectVault = (vaultId: string) => {
-		props.onClearError();
-		setVaultActionsVisibleId(undefined);
-		state.setSelectedVaultId(vaultId);
-	};
-
 	createEffect(() => {
 		const isOpen = props.open;
 		const vaultId = state.selectedVaultId();
@@ -272,10 +266,13 @@ const VaultDialog: Component<Props> = (props) => {
 												[styles.vaultActionsHitArea]: true,
 												[styles.vaultActionsOpen]: vaultActionsVisibleId() === vault.id,
 											}} onClick={event => {
-																if (event.target === event.currentTarget) selectVault(vault.id);
-															}}>
+												if (event.target === event.currentTarget) {
+													props.onClearError();
+													toggleVaultActions(vault.id);
+												}
+											}}>
 																<Button
-																	class={styles.iconAction}
+																	class={cx(styles.iconAction, styles.vaultActionNoBackground)}
 																	classList={{ [styles.vaultActionReveal]: true, [styles.vaultActionRevealVisible]: vaultActionsVisibleId() === vault.id }}
 																	type="button"
 																	aria-label={props.t("rename")}
@@ -292,7 +289,7 @@ const VaultDialog: Component<Props> = (props) => {
 																	<Icon name="edit" size={14} />
 																</Button>
 																<Button
-																	class={styles.iconAction}
+																	class={cx(styles.iconAction, styles.vaultActionNoBackground)}
 																	classList={{ [styles.vaultActionReveal]: true, [styles.vaultActionRevealVisible]: vaultActionsVisibleId() === vault.id }}
 																	type="button"
 																	aria-label={props.t("delete")}

@@ -21,6 +21,7 @@ export type GraphCanvasProps = {
 	notes: NoteSummary[];
 	onCreateNote: () => Promise<StudyNote | undefined>;
 	onOpenNote: (note: NoteSummary) => void;
+	onPreloadNote: (noteId: string) => void;
 	onRequestRename: (note: NoteSummary) => void;
 	onDeleteNote: (note: NoteSummary) => Promise<void>;
 	centerOnMount: boolean;

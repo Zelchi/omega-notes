@@ -13,7 +13,7 @@ const button = style({
 
 export const styles = {
 	panel: style({
-		position: "fixed", isolation: "isolate", top: windowLayout.titlebarHeight + 1, right: 1, bottom: 1, zIndex: 8,
+		position: "fixed", isolation: "isolate", top: windowLayout.titlebarHeight + 1, right: 1, bottom: 1, zIndex: 7,
 		boxSizing: "border-box", maxWidth: "calc(100vw - 24px)", overflow: "hidden",
 		background: "var(--surface-panel)", borderLeft: "1px solid var(--border-strong)",
 		transition: "width 100ms cubic-bezier(0.2, 0.7, 0.3, 1)",
@@ -44,13 +44,15 @@ export const styles = {
 	cardTitle: style({ minWidth: 0, overflow: "hidden", fontSize: 12, textOverflow: "ellipsis", whiteSpace: "nowrap" }),
 	cardActions: style({ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }),
 	cardAction: style({ width: 28, height: 28, minWidth: 28, minHeight: 28, padding: 0, borderColor: "transparent", color: "var(--muted)", background: "transparent" }),
+	importForm: style({ display: "flex", alignItems: "center", gap: 5, minWidth: 0, flex: "0 0 auto" }),
 	editForm: style({ display: "flex", flex: 1, alignItems: "center", gap: 5, minWidth: 0 }),
 	textInput: style({ boxSizing: "border-box", width: "100%", minWidth: 0, height: 32, padding: "5px 8px", border: "1px solid var(--border-strong)", borderRadius: 5, outline: 0, color: "var(--ink)", background: "var(--surface-input)", font: "inherit", fontSize: 12 }),
 	error: style({ margin: 0, color: "var(--danger)", fontSize: 12, lineHeight: 1.45 }),
 	empty: style({ margin: "auto", padding: 24, color: "var(--muted)", fontSize: 12, textAlign: "center" }),
 	readerToolbar: style({ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, flexShrink: 0 }),
 	pageLabel: style({ minWidth: 68, color: "var(--muted)", fontSize: 12, fontVariantNumeric: "tabular-nums", textAlign: "center" }),
-	readerSurface: style({ position: "relative", display: "block", flex: 1, minHeight: 0, minWidth: 0, overflow: "auto", borderRadius: 8, background: "transparent" }),
+	readerScrollRoot: style({ position: "relative", display: "block", flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", borderRadius: 8, background: "transparent", vars: { "--omega-scrollbar-right": "0px", "--omega-scrollbar-bottom": "0px" } }),
+	readerSurface: style({ position: "relative", display: "block", width: "100%", height: "100%", overflow: "auto", overscrollBehavior: "contain" }),
 	pageFrame: style({ position: "relative", display: "grid", width: "fit-content", height: "fit-content", margin: "14px auto", placeItems: "center", border: "1px solid #d6d6d6", background: "#fff", boxShadow: "0 8px 28px rgb(0 0 0 / 20%)" }),
 	canvas: style({ display: "block" }),
 	highlightLayer: style({ position: "absolute", inset: 0, zIndex: 1, pointerEvents: "none" }),

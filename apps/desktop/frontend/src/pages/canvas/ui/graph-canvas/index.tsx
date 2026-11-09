@@ -78,7 +78,10 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 										translate: `${point().x}px ${point().y}px`,
 										cursor: props.mode === "view" ? "pointer" : graph.isLocked(note.id) ? "default" : "grab",
 									}}
-									onPointerDown={(event) => graph.beginNodeDrag(event, note)}
+									onPointerDown={(event) => {
+										if (event.button === 0 && !graph.shouldIgnoreClick(event)) props.onPreloadNote(note.id);
+										graph.beginNodeDrag(event, note);
+									}}
 									onContextMenu={(event) => graph.openContextMenu(event, note)}
 									onClick={(event) => {
 										if (graph.shouldIgnoreClick(event)) return;

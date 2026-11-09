@@ -44,7 +44,11 @@ const DynamicGraph: Component<GraphCanvasProps> = (props) => {
 					<Button type="button" aria-label={displayNoteTitle(note)} sound={false}
 						class={styles.hitTarget}
 						style={{ width: `${hitDiameter()}px`, height: `${hitDiameter()}px`, left: `${-hitDiameter() / 2}px`, top: `${-hitDiameter() / 2}px` }}
-					onPointerDown={(event) => graph.begin(event, hitsNodeCircle(event) ? note.id : undefined)}
+						onPointerDown={(event) => {
+							const hit = hitsNodeCircle(event);
+							if (event.button === 0 && hit && !graph.shouldIgnoreClick()) props.onPreloadNote(note.id);
+							graph.begin(event, hit ? note.id : undefined);
+						}}
 					onContextMenu={(event) => { if (hitsNodeCircle(event)) graph.openMenu(event, note.id); else event.preventDefault(); }}
 					onPointerEnter={(event) => { if (hitsNodeCircle(event)) graph.setHoveredId(note.id); }}
 					onPointerMove={(event) => {
