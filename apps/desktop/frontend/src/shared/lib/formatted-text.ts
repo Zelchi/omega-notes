@@ -5,7 +5,13 @@ export type TextRun = { text: string; bold?: boolean; italic?: boolean; strike?:
 export type FormattedTable = { headers: TextRun[][]; rows: TextRun[][][]; alignments: ("left" | "center" | "right")[] };
 export type FormattedBlock = { level: number; runs: TextRun[]; text: string; sourceLine: number; sourceLines: number; language?: string; quote?: number; bullet?: { indent: string }; ordered?: { number: string; indent: string }; task?: { checked: boolean; indent: string; prefixLength: number } } &
 	({ kind: "paragraph" | "heading" | "separator" | "code" } | { kind: "table"; table: FormattedTable });
-export type FormattedFragment = { block: FormattedBlock; start: number; end: number };
+export type FormattedFragment = {
+	block: FormattedBlock;
+	start: number;
+	end: number;
+	markerSide?: "left" | "right";
+	markerOffset?: number;
+};
 export type FormattedBlockGroup =
 	| { type: "block"; block: FormattedBlock }
 	| { type: "list"; ordered: boolean; indent: string; start?: number; blocks: FormattedBlock[] };

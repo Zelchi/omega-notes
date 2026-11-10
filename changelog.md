@@ -1,5 +1,16 @@
 # Histórico de atualizações
 
+## v0.7.1
+
+### Editor
+
+- O menu de contexto das notas permite colar, colar sem formatação, localizar o trecho selecionado e pesquisar no Google.
+- A colagem de conteúdo HTML preserva formatação compatível, e o texto é normalizado entre plataformas.
+
+### Listas
+
+- Ajustados o posicionamento dos marcadores em listas alinhadas e a quebra do texto ao redor de imagens.
+
 ## v0.7.0
 
 ### Editor

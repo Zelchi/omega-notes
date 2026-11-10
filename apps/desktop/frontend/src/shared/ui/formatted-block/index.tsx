@@ -25,6 +25,7 @@ const FormattedBlockView: Component<{
     block: FormattedBlock; renderRuns: (runs: TextRun[]) => JSX.Element;
     t: (key: TranslationKey) => string;
     fragment?: boolean; start?: number; end?: number;
+    markerSide?: "left" | "right"; markerOffset?: number;
     onToggleTask?: (sourceLine: number, checked: boolean) => void;
 }> = (props) => {
     const content = () => {
@@ -45,7 +46,12 @@ const FormattedBlockView: Component<{
         if (props.block.ordered || props.block.bullet) {
             const marker = props.block.ordered;
             const indent = marker?.indent ?? props.block.bullet!.indent;
-            if (props.fragment) return <>{(props.start ?? 0) === 0 ? <span class={styles.marker} aria-hidden="true">{indent}{marker ? `${marker.number}. ` : "• "}</span> : undefined}{content()}</>;
+            if (props.fragment) return <>{(props.start ?? 0) === 0 ? <span
+                class={props.markerSide === "right" ? styles.markerRight : styles.marker}
+                style={{ transform: props.markerOffset ? `translateX(${props.markerOffset}px)` : undefined }}
+                aria-hidden="true">{props.markerSide === "right"
+                    ? `${indent} ${marker ? `${marker.number}.` : "•"}`
+                    : `${indent}${marker ? `${marker.number}. ` : "• "}`}</span> : undefined}{content()}</>;
             return <Dynamic component={marker ? "ol" : "ul"} class={styles.list} start={marker ? Number(marker.number) : undefined}
                 style={{ "margin-left": `${indent.length * 0.5}em` }}><li>{content()}</li></Dynamic>;
         }

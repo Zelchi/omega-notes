@@ -4,6 +4,54 @@ import test from 'node:test';
 
 const source = async path => (await readFile(new URL(path, import.meta.url), 'utf8')).replaceAll('\r\n', '\n');
 
+test('note text context menu supports clipboard actions and grants Electron clipboard reads only to the trusted main frame', async () => {
+	const [node, controller, editor, electron, ptBr, en] = await Promise.all([
+		source('../src/pages/notes/ui/note-text-node/index.tsx'),
+		source('../src/pages/notes/ui/note-text-node/controller.ts'),
+		source('../src/pages/notes/ui/note-canvas-editor/index.tsx'),
+		source('../../bridge/electron/main.mjs'),
+		source('../lang/pt-br.json').then(JSON.parse),
+		source('../lang/en.json').then(JSON.parse),
+	]);
+	assert.match(node, /onContextMenu=\{openContextMenu\}/);
+	const contextHandler = node.slice(node.indexOf('const openContextMenu'), node.indexOf('const pasteFromClipboard'));
+	assert.doesNotMatch(contextHandler, /data-text-fragment/);
+	assert.match(contextHandler, /getClientRects/);
+	assert.match(node, /navigator\.clipboard/);
+	assert.match(node, /noteContextPastePlainText/);
+	assert.match(node, /<Icon name="paste" size=\{15\} \/>/);
+	assert.match(node, /<Icon name="pastePlain" size=\{15\} \/>/);
+	assert.match(node, /<Icon name="search" size=\{15\} \/>/);
+	assert.match(node, /selectedText \? 146 : 112/);
+	assert.match(node, /when=\{menu\(\)\.selectedText\}/);
+	assert.match(node, /https:\/\/www\.google\.com\/search\?q=\$\{encodeURIComponent\(selectedText\(\)\)\}/);
+	assert.match(node, /props\.onOpenFind\(selectedText\)/);
+	assert.match(node, /if \(htmlItem && htmlType\)/);
+	assert.match(node, /htmlClipboardToNoteText\(await \(await htmlItem\.getType\(htmlType\)\)\.text\(\)\)/);
+	assert.match(editor, /onOpenFind=\{find\.show\}/);
+	assert.match(controller, /const pasteTextFromMenu/);
+	assert.match(controller, /getData\("text\/html"\)/);
+	assert.match(controller, /htmlClipboardToNoteText\(htmlText\)/);
+	assert.match(controller, /event\.shiftKey && !event\.altKey && event\.key\.toLowerCase\(\) === "v"/);
+	assert.match(controller, /const pasteAsPlainText = plainTextPasteRequested/);
+	assert.match(controller, /const url = pasteAsPlainText \? undefined : pastedUrl\(text\)/);
+	assert.match(controller, /rememberCurrentSelection/);
+	const pointerHandler = controller.slice(controller.indexOf('const handlePointerDown'), controller.indexOf('const moveFromEmptyLine'));
+	assert.match(pointerHandler, /placeCaretAtPoint\(event\.clientX, event\.clientY\);/);
+	assert.doesNotMatch(pointerHandler, /placeCaretAtPoint\(event\.clientX, event\.clientY\)\) event\.preventDefault\(\)/);
+	const findController = await source('../src/features/find-in-note/model/controller.ts');
+	assert.match(findController, /const show = \(initialQuery\?: string\)/);
+	assert.match(findController, /if \(initialQuery !== undefined\) setQuery\(initialQuery\)/);
+	assert.equal(ptBr.noteContextPaste, 'Colar');
+	assert.equal(ptBr.noteContextPastePlainText, 'Colar sem formatação');
+	assert.equal(ptBr.noteContextSearchGoogle, 'Pesquisar no Google');
+	assert.equal(en.noteContextPaste, 'Paste');
+	assert.equal(en.noteContextPastePlainText, 'Paste without formatting');
+	assert.equal(en.noteContextSearchGoogle, 'Search Google');
+	assert.equal((electron.match(/permission === 'clipboard-read'/g) ?? []).length, 2);
+	assert.match(electron, /permission === 'clipboard-read' && isTrustedMainAppFrame\(contents, details\.requestingUrl, details\.isMainFrame\)/);
+});
+
 test('Pomodoro and Kanban entry points and panels remain available in production', async () => {
 	const titlebar = await source('../src/app/ui/window-titlebar/index.tsx');
 	const app = await source('../src/app/index.tsx');

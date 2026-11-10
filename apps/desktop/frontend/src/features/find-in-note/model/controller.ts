@@ -62,6 +62,11 @@ export const useFindInNote = (noteId: Accessor<string>) => {
     let lastNote: string | undefined;
     let disposed = false;
     const close = () => { setOpen(false); setMarkers([]); ranges = []; setCount(0); };
+    const show = (initialQuery?: string) => {
+        if (initialQuery !== undefined) setQuery(initialQuery);
+        if (!open()) setOpen(true);
+        setFocusRequest((value) => value + 1);
+    };
     const scrollToActive = () => {
         const range = ranges[active()];
         const viewport = root?.closest<HTMLElement>("[data-omega-scroll-viewport]");
@@ -142,7 +147,7 @@ export const useFindInNote = (noteId: Accessor<string>) => {
                 event.preventDefault(); event.stopImmediatePropagation();
                 if (event.repeat) return;
                 if (open()) close();
-                else { setOpen(true); setFocusRequest((value) => value + 1); }
+                else show();
                 return;
             }
             if (event.key === "Escape" && open() && visible()) {
@@ -154,6 +159,6 @@ export const useFindInNote = (noteId: Accessor<string>) => {
         onCleanup(() => { window.removeEventListener("keydown", keyDown, true); window.removeEventListener("resize", schedule); });
     });
     onCleanup(() => { disposed = true; clearTimeout(timer); cancelAnimationFrame(frame); observer?.disconnect(); resize?.disconnect(); ranges = []; });
-    return { open, query, setQuery, count, capped, active, markers, focusRequest, close, move, setVisible, setRoot: (element: HTMLElement) => { root = element; } };
+    return { open, query, setQuery, count, capped, active, markers, focusRequest, show, close, move, setVisible, setRoot: (element: HTMLElement) => { root = element; } };
 };
 export type FindInNote = ReturnType<typeof useFindInNote>;
