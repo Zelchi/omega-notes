@@ -67,6 +67,7 @@ export const renderNoteText = (text: string, options: RenderTextOptions, format?
 	const renderBlock = (block: FormattedBlock) => <FormattedBlockView block={block}
 		renderRuns={(runs) => renderRuns(runs, options)} t={options.t} onToggleTask={options.onToggleTask} />;
 	if (format) return <FormattedBlockView block={format.block} fragment start={format.start} end={format.end}
+		markerSide={format.markerSide} markerOffset={format.markerOffset}
 		renderRuns={(runs) => renderRuns(runs, options)} t={options.t} onToggleTask={options.onToggleTask} />;
 	return <For each={groupFormattedBlocks(parseFormattedText(text))}>{(group) => group.type === "list"
 		? <FormattedListView blocks={group.blocks} ordered={group.ordered} indent={group.indent} start={group.start}

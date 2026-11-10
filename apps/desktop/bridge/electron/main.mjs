@@ -91,6 +91,10 @@ function isTrustedMainFrame(contents, requestingUrl, isMainFrame) {
         return current.origin === expected.origin && current.pathname === expected.pathname;
     } catch { return false; }
 }
+function isTrustedMainAppFrame(contents, requestingUrl, isMainFrame) {
+    if (!window || contents !== window.webContents || !isMainFrame) return false;
+    return isTrustedMainFrame(contents, requestingUrl || contents.getURL(), isMainFrame);
+}
 async function invoke(command, args) {
     switch (command) {
         case 'storage_import_snapshot': return settingsImport;
@@ -198,12 +202,14 @@ else {
         window.webContents.session.setPermissionRequestHandler((contents, permission, callback, details) => callback(
             contents === window.webContents && (
                 permission === 'clipboard-sanitized-write' ||
+                permission === 'clipboard-read' && isTrustedMainAppFrame(contents, details.requestingUrl, details.isMainFrame) ||
                 permission === 'fullscreen' && isTrustedMainFrame(contents, details.requestingUrl, details.isMainFrame)
             )
         ));
         window.webContents.session.setPermissionCheckHandler((contents, permission, _origin, details) =>
             contents === window.webContents && (
                 permission === 'clipboard-sanitized-write' ||
+                permission === 'clipboard-read' && isTrustedMainAppFrame(contents, details.requestingUrl, details.isMainFrame) ||
                 permission === 'fullscreen' && isTrustedMainFrame(contents, details.requestingUrl, details.isMainFrame)
             )
         );

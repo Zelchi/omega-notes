@@ -62,36 +62,52 @@ export const layoutFormattedText = (options: Options): TextFlowLayout => {
 		}
 		const scale = headingScales[block.level] ?? 1;
 		const lineHeight = options.lineHeight * scale;
+		const alignment = options.paragraphAlignments?.[block.sourceLine] ?? options.alignment ?? "left";
+		const hasListMarker = Boolean(block.ordered || block.bullet);
 		const inset = block.quote ? block.quote * 12 + 3 : block.ordered
 			? options.measureRun({ text: `${block.ordered.indent}${block.ordered.number}. ` }, 1, false)
 			: block.bullet ? options.measureRun({ text: `${block.bullet.indent}• ` }, 1, false) : 0;
+		const markerSide: "left" | "right" = hasListMarker && alignment === "right" ? "right" : "left";
+		const insetAtStart = markerSide === "right" && hasListMarker ? 0 : inset;
+		const insetAtEnd = markerSide === "right" && hasListMarker ? inset : 0;
 		const layout = layoutTextFlow({
 			text: block.text,
-			textX: options.x + inset,
+			textX: options.x + insetAtStart,
 			textY: options.y + top,
-			width: Math.max(1, options.width - inset),
+			width: Math.max(1, options.width - insetAtStart),
 			lineHeight,
 			elements: options.elements,
 			imageMargin: options.imageMargin,
+			rightInset: insetAtEnd,
 			displayText: (value) => value,
 			measureText: (value, start = 0) => options.rawText && options.measureRawText ? options.measureRawText(value, start) : sliceTextRuns(block.runs, start, start + value.length).reduce(
 				(total, run) => total + options.measureRun({ ...run, text: options.displayText(run.text) }, scale, block.kind === "heading"), 0,
 			),
 		});
-		fragments.push(...layout.fragments.map((fragment, index) => ({
-			...fragment,
-			left: fragment.left + (block.ordered || block.bullet ? inset : 0),
-			width: fragment.width + (block.quote ? inset : 0),
-			start: options.rawText ? start + fragment.start : fragment.start,
-			end: options.rawText ? start + fragment.end + Number(hasNewline && index === layout.fragments.length - 1) : fragment.end,
-			text: fragment.text + (options.rawText && hasNewline && index === layout.fragments.length - 1 ? "\n" : ""),
-			alignment: options.paragraphAlignments?.[block.sourceLine] ?? options.alignment ?? "left",
-			paragraphEnd: fragment.end >= block.text.length,
-			top: fragment.top + top,
-			fontScale: scale,
-			lineHeight,
-			format: { block, start: fragment.start, end: fragment.end },
-		})));
+		fragments.push(...layout.fragments.map((fragment, index) => {
+			const markerOffset = hasListMarker && alignment === "center"
+				? Math.max(0, (fragment.width - sliceTextRuns(block.runs, fragment.start, fragment.end).reduce(
+					(total, run) => total + options.measureRun({ ...run, text: options.displayText(run.text) }, scale, block.kind === "heading"), 0,
+				)) / 2)
+				: undefined;
+			return {
+				...fragment,
+				left: fragment.left + insetAtStart,
+				width: fragment.width + (block.quote ? inset : 0),
+				start: options.rawText ? start + fragment.start : fragment.start,
+				end: options.rawText ? start + fragment.end + Number(hasNewline && index === layout.fragments.length - 1) : fragment.end,
+				text: fragment.text + (options.rawText && hasNewline && index === layout.fragments.length - 1 ? "\n" : ""),
+				alignment,
+				paragraphEnd: fragment.end >= block.text.length,
+				top: fragment.top + top,
+				fontScale: scale,
+				lineHeight,
+				format: {
+					block, start: fragment.start, end: fragment.end,
+					...(hasListMarker ? { markerSide, markerOffset } : {}),
+				},
+			};
+		}));
 		top += layout.height;
 		lineCount += layout.lineCount;
 	}

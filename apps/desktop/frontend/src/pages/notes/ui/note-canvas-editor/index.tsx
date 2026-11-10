@@ -160,6 +160,7 @@ const NoteCanvasEditor: Component<NoteCanvasEditorProps> = (props) => {
 									renderText={renderText}
 									onChange={editor.updateText}
 									onPasteImages={editor.pasteImages}
+									onOpenFind={find.show}
 									onFormattingReady={editor.setTextFormatHandler}
 									onAlignmentReady={editor.setTextAlignmentHandler}
 									onSelectionAlignmentChange={editor.setTextAlignment}

@@ -36,6 +36,7 @@ type Options = {
 	measureText: (text: string, start?: number) => number;
 	displayText: (text: string) => string;
 	imageMargin: number;
+	rightInset?: number;
 };
 
 const readToken = (text: string, start: number): TextToken => {
@@ -83,6 +84,11 @@ const splitByOccupiedIntervals = (width: number, occupied: Interval[]): Interval
 	}
 	if (cursor < width) available.push({ left: cursor, right: width });
 	return available;
+};
+
+const reserveRightInset = (intervals: Interval[], inset: number): Interval[] => {
+	if (inset <= 0) return intervals;
+	return intervals.flatMap(({ left, right }) => right - left > inset ? [{ left, right: right - inset }] : []);
 };
 
 const imageWrapMode = (
@@ -148,6 +154,7 @@ const takePrefix = (token: string, maxWidth: number, options: Options, start: nu
 
 export const layoutTextFlow = (options: Options): TextFlowLayout => {
 	const { text, width, lineHeight } = options;
+	const rightInset = Math.min(options.rightInset ?? 0, Math.max(0, width - 1));
 	const fragments: TextFlowFragment[] = [];
 	let cursor = 0;
 	let lineIndex = 0;
@@ -157,7 +164,9 @@ export const layoutTextFlow = (options: Options): TextFlowLayout => {
 	while (cursor < text.length || trailingEmptyLine || finalEmptyLinePending) {
 		const lineTop = lineIndex * lineHeight;
 		if (trailingEmptyLine || (finalEmptyLinePending && cursor === text.length)) {
-			const available = splitByOccupiedIntervals(width, occupiedIntervalsAt(options, lineTop));
+			const available = reserveRightInset(
+				splitByOccupiedIntervals(width, occupiedIntervalsAt(options, lineTop)), rightInset,
+			);
 			if (!available.length) {
 				lineIndex = nextLineAfterOccupiedTextArea(options, lineIndex);
 				continue;
@@ -172,7 +181,9 @@ export const layoutTextFlow = (options: Options): TextFlowLayout => {
 
 		const occupiedIntervals = occupiedIntervalsAt(options, lineTop);
 		const hasActiveElements = occupiedIntervals.length > 0;
-		const intervals = splitByOccupiedIntervals(width, occupiedIntervals);
+		const intervals = reserveRightInset(
+			splitByOccupiedIntervals(width, occupiedIntervals), rightInset,
+		);
 		const lineStart = cursor;
 		if (!intervals.length && text[cursor] !== "\n") {
 			lineIndex = nextLineAfterOccupiedTextArea(options, lineIndex);

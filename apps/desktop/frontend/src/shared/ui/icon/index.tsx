@@ -21,6 +21,8 @@ export type IconName =
 	| "skipNext"
 	| "chat"
 	| "copy"
+	| "paste"
+	| "pastePlain"
 	| "send"
 	| "stop"
 	| "disconnect"
@@ -106,6 +108,8 @@ const paths: Record<IconName, Component> = {
 	skipNext: () => <><path d="M5 4v16l11-8-11-8Z" /><path d="M19 5v14" /></>,
 	chat: () => <path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2ZM7 9h10M7 13h7" />,
 	copy: () => <><rect x="8" y="8" width="13" height="13" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></>,
+	paste: () => <><path d="M9 4H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3" /><rect x="9" y="2.5" width="6" height="4" rx="1.5" /><path d="M8 11h8M8 15h8M8 18h5" /></>,
+	pastePlain: () => <><path d="M9 4H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3" /><rect x="9" y="2.5" width="6" height="4" rx="1.5" /><path d="M12 10v8m-3-8h6" /></>,
 	send: () => <path d="m3 3 19 9-19 9 4-9-4-9Zm4 9h15" />,
 	stop: () => <rect x="6" y="6" width="12" height="12" rx="1" />,
 	disconnect: () => <path d="m3 3 18 18M9 8l-3 3a4 4 0 0 0 5 6l2-2M11 7l2-2a4 4 0 0 1 6 5l-3 3" />,

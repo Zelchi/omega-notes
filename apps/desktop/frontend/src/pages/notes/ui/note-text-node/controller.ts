@@ -11,6 +11,8 @@ import { noteLinkAtCaret, useNoteLinkSuggestions } from "@/features/suggest-note
 import { layoutTextFlow, type TextFlowLayout } from "../../lib/text-flow-layout";
 import { layoutFormattedText } from "../../lib/formatted-text-layout";
 import { EMPTY_CHARACTER, syncEditableTextDom } from "../../lib/editable-text-dom";
+import { normalizeClipboardText } from "@/shared/lib/normalize-clipboard-text";
+import { htmlClipboardToNoteText } from "@/shared/lib/html-clipboard-to-note-text";
 import { styles } from "./style.css.ts";
 import { createTextHistory, invalidateHistoryForExternalText, type TextHistoryState } from "@/features/undo-note-edit";
 import { createAsyncTextReplacement } from "@/shared/lib/async-text-replacement";
@@ -47,6 +49,7 @@ export type NoteTextNodeProps = {
 	onSelectionAlignmentChange?: (alignment: NoteTextAlignment | undefined) => void;
 	onChange: (element: NoteTextElement) => void;
 	onPasteImages?: (files: File[]) => void;
+	onOpenFind: (query?: string) => void;
 };
 
 const displayText = (text: string): string => {
@@ -170,6 +173,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 	let measureContext: CanvasRenderingContext2D | null | undefined;
 	const measureCache = new Map<string, number>();
 	let composing = false;
+	let plainTextPasteRequested = false;
 	let lastOpeningBracket: { time: number; offset: number; selectedText?: string; expectedText?: string; paragraphAlignments?: NoteTextAlignment[] } | undefined;
 	let pendingBracketDeletion: { key: string; offset: number; start: number; close: number; text: string } | undefined;
 	let rememberedSelection: TextSelection | undefined;
@@ -1005,8 +1009,13 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		root.focus({ preventScroll: true });
 		selection.removeAllRanges();
 		selection.collapse(position.node, position.offset);
+		const offset = getOffsetBeforeNode(root, position.node, position.offset);
+		rememberedSelection = { start: offset, end: offset };
 		scheduleCaretMeasure();
 		return true;
+	};
+	const rememberCurrentSelection = (): void => {
+		rememberedSelection = selectionOffsets();
 	};
 
 	const handleFocus = (): void => {
@@ -1021,7 +1030,10 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		}
 		scheduleCaretMeasure();
 	};
-	const handleKeyUp = (): void => scheduleCaretMeasure();
+	const handleKeyUp = (event: KeyboardEvent): void => {
+		if (event.key.toLowerCase() === "v") plainTextPasteRequested = false;
+		scheduleCaretMeasure();
+	};
 	const handlePointerUp = (): void => scheduleCaretMeasure();
 	const handleBlur = (): void => {
 		lastOpeningBracket = undefined;
@@ -1070,7 +1082,7 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 			return;
 		}
 
-		if (placeCaretAtPoint(event.clientX, event.clientY)) event.preventDefault();
+		placeCaretAtPoint(event.clientX, event.clientY);
 	};
 
 	const moveFromEmptyLine = (event: KeyboardEvent): boolean => {
@@ -1105,6 +1117,11 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		if (event.key !== "[" && !["Shift", "Alt", "AltGraph", "Control"].includes(event.key)) lastOpeningBracket = undefined;
 		if (!["Backspace", "Delete"].includes(event.key)) pendingBracketDeletion = undefined;
 		if (composing || event.isComposing) { lastOpeningBracket = undefined; pendingBracketDeletion = undefined; return; }
+		if (props.editable && !props.locked && (event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey && event.key.toLowerCase() === "v") {
+			plainTextPasteRequested = true;
+			event.stopPropagation();
+			return;
+		}
 		if (props.editable && !props.locked && (event.ctrlKey || event.metaKey) && !event.altKey && ["z", "y"].includes(event.key.toLowerCase())) {
 			event.preventDefault();
 			event.stopPropagation();
@@ -1230,25 +1247,57 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 
 	const handlePaste = (event: ClipboardEvent): void => {
 		if (!props.editable || props.locked) return;
+		const pasteAsPlainText = plainTextPasteRequested;
+		plainTextPasteRequested = false;
 		lastOpeningBracket = undefined;
 		pendingBracketDeletion = undefined;
 		event.preventDefault();
-		const images = [...(event.clipboardData?.files ?? [])].filter((file) => file.type.startsWith("image/"));
+		const images = pasteAsPlainText ? [] : [...(event.clipboardData?.files ?? [])].filter((file) => file.type.startsWith("image/"));
 		if (images.length && props.onPasteImages) {
 			flushInput(false);
 			props.onPasteImages(images);
 			return;
 		}
-		const text = event.clipboardData?.getData("text/plain");
-		if (text === undefined) return;
+		const clipboardData = event.clipboardData;
+		const htmlText = pasteAsPlainText ? "" : clipboardData?.getData("text/html");
+		const clipboardText = htmlText ? htmlClipboardToNoteText(htmlText) || clipboardData?.getData("text/plain") : clipboardData?.getData("text/plain");
+		if (clipboardText === undefined) return;
+		const text = normalizeClipboardText(clipboardText);
 		const range = selectionOffsets();
-		const url = pastedUrl(text);
+		const url = pasteAsPlainText ? undefined : pastedUrl(text);
 		if (url && canResolvePastedUrl(draft(), range) && !touchesProtectedTable(range, url)) {
 			const kind = urlPastes.kind();
 			pendingHistoryKind = kind;
 			replaceSelection(url, range);
 			urlPastes.resolve(url, { start: range.start, end: range.start + url.length }, resolvePastedLink(url), kind);
 		} else replaceSelection(text);
+	};
+
+	const pasteTextFromMenu = (text: string, plainText: boolean): void => {
+		if (!props.editable || props.locked || !text) return;
+		text = normalizeClipboardText(text);
+		if (!text) return;
+		const root = contentRoot();
+		if (!root?.isContentEditable) return;
+		lastOpeningBracket = undefined;
+		pendingBracketDeletion = undefined;
+		const selection = getSelection();
+		const range = selection?.anchorNode && root.contains(selection.anchorNode)
+			? selectionOffsets()
+			: rememberedSelection ?? { start: draft().length, end: draft().length };
+		const anchor = findTextPosition(root, range.start) ?? (!draft() ? ensureEmptyTextPosition(root) : undefined);
+		const focus = findTextPosition(root, range.end) ?? anchor;
+		if (!anchor || !focus || !selection) return;
+		root.focus({ preventScroll: true });
+		selection.setBaseAndExtent(anchor.node, anchor.offset, focus.node, focus.offset);
+		rememberedSelection = range;
+		const url = plainText ? undefined : pastedUrl(text);
+		if (url && canResolvePastedUrl(draft(), range) && !touchesProtectedTable(range, url)) {
+			const kind = urlPastes.kind();
+			pendingHistoryKind = kind;
+			replaceSelection(url, range);
+			urlPastes.resolve(url, { start: range.start, end: range.start + url.length }, resolvePastedLink(url), kind);
+		} else replaceSelection(text, range);
 	};
 
 	const handleCompositionEnd = (): void => {
@@ -1415,6 +1464,9 @@ export const useNoteTextNodeController = (props: NoteTextNodeProps) => {
 		handleKeyUp,
 		handleBlur,
 		handlePaste,
+		placeCaretAtPoint,
+		rememberCurrentSelection,
+		pasteText: pasteTextFromMenu,
 		handleCut: (event: ClipboardEvent) => {
 			if (!props.editable || !event.clipboardData) return;
 			const range = selectionOffsets();
