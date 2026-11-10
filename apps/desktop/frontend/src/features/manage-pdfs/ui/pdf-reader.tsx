@@ -3,6 +3,7 @@ import { GlobalWorkerOptions, getDocument, TextLayer, type PDFDocumentProxy, typ
 import workerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { displayNoteTitle, NOTE_TITLE_MAX_LENGTH, type NoteSummary } from "@/entities/note";
 import { NoteLinkSuggestions, useNoteLinkSuggestions } from "@/features/suggest-note-link";
+import Button from "@/shared/ui/button";
 import Icon from "@/shared/ui/icon";
 import { openUrl } from "@/shared/lib/desktop";
 import { CustomScrollbars, useCustomScrollArea } from "@/shared/ui/custom-scroll-area";
@@ -464,18 +465,18 @@ const PdfReader: Component<Props> = props => {
 	return (
 		<>
 			<div class={styles.header}>
-				<button class={styles.iconButton} type="button" onClick={props.onBack}><Icon name="back" size={16} /></button>
+				<Button class={styles.iconButton} type="button" onClick={props.onBack}><Icon name="back" size={16} /></Button>
 				<h2 class={styles.headerTitle}>{props.document.title}</h2>
-				<button class={styles.iconButton} type="button" onClick={props.onClose}><Icon name="close" size={16} /></button>
+				<Button class={styles.iconButton} type="button" onClick={props.onClose}><Icon name="close" size={16} /></Button>
 			</div>
 			<div class={styles.readerToolbar}>
-				<button class={styles.iconButton} type="button" disabled={pageNumber() <= 1 || busy()} onClick={() => movePage(-1)}><Icon name="back" size={15} /></button>
+				<Button class={styles.iconButton} type="button" disabled={pageNumber() <= 1 || busy()} onClick={() => movePage(-1)}><Icon name="back" size={15} /></Button>
 				<span class={styles.pageLabel}>{pageCount() ? `${pageNumber()} / ${pageCount()}` : "—"}</span>
-				<button class={styles.iconButton} type="button" disabled={!pageCount() || pageNumber() >= pageCount() || busy()} onClick={() => movePage(1)}><Icon name="chevronRight" size={15} /></button>
+				<Button class={styles.iconButton} type="button" disabled={!pageCount() || pageNumber() >= pageCount() || busy()} onClick={() => movePage(1)}><Icon name="chevronRight" size={15} /></Button>
 				<span style={{ width: "8px" }} />
-				<button class={styles.iconButton} type="button" disabled={zoom() <= 0.5} onClick={() => changeZoom(-0.1)}><Icon name="zoomOut" size={15} /></button>
+				<Button class={styles.iconButton} type="button" disabled={zoom() <= 0.5} onClick={() => changeZoom(-0.1)}><Icon name="zoomOut" size={15} /></Button>
 				<span class={styles.pageLabel}>{Math.round(zoom() * 100)}%</span>
-				<button class={styles.iconButton} type="button" disabled={zoom() >= 2} onClick={() => changeZoom(0.1)}><Icon name="zoomIn" size={15} /></button>
+				<Button class={styles.iconButton} type="button" disabled={zoom() >= 2} onClick={() => changeZoom(0.1)}><Icon name="zoomIn" size={15} /></Button>
 			</div>
 			<Show when={highlightError()}>{key => <p class={styles.highlightError}>{props.t(key())}</p>}</Show>
 			<div class={styles.readerScrollRoot} ref={scroll.setRoot}
@@ -513,7 +514,7 @@ const PdfReader: Component<Props> = props => {
 									<span>{props.t("pdfHighlightColor")}</span>
 									<div class={styles.highlightColorOptions}>
 										<For each={pdfHighlightColors}>{color =>
-											<button
+											<Button
 												class={styles.highlightColorButton}
 												type="button"
 												style={{ background: highlightColors[color].swatch, outline: editColor() === color ? "2px solid var(--ink)" : undefined, "outline-offset": "2px" }}
@@ -521,7 +522,7 @@ const PdfReader: Component<Props> = props => {
 												onClick={() => setEditColor(color)}
 											>
 												<Show when={editColor() === color}><Icon name="check" size={13} /></Show>
-											</button>
+											</Button>
 										}</For>
 									</div>
 								</div>
@@ -550,19 +551,19 @@ const PdfReader: Component<Props> = props => {
 									/>
 								</div>
 								<div class={styles.editHighlightActions}>
-									<button class={styles.contextMenuButton} type="button" disabled={highlightSaving()} onClick={() => setTextMenu(current => current ? { ...current, mode: "actions" } : current)}>
+									<Button class={styles.contextMenuButton} type="button" disabled={highlightSaving()} onClick={() => setTextMenu(current => current ? { ...current, mode: "actions" } : current)}>
 										{props.t("cancel")}
-									</button>
-									<button class={styles.contextMenuButton} type="button" disabled={highlightSaving()} onClick={() => { const id = menu().highlightId; if (id) void saveHighlightEdit(id); }}>
+									</Button>
+									<Button class={styles.contextMenuButton} type="button" disabled={highlightSaving()} onClick={() => { const id = menu().highlightId; if (id) void saveHighlightEdit(id); }}>
 										<Icon name="check" size={15} />{props.t("save")}
-									</button>
+									</Button>
 								</div>
 							</>
 						}>
-							<button class={styles.contextMenuButton} type="button" onClick={() => copyMenuText(menu())}>
+							<Button class={styles.contextMenuButton} type="button" onClick={() => copyMenuText(menu())}>
 								<Icon name="copy" size={15} />{props.t("aiSelectionCopy")}
-							</button>
-							<button
+							</Button>
+							<Button
 								class={styles.contextMenuButton}
 								type="button"
 								disabled={highlightSaving() || (!menu().selection && !menu().highlightId)}
@@ -570,15 +571,15 @@ const PdfReader: Component<Props> = props => {
 							>
 								<Icon name="highlight" size={15} />
 								{props.t(menu().highlightId ? "pdfRemoveHighlight" : "pdfHighlightSelection")}
-							</button>
+							</Button>
 							<Show when={menu().highlightId}>
-								<button class={styles.contextMenuButton} type="button" onClick={() => beginEditHighlight(menu().highlightId!)}>
+								<Button class={styles.contextMenuButton} type="button" onClick={() => beginEditHighlight(menu().highlightId!)}>
 									<Icon name="edit" size={15} />{props.t("pdfEditHighlight")}
-								</button>
+								</Button>
 							</Show>
-							<button class={styles.contextMenuButton} type="button" onClick={() => searchMenuText(menu())}>
+							<Button class={styles.contextMenuButton} type="button" onClick={() => searchMenuText(menu())}>
 								<Icon name="search" size={15} />{props.t("pdfSearch")}
-							</button>
+							</Button>
 						</Show>
 					</div>
 				}</Show>

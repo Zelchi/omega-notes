@@ -2,7 +2,7 @@ import Button from "@/shared/ui/button";
 import Input from "@/shared/ui/input";
 import Tooltip from "@/shared/ui/tooltip";
 import Icon from "@/shared/ui/icon";
-import DeleteNoteDialog from "@/features/delete-note/ui/delete-note-dialog";
+import DeleteConfirmationDialog from "@/shared/ui/delete-confirmation-dialog";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { For, Show, type Component } from "solid-js";
@@ -166,7 +166,7 @@ const MediaCatalogDialog: Component<MediaCatalogViewProps> = (props) => {
 				<Tooltip root={() => mediaGrid} enabled={!props.exiting} />
 			</section>
 		</div>
-		<DeleteNoteDialog
+		<DeleteConfirmationDialog
 			open={Boolean(props.catalog.confirmationMedia())}
 			pending={props.catalog.deletingMedia()}
 			error={props.catalog.deleteError()}

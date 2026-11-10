@@ -1,8 +1,6 @@
 import { createMemo, createUniqueId, onCleanup, onMount, Show, type Component } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
 import type { TranslationKey } from "@/shared/lib/i18n";
-import type { NoteSummary } from "@/entities/note";
-import { displayNoteTitle } from "@/entities/note";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import Button from "@/shared/ui/button";
@@ -12,11 +10,10 @@ import { styles } from "./style.css.ts";
 
 type Props = {
 	open: boolean;
-	note?: NoteSummary;
 	name?: string;
-	title?: string;
-	message?: string;
-	errorMessage?: string;
+	title: string;
+	message: string;
+	errorMessage: string;
 	pending: boolean;
 	error: boolean;
 	t: (key: TranslationKey) => string;
@@ -24,9 +21,10 @@ type Props = {
 	onCancel: () => void;
 	onConfirm: () => Promise<void>;
 };
-const DeleteNoteDialog: Component<Props> = (props) => {
+const DeleteConfirmationDialog: Component<Props> = (props) => {
 	const presence = createPresence(() => props.open, 210);
-	const name = createMemo<string | undefined>(previous => props.name ?? (props.note ? displayNoteTitle(props.note) : previous));
+	const name = createMemo<string | undefined>(previous => props.name ?? previous);
+	const message = createMemo<string>(previous => props.open ? props.message : previous ?? props.message);
 	const headingId = createUniqueId(), messageId = createUniqueId();
 	const backdrop = createBackdropDismiss(() => props.onClose());
 	onMount(() => {
@@ -43,12 +41,12 @@ const DeleteNoteDialog: Component<Props> = (props) => {
 			<section class={styles.dialog} role="alertdialog" aria-modal="true" aria-labelledby={headingId} aria-describedby={messageId}
 				ref={element => registerVisibilityAnimation(element, presence.exiting, "dialog")}>
 				<AsciiBackdrop placement="modal" />
-				<h2 class={styles.title} id={headingId}>{props.title ?? props.t("deleteNote")}</h2>
+				<h2 class={styles.title} id={headingId}>{props.title}</h2>
 				<Show when={name()}>{value => <strong class={styles.name}>{value()}</strong>}</Show>
-				<p class={styles.message} id={messageId}>{props.message ?? props.t("deleteNoteConfirmation")}</p>
-				<Show when={props.error}><p class={styles.error} role="alert">{props.errorMessage ?? props.t("deleteNoteFailed")}</p></Show>
+				<p class={styles.message} id={messageId}>{message()}</p>
+				<Show when={props.error}><p class={styles.error} role="alert">{props.errorMessage}</p></Show>
 				<div class={styles.actions}>
-					<Button class={styles.button} type="button" disabled={props.pending} onClick={props.onCancel}
+					<Button class={cx(styles.button, styles.cancel)} type="button" disabled={props.pending} onClick={props.onCancel}
 						ref={button => { const frame = requestAnimationFrame(() => button.focus({ preventScroll: true })); onCleanup(() => cancelAnimationFrame(frame)); }}>{props.t("cancel")}</Button>
 					<Button class={cx(styles.button, styles.delete)} type="button" disabled={props.pending} onClick={() => void props.onConfirm()}>{props.t("delete")}</Button>
 				</div>
@@ -56,4 +54,4 @@ const DeleteNoteDialog: Component<Props> = (props) => {
 		</div>
 	</Show>;
 };
-export default DeleteNoteDialog;
+export default DeleteConfirmationDialog;

@@ -6,6 +6,9 @@ export type FormattedTable = { headers: TextRun[][]; rows: TextRun[][][]; alignm
 export type FormattedBlock = { level: number; runs: TextRun[]; text: string; sourceLine: number; sourceLines: number; language?: string; quote?: number; bullet?: { indent: string }; ordered?: { number: string; indent: string }; task?: { checked: boolean; indent: string; prefixLength: number } } &
 	({ kind: "paragraph" | "heading" | "separator" | "code" } | { kind: "table"; table: FormattedTable });
 export type FormattedFragment = { block: FormattedBlock; start: number; end: number };
+export type FormattedBlockGroup =
+	| { type: "block"; block: FormattedBlock }
+	| { type: "list"; ordered: boolean; indent: string; start?: number; blocks: FormattedBlock[] };
 export const codeFont = "ui-monospace, SFMono-Regular, Consolas, monospace";
 export const headingScales = [1, 2, 1.75, 1.5, 1.25, 1.125, 1] as const;
 
@@ -165,6 +168,38 @@ export const parseFormattedText = (text: string): FormattedBlock[] => {
 		blocks.push({ kind: heading ? "heading" : "paragraph", level: heading?.[1]?.length ?? 0, runs, text: runs.map((run) => run.text).join(""), sourceLine: index, sourceLines: 1, bullet: bullet && !heading ? { indent: bullet[1]! } : undefined });
 	}
 	return blocks;
+};
+
+export const groupFormattedBlocks = (blocks: FormattedBlock[]): FormattedBlockGroup[] => {
+	const groups: FormattedBlockGroup[] = [];
+	for (const block of blocks) {
+		const ordered = block.kind === "paragraph" ? block.ordered : undefined;
+		const bullet = block.kind === "paragraph" ? block.bullet : undefined;
+		if (!ordered && !bullet) {
+			groups.push({ type: "block", block });
+			continue;
+		}
+
+		const isOrdered = Boolean(ordered);
+		const indent = ordered?.indent ?? bullet!.indent;
+		const previous = groups.at(-1);
+		const previousBlock = previous?.type === "list" ? previous.blocks.at(-1) : undefined;
+		const previousNumber = previousBlock?.ordered ? Number(previousBlock.ordered.number) : undefined;
+		const continuesOrderedList = !isOrdered || (previousNumber !== undefined && Number(ordered!.number) === previousNumber + 1);
+		if (previous?.type === "list" && previous.ordered === isOrdered && previous.indent === indent && continuesOrderedList) {
+			previous.blocks.push(block);
+			continue;
+		}
+
+		groups.push({
+			type: "list",
+			ordered: isOrdered,
+			indent,
+			start: ordered ? Number(ordered.number) : undefined,
+			blocks: [block],
+		});
+	}
+	return groups;
 };
 
 export const sliceTextRuns = (runs: TextRun[], start: number, end: number): TextRun[] => {

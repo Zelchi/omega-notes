@@ -3,9 +3,9 @@ import { For, Show, createMemo, type Component } from "solid-js";
 import { parseNoteTextLinks } from "../model/text-links";
 import type { NoteSummary } from "../model/note";
 import { displayNoteTitle } from "../model/note-titles";
-import { parseFormattedText, type TextRun } from "@/shared/lib/formatted-text";
+import { groupFormattedBlocks, parseFormattedText, type TextRun } from "@/shared/lib/formatted-text";
 import FormattedRun from "@/shared/ui/formatted-run";
-import FormattedBlockView from "@/shared/ui/formatted-block";
+import FormattedBlockView, { FormattedListView } from "@/shared/ui/formatted-block";
 import ExternalLink from "@/shared/ui/external-link";
 import type { TranslationKey } from "@/shared/lib/i18n";
 
@@ -47,14 +47,15 @@ const NoteReferences: Component<NoteContentTextProps> = (props) => {
 };
 
 const NoteContentText: Component<NoteContentTextProps> = (props) => {
-    const blocks = createMemo(() => parseFormattedText(props.text));
+	const blocks = createMemo(() => groupFormattedBlocks(parseFormattedText(props.text)));
     const renderRuns = (runs: TextRun[]) => <For each={runs}>{(run) => (
         <FormattedRun run={run}>{run.code ? run.text : run.url ? <ExternalLink url={run.url} class={props.linkClass}>{run.text}</ExternalLink> : <NoteReferences t={props.t} text={run.text}
             linkClass={props.linkClass} referenceTitles={props.referenceTitles} resolveNote={props.resolveNote} onOpenNote={props.onOpenNote} />}</FormattedRun>
     )}</For>;
-    return <div class={props.class}><For each={blocks()}>{(block) =>
-        <FormattedBlockView block={block} renderRuns={renderRuns} t={props.t} />
-    }</For></div>;
+	return <div class={props.class}><For each={blocks()}>{(group) => group.type === "list"
+		? <FormattedListView blocks={group.blocks} ordered={group.ordered} indent={group.indent} start={group.start} renderRuns={renderRuns} />
+		: <FormattedBlockView block={group.block} renderRuns={renderRuns} t={props.t} />
+	}</For></div>;
 };
 
 export default NoteContentText;

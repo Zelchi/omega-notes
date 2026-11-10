@@ -5,6 +5,7 @@ import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
 import { For, Show, createEffect, createSignal, untrack, type Component } from "solid-js";
 import Icon from "@/shared/ui/icon";
 import ModalError from "@/shared/ui/modal-error";
+import DeleteConfirmationDialog from "@/shared/ui/delete-confirmation-dialog";
 import { cx } from "@/shared/lib/classes";
 import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import type { TranslationKey } from "@/shared/lib/i18n";
@@ -64,7 +65,6 @@ const VaultDialog: Component<Props> = (props) => {
 	const [displayedDetails, setDisplayedDetails] = createSignal<VaultDetails>();
 	const state = props.dialogState;
 	const backdropDismiss = createBackdropDismiss(props.onClose);
-	const deleteBackdropDismiss = createBackdropDismiss(() => state.setDeleteConfirmationVisible(false));
 	const reorder = useVaultReorder({
 		vaults: () => props.vaults,
 		enabled: () => props.open && !props.saving && !state.editingVaultId() && !state.deleteConfirmationVisible(),
@@ -406,51 +406,26 @@ const VaultDialog: Component<Props> = (props) => {
 					</Show>
 				</section>
 			</div>
-							<Show when={props.open && state.deleteConfirmationVisible() && state.deletingVault()}>
-									{(vault) => (
-					<div
-						class={styles.confirmBackdrop}
-						ref={(element) => registerExitSnapshot(element, { kind: "dialog", key: "vault-delete-dialog" })}
-						{...deleteBackdropDismiss}
-					>
-									<section class={styles.confirmDialog} role="alertdialog" aria-modal="true" onKeyDown={event => {
-										if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); state.setDeleteConfirmationVisible(false); }
-									}}>
-							<AsciiBackdrop placement="modal" />
-							<h3 class={styles.title}>{props.t("delete")}</h3>
-							<strong class={styles.deleteName}>{vault().name}</strong>
-							<p class={styles.confirmText}>{props.t("deleteVaultConfirmation")}</p>
-							<Show when={props.error && props.errorAction === "delete"}>
-								<p class={styles.error} role="alert">
-									{props.error && props.t(props.error)}
-								</p>
-							</Show>
-							<div class={styles.actions}>
-								<Button
-									class={styles.cancel}
-									type="button"
-									disabled={props.saving}
-									onClick={() => {
-										props.onClearError();
-											state.setDeletingVault(undefined);
-											state.setDeleteConfirmationVisible(false);
-									}}
-								>
-									{props.t("cancel")}
-								</Button>
-								<Button
-									class={styles.deleteConfirm}
-									type="button"
-									disabled={props.saving}
-									onClick={() => void confirmDelete(vault())}
-								>
-									{props.t("delete")}
-								</Button>
-							</div>
-						</section>
-					</div>
-				)}
-			</Show>
+			<DeleteConfirmationDialog
+				open={props.open && state.deleteConfirmationVisible() && Boolean(state.deletingVault())}
+				name={state.deletingVault()?.name}
+				title={props.t("delete")}
+				message={props.t("deleteVaultConfirmation")}
+				error={Boolean(props.error && props.errorAction === "delete")}
+				errorMessage={props.error ? props.t(props.error) : ""}
+				pending={props.saving}
+				t={props.t}
+				onClose={() => state.setDeleteConfirmationVisible(false)}
+				onCancel={() => {
+					props.onClearError();
+					state.setDeletingVault(undefined);
+					state.setDeleteConfirmationVisible(false);
+				}}
+				onConfirm={async () => {
+					const vault = state.deletingVault();
+					if (vault) await confirmDelete(vault);
+				}}
+			/>
 		</Show>
 	);
 };

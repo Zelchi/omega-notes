@@ -1,5 +1,19 @@
 # Histórico de atualizações
 
+## v0.7.0
+
+### Editor
+
+- Corrigida a exibição do primeiro item de listas posicionadas após headings.
+
+### PDFs
+
+- Os controles da biblioteca e do leitor de PDF agora reproduzem os sons padrão do app.
+
+### Exclusões
+
+- Notas, PDFs, mídias e vaults agora usam o mesmo diálogo integrado de confirmação de exclusão.
+
 ## v0.6.9
 
 ### Notas

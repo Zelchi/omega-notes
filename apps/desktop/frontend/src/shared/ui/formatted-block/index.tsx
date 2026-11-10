@@ -1,4 +1,4 @@
-import { createMemo, lazy, Suspense, type Component, type JSX } from "solid-js";
+import { createMemo, For, lazy, Suspense, type Component, type JSX } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { headingScales, sliceTextRuns, type FormattedBlock, type TextRun } from "@/shared/lib/formatted-text";
 import type { TranslationKey } from "@/shared/lib/i18n";
@@ -7,6 +7,19 @@ import TaskCheckbox from "@/shared/ui/task-checkbox";
 import { styles } from "./style.css";
 
 const HighlightedCode = lazy(() => import("@/shared/ui/highlighted-code"));
+
+export const FormattedListView: Component<{
+    blocks: FormattedBlock[];
+    ordered: boolean;
+    indent: string;
+    start?: number;
+    renderRuns: (runs: TextRun[]) => JSX.Element;
+}> = (props) => (
+    <Dynamic component={props.ordered ? "ol" : "ul"} class={styles.list} start={props.ordered ? props.start : undefined}
+        style={{ "margin-left": `${props.indent.length * 0.5}em` }}>
+        <For each={props.blocks}>{(block) => <li>{block.text ? props.renderRuns(block.runs) : "\u200B"}</li>}</For>
+    </Dynamic>
+);
 
 const FormattedBlockView: Component<{
     block: FormattedBlock; renderRuns: (runs: TextRun[]) => JSX.Element;
