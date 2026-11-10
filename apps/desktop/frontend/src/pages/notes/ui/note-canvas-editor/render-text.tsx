@@ -1,10 +1,10 @@
 import Link from "@/shared/ui/link";
 import { For, type JSX } from "solid-js";
 import FormattedRun from "@/shared/ui/formatted-run";
-import FormattedBlockView from "@/shared/ui/formatted-block";
+import FormattedBlockView, { FormattedListView } from "@/shared/ui/formatted-block";
 import ExternalLink from "@/shared/ui/external-link";
 import type { TranslationKey } from "@/shared/lib/i18n";
-import { parseFormattedText, type TextRun, type FormattedFragment } from "@/features/format-text";
+import { parseFormattedText, groupFormattedBlocks, type TextRun, type FormattedBlock, type FormattedFragment } from "@/features/format-text";
 import { parseNoteTextLinks, resolveNoteReference, canCreateNoteReference, displayNoteTitle, normalizeNoteTitle, type NoteTextLink, type NoteSummary } from "@/entities/note";
 
 type RenderTextOptions = {
@@ -64,8 +64,12 @@ const renderRuns = (runs: TextRun[], options: RenderTextOptions): JSX.Element =>
 );
 
 export const renderNoteText = (text: string, options: RenderTextOptions, format?: FormattedFragment): JSX.Element => {
+	const renderBlock = (block: FormattedBlock) => <FormattedBlockView block={block}
+		renderRuns={(runs) => renderRuns(runs, options)} t={options.t} onToggleTask={options.onToggleTask} />;
 	if (format) return <FormattedBlockView block={format.block} fragment start={format.start} end={format.end}
 		renderRuns={(runs) => renderRuns(runs, options)} t={options.t} onToggleTask={options.onToggleTask} />;
-	return <For each={parseFormattedText(text)}>{(block) => <FormattedBlockView block={block}
-		renderRuns={(runs) => renderRuns(runs, options)} t={options.t} onToggleTask={options.onToggleTask} />}</For>;
+	return <For each={groupFormattedBlocks(parseFormattedText(text))}>{(group) => group.type === "list"
+		? <FormattedListView blocks={group.blocks} ordered={group.ordered} indent={group.indent} start={group.start}
+			renderRuns={(runs) => renderRuns(runs, options)} />
+		: renderBlock(group.block)}</For>;
 };

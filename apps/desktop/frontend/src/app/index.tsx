@@ -17,7 +17,7 @@ const Note = lazy(() => import("@/pages/notes/ui/note"));
 const SettingsDialog = lazy(() => import("@/features/change-preferences/ui/settings-dialog"));
 const VaultDialog = lazy(() => import("@/features/manage-vault/ui/vault-dialog"));
 const StudyDialog = lazy(() => import("@/features/study-notes/ui/study-dialog"));
-const DeleteNoteDialog = lazy(() => import("@/features/delete-note/ui/delete-note-dialog"));
+const DeleteConfirmationDialog = lazy(() => import("@/shared/ui/delete-confirmation-dialog"));
 const NoteLoadIssuesDialog = lazy(() => import("./ui/note-load-issues-dialog"));
 const NoteNameDialog = lazy(() => import("./ui/note-name-dialog"));
 const AiChatPanel = lazy(() => import("@/features/chat-with-ai/ui/ai-chat-panel"));
@@ -198,7 +198,9 @@ const AppView: Component = () => {
 
 					<Show when={deleteDialogMounted()}>
 						<Suspense fallback={null}>
-							<DeleteNoteDialog open={app.noteDeletion.open()} note={app.noteDeletion.target()} pending={app.noteDeletion.pending()} error={app.noteDeletion.error()}
+							<DeleteConfirmationDialog open={app.noteDeletion.open()} name={app.noteDeletion.target()?.displayTitle ?? app.noteDeletion.target()?.title}
+								title={app.t("deleteNote")} message={app.t("deleteNoteConfirmation")} errorMessage={app.t("deleteNoteFailed")}
+								pending={app.noteDeletion.pending()} error={app.noteDeletion.error()}
 								t={app.t} onClose={app.noteDeletion.close} onCancel={app.noteDeletion.cancel} onConfirm={app.noteDeletion.confirm} />
 						</Suspense>
 					</Show>

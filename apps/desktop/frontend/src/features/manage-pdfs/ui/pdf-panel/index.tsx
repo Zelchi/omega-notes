@@ -1,6 +1,7 @@
 import { createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js";
 import type { NoteSummary } from "@/entities/note";
-import DeleteNoteDialog from "@/features/delete-note/ui/delete-note-dialog";
+import DeleteConfirmationDialog from "@/shared/ui/delete-confirmation-dialog";
+import Button from "@/shared/ui/button";
 import Icon from "@/shared/ui/icon";
 import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import type { TranslationKey } from "@/shared/lib/i18n";
@@ -95,8 +96,8 @@ const PdfPanel: Component<Props> = props => {
 					<>
 						<div class={styles.header}>
 							<h2 class={styles.headerTitle}>{props.t("pdfLibraryTitle")}</h2>
-							<button class={styles.iconButton} type="button" disabled={props.library.busy() || props.library.loading() || props.library.readFailed() || props.library.importing()} onClick={() => void props.library.selectPdf()}><Icon name="add" size={16} /></button>
-							<button class={styles.iconButton} type="button" onClick={props.onClose}><Icon name="close" size={16} /></button>
+							<Button class={styles.iconButton} type="button" disabled={props.library.busy() || props.library.loading() || props.library.readFailed() || props.library.importing()} onClick={() => void props.library.selectPdf()}><Icon name="add" size={16} /></Button>
+							<Button class={styles.iconButton} type="button" onClick={props.onClose}><Icon name="close" size={16} /></Button>
 						</div>
 						<div class={styles.content}>
 							<Show when={props.library.importSource()}>
@@ -108,13 +109,13 @@ const PdfPanel: Component<Props> = props => {
 										onInput={event => props.library.setTitleDraft(event.currentTarget.value)}
 										onKeyDown={event => { if (event.key === "Escape") props.library.cancelImport(); }}
 									/>
-									<button class={styles.iconButton} type="submit" disabled={!props.library.titleDraft().trim() || Array.from(props.library.titleDraft()).length > 500 || props.library.importing()}><Icon name="check" size={16} /></button>
-									<button class={styles.iconButton} type="button" disabled={props.library.importing()} onClick={props.library.cancelImport}><Icon name="close" size={16} /></button>
+									<Button class={styles.iconButton} type="submit" disabled={!props.library.titleDraft().trim() || Array.from(props.library.titleDraft()).length > 500 || props.library.importing()}><Icon name="check" size={16} /></Button>
+									<Button class={styles.iconButton} type="button" disabled={props.library.importing()} onClick={props.library.cancelImport}><Icon name="close" size={16} /></Button>
 								</form>
 							</Show>
 							<Show when={props.library.readFailed()}>
 								<p class={styles.error}>{props.t("pdfStorageFailed")}</p>
-								<button class={styles.button} type="button" onClick={props.library.retryRead}>{props.t("retry")}</button>
+								<Button class={styles.button} type="button" onClick={props.library.retryRead}>{props.t("retry")}</Button>
 							</Show>
 							<Show when={props.library.loading()}><p class={styles.empty}>{props.t("pdfLoading")}</p></Show>
 							<Show when={!props.library.loading() && !props.library.readFailed() && props.library.documents().length === 0 && !props.library.importSource()}>
@@ -124,22 +125,22 @@ const PdfPanel: Component<Props> = props => {
 								<For each={props.library.documents()}>{document =>
 									<div class={styles.card}>
 										<Show when={editingId() === document.id} fallback={
-											<button class={styles.openDocument} type="button" onClick={() => props.library.openDocument(document.id)}>
+											<Button class={styles.openDocument} type="button" onClick={() => props.library.openDocument(document.id)}>
 												<span class={styles.cardIcon}><Icon name="file" size={18} /></span>
 												<span class={styles.cardTitle}>{document.title}</span>
-											</button>
+											</Button>
 										}>
 											<form class={styles.editForm} onSubmit={event => { event.preventDefault(); void finishRename(document.id); }}>
 											<input ref={renameInput} class={styles.textInput} value={renameDraft()} onInput={event => setRenameDraft(event.currentTarget.value)} onKeyDown={event => { if (event.key === "Escape") setEditingId(undefined); }} />
-											<button class={styles.iconButton} type="submit" disabled={!renameDraft().trim() || Array.from(renameDraft()).length > 500 || props.library.busy()}><Icon name="check" size={15} /></button>
-												<button class={styles.iconButton} type="button" onClick={() => setEditingId(undefined)}><Icon name="close" size={15} /></button>
+											<Button class={styles.iconButton} type="submit" disabled={!renameDraft().trim() || Array.from(renameDraft()).length > 500 || props.library.busy()}><Icon name="check" size={15} /></Button>
+												<Button class={styles.iconButton} type="button" onClick={() => setEditingId(undefined)}><Icon name="close" size={15} /></Button>
 											</form>
 										</Show>
 										<Show when={editingId() !== document.id}>
 											<div class={styles.cardActions}>
 												<Show when={document.pageCount > 0}><span class={styles.pageLabel}>{document.lastPage}/{document.pageCount}</span></Show>
-												<button class={`${styles.iconButton} ${styles.cardAction}`} type="button" disabled={props.library.busy() || props.library.readFailed()} onClick={() => beginRename(document.id, document.title)}><Icon name="edit" size={14} /></button>
-												<button class={`${styles.iconButton} ${styles.cardAction}`} type="button" disabled={props.library.busy() || props.library.readFailed()} onClick={() => void props.library.removeDocument(document.id)}><Icon name="delete" size={14} /></button>
+												<Button class={`${styles.iconButton} ${styles.cardAction}`} type="button" disabled={props.library.busy() || props.library.readFailed()} onClick={() => beginRename(document.id, document.title)}><Icon name="edit" size={14} /></Button>
+												<Button class={`${styles.iconButton} ${styles.cardAction}`} type="button" disabled={props.library.busy() || props.library.readFailed()} onClick={() => void props.library.removeDocument(document.id)}><Icon name="delete" size={14} /></Button>
 											</div>
 										</Show>
 									</div>
@@ -164,7 +165,7 @@ const PdfPanel: Component<Props> = props => {
 			</div>
 		</aside>
 		<Portal mount={document.querySelector("[data-omega-app-shell]") ?? document.body}>
-			<DeleteNoteDialog
+			<DeleteConfirmationDialog
 				open={Boolean(props.library.deleteTarget())}
 				title={props.t("pdfDeleteTitle")}
 				message={deleteConfirmationMessage()}

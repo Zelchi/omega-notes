@@ -69,6 +69,28 @@ test('PDF panel animates its entrance and exit like the other side panels', asyn
 	assert.match(panel, /registerVisibilityAnimation\(element, \(\) => !props\.library\.open\(\), "panel"\)/);
 });
 
+test('PDF panel and reader controls use the shared sound-enabled Button', async () => {
+	const [panel, reader] = await Promise.all([
+		source('../src/features/manage-pdfs/ui/pdf-panel/index.tsx'),
+		source('../src/features/manage-pdfs/ui/pdf-reader.tsx'),
+	]);
+	for (const source of [panel, reader]) {
+		assert.match(source, /import Button from "@\/shared\/ui\/button"/);
+		assert.doesNotMatch(source, /<button\b/);
+	}
+});
+
+test('note renderers group adjacent Markdown list items into one list element', async () => {
+	const [canvasRenderer, contentRenderer] = await Promise.all([
+		source('../src/pages/notes/ui/note-canvas-editor/render-text.tsx'),
+		source('../src/entities/note/ui/note-content-text.tsx'),
+	]);
+	for (const renderer of [canvasRenderer, contentRenderer]) {
+		assert.match(renderer, /groupFormattedBlocks\(parseFormattedText\(/);
+		assert.match(renderer, /<FormattedListView blocks=\{group\.blocks\}/);
+	}
+});
+
 test('closing the PDF panel keeps its active reader mounted until returning to the library', async () => {
 	const [app, panel, reader] = await Promise.all([
 		source('../src/app/index.tsx'),
@@ -102,7 +124,7 @@ test('PDF panel overlays page content without moving search and stays under moda
 		source('../src/app/style.css.ts'),
 		source('../src/features/manage-pdfs/ui/pdf-panel/style.css.ts'),
 		source('../src/app/ui/floating-search/style.css.ts'),
-		source('../src/features/delete-note/ui/delete-note-dialog/style.css.ts'),
+		source('../src/shared/ui/delete-confirmation-dialog/style.css.ts'),
 		source('../src/pages/notes/ui/media-catalog-dialog/index.tsx'),
 	]);
 	assert.match(app, /<main class=\{styles\.main\} data-omega-main[^>]*>\s*<FloatingSearch/);
@@ -118,7 +140,7 @@ test('PDF deletion uses the app confirmation dialog instead of a native dialog',
 		source('../src/features/manage-pdfs/ui/pdf-panel/index.tsx'),
 		source('../src/features/manage-pdfs/model/controller.ts'),
 	]);
-	assert.match(panel, /<DeleteNoteDialog/);
+	assert.match(panel, /<DeleteConfirmationDialog/);
 	assert.match(panel, /pdfDeleteConfirmation/);
 	assert.match(panel, /pdfDeleteFailed/);
 	assert.match(controller, /confirmRemoveDocument/);
@@ -367,12 +389,31 @@ test('media catalog offers confirmed global deletion from the right-click menu',
 	assert.match(catalog, /await props\.onDeleteMedia\(target\.mediaType, target\.mediaId\)/);
 	assert.match(catalog, /mediaType: "audio", mediaId: source\.audioId/);
 	assert.match(catalog, /mediaType: "video", mediaId: source\.videoId/);
-	assert.match(view, /<DeleteNoteDialog/);
+	assert.match(view, /<DeleteConfirmationDialog/);
 	assert.match(view, /onConfirm=\{props\.catalog\.confirmMediaDeletion\}/);
 	assert.doesNotMatch(catalog + view, /\b(?:confirm|alert)\s*\(/);
 	assert.match(backend, /remove_media_reference_from_note_file/);
 	assert.match(backend, /delete_media_from_all_vaults/);
 	assert.match(command, /"delete_note_media"\s*=>/);
+});
+
+test('vault deletion uses the shared confirmation dialog and its destructive style', async () => {
+	const [vaultDialog, sharedDialog, sharedStyle] = await Promise.all([
+		source('../src/features/manage-vault/ui/vault-dialog/index.tsx'),
+		source('../src/shared/ui/delete-confirmation-dialog/index.tsx'),
+		source('../src/shared/ui/delete-confirmation-dialog/style.css.ts'),
+	]);
+	assert.match(vaultDialog, /import DeleteConfirmationDialog from "@\/shared\/ui\/delete-confirmation-dialog"/);
+	assert.match(vaultDialog, /<DeleteConfirmationDialog[\s\S]*?message=\{props\.t\("deleteVaultConfirmation"\)\}/);
+	assert.doesNotMatch(vaultDialog, /styles\.(?:confirmBackdrop|confirmDialog|deleteConfirm)/);
+	assert.match(sharedDialog, /<h2 class=\{styles\.title\}/);
+	assert.match(sharedStyle, /backgroundColor: "var\(--danger-hover\)"/);
+});
+
+test('delete confirmation keeps its message visible while the dialog exits', async () => {
+	const dialog = await source('../src/shared/ui/delete-confirmation-dialog/index.tsx');
+	assert.match(dialog, /const message = createMemo<string>\(previous => props\.open \? props\.message : previous \?\? props\.message\)/);
+	assert.match(dialog, /<p class=\{styles\.message\} id=\{messageId\}>\{message\(\)\}<\/p>/);
 });
 
 test('Kanban lanes keep equal horizontal padding beside the overlay scrollbar', async () => {
