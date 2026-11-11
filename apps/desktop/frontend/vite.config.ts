@@ -89,7 +89,7 @@ export default defineConfig({
 		transformIndexHtml(html, context) {
 			if (context.server) return html;
 			const assetConnectSource = process.env.VITE_DESKTOP_RUNTIME !== "tauri" ? " omega-image:" : "";
-			const content = `default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: ${imageSource}; media-src 'self' blob: data: http://127.0.0.1:*; font-src 'self' data:; connect-src 'self' http://127.0.0.1:*${assetConnectSource} https://*.api.radio-browser.info https://api.somafm.com; object-src 'none'; base-uri 'none'; frame-src 'none'`;
+			const content = `default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: ${imageSource}; media-src 'self' blob: data: http://127.0.0.1:*; font-src 'self' data:; connect-src 'self' http://127.0.0.1:*${assetConnectSource} https://api.somafm.com; object-src 'none'; base-uri 'none'; frame-src 'none'`;
 			return [{ tag: "meta", attrs: { "http-equiv": "Content-Security-Policy", content }, injectTo: "head" }];
 		},
 	}],

@@ -1,5 +1,12 @@
 # Histórico de atualizações
 
+## v0.7.3
+
+### Player lo-fi
+
+- Removida a descoberta dinâmica de estações; o player oferece somente Lush, Salad, Blender e Fluid.
+- Os metadados das faixas continuam vindo da SomaFM.
+
 ## v0.7.2
 
 ### Player lo-fi

@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import ts from 'typescript';
-import { buildMusicSources, nextUnattemptedSourceIndex, parseRadioBrowserSources, parseSomaFmChannels } from '../src/features/lofi-player/model/sources.ts';
+import { buildMusicSources, nextUnattemptedSourceIndex, parseSomaFmChannels } from '../src/features/lofi-player/model/sources.ts';
 
 const finiteSources = [
-	{ id: 'fixture-a', name: 'Fixture A', url: 'https://fixture.invalid/a.mp3', provider: 'radio-browser' },
-	{ id: 'fixture-b', name: 'Fixture B', url: 'https://fixture.invalid/b.mp3', provider: 'radio-browser' },
+	{ id: 'fixture-a', name: 'Fixture A', url: 'https://fixture.invalid/a.mp3', provider: 'somafm' },
+	{ id: 'fixture-b', name: 'Fixture B', url: 'https://fixture.invalid/b.mp3', provider: 'somafm' },
 ];
 
 const playerRuntime = {
@@ -110,82 +110,14 @@ async function waitFor(predicate) {
 	assert.ok(predicate(), 'expected the mocked audio transition to complete');
 }
 
-test('Radio Browser sources only accept healthy HTTPS MP3 lofi stations', () => {
-	const stations = parseRadioBrowserSources([
-		{ name: 'Lo-fi HTTPS', tags: 'chill,lofi hip hop', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://radio.example/live.mp3' },
-		{ name: 'HTTP only', tags: 'lofi', codec: 'MP3', lastcheckok: 1, url_resolved: 'http://radio.example/live.mp3' },
-		{ name: 'Broken', tags: 'lofi', codec: 'MP3', lastcheckok: 0, url_resolved: 'https://broken.example/live.mp3' },
-		{ name: 'Not lofi', tags: 'ambient', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://ambient.example/live.mp3' },
-		{ name: 'Unsupported codec', tags: 'lofi', codec: 'AAC', lastcheckok: 1, url_resolved: 'https://aac.example/live' },
-		{ name: 'Credential URL', tags: 'lofi', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://user:pass@radio.example/live.mp3' },
+test('player only offers the four fixed SomaFM channels in a stable order', () => {
+	const sources = buildMusicSources();
+	assert.deepEqual(sources.map(({ name, url, provider }) => [name, url, provider]), [
+		['Lush', 'https://ice5.somafm.com/lush-128-mp3', 'somafm'],
+		['Salad', 'https://ice5.somafm.com/groovesalad-128-mp3', 'somafm'],
+		['Blender', 'https://ice5.somafm.com/beatblender-128-mp3', 'somafm'],
+		['Fluid', 'https://ice5.somafm.com/fluid-128-mp3', 'somafm'],
 	]);
-
-	assert.deepEqual(stations.map(({ name, url }) => [name, url]), [
-		['Lo-fi HTTPS', 'https://radio.example/live.mp3'],
-	]);
-});
-
-test('Radio Browser keeps four candidates and every static fallback remains available', () => {
-	const sources = buildMusicSources([
-		{ name: 'First', tags: 'lofi', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://first.example/live.mp3' },
-		{ name: 'Second', tags: 'lo-fi', codec: 'MP3', lastcheckok: true, url_resolved: 'https://second.example/live.mp3' },
-		{ name: 'Third', tags: 'lofi', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://third.example/live.mp3' },
-		{ name: 'Fourth', tags: 'lofi', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://fourth.example/live.mp3' },
-		{ name: 'Fifth', tags: 'lofi', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://fifth.example/live.mp3' },
-	]);
-
-	assert.deepEqual(sources.map(({ url }) => url), [
-		'https://first.example/live.mp3',
-		'https://second.example/live.mp3',
-		'https://third.example/live.mp3',
-		'https://fourth.example/live.mp3',
-		'https://ice5.somafm.com/lush-128-mp3',
-		'https://ice5.somafm.com/groovesalad-128-mp3',
-		'https://ice5.somafm.com/beatblender-128-mp3',
-		'https://ice5.somafm.com/fluid-128-mp3',
-	]);
-});
-
-test('retired stations stay excluded even when Radio Browser reports them healthy', () => {
-	const sources = buildMusicSources([
-		{ name: 'BOX: Lofi Radio', tags: 'lofi', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://stream-166.zeno.fm/tabzverz0fctv?token=rotated' },
-		{ name: '0R - LO-FI', tags: 'lofi', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://0nlineradio.radioho.st/0r-lo-fi?ref=updated' },
-		{ name: 'ISEKOI Radio | Chill Zone', tags: 'lofi', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://public.isekoi-radio.com/listen/chill/radio.mp3' },
-		{ name: 'yojosuknam Radio', tags: 'lofi', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://stream.yojosuknam.com/live.mp3' },
-		{ name: 'Chilltrax', tags: 'lofi', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://streamssl.chilltrax.com/stream?sid=1' },
-		{ name: 'Healthy fallback candidate', tags: 'lofi', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://radio.example/live.mp3' },
-	]);
-
-	assert.deepEqual(sources.map(({ url }) => url), [
-		'https://radio.example/live.mp3',
-		'https://ice5.somafm.com/lush-128-mp3',
-		'https://ice5.somafm.com/groovesalad-128-mp3',
-		'https://ice5.somafm.com/beatblender-128-mp3',
-		'https://ice5.somafm.com/fluid-128-mp3',
-	]);
-});
-
-test('remaining static stations and the Fluid stream remain when Radio Browser is empty', () => {
-	const sources = buildMusicSources([]);
-	assert.deepEqual(sources.map(({ url }) => url), [
-		'https://ice5.somafm.com/lush-128-mp3',
-		'https://ice5.somafm.com/groovesalad-128-mp3',
-		'https://ice5.somafm.com/beatblender-128-mp3',
-		'https://ice5.somafm.com/fluid-128-mp3',
-	]);
-});
-
-test('SomaFM channel labels stay short and cliqhop is not included', () => {
-	const somaFmSources = buildMusicSources([]).filter(({ provider }) => provider === 'somafm');
-	assert.deepEqual(somaFmSources.map(({ name }) => name), ['Lush', 'Salad', 'Blender', 'Fluid']);
-	assert.ok(somaFmSources.every(({ somaFmChannelId }) => somaFmChannelId !== 'cliqhop'));
-});
-
-test('discovered stations are deduplicated against permanent SomaFM fallbacks', () => {
-	const sources = buildMusicSources([
-		{ name: 'Groove Salad', tags: 'lofi', codec: 'MP3', lastcheckok: 1, url_resolved: 'https://ice5.somafm.com/groovesalad-128-mp3' },
-	]);
-	assert.equal(sources.filter(({ url }) => url === 'https://ice5.somafm.com/groovesalad-128-mp3').length, 1);
 });
 
 test('SomaFM metadata parser returns current tracks for every valid channel', () => {
