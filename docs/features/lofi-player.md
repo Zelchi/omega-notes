@@ -2,9 +2,9 @@
 
 ## Ciclo de vida
 
-Os controles aparecem como seção no topo do painel Pomodoro, mas o player de áudio é montado no nível do app e permanece ativo enquanto o app estiver aberto. Ao iniciar o app, consulta o diretório Radio Browser por até oito segundos e busca os metadados do canal Fluid da SomaFM. São tentadas até quatro estações descobertas, até cinco fontes Radio Browser/estáticas no total e os servidores principal e alternativo do SomaFM Fluid. Falhas ou 15 segundos sem progresso avançam para a próxima fonte ainda não tentada.
+Os controles aparecem como seção no topo do painel Pomodoro, mas o player de áudio é montado no nível do app e permanece ativo enquanto o app estiver aberto. Ao iniciar o app, consulta o diretório Radio Browser por até oito segundos e busca os metadados dos canais SomaFM. São tentadas até quatro estações descobertas e as fontes estáticas Lush, Salad, Blender e Fluid. Algumas estações retiradas também são filtradas da descoberta dinâmica. Falhas ou 15 segundos sem progresso avançam para a próxima fonte ainda não tentada.
 
-O endereço de cada estação não é carregado diretamente pelo WebView: o backend valida HTTPS, resolve o host rejeitando qualquer endereço não público e aplica a mesma regra a redirecionamentos. O áudio passa pelo servidor local autenticado por token; a CSP só permite mídia local. Os metadados continuam vindo dos endpoints fixos Radio Browser e SomaFM.
+O endereço de cada estação não é carregado diretamente pelo WebView: o backend valida HTTPS, resolve o host rejeitando qualquer endereço não público e aplica a mesma regra a redirecionamentos. O áudio passa pelo servidor local autenticado por token; a CSP só permite mídia local. Os metadados vêm dos endpoints fixos Radio Browser e SomaFM; a faixa atual de cada canal SomaFM é associada pelo ID do canal, enquanto o nome exibido usa o rótulo curto configurado no app.
 
 Fechar o painel Pomodoro não interrompe a reprodução. O áudio é encerrado ao fechar o app. O volume começa em 40% e não é persistido. Enquanto qualquer áudio ou vídeo de nota está tocando, o volume do player lo-fi é reduzido a zero; volta ao volume escolhido quando todos param.
 

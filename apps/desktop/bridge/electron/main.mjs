@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { Backend } from './backend.mjs';
 import { readSettingsImport, validateStorageSnapshot } from './storage.mjs';
-import { dynamicTrayLabels } from './tray-menu.mjs';
+import { dynamicTrayLabels, trayIconVariant } from './tray-menu.mjs';
 import { installAndRelaunch } from './updater-install.mjs';
 import { serveNoteImage } from './image-protocol.mjs';
 if (process.platform === 'linux') app.commandLine.appendSwitch('disable-features', 'WaylandWpColorManagerV1');
@@ -31,17 +31,24 @@ if (process.platform === 'linux') app.setDesktopName('com.omegastudy.app.desktop
 export let desktopReady;
 let window;
 let tray;
+let trayIcons;
 let backend;
 let quitting = false;
 let shutdown;
 let trayRunning = false;
 let trayMusicPlaying = false;
+let trayIconState = 'idle';
 let trayLabels = { show: 'Show', hide: 'Hide', start: 'Start timer', pause: 'Pause timer', reset: 'Reset timer', musicPlay: 'Play music', musicPause: 'Pause music', musicNext: 'Next station', update: 'Update', exit: 'Exit' };
 const emit = (event, payload) => { if (window && !window.isDestroyed()) window.webContents.send('omega:event', event, payload); };
 const show = () => { if (window.isMinimized()) window.restore(); window.show(); window.focus(); refreshTray(); };
 const hide = () => { if (tray) window.hide(); else window.minimize(); refreshTray(); };
 function refreshTray() {
     if (!tray || !window || window.isDestroyed()) return;
+    const nextTrayIconState = trayIconVariant({ pomodoroRunning: trayRunning, musicPlaying: trayMusicPlaying });
+    if (nextTrayIconState !== trayIconState) {
+        tray.setImage(trayIcons[nextTrayIconState]);
+        trayIconState = nextTrayIconState;
+    }
     const labels = dynamicTrayLabels(trayLabels, {
         visible: window.isVisible(), pomodoroRunning: trayRunning, musicPlaying: trayMusicPlaying,
     });
@@ -188,8 +195,14 @@ else {
             (vaultId, imageId) => backend.invoke('resolve_note_image_path', { vaultId, imageId }),
             process.env.OMEGA_DEV_URL ? pdfjsPackageRoot : join(desktop, 'frontend/dist'),
         ));
-        const icon = nativeImage.createFromPath(join(directory, 'icons/128x128.png'));
-        window = new BrowserWindow({ width: 1000, height: 700, minWidth: 858, minHeight: 700, title: 'Ômega', frame: false, transparent: true, show: false, backgroundColor: '#00000000', icon, webPreferences: { preload: join(directory, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false } });
+        const windowIcon = nativeImage.createFromPath(join(directory, 'icons/128x128.png'));
+        trayIcons = {
+            idle: windowIcon,
+            music: nativeImage.createFromPath(join(directory, 'icons/tray-icon-music.png')),
+            pomodoro: nativeImage.createFromPath(join(directory, 'icons/tray-icon-pomodoro.png')),
+            both: nativeImage.createFromPath(join(directory, 'icons/tray-icon-both.png')),
+        };
+        window = new BrowserWindow({ width: 1000, height: 700, minWidth: 858, minHeight: 700, title: 'Ômega', frame: false, transparent: true, show: false, backgroundColor: '#00000000', icon: windowIcon, webPreferences: { preload: join(directory, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false } });
         Menu.setApplicationMenu(null);
         ipcMain.handle('omega:invoke', (event, command, args = {}) => {
             validateSender(event);
@@ -221,7 +234,7 @@ else {
         window.on('unmaximize', () => emit('window-resized', null));
         window.on('close', event => { if (!quitting) { event.preventDefault(); emit('window-close-requested', null); } });
         try {
-            tray = new Tray(icon); tray.setToolTip('Ômega Notes');
+            tray = new Tray(trayIcons.idle); tray.setToolTip('Ômega Notes');
             tray.on('click', () => window.isVisible() ? hide() : show()); refreshTray();
         } catch (error) { console.error('Tray unavailable:', error); }
         window.once('ready-to-show', () => show());

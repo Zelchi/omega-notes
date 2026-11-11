@@ -1,7 +1,7 @@
 import { createContext, createEffect, createSignal, onCleanup, onMount, useContext, type Accessor, type Component, type JSX, type Setter } from "solid-js";
 import { isNoteMediaPlaying } from "@/shared/lib/note-media-playback";
 import { getMusicStreamUrl } from "../api/music.repository";
-import { buildMusicSources, nextUnattemptedSourceIndex, parseSomaFmFluid, somaFmSource } from "./sources";
+import { buildMusicSources, nextUnattemptedSourceIndex, parseSomaFmChannels, somaFmSource } from "./sources";
 import { styles } from "../ui/lofi-player-panel/style.css";
 
 type PlayerStatus = "idle" | "loading" | "playing" | "paused" | "failed";
@@ -36,7 +36,7 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 	const [muted, setMuted] = createSignal(false);
 	const [pomodoroMuted, setPomodoroMuted] = createSignal(false);
 	const [status, setStatus] = createSignal<PlayerStatus>("idle");
-	const [somaFmChannel, setSomaFmChannel] = createSignal<{ title: string; lastPlaying?: string }>();
+	const [somaFmChannels, setSomaFmChannels] = createSignal<ReturnType<typeof parseSomaFmChannels>>([]);
 	let audio: HTMLAudioElement | undefined;
 	let playbackIntent = false;
 	let requestId = 0;
@@ -48,8 +48,12 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 	const currentSource = () => sources()[currentIndex()] ?? somaFmSource;
 	const effectiveVolume = () => isNoteMediaPlaying() || muted() || pomodoroMuted() ? 0 : volume();
 	const isActive = () => status() === "playing" || status() === "loading";
-	const sourceName = () => currentSource().provider === "somafm" ? somaFmChannel()?.title ?? currentSource().name : currentSource().name;
-	const trackName = () => currentSource().provider === "somafm" ? somaFmChannel()?.lastPlaying : undefined;
+	const currentSomaFmChannel = () => {
+		const channelId = currentSource().somaFmChannelId;
+		return channelId ? somaFmChannels().find((channel) => channel.id === channelId) : undefined;
+	};
+	const sourceName = () => currentSource().name;
+	const trackName = () => currentSource().provider === "somafm" ? currentSomaFmChannel()?.lastPlaying : undefined;
 	const clearAttemptTimer = () => { clearTimeout(attemptTimer); attemptTimer = undefined; };
 	const cancelAudio = () => {
 		activeAudioAttempt = undefined;
@@ -169,7 +173,7 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 					setSources(buildMusicSources(radioResult.value));
 					setCurrentIndex(0);
 				}
-				if (somaResult.status === "fulfilled") setSomaFmChannel(parseSomaFmFluid(somaResult.value));
+				if (somaResult.status === "fulfilled") setSomaFmChannels(parseSomaFmChannels(somaResult.value));
 			})
 			.catch((error: unknown) => console.warn("Could not load radio station details", error))
 			.finally(() => clearTimeout(timeout));

@@ -22,9 +22,11 @@ test('note text context menu supports clipboard actions and grants Electron clip
 	assert.match(node, /<Icon name="paste" size=\{15\} \/>/);
 	assert.match(node, /<Icon name="pastePlain" size=\{15\} \/>/);
 	assert.match(node, /<Icon name="search" size=\{15\} \/>/);
-	assert.match(node, /selectedText \? 146 : 112/);
+	assert.match(node, /hasSelection \? 180 : 112/);
 	assert.match(node, /when=\{menu\(\)\.selectedText\}/);
-	assert.match(node, /https:\/\/www\.google\.com\/search\?q=\$\{encodeURIComponent\(selectedText\(\)\)\}/);
+	assert.match(node, /https:\/\/www\.google\.com\/search\?q=\$\{encodeURIComponent\(selectedText\(\)\.trim\(\)\)\}/);
+	assert.match(node, /navigator\.clipboard\.writeText\(selectedText\(\)\)/);
+	assert.match(node, /<Icon name="copy" size=\{15\} \/>/);
 	assert.match(node, /props\.onOpenFind\(selectedText\)/);
 	assert.match(node, /if \(htmlItem && htmlType\)/);
 	assert.match(node, /htmlClipboardToNoteText\(await \(await htmlItem\.getType\(htmlType\)\)\.text\(\)\)/);
@@ -45,9 +47,11 @@ test('note text context menu supports clipboard actions and grants Electron clip
 	assert.equal(ptBr.noteContextPaste, 'Colar');
 	assert.equal(ptBr.noteContextPastePlainText, 'Colar sem formatação');
 	assert.equal(ptBr.noteContextSearchGoogle, 'Pesquisar no Google');
+	assert.equal(ptBr.noteContextCopySelection, 'Copiar seleção');
 	assert.equal(en.noteContextPaste, 'Paste');
 	assert.equal(en.noteContextPastePlainText, 'Paste without formatting');
 	assert.equal(en.noteContextSearchGoogle, 'Search Google');
+	assert.equal(en.noteContextCopySelection, 'Copy selection');
 	assert.equal((electron.match(/permission === 'clipboard-read'/g) ?? []).length, 2);
 	assert.match(electron, /permission === 'clipboard-read' && isTrustedMainAppFrame\(contents, details\.requestingUrl, details\.isMainFrame\)/);
 });
@@ -388,7 +392,7 @@ test('Electron and Tauri enforce one app instance and focus the existing window'
 		source('../../bridge/tauri/Cargo.toml'),
 	]);
 	assert.match(electron, /if \(!app\.requestSingleInstanceLock\(\)\) app\.exit\(0\)/);
-	assert.ok(electron.indexOf('if (!app.requestSingleInstanceLock())') < electron.indexOf('tray = new Tray(icon)'));
+	assert.ok(electron.indexOf('if (!app.requestSingleInstanceLock())') < electron.indexOf('tray = new Tray(trayIcons.idle)'));
 	assert.match(electron, /app\.on\('second-instance', \(\) => \{ if \(window\) show\(\); \}\)/);
 	assert.match(tauriCargo, /tauri-plugin-single-instance = "2"/);
 	assert.ok(tauri.indexOf('.plugin(tauri_plugin_single_instance::init(') < tauri.indexOf('.plugin(tauri_plugin_dialog::init())'));
@@ -622,6 +626,8 @@ test('tray menu presents Play/Pause while starting playback or toggling mute', a
 	assert.match(electron, /'music-play-pause'/);
 	assert.match(electron, /'music-next'/);
 	assert.match(tauri, /music_playing/);
+	assert.match(tauri, /set_icon\(Some\(image\)\)/);
+	assert.match(tauri, /tray_icon_variant\([\s\S]*?running,[\s\S]*?music_playing/);
 	assert.match(tauri, /labels\.music_pause[\s\S]*labels\.music_play/);
 	assert.match(tauri, /"music-play-pause" => emit_tray_action\(app, "music-play-pause"\)/);
 	assert.match(tauri, /"music-next"/);

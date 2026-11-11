@@ -32,16 +32,17 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 		const selectedRange = selection && !selection.isCollapsed && selection.rangeCount ? selection.getRangeAt(0) : undefined;
 		const clickedSelection = selectedRange && [...selectedRange.getClientRects()].some((rect) =>
 			event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom);
-		const selectedText = clickedSelection ? selection?.toString().trim() || undefined : undefined;
+		const selectedText = clickedSelection ? selection?.toString() : undefined;
+		const hasSelection = Boolean(selectedText?.trim());
 		if (clickedSelection) editor.rememberCurrentSelection();
 		else if (props.editable && !props.locked) editor.placeCaretAtPoint(event.clientX, event.clientY);
 		const width = 220;
-		const height = selectedText ? 146 : 112;
+		const height = hasSelection ? 180 : 112;
 		const margin = 8;
 		setContextMenu({
 			x: Math.max(margin, Math.min(event.clientX, window.innerWidth - width - margin)),
 			y: Math.max(margin, Math.min(event.clientY, window.innerHeight - height - margin)),
-			selectedText,
+			selectedText: hasSelection ? selectedText : undefined,
 		});
 	};
 	const pasteFromClipboard = async (plainText: boolean): Promise<void> => {
@@ -232,8 +233,14 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 						<Show when={menu().selectedText}>
 							{(selectedText) => <Button class={styles.contextMenuButton} type="button" onClick={() => {
 								setContextMenu(undefined);
-								props.onOpenExternalUrl(`https://www.google.com/search?q=${encodeURIComponent(selectedText())}`);
+								props.onOpenExternalUrl(`https://www.google.com/search?q=${encodeURIComponent(selectedText().trim())}`);
 							}}><Icon name="search" size={15} />{props.t("noteContextSearchGoogle")}</Button>}
+						</Show>
+						<Show when={menu().selectedText}>
+							{(selectedText) => <Button class={styles.contextMenuButton} type="button" onClick={() => {
+								void navigator.clipboard.writeText(selectedText()).catch(console.error);
+								setContextMenu(undefined);
+							}}><Icon name="copy" size={15} />{props.t("noteContextCopySelection")}</Button>}
 						</Show>
 					</div>
 				</Portal>}
