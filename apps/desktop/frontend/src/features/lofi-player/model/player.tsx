@@ -20,7 +20,6 @@ type Player = {
 };
 
 const PlayerContext = createContext<Player>();
-const radioBrowserUrl = "https://all.api.radio-browser.info/json/stations/search?tag=lofi&hidebroken=true&order=clickcount&reverse=true&limit=20";
 const somaFmUrl = "https://api.somafm.com/channels.json";
 
 async function fetchJson(url: string, signal: AbortSignal): Promise<unknown> {
@@ -30,7 +29,7 @@ async function fetchJson(url: string, signal: AbortSignal): Promise<unknown> {
 }
 
 export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) => {
-	const [sources, setSources] = createSignal(buildMusicSources([]));
+	const [sources] = createSignal(buildMusicSources());
 	const [currentIndex, setCurrentIndex] = createSignal(0);
 	const [volume, setVolume] = createSignal(0.4);
 	const [muted, setMuted] = createSignal(false);
@@ -167,15 +166,9 @@ export const LofiPlayerProvider: Component<{ children: JSX.Element }> = (props) 
 	onMount(() => {
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), 8_000);
-		void Promise.allSettled([fetchJson(radioBrowserUrl, controller.signal), fetchJson(somaFmUrl, controller.signal)])
-			.then(([radioResult, somaResult]) => {
-				if (radioResult.status === "fulfilled" && !playbackIntent) {
-					setSources(buildMusicSources(radioResult.value));
-					setCurrentIndex(0);
-				}
-				if (somaResult.status === "fulfilled") setSomaFmChannels(parseSomaFmChannels(somaResult.value));
-			})
-			.catch((error: unknown) => console.warn("Could not load radio station details", error))
+		void fetchJson(somaFmUrl, controller.signal)
+			.then((response) => setSomaFmChannels(parseSomaFmChannels(response)))
+			.catch((error: unknown) => console.warn("Could not load SomaFM station details", error))
 			.finally(() => clearTimeout(timeout));
 		onCleanup(() => { controller.abort(); clearTimeout(timeout); });
 	});
