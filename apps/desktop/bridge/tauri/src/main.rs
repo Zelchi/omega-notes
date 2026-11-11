@@ -6,7 +6,7 @@ use std::{io, io::Write, path::Path, sync::Mutex};
 use tauri::{
     http::{Request, Response, StatusCode, Uri},
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::TrayIconBuilder,
+    tray::{TrayIcon, TrayIconBuilder},
     AppHandle, Emitter, Manager, State,
 };
 
@@ -34,6 +34,7 @@ struct TrayMenuState {
     labels: Mutex<TrayLabels>,
     pomodoro_running: Mutex<bool>,
     music_playing: Mutex<bool>,
+    tray_icon: Mutex<Option<TrayIcon<tauri::Wry>>>,
     visibility: MenuItem<tauri::Wry>,
     pomodoro: MenuItem<tauri::Wry>,
     reset: MenuItem<tauri::Wry>,
@@ -47,6 +48,34 @@ struct DynamicTrayLabels {
     visibility: String,
     pomodoro: String,
     music_play_pause: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TrayIconVariant {
+    Idle,
+    Music,
+    Pomodoro,
+    Both,
+}
+
+fn tray_icon_variant(pomodoro_running: bool, music_playing: bool) -> TrayIconVariant {
+    match (pomodoro_running, music_playing) {
+        (false, false) => TrayIconVariant::Idle,
+        (false, true) => TrayIconVariant::Music,
+        (true, false) => TrayIconVariant::Pomodoro,
+        (true, true) => TrayIconVariant::Both,
+    }
+}
+
+fn tray_icon_bytes(variant: TrayIconVariant) -> &'static [u8] {
+    match variant {
+        TrayIconVariant::Idle => include_bytes!("../../electron/icons/128x128.png"),
+        TrayIconVariant::Music => include_bytes!("../../electron/icons/tray-icon-music.png"),
+        TrayIconVariant::Pomodoro => {
+            include_bytes!("../../electron/icons/tray-icon-pomodoro.png")
+        }
+        TrayIconVariant::Both => include_bytes!("../../electron/icons/tray-icon-both.png"),
+    }
 }
 
 fn dynamic_tray_labels(
@@ -89,12 +118,27 @@ impl TrayMenuState {
             .music_playing
             .lock()
             .map_err(|_| "Tray menu unavailable")?;
+        let tray_icon = self
+            .tray_icon
+            .lock()
+            .map_err(|_| "Tray menu unavailable")?
+            .clone();
         let visible = app
             .get_webview_window("main")
             .map(|window| window.is_visible().map_err(|error| error.to_string()))
             .transpose()?
             .unwrap_or(false);
         let dynamic = dynamic_tray_labels(&labels, visible, running, music_playing);
+        if let Some(tray_icon) = tray_icon {
+            let image = tauri::image::Image::from_bytes(tray_icon_bytes(tray_icon_variant(
+                running,
+                music_playing,
+            )))
+            .map_err(|error| error.to_string())?;
+            tray_icon
+                .set_icon(Some(image))
+                .map_err(|error| error.to_string())?;
+        }
         self.visibility
             .set_text(dynamic.visibility)
             .map_err(|error| error.to_string())?;
@@ -435,6 +479,7 @@ fn main() {
                 }),
                 pomodoro_running: Mutex::new(false),
                 music_playing: Mutex::new(false),
+                tray_icon: Mutex::new(None),
                 visibility: visibility.clone(),
                 pomodoro: pomodoro.clone(),
                 reset: reset.clone(),
@@ -444,12 +489,10 @@ fn main() {
                 exit: exit.clone(),
             };
             app.manage(tray_state);
-            let icon = app
-                .default_window_icon()
-                .ok_or_else(|| io::Error::other("Tauri window icon is missing"))?
-                .clone();
-            TrayIconBuilder::new()
-                .icon(icon)
+            let idle_tray_icon =
+                tauri::image::Image::from_bytes(tray_icon_bytes(TrayIconVariant::Idle))?;
+            let tray_icon = TrayIconBuilder::new()
+                .icon(idle_tray_icon)
                 .tooltip("Ômega Notes")
                 .menu(&menu)
                 .show_menu_on_left_click(true)
@@ -485,6 +528,10 @@ fn main() {
                     _ => {}
                 })
                 .build(app)?;
+            *app.state::<TrayMenuState>()
+                .tray_icon
+                .lock()
+                .map_err(|_| io::Error::other("Tray icon unavailable"))? = Some(tray_icon);
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -519,7 +566,10 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{dynamic_tray_labels, parse_image_uri, TrayLabels};
+    use super::{
+        dynamic_tray_labels, parse_image_uri, tray_icon_bytes, tray_icon_variant, TrayIconVariant,
+        TrayLabels,
+    };
     use tauri::http::{StatusCode, Uri};
     use uuid::Uuid;
 
@@ -578,5 +628,24 @@ mod tests {
         assert_eq!(active.visibility, "Hide");
         assert_eq!(active.pomodoro, "Pause");
         assert_eq!(active.music_play_pause, "Pause music");
+    }
+
+    #[test]
+    fn tray_icon_color_reflects_music_and_pomodoro_independently() {
+        assert_eq!(tray_icon_variant(false, false), TrayIconVariant::Idle);
+        assert_eq!(tray_icon_variant(false, true), TrayIconVariant::Music);
+        assert_eq!(tray_icon_variant(true, false), TrayIconVariant::Pomodoro);
+        assert_eq!(tray_icon_variant(true, true), TrayIconVariant::Both);
+
+        let variants = [
+            TrayIconVariant::Idle,
+            TrayIconVariant::Music,
+            TrayIconVariant::Pomodoro,
+            TrayIconVariant::Both,
+        ];
+        let png_signature = [137, 80, 78, 71, 13, 10, 26, 10];
+        for variant in variants {
+            assert!(tray_icon_bytes(variant).starts_with(&png_signature));
+        }
     }
 }

@@ -440,6 +440,7 @@
   "noteContextPaste": "Paste",
   "noteContextPastePlainText": "Paste without formatting",
   "noteContextSearchGoogle": "Search Google",
+  "noteContextCopySelection": "Copy selection",
   "findPrevious": "Previous occurrence",
   "findNext": "Next occurrence",
   "studyTools": "Study tools",

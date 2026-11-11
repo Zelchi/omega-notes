@@ -1,5 +1,16 @@
 # Histórico de atualizações
 
+## v0.7.2
+
+### Player lo-fi
+
+- Adicionadas Lush, Salad e Blender como estações SomaFM fixas; os metadados da faixa acompanham o canal selecionado.
+- O ícone da bandeja indica música em azul, Pomodoro em vermelho e ambos em roxo; sem atividade, permanece branco.
+
+### Editor
+
+- O menu de contexto das notas permite copiar o texto selecionado.
+
 ## v0.7.1
 
 ### Editor
