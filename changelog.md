@@ -1,5 +1,11 @@
 # Histórico de atualizações
 
+## v0.7.4
+
+### Canvas
+
+- Corrigido o recorte vertical de letras nos títulos das notas.
+
 ## v0.7.3
 
 ### Player lo-fi

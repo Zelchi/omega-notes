@@ -105,8 +105,6 @@ export const styles = {
 		fontSize: 11,
 		fontWeight: 650,
 		lineHeight: 1.3,
-		textBoxTrim: "trim-both",
-		textBoxEdge: "cap alphabetic",
 		textOverflow: "ellipsis",
 		whiteSpace: "nowrap",
 	}),
