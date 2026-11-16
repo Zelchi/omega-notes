@@ -239,6 +239,18 @@ test('PDF reader waits for resizing to settle before rerendering pages', async (
 	assert.match(reader, /observer\.disconnect\(\);\s*if \(resizeTimeout !== undefined\) clearTimeout\(resizeTimeout\)/);
 });
 
+test('PDF reader reserves a fixed right column for the close button in the compact header', async () => {
+	const [reader, style] = await Promise.all([
+		source('../src/features/manage-pdfs/ui/pdf-reader.tsx'),
+		source('../src/features/manage-pdfs/ui/pdf-panel/style.css.ts'),
+	]);
+	assert.match(reader, /class=\{`\$\{styles\.header\} \$\{spreadEnabled\(\) \? styles\.readerSpreadHeader : styles\.readerCompactHeader\}`\}/);
+	assert.match(style, /readerCompactHeader: style\(\{ display: "grid", gridTemplateColumns: "minmax\(0, 1fr\) 32px" \}\)/);
+	assert.match(style, /readerHeaderStart: style\(\{[^}]*minWidth: 0, flex: 1 \}\)/);
+	assert.match(style, /readerHeaderClose: style\(\{ justifySelf: "end" \}\)/);
+	assert.match(style, /headerTitle: style\(\{ flex: 1, minWidth: 0,[^}]*textOverflow: "ellipsis"/);
+});
+
 test('PDF reader pre-renders adjacent pages or spreads and renders text layers per page', async () => {
 	const reader = await source('../src/features/manage-pdfs/ui/pdf-reader.tsx');
 	assert.match(reader, /getPdfAdjacentPreviewPages\(/);
@@ -249,7 +261,7 @@ test('PDF reader pre-renders adjacent pages or spreads and renders text layers p
 	assert.match(reader, /openSelectionMenu\(page, event\.currentTarget, event\)/);
 	assert.match(reader, /getPdfPageNavigationTarget\(current, pageCount\(\), spreadEnabled\(\), direction\)/);
 	assert.match(reader, /const results = await Promise\.allSettled\(pages\.map\(renderPage\)\)/);
-	assert.match(reader, /class=\{`\$\{styles\.header\} \$\{spreadEnabled\(\) \? styles\.readerSpreadHeader : ""\}`\}/);
+	assert.match(reader, /class=\{`\$\{styles\.header\} \$\{spreadEnabled\(\) \? styles\.readerSpreadHeader : styles\.readerCompactHeader\}`\}/);
 	assert.match(reader, /<Show when=\{spreadEnabled\(\)\}><ReaderToolbar \/><\/Show>/);
 	assert.match(reader, /<Show when=\{!spreadEnabled\(\)\}><ReaderToolbar \/><\/Show>/);
 	assert.match(reader, /cancelPagePreviewTasks\(\)/);

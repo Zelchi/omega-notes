@@ -1,5 +1,11 @@
 # Histórico de atualizações
 
+## v0.7.7
+
+### Biblioteca de PDFs
+
+- No painel estreito, o botão de fechar permanece alinhado à direita e separado do título do livro.
+
 ## v0.7.6
 
 ### Biblioteca de PDFs
