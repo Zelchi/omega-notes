@@ -1,4 +1,5 @@
 import { createContext, createEffect, onCleanup, Show, useContext, type Accessor, type Component } from "solid-js";
+import type { BackgroundHandle, BackgroundPreset } from "asciify-engine/kit";
 import type { BackgroundTheme } from "@/features/change-preferences";
 import { cx } from "@/shared/lib/classes";
 import { styles } from "./style.css.ts";
@@ -9,7 +10,8 @@ const CODE_FALL_SPEED = 32;
 const CODE_RAIN_MAX_DENSITY = 0.008 * 5;
 const CODE_RAIN_SEED = Math.floor(Math.random() * 1_000_000);
 const CODE_RAIN_EPOCH = typeof performance === "undefined" ? 0 : performance.now();
-
+const CONSTELLATION_CELL_SIZE = 12;
+const CONSTELLATION_LETTER_SPACING = 0.08;
 const defaultBackgroundTheme: Accessor<BackgroundTheme> = () => "default";
 const defaultBackgroundIntensity: Accessor<number> = () => 0.6;
 export const BackgroundThemeContext = createContext<Accessor<BackgroundTheme>>(defaultBackgroundTheme);
@@ -21,8 +23,8 @@ const tileScene = (scene: string, columns = 3, rows = 3): string => {
 	const lines = scene.trim().split("\n").map((line) => line.replace(/\s+$/, ""));
 	const width = Math.max(...lines.map((line) => line.length));
 	return Array.from({ length: rows }, () =>
-		lines.map((line) => Array.from({ length: columns }, () => line.padEnd(width)).join("        ")).join("\n"),
-	).join("\n\n");
+		lines.map((line) => Array.from({ length: columns }, () => line.padEnd(width)).join("")).join("\n"),
+	).join("\n");
 };
 
 const matrixScene = Array.from({ length: 120 }, (_, row) =>
@@ -67,141 +69,161 @@ const randomAt = (seed: number) => {
 	return value - Math.floor(value);
 };
 
-const renderConstellation = (animationSeed: number, intensity: number) => {
-	const lines = scenes.constellation.split("\n");
-	return lines.flatMap((line, row) => {
-		const parts: (string | ReturnType<typeof renderGlyph>)[] = [];
-		let text = "";
+const matrixLines = scenes.matrix.split("\n");
+const matrixColumns = Math.max(...matrixLines.map((line) => line.length));
+const matrixMarks = matrixLines.flatMap((line, row) =>
+	Array.from(line, (character, column) => {
+		if (character !== "0" && character !== "1") return undefined;
+		const seed = CODE_RAIN_SEED + row * matrixColumns + column;
+		return { character, column, seed, density: randomAt(seed) };
+	}).filter((mark): mark is NonNullable<typeof mark> => mark !== undefined),
+);
 
-		Array.from(line).forEach((character, column) => {
-			if (character !== "*" && character !== ".") {
-				text += character;
-				return;
-			}
-			if (randomAt(CODE_RAIN_SEED + row * line.length + column) >= intensity) {
-				text += " ";
-				return;
-			}
-			if (character === ".") {
-				text += character;
-				return;
-			}
-
-			if (text) parts.push(text);
-			text = "";
-			parts.push(renderGlyph(character, animationSeed + row * line.length + column));
-		});
-
-		if (text) parts.push(text);
-		if (row < lines.length - 1) parts.push("\n");
-		return parts;
-	});
-};
+const constellationLines = scenes.constellation.split("\n");
+const constellationColumns = Math.max(...constellationLines.map((line) => line.length));
+const constellationMarks = constellationLines.flatMap((line, row) =>
+	Array.from(line, (character, column) => {
+		if (character !== "*" && character !== ".") return undefined;
+		const seed = row * line.length + column;
+		return { character, row, column, seed, density: randomAt(CODE_RAIN_SEED + seed) };
+	}).filter((mark): mark is NonNullable<typeof mark> => mark !== undefined),
+);
 
 const codeFallDuration = () => typeof window === "undefined" ? 30 : Math.max(window.innerHeight / CODE_FALL_SPEED, 0.1);
 const codeRainElapsed = () => typeof performance === "undefined" ? 0 : (performance.now() - CODE_RAIN_EPOCH) / 1000;
 
-const renderCodeRain = (duration: number, elapsed: number, intensity: number) => {
-	const lines = scenes.matrix.split("\n");
-	const columns = Math.max(...lines.map((line) => line.length));
-	return lines.flatMap((line, row) => Array.from(line, (character, column) => {
-		if (character !== "0" && character !== "1") return [];
-
-		const seed = CODE_RAIN_SEED + row * columns + column;
-		if (randomAt(seed) >= intensity * CODE_RAIN_MAX_DENSITY) return [];
-		const phase = (elapsed + randomAt(seed + 2) * duration) % duration;
-
-		return (
-			<span
-				class={styles.codeGlyph}
-				data-rain-seed={seed}
-				style={{
-					left: `calc(${column / columns * 100}vw - var(--rain-left, 0px))`,
-					top: "calc(-12px - var(--rain-top, 0px))",
-					"animation-delay": `${-phase}s`,
-				}}
-			>
-				{character}
-			</span>
-		);
-	}));
+const prepareCanvasText = (
+	pen: CanvasRenderingContext2D,
+	width: number,
+	height: number,
+	fontSize: number,
+	ink: string,
+) => {
+	pen.clearRect(0, 0, width, height);
+	pen.font = `500 ${fontSize}px "SFMono-Regular", Consolas, "Liberation Mono", monospace`;
+	pen.textAlign = "left";
+	pen.textBaseline = "top";
+	pen.fillStyle = ink;
 };
 
-const renderGlyph = (character: string, seed: number) => {
-	const interval = 0.7 + randomAt(seed) * 3.3;
-	return (
-		<span
-			class={styles.constellationGlyph}
-			style={{ "animation-duration": `${interval}s`, "animation-delay": `${-randomAt(seed + 1) * interval}s` }}
-		>
-			{character}
-		</span>
-	);
-};
+const createMatrixPreset = (
+	mountCanvas: typeof import("asciify-engine/kit")["mountCanvas"],
+	intensity: Accessor<number>,
+): BackgroundPreset => ({
+	id: "omega-matrix",
+	name: "Ômega Matrix",
+	description: "The original code rain, rendered by the Asciify Engine canvas template.",
+	cellSize: 12,
+	speed: 1,
+	cursor: false,
+	mount: (context) => mountCanvas(context, (pen, width, height, _time, _mouse, frame) => {
+		prepareCanvasText(pen, width, height, frame.fontSize, frame.ink);
+
+		const viewportWidth = window.innerWidth;
+		const viewportHeight = window.innerHeight;
+		const bounds = context.host.getBoundingClientRect();
+		const duration = codeFallDuration();
+		const elapsed = codeRainElapsed();
+		const densityLimit = intensity() * CODE_RAIN_MAX_DENSITY;
+
+		matrixMarks.forEach(({ character, column, seed, density }) => {
+			if (density >= densityLimit) return;
+			const phase = (elapsed + randomAt(seed + 2) * duration) % duration;
+			const x = column / matrixColumns * viewportWidth - bounds.left;
+			const y = -12 + phase / duration * viewportHeight - bounds.top;
+			pen.fillText(character, x, y);
+		});
+	}),
+});
+
+const createConstellationPreset = (
+	mountCanvas: typeof import("asciify-engine/kit")["mountCanvas"],
+	intensity: Accessor<number>,
+	animationSeed: number,
+): BackgroundPreset => ({
+	id: "omega-constellation-canvas",
+	name: "Ômega Constellation",
+	description: "The original tiled star pattern, drawn by the Asciify Engine canvas template.",
+	cellSize: CONSTELLATION_CELL_SIZE,
+	speed: 1,
+	cursor: false,
+	mount: (context) => mountCanvas(context, (pen, width, height, _time, _mouse, frame) => {
+		prepareCanvasText(pen, width, height, frame.fontSize, frame.ink);
+
+		const cellWidth = pen.measureText("M").width + frame.fontSize * CONSTELLATION_LETTER_SPACING;
+		const left = (width - constellationColumns * cellWidth) / 2;
+		const top = (height - constellationLines.length * frame.fontSize) / 2;
+		const densityLimit = intensity();
+		const reducedMotion = context.reducedMotion() === true;
+
+		constellationMarks.forEach(({ character, row, column, seed: markSeed, density }) => {
+			if (density >= densityLimit) return;
+
+			let opacity = 1;
+			if (character === "*" && !reducedMotion) {
+				const seed = animationSeed + markSeed;
+				const interval = 0.7 + randomAt(seed) * 3.3;
+				const phase = (frame.elapsed / interval + randomAt(seed + 1)) % 1;
+				opacity = phase < 0.5 ? 0.25 : 1;
+			}
+
+			pen.globalAlpha = opacity;
+			pen.fillText(character, left + column * cellWidth, top + row * frame.fontSize);
+		});
+		pen.globalAlpha = 1;
+	}),
+});
 
 const AsciiBackdrop: Component<Props> = (props) => {
 	const contextTheme = useContext(BackgroundThemeContext);
 	const intensity = useContext(BackgroundIntensityContext);
 	const theme = () => props.theme ?? contextTheme();
 	const animationSeed = Math.floor(Math.random() * 1_000_000);
-	let codeRainElement: HTMLDivElement | undefined;
+	let engineElement: HTMLDivElement | undefined;
 
 	createEffect(() => {
-		if (theme() !== "matrix" || !codeRainElement) return;
+		const activeTheme = theme();
+		if ((activeTheme !== "matrix" && activeTheme !== "constellation") || !engineElement) return;
 
-		const syncCodeRain = () => {
-			if (!codeRainElement) return;
-			const bounds = codeRainElement.getBoundingClientRect();
-			const duration = codeFallDuration();
-			const elapsed = codeRainElapsed();
-			codeRainElement.style.setProperty("--rain-left", `${bounds.left}px`);
-			codeRainElement.style.setProperty("--rain-top", `${bounds.top}px`);
-			codeRainElement.style.setProperty("--code-fall-duration", `${duration}s`);
+		let disposed = false;
+		let handle: BackgroundHandle | undefined;
+		void import("asciify-engine/kit").then(({ background, mountCanvas }) => {
+			if (disposed || !engineElement) return;
 
-			codeRainElement.querySelectorAll<HTMLElement>("[data-rain-seed]").forEach((glyph) => {
-				const seed = Number(glyph.dataset.rainSeed);
-				const phase = (elapsed + randomAt(seed + 2) * duration) % duration;
-				glyph.style.animationDelay = `${-phase}s`;
+			const mountedHandle = background(engineElement, {
+				preset: activeTheme === "matrix"
+					? createMatrixPreset(mountCanvas, intensity)
+					: createConstellationPreset(mountCanvas, intensity, animationSeed),
+				cursor: false,
+				ink: getComputedStyle(engineElement).color,
+				speed: 1,
+				cellSize: activeTheme === "matrix" ? 12 : CONSTELLATION_CELL_SIZE,
+				opacity: props.placement === "modal" ? 0.56 : 1,
+				globalLook: false,
+				lazy: false,
 			});
-		};
-		const settleAt = performance.now() + 300;
-		let entryFrame = 0;
-		const syncDuringEntrance = () => {
-			if (!codeRainElement) return;
-			const bounds = codeRainElement.getBoundingClientRect();
-			codeRainElement.style.setProperty("--rain-left", `${bounds.left}px`);
-			codeRainElement.style.setProperty("--rain-top", `${bounds.top}px`);
-			if (performance.now() < settleAt) {
-				entryFrame = window.requestAnimationFrame(syncDuringEntrance);
+			handle = mountedHandle;
+			if (disposed) {
+				mountedHandle.destroy();
+				return;
 			}
-		};
-
-		const observer = new ResizeObserver(syncCodeRain);
-		observer.observe(codeRainElement);
-		window.addEventListener("resize", syncCodeRain);
-		syncCodeRain();
-		if (props.placement === "modal") {
-			entryFrame = window.requestAnimationFrame(syncDuringEntrance);
-		}
+		}).catch((error) => {
+			if (!disposed) console.error("Failed to initialize the Asciify Engine background.", error);
+		});
 		onCleanup(() => {
-			observer.disconnect();
-			window.removeEventListener("resize", syncCodeRain);
-			window.cancelAnimationFrame(entryFrame);
+			disposed = true;
+			handle?.destroy();
 		});
 	});
 
 	return (
 		<Show when={theme() !== "default"}>
-			<div class={cx(styles.root, props.placement === "modal" && styles.modalLayer)} data-theme={theme()} data-placement={props.placement} aria-hidden="true">
-				{theme() === "matrix"
-					? <div
-							class={styles.codeRain}
-							ref={codeRainElement}
-							style={{ "--code-fall-duration": `${codeFallDuration()}s` }}
-						>
-							{renderCodeRain(codeFallDuration(), codeRainElapsed(), intensity())}
-						</div>
-					: <pre class={styles.art}>{renderConstellation(animationSeed, intensity())}</pre>}
+			<div
+				class={cx(styles.root, props.placement === "modal" && styles.modalLayer)}
+				data-theme={theme()}
+				aria-hidden="true"
+			>
+				<div class={styles.engineSurface} ref={engineElement} />
 			</div>
 		</Show>
 	);

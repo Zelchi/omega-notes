@@ -1,13 +1,13 @@
 import type { BackgroundTheme, CanvasLayout, NoteMode, TextCursor, Theme } from "../model/preferences";
 import type { Language } from "@/shared/lib/i18n";
 import {
-    DEFAULT_AI_CHAT_SHORTCUT,
-    DEFAULT_KANBAN_SHORTCUT,
-    DEFAULT_POMODORO_SHORTCUT,
-    isAiChatShortcut,
-    isKeyboardShortcut,
-    type AiChatShortcut,
-    type KeyboardShortcut,
+	DEFAULT_AI_CHAT_SHORTCUT,
+	DEFAULT_KANBAN_SHORTCUT,
+	DEFAULT_POMODORO_SHORTCUT,
+	isAiChatShortcut,
+	isKeyboardShortcut,
+	type AiChatShortcut,
+	type KeyboardShortcut,
 } from "../model/ai-chat-shortcut";
 import { DEFAULT_SEARCH_SHORTCUT, isSearchShortcut, type SearchShortcut } from "../model/search-shortcut";
 import { DEFAULT_CANVAS_LAYOUT_SHORTCUT, isCanvasLayoutShortcut, type CanvasLayoutShortcut } from "../model/canvas-layout-shortcut";
@@ -32,41 +32,41 @@ const SOUND_VOLUME_KEY = "omega-notes.settings.sound-volume";
 const NOTE_MODE_KEY = "omega-notes.settings.note-mode";
 
 export const readSoundVolume = (): number => {
-    try {
-        const stored = localStorage.getItem(SOUND_VOLUME_KEY);
-        if (stored === null || stored.trim() === "") return 1;
-        const value = Number(stored);
-        return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
-    } catch { return 1; }
+	try {
+		const stored = localStorage.getItem(SOUND_VOLUME_KEY);
+		if (stored === null || stored.trim() === "") return 1;
+		const value = Number(stored);
+		return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
+	} catch { return 1; }
 };
 
 export const saveSoundVolume = (value: number): void => {
-    try { localStorage.setItem(SOUND_VOLUME_KEY, String(value)); }
-    catch (error) { console.error(error); }
+	try { localStorage.setItem(SOUND_VOLUME_KEY, String(value)); }
+	catch (error) { console.error(error); }
 };
 
 export const readAiChatShortcut = (): AiChatShortcut => {
-    try {
-        const value: unknown = JSON.parse(localStorage.getItem(AI_CHAT_SHORTCUT_KEY) ?? "null");
-        return isAiChatShortcut(value) ? value : { ...DEFAULT_AI_CHAT_SHORTCUT };
-    } catch { return { ...DEFAULT_AI_CHAT_SHORTCUT }; }
+	try {
+		const value: unknown = JSON.parse(localStorage.getItem(AI_CHAT_SHORTCUT_KEY) ?? "null");
+		return isAiChatShortcut(value) ? value : { ...DEFAULT_AI_CHAT_SHORTCUT };
+	} catch { return { ...DEFAULT_AI_CHAT_SHORTCUT }; }
 };
 
 export const saveAiChatShortcut = (value: AiChatShortcut): void => {
-    try { localStorage.setItem(AI_CHAT_SHORTCUT_KEY, JSON.stringify(value)); }
-    catch (error) { console.error(error); }
+	try { localStorage.setItem(AI_CHAT_SHORTCUT_KEY, JSON.stringify(value)); }
+	catch (error) { console.error(error); }
 };
 
 const readKeyboardShortcut = (key: string, fallback: KeyboardShortcut): KeyboardShortcut => {
-    try {
-        const value: unknown = JSON.parse(localStorage.getItem(key) ?? "null");
-        return isKeyboardShortcut(value) ? value : { ...fallback };
-    } catch { return { ...fallback }; }
+	try {
+		const value: unknown = JSON.parse(localStorage.getItem(key) ?? "null");
+		return isKeyboardShortcut(value) ? value : { ...fallback };
+	} catch { return { ...fallback }; }
 };
 
 const saveKeyboardShortcut = (key: string, value: KeyboardShortcut): void => {
-    try { localStorage.setItem(key, JSON.stringify(value)); }
-    catch (error) { console.error(error); }
+	try { localStorage.setItem(key, JSON.stringify(value)); }
+	catch (error) { console.error(error); }
 };
 
 export const readPomodoroShortcut = (): KeyboardShortcut => readKeyboardShortcut(POMODORO_SHORTCUT_KEY, DEFAULT_POMODORO_SHORTCUT);
@@ -75,15 +75,15 @@ export const readKanbanShortcut = (): KeyboardShortcut => readKeyboardShortcut(K
 export const saveKanbanShortcut = (value: KeyboardShortcut): void => saveKeyboardShortcut(KANBAN_SHORTCUT_KEY, value);
 
 export const readSearchShortcut = (): SearchShortcut => {
-    try {
-        const value: unknown = JSON.parse(localStorage.getItem(SEARCH_SHORTCUT_KEY) ?? "null");
-        return isSearchShortcut(value) ? value : { ...DEFAULT_SEARCH_SHORTCUT };
-    } catch { return { ...DEFAULT_SEARCH_SHORTCUT }; }
+	try {
+		const value: unknown = JSON.parse(localStorage.getItem(SEARCH_SHORTCUT_KEY) ?? "null");
+		return isSearchShortcut(value) ? value : { ...DEFAULT_SEARCH_SHORTCUT };
+	} catch { return { ...DEFAULT_SEARCH_SHORTCUT }; }
 };
 
 export const saveSearchShortcut = (value: SearchShortcut): void => {
-    try { localStorage.setItem(SEARCH_SHORTCUT_KEY, JSON.stringify(value)); }
-    catch (error) { console.error(error); }
+	try { localStorage.setItem(SEARCH_SHORTCUT_KEY, JSON.stringify(value)); }
+	catch (error) { console.error(error); }
 };
 
 export const readCanvasLayoutShortcut = (): CanvasLayoutShortcut => {
@@ -168,7 +168,11 @@ export const saveHideCanvasControls = (value: boolean): void => writeBoolean(HID
 
 export const readTheme = (): Theme => {
 	try {
-		return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+		switch (localStorage.getItem(THEME_KEY)) {
+			case "light": return "light";
+			case "dark": return "dark"
+			default: return "dark";
+		}
 	} catch {
 		return "dark";
 	}
@@ -185,7 +189,11 @@ export const saveTheme = (value: Theme): void => {
 export const readBackgroundTheme = (): BackgroundTheme => {
 	try {
 		const value = localStorage.getItem(BACKGROUND_THEME_KEY);
-		return value === "constellation" || value === "matrix" ? value : "default";
+		switch (value) {
+			case "constellation": return "constellation"
+			case "matrix": return "matrix"
+			default: return "default";
+		}
 	} catch {
 		return "default";
 	}

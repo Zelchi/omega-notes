@@ -7,6 +7,8 @@ const sortDocuments = (documents: PdfDocument[]) => [...documents].sort((left, r
 	left.title.localeCompare(right.title, undefined, { sensitivity: "base" }) || left.id.localeCompare(right.id),
 );
 
+const suggestedPdfTitle = (path: string): string => path.split(/[\\/]/).at(-1)?.replace(/\.pdf$/i, "") ?? "";
+
 const importErrorKey = (error: unknown): string => {
 	if (!(error instanceof Error)) return "pdfImportFailed";
 	if (error.message === "PDF_SIZE_INVALID") return "pdfSizeInvalid";
@@ -79,7 +81,7 @@ export const usePdfLibrary = (vaultId: Accessor<string | undefined>, t: (key: Tr
 			const selected = await open({ title: t("pdfSelectFile"), filters: [{ name: "PDF", extensions: ["pdf"] }] });
 			if (revision !== loadRevision || vaultId() !== id || typeof selected !== "string" || !selected) return;
 			setImportSource({ vaultId: id, revision, path: selected });
-			setTitleDraft("");
+			setTitleDraft(suggestedPdfTitle(selected));
 		} catch {
 			if (revision === loadRevision && vaultId() === id) setActionError("pdfImportFailed");
 		}

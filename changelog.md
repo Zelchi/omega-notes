@@ -1,5 +1,23 @@
 # Histórico de atualizações
 
+## v0.7.5
+
+### Fundos
+
+- Constelação e Matrix passam a ser renderizados pelo Canvas 2D do Asciify Engine.
+- Ajustado o mosaico da Constelação para remover as faixas vazias entre as repetições.
+
+### Kanban
+
+- Barra de busca e filtro de prioridade alinhados às lanes.
+- Limites de largura do Kanban e do painel de PDFs coordenados para preservar espaço para o painel oposto.
+
+### Biblioteca de PDFs
+
+- Capas da primeira página carregadas sob demanda nos cards.
+- O nome do arquivo selecionado é sugerido como título, sem a extensão `.pdf`.
+- Ações de renomear e excluir ficam disponíveis pelo card.
+
 ## v0.7.4
 
 ### Canvas

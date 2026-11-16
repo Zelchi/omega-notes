@@ -1,17 +1,9 @@
 import { kanbanStatuses } from "./kanban";
-import { sidePanelViewportGutter, sidePanelWidth } from "@/shared/lib/side-panel-layout";
+import { getSidePanelWidthLimits, sidePanelWidth } from "@/shared/lib/side-panel-layout";
 
-const defaultPanelWidth = sidePanelWidth;
-const oppositePanelWidth = sidePanelWidth;
-const panelGap = 16;
-const viewportEdgeSpace = 2;
 const kanbanPanelStageBySnapPoint = [1, 2, 4, 5];
 
-export const getKanbanPanelWidthLimits = (viewportWidth: number) => {
-	const minWidth = Math.max(0, Math.min(defaultPanelWidth, viewportWidth - sidePanelViewportGutter));
-	const maxWidth = Math.max(minWidth, viewportWidth - oppositePanelWidth - panelGap - viewportEdgeSpace);
-	return { minWidth, maxWidth };
-};
+export const getKanbanPanelWidthLimits = getSidePanelWidthLimits;
 
 export const clampKanbanPanelWidth = (width: number, viewportWidth: number): number => {
 	const { minWidth, maxWidth } = getKanbanPanelWidthLimits(viewportWidth);

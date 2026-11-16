@@ -9,6 +9,7 @@ import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import { Portal } from "solid-js/web";
 import { clampPdfPanelWidth, getPdfPanelWidthLimits } from "../../model/panel-size";
 import type { PdfLibraryController } from "../../model/controller";
+import PdfCoverThumbnail from "../pdf-cover-thumbnail";
 import PdfReader from "../pdf-reader";
 import { styles } from "./style.css.ts";
 
@@ -24,6 +25,7 @@ type Props = {
 const PdfPanel: Component<Props> = props => {
 	const [editingId, setEditingId] = createSignal<string>();
 	const [renameDraft, setRenameDraft] = createSignal("");
+	const [cardActionsVisibleId, setCardActionsVisibleId] = createSignal<string>();
 	const [canResize, setCanResize] = createSignal(false);
 	let renameInput: HTMLInputElement | undefined;
 	let panelElement: HTMLElement | undefined;
@@ -42,10 +44,12 @@ const PdfPanel: Component<Props> = props => {
 	});
 
 	const beginRename = (id: string, title: string) => {
+		setCardActionsVisibleId(undefined);
 		setEditingId(id);
 		setRenameDraft(title);
 		queueMicrotask(() => renameInput?.focus());
 	};
+	const toggleCardActions = (id: string) => setCardActionsVisibleId(current => current === id ? undefined : id);
 	const finishRename = async (id: string) => {
 		if (editingId() !== id) return;
 		const saved = await props.library.renameDocument(id, renameDraft());
@@ -123,10 +127,18 @@ const PdfPanel: Component<Props> = props => {
 							</Show>
 							<div class={styles.list}>
 								<For each={props.library.documents()}>{document =>
-									<div class={styles.card}>
+										<div class={styles.card} onContextMenu={event => {
+											if (editingId() === document.id) return;
+											event.preventDefault();
+											event.stopPropagation();
+											toggleCardActions(document.id);
+										}}>
 										<Show when={editingId() === document.id} fallback={
-											<Button class={styles.openDocument} type="button" onClick={() => props.library.openDocument(document.id)}>
-												<span class={styles.cardIcon}><Icon name="file" size={18} /></span>
+											<Button class={styles.openDocument} type="button" onClick={() => {
+												setCardActionsVisibleId(undefined);
+												props.library.openDocument(document.id);
+											}}>
+												<PdfCoverThumbnail vaultId={props.library.activeVaultId()} document={document} />
 												<span class={styles.cardTitle}>{document.title}</span>
 											</Button>
 										}>
@@ -137,10 +149,18 @@ const PdfPanel: Component<Props> = props => {
 											</form>
 										</Show>
 										<Show when={editingId() !== document.id}>
-											<div class={styles.cardActions}>
-												<Show when={document.pageCount > 0}><span class={styles.pageLabel}>{document.lastPage}/{document.pageCount}</span></Show>
-												<Button class={`${styles.iconButton} ${styles.cardAction}`} type="button" disabled={props.library.busy() || props.library.readFailed()} onClick={() => beginRename(document.id, document.title)}><Icon name="edit" size={14} /></Button>
-												<Button class={`${styles.iconButton} ${styles.cardAction}`} type="button" disabled={props.library.busy() || props.library.readFailed()} onClick={() => void props.library.removeDocument(document.id)}><Icon name="delete" size={14} /></Button>
+											<Show when={document.pageCount > 0}><span class={styles.pageLabel}>{document.lastPage}/{document.pageCount}</span></Show>
+											<div class={styles.cardActions} classList={{
+												[styles.cardActionsHitArea]: true,
+												[styles.cardActionsOpen]: cardActionsVisibleId() === document.id,
+											}} onClick={event => {
+												if (event.target === event.currentTarget) toggleCardActions(document.id);
+											}}>
+												<Button class={`${styles.iconButton} ${styles.cardAction}`} classList={{ [styles.cardActionVisible]: cardActionsVisibleId() === document.id }} type="button" disabled={props.library.busy() || props.library.readFailed() || cardActionsVisibleId() !== document.id} onClick={() => beginRename(document.id, document.title)}><Icon name="edit" size={14} /></Button>
+												<Button class={`${styles.iconButton} ${styles.cardAction}`} classList={{ [styles.cardActionVisible]: cardActionsVisibleId() === document.id }} type="button" disabled={props.library.busy() || props.library.readFailed() || cardActionsVisibleId() !== document.id} onClick={() => {
+													setCardActionsVisibleId(undefined);
+													void props.library.removeDocument(document.id);
+												}}><Icon name="delete" size={14} /></Button>
 											</div>
 										</Show>
 									</div>

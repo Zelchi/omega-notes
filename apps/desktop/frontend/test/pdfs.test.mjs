@@ -62,6 +62,28 @@ const withDesktop = async (invoke, run) => {
 	}
 };
 
+test('PDF import title is suggested from the selected filename without its extension on Linux and Windows paths', async () => {
+	for (const [path, title] of [
+		['/home/notes/Reading list.pdf', 'Reading list'],
+		['C:\\Users\\Reader\\Quarterly Report.PDF', 'Quarterly Report'],
+	]) {
+		await withDesktop((command) => {
+			if (command === 'read_pdf_documents') return Promise.resolve([]);
+			if (command === 'dialog_open') return Promise.resolve(path);
+			throw Error(`Unexpected command: ${command}`);
+		}, async () => {
+			let dispose;
+			const [vaultId] = createSignal('vault-a');
+			let library;
+			createRoot(unmount => { dispose = unmount; library = usePdfLibrary(vaultId, key => key); });
+			await tick();
+			await library.selectPdf();
+			assert.equal(library.titleDraft(), title);
+			dispose();
+		});
+	}
+});
+
 test('PDF loads from a previous Vault cannot overwrite the selected Vault', async () => {
 	const firstRead = defer();
 	await withDesktop((command, args) => {
@@ -205,18 +227,43 @@ test('highlight updates persist the selected color and linked note', async () =>
 	});
 });
 
-test('PDF library and reader are included in the desktop app and use range streaming', async () => {
-	const [app, titlebar, panel, reader, vite, tauri] = await Promise.all([
+test('PDF library cards reveal edit and delete actions from the card edge or context menu', async () => {
+	const [panel, styles] = await Promise.all([
+		import('node:fs/promises').then(fs => fs.readFile(new URL('../src/features/manage-pdfs/ui/pdf-panel/index.tsx', import.meta.url), 'utf8')),
+		import('node:fs/promises').then(fs => fs.readFile(new URL('../src/features/manage-pdfs/ui/pdf-panel/style.css.ts', import.meta.url), 'utf8')),
+	]);
+	assert.match(panel, /const toggleCardActions = \(id: string\) => setCardActionsVisibleId/);
+	assert.match(panel, /onContextMenu=\{event => \{[\s\S]*?toggleCardActions\(document\.id\);/);
+	assert.match(panel, /event\.target === event\.currentTarget\) toggleCardActions\(document\.id\)/);
+	assert.match(panel, /cardActionsVisibleId\(\) === document\.id/);
+	assert.match(panel, /cardActionVisible/);
+	assert.match(panel, /setCardActionsVisibleId\(undefined\);[\s\S]*?void props\.library\.removeDocument\(document\.id\)/);
+	assert.match(styles, /cardActionsHitArea/);
+	assert.match(styles, /flexDirection: "column"/);
+	assert.match(styles, /marginRight: -7/);
+	assert.match(styles, /cardActionVisible: style\(\{ height: 28/);
+	assert.match(styles, /paddingLeft: 5, paddingRight: 5/);
+});
+
+test('PDF library cards render lazy first-page covers through range streaming', async () => {
+	const [app, titlebar, panel, reader, cover, vite, tauri] = await Promise.all([
 		import('node:fs/promises').then(fs => fs.readFile(new URL('../src/app/index.tsx', import.meta.url), 'utf8')),
 		import('node:fs/promises').then(fs => fs.readFile(new URL('../src/app/ui/window-titlebar/index.tsx', import.meta.url), 'utf8')),
 		import('node:fs/promises').then(fs => fs.readFile(new URL('../src/features/manage-pdfs/ui/pdf-panel/index.tsx', import.meta.url), 'utf8')),
 		import('node:fs/promises').then(fs => fs.readFile(new URL('../src/features/manage-pdfs/ui/pdf-reader.tsx', import.meta.url), 'utf8')),
+		import('node:fs/promises').then(fs => fs.readFile(new URL('../src/features/manage-pdfs/ui/pdf-cover-thumbnail.tsx', import.meta.url), 'utf8')),
 		import('node:fs/promises').then(fs => fs.readFile(new URL('../vite.config.ts', import.meta.url), 'utf8')),
 		import('node:fs/promises').then(fs => fs.readFile(new URL('../../bridge/tauri/tauri.conf.json', import.meta.url), 'utf8')),
 	]);
 	assert.match(app, /PdfPanel = lazy\(\(\) => import\("@\/features\/manage-pdfs\/ui\/pdf-panel"\)\)/);
 	assert.match(titlebar, /onClick=\{\(\) => runAppAction\(props\.onPdfs, "panel"/);
 	assert.match(panel, /props\.library\.selectPdf\(\)/);
+	assert.match(panel, /<PdfCoverThumbnail vaultId=\{props\.library\.activeVaultId\(\)\} document=\{document\} \/>/);
+	assert.match(cover, /IntersectionObserver/);
+	assert.match(cover, /getPdfDocumentStreamUrl\(vaultId, props\.document\.id\)/);
+	assert.match(cover, /pdf\.getPage\(1\)/);
+	assert.match(cover, /disableStream: true,[\s\S]*?disableAutoFetch: true/);
+	assert.match(cover, /maxConcurrentCovers = 2/);
 	assert.match(reader, /disableStream: true,[\s\S]*?disableAutoFetch: true/);
 	assert.match(reader, /pdf\.worker\.mjs\?url/);
 	assert.match(reader, /iccUrl: staticAssetUrl\("iccs"\)/);

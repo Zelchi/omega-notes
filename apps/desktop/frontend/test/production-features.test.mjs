@@ -470,7 +470,9 @@ test('delete confirmation keeps its message visible while the dialog exits', asy
 
 test('Kanban lanes keep equal horizontal padding beside the overlay scrollbar', async () => {
 	const kanban = await source('../src/features/manage-kanban/ui/kanban-panel/index.tsx');
+	const style = await source('../src/features/manage-kanban/ui/kanban-panel/style.css.ts');
 	assert.match(kanban, /viewportStyle=\{\{ padding: "2px 12px 12px" \}\}/);
+	assert.match(style, /toolbar: style\(\{[^}]*paddingInline: 12[^}]*\}\)/);
 });
 
 test('Kanban priority filter uses the shared dropdown component', async () => {
