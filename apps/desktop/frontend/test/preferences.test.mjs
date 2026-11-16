@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-	readBackgroundIntensity, saveBackgroundIntensity, readCanvasLayout, saveCanvasLayout,
+	readBackgroundIntensity, saveBackgroundIntensity, readBackgroundTheme, saveBackgroundTheme,
+	readCanvasLayout, saveCanvasLayout, readTheme, saveTheme,
 	readKanbanShortcut, saveKanbanShortcut, readNoteLockShortcut, saveNoteLockShortcut,
 	readPomodoroShortcut, savePomodoroShortcut,
 } from '../src/features/change-preferences/api/preferences.repository.ts';
@@ -35,6 +36,34 @@ test('unsupported legacy canvas layout falls back to dynamic', t => {
 	const data = storage(t);
 	data.set('omega-notes.canvas-layout', 'archive');
 	assert.equal(readCanvasLayout(), 'dynamic');
+});
+
+test('theme preferences accept light and dark and default to dark otherwise', t => {
+	const data = storage(t);
+	assert.equal(readTheme(), 'dark');
+
+	saveTheme('light');
+	assert.equal(data.get('omega-notes.settings.theme'), 'light');
+	assert.equal(readTheme(), 'light');
+
+	saveTheme('dark');
+	assert.equal(readTheme(), 'dark');
+	data.set('omega-notes.settings.theme', 'unsupported');
+	assert.equal(readTheme(), 'dark');
+});
+
+test('supported background preferences persist and unsupported values fall back to default', t => {
+	const data = storage(t);
+	assert.equal(readBackgroundTheme(), 'default');
+	saveBackgroundTheme('constellation');
+	assert.equal(data.get('omega-notes.settings.background-theme'), 'constellation');
+	assert.equal(readBackgroundTheme(), 'constellation');
+
+	saveBackgroundTheme('matrix');
+	assert.equal(data.get('omega-notes.settings.background-theme'), 'matrix');
+	assert.equal(readBackgroundTheme(), 'matrix');
+	data.set('omega-notes.settings.background-theme', 'unsupported');
+	assert.equal(readBackgroundTheme(), 'default');
 });
 
 test('note lock shortcut defaults, persists, and rejects invalid saved values', t => {
