@@ -231,6 +231,16 @@ test('PDF zoom recenters horizontal scrolling after resizing the page', async ()
 	assert.match(reader, /if \(centerHorizontalScrollOnRender && host\) \{\s*host\.scrollLeft = Math\.max\(0, \(host\.scrollWidth - host\.clientWidth\) \/ 2\);\s*centerHorizontalScrollOnRender = false;/);
 });
 
+test('PDF reader pre-renders the previous and next page and shows a cached page without loading', async () => {
+	const reader = await source('../src/features/manage-pdfs/ui/pdf-reader.tsx');
+	assert.match(reader, /const candidates = \[page \+ 1, page - 1\]/);
+	assert.match(reader, /const bitmap = await createImageBitmap\(previewCanvas\)/);
+	assert.match(reader, /void preloadAdjacentPages\(document, page, width, height, scaleFactor, signature\)/);
+	assert.match(reader, /previewContext\.drawImage\(cachedPreview\.bitmap, 0, 0\)/);
+	assert.match(reader, /setBusy\(!cachedPreview\)/);
+	assert.match(reader, /cancelPagePreviewTasks\(\)/);
+});
+
 test('chat selection context actions use concise localized labels', async () => {
 	const [ptBr, en] = await Promise.all([
 		source('../lang/pt-br.json').then(JSON.parse),
