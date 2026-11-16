@@ -1,4 +1,4 @@
-import { createEffect, createSignal, createUniqueId, For, on, onCleanup, onMount, Show, type Component } from "solid-js";
+import { createEffect, createMemo, createSignal, createUniqueId, For, on, onCleanup, onMount, Show, type Component } from "solid-js";
 import { GlobalWorkerOptions, getDocument, TextLayer, type PDFDocumentProxy, type PDFPageProxy, type RenderTask } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { displayNoteTitle, NOTE_TITLE_MAX_LENGTH, type NoteSummary } from "@/entities/note";
@@ -8,10 +8,13 @@ import Icon from "@/shared/ui/icon";
 import { openUrl } from "@/shared/lib/desktop";
 import { CustomScrollbars, useCustomScrollArea } from "@/shared/ui/custom-scroll-area";
 import { addPdfHighlight, deletePdfHighlight, getPdfDocumentStreamUrl, maxPdfHighlightRects, maxPdfHighlightTextLength, pdfHighlightColors, readPdfHighlights, updatePdfHighlight, type PdfDocument, type PdfHighlight, type PdfHighlightColor, type PdfHighlightRect } from "../api/pdfs.repository";
+import { getPdfAdjacentPreviewPages, getPdfPageNavigationTarget, getPdfPageSpreadPages, normalizePdfPageSpreadCursor, pdfPageSpreadGap, shouldUsePdfPageSpread } from "../model/page-spread";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { styles } from "./pdf-panel/style.css.ts";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
+
+const pdfReaderResizeDebounceMs = 50;
 
 type Props = {
 	vaultId?: string;
@@ -45,9 +48,12 @@ type CachedPdfPagePreview = {
 	height: number;
 };
 
-const getPdfPageRenderConfig = (page: PDFPageProxy, width: number, height: number, scaleFactor: number): PdfPageRenderConfig => {
+const getPdfPageRenderConfig = (page: PDFPageProxy, width: number, height: number, scaleFactor: number, spreadEnabled: boolean): PdfPageRenderConfig => {
 	const baseViewport = page.getViewport({ scale: 1 });
-	const fitScale = Math.min((width - 28) / baseViewport.width, (height - 28) / baseViewport.height);
+	const horizontalFrameSpace = 28 + (spreadEnabled ? pdfPageSpreadGap + 4 : 2);
+	const availableWidth = Math.max(1, width - horizontalFrameSpace);
+	const pageWidth = spreadEnabled ? availableWidth / 2 : availableWidth;
+	const fitScale = Math.min(pageWidth / baseViewport.width, Math.max(1, height - 30) / baseViewport.height);
 	const displayScale = Math.max(0.1, fitScale * scaleFactor);
 	return {
 		viewport: page.getViewport({ scale: displayScale }),
@@ -55,8 +61,11 @@ const getPdfPageRenderConfig = (page: PDFPageProxy, width: number, height: numbe
 	};
 };
 
-const getPdfPagePreviewSignature = (width: number, height: number, scaleFactor: number): string =>
+const getPdfPagePreviewBaseSignature = (width: number, height: number, scaleFactor: number): string =>
 	`${width}:${height}:${scaleFactor}:${Math.min(window.devicePixelRatio || 1, 2)}`;
+
+const getPdfPagePreviewSignature = (width: number, height: number, scaleFactor: number, twoPageLayout: boolean): string =>
+	`${getPdfPagePreviewBaseSignature(width, height, scaleFactor)}:${twoPageLayout}`;
 
 const highlightColors: Record<PdfHighlightColor, { swatch: string; background: string; selected: string }> = {
 	yellow: { swatch: "#facc15", background: "rgb(250 204 21 / 38%)", selected: "rgb(234 179 8 / 54%)" },
@@ -71,6 +80,7 @@ const PdfReader: Component<Props> = props => {
 	const [pdf, setPdf] = createSignal<PDFDocumentProxy>();
 	const [pageCount, setPageCount] = createSignal(0);
 	const [pageNumber, setPageNumber] = createSignal(Math.max(1, props.document.lastPage));
+	const [pageAspectRatio, setPageAspectRatio] = createSignal<number>();
 	const [zoom, setZoom] = createSignal(1);
 	const [busy, setBusy] = createSignal(true);
 	const [renderFailed, setRenderFailed] = createSignal(false);
@@ -83,21 +93,44 @@ const PdfReader: Component<Props> = props => {
 	const [editNoteQuery, setEditNoteQuery] = createSignal("");
 	const [noteSuggestionCaret, setNoteSuggestionCaret] = createSignal<number>();
 	const [suggestionAnchor, setSuggestionAnchor] = createSignal<SuggestionAnchor>({ left: 0, top: 0, height: 32 });
-	const [textLayerReady, setTextLayerReady] = createSignal(false);
+	const [textLayerReadyPages, setTextLayerReadyPages] = createSignal<Set<number>>(new Set());
+	const [pageElementsRevision, setPageElementsRevision] = createSignal(0);
 	const [highlightError, setHighlightError] = createSignal<TranslationKey>();
 	const [highlightSaving, setHighlightSaving] = createSignal(false);
 	let host: HTMLDivElement | undefined;
-	let canvas: HTMLCanvasElement | undefined;
-	let textLayerContainer: HTMLDivElement | undefined;
 	let notePickerInput: HTMLInputElement | undefined;
-	let renderTask: RenderTask | undefined;
-	let textLayerTask: TextLayer | undefined;
 	let loadRevision = 0;
 	let pagePreviewRevision = 0;
 	const pagePreviewCache = new Map<number, CachedPdfPagePreview>();
 	const pagePreviewTasks = new Map<number, RenderTask>();
+	const pageRenderTasks = new Map<number, RenderTask>();
+	const textLayerTasks = new Map<number, TextLayer>();
+	const pageElements = new Map<number, { canvas?: HTMLCanvasElement; textLayer?: HTMLDivElement }>();
 	let centerHorizontalScrollOnRender = false;
 	const noteSuggestionsId = createUniqueId();
+	const spreadEnabled = createMemo(() => shouldUsePdfPageSpread(size().width, size().height, pageAspectRatio(), pageCount(), zoom()));
+	const visiblePages = createMemo(() => getPdfPageSpreadPages(pageNumber(), pageCount(), spreadEnabled()));
+	const progressPage = createMemo(() => {
+		const pages = visiblePages();
+		return pages[pages.length - 1] ?? pageNumber();
+	});
+	createEffect(on(spreadEnabled, enabled => {
+		if (enabled) setPageNumber(current => normalizePdfPageSpreadCursor(current, pageCount(), true));
+	}));
+	const registerPageElement = (page: number, key: "canvas" | "textLayer", element: HTMLCanvasElement | HTMLDivElement) => {
+		const current = pageElements.get(page) ?? {};
+		pageElements.set(page, { ...current, [key]: element });
+		if (visiblePages().every(visiblePage => {
+			const elements = pageElements.get(visiblePage);
+			return elements?.canvas && elements.textLayer;
+		})) setPageElementsRevision(revision => revision + 1);
+	};
+	const cancelPageRenderTasks = () => {
+		for (const task of pageRenderTasks.values()) task.cancel();
+		pageRenderTasks.clear();
+		for (const task of textLayerTasks.values()) task.cancel();
+		textLayerTasks.clear();
+	};
 	const cancelPagePreviewTasks = () => {
 		pagePreviewRevision += 1;
 		for (const task of pagePreviewTasks.values()) task.cancel();
@@ -107,34 +140,45 @@ const PdfReader: Component<Props> = props => {
 		for (const preview of pagePreviewCache.values()) preview.bitmap.close();
 		pagePreviewCache.clear();
 	};
-	const prunePagePreviewCache = (keepPages: Set<number>, signature: string) => {
+	const prunePagePreviewCache = (expectedSignatures: Map<number, string>) => {
 		for (const [page, preview] of pagePreviewCache) {
-			if (preview.signature === signature && keepPages.has(page)) continue;
+			if (expectedSignatures.get(page) === preview.signature) continue;
 			preview.bitmap.close();
 			pagePreviewCache.delete(page);
 		}
 	};
 	const preloadAdjacentPages = async (
 		document: PDFDocumentProxy,
-		page: number,
+		pages: number[],
+		pageCount: number,
 		width: number,
 		height: number,
 		scaleFactor: number,
-		signature: string,
+		spread: boolean,
 	) => {
 		const revision = pagePreviewRevision;
-		const candidates = [page + 1, page - 1].filter(candidate => candidate >= 1 && candidate <= document.numPages);
-		const wantedPages = new Set(candidates);
-		prunePagePreviewCache(wantedPages, signature);
+		const candidates = getPdfAdjacentPreviewPages(
+			pages[0] ?? pageNumber(),
+			pages,
+			Math.min(pageCount, document.numPages),
+			spread,
+		);
+		const expectedSignatures = new Map(candidates.map(candidate => {
+			const twoPageLayout = getPdfPageSpreadPages(candidate, pageCount, spread).length > 1;
+			return [candidate, getPdfPagePreviewSignature(width, height, scaleFactor, twoPageLayout)];
+		}));
+		prunePagePreviewCache(expectedSignatures);
 		for (const candidate of candidates) {
 			if (revision !== pagePreviewRevision) return;
-			if (pagePreviewCache.has(candidate)) continue;
+			const signature = expectedSignatures.get(candidate)!;
+			if (pagePreviewCache.get(candidate)?.signature === signature) continue;
 			const previewCanvas = window.document.createElement("canvas");
 			let task: RenderTask | undefined;
 			try {
 				const previewPage = await document.getPage(candidate);
 				if (revision !== pagePreviewRevision) return;
-				const config = getPdfPageRenderConfig(previewPage, width, height, scaleFactor);
+				const twoPageLayout = getPdfPageSpreadPages(candidate, pageCount, spread).length > 1;
+				const config = getPdfPageRenderConfig(previewPage, width, height, scaleFactor, twoPageLayout);
 				const { viewport, outputScale } = config;
 				previewCanvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
 				previewCanvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
@@ -210,12 +254,13 @@ const PdfReader: Component<Props> = props => {
 		setPdf(undefined);
 		setPageCount(0);
 		setPageNumber(Math.max(1, props.document.lastPage));
+		setPageAspectRatio(undefined);
 		setBusy(true);
 		setRenderFailed(false);
 		setHighlights([]);
 		setSelectedHighlightId(undefined);
 		setTextMenu(undefined);
-		setTextLayerReady(false);
+		setTextLayerReadyPages(new Set<number>());
 		setHighlightError(undefined);
 		setHighlightSaving(false);
 		if (vaultId && documentId) {
@@ -238,6 +283,10 @@ const PdfReader: Component<Props> = props => {
 						wasmUrl: staticAssetUrl("wasm"),
 					});
 					loadedDocument = await loadingTask.promise;
+					const firstPage = await loadedDocument.getPage(1);
+					const firstPageViewport = firstPage.getViewport({ scale: 1 });
+					if (revision !== loadRevision) return;
+					setPageAspectRatio(firstPageViewport.width / firstPageViewport.height);
 					let savedHighlights: PdfHighlight[] = [];
 					try {
 						savedHighlights = await readPdfHighlights(vaultId, documentId);
@@ -260,102 +309,146 @@ const PdfReader: Component<Props> = props => {
 		onCleanup(() => {
 			if (loadRevision === revision) loadRevision += 1;
 			cancelPagePreviewTasks();
+			cancelPageRenderTasks();
 			clearPagePreviewCache();
-			renderTask?.cancel();
 			if (loadingTask) void loadingTask.destroy();
 		});
 	}));
 
 	onMount(() => {
 		if (!host) return;
+		let resizeTimeout: ReturnType<typeof setTimeout> | undefined;
+		let hasInitialSize = false;
 		const observer = new ResizeObserver(entries => {
 			const box = entries[0]?.contentRect;
-			if (box) setSize({ width: box.width, height: box.height });
+			if (!box) return;
+			const nextSize = { width: box.width, height: box.height };
+			if (!hasInitialSize) {
+				hasInitialSize = true;
+				setSize(nextSize);
+				return;
+			}
+			if (resizeTimeout !== undefined) clearTimeout(resizeTimeout);
+			resizeTimeout = setTimeout(() => {
+				resizeTimeout = undefined;
+				setSize(nextSize);
+			}, pdfReaderResizeDebounceMs);
 		});
 		observer.observe(host);
-		onCleanup(() => observer.disconnect());
+		onCleanup(() => {
+			observer.disconnect();
+			if (resizeTimeout !== undefined) clearTimeout(resizeTimeout);
+		});
 	});
 
-	createEffect(on(() => [pdf(), pageNumber(), zoom(), size().width, size().height] as const, ([document, page, scaleFactor, width, height]) => {
-		if (!document || !canvas || !textLayerContainer || width < 1 || height < 1) return;
+	createEffect(on(() => [
+		pdf(),
+		pageNumber(),
+		zoom(),
+		size().width,
+		size().height,
+		spreadEnabled(),
+		visiblePages().join(","),
+		pageElementsRevision(),
+	] as const, ([document, , scaleFactor, width, height, spread]) => {
+		if (!document || width < 1 || height < 1) return;
+		const pages = [...visiblePages()];
+		const elements = pages.map(page => pageElements.get(page));
+		if (elements.some(pageElements => !pageElements?.canvas || !pageElements.textLayer)) return;
 		let cancelled = false;
-		let task: RenderTask | undefined;
-		let currentTextLayer: TextLayer | undefined;
-		const signature = getPdfPagePreviewSignature(width, height, scaleFactor);
-		let cachedPreview = pagePreviewCache.get(page);
-		if (cachedPreview?.signature !== signature) cachedPreview = undefined;
+		const baseSignature = getPdfPagePreviewBaseSignature(width, height, scaleFactor);
+		const expectedSignatures = new Map(pages.map(page => [
+			page,
+			getPdfPagePreviewSignature(width, height, scaleFactor, pages.length > 1),
+		]));
+		const visiblePreviews = new Map(pages.map(page => [page, pagePreviewCache.get(page)]));
 		for (const [cachedPage, preview] of pagePreviewCache) {
-			if (preview.signature === signature) continue;
+			if (preview.signature.startsWith(`${baseSignature}:`)) continue;
 			preview.bitmap.close();
 			pagePreviewCache.delete(cachedPage);
-		}
-		if (cachedPreview) {
-			canvas.width = cachedPreview.bitmap.width;
-			canvas.height = cachedPreview.bitmap.height;
-			canvas.style.width = `${cachedPreview.width}px`;
-			canvas.style.height = `${cachedPreview.height}px`;
-			const previewContext = canvas.getContext("2d");
-			if (previewContext) previewContext.drawImage(cachedPreview.bitmap, 0, 0);
-			else cachedPreview = undefined;
+			visiblePreviews.delete(cachedPage);
 		}
 		cancelPagePreviewTasks();
-		renderTask?.cancel();
-		textLayerTask?.cancel();
-		textLayerTask = undefined;
-		textLayerContainer.replaceChildren();
-		setTextLayerReady(false);
+		cancelPageRenderTasks();
+		for (const page of pages) pageElements.get(page)?.textLayer?.replaceChildren();
+		setTextLayerReadyPages(new Set<number>());
 		setSelectedHighlightId(undefined);
 		setTextMenu(undefined);
 		window.getSelection()?.removeAllRanges();
-		setBusy(!cachedPreview);
+		setBusy(!pages.every(page => visiblePreviews.get(page)?.signature === expectedSignatures.get(page)));
 		setRenderFailed(false);
 		void (async () => {
 			try {
-				const pdfPage = await document.getPage(page);
-				if (cancelled || !canvas) return;
-				const { viewport, outputScale } = getPdfPageRenderConfig(pdfPage, width, height, scaleFactor);
-				if (!cachedPreview) {
-					canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
-					canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
-					canvas.style.width = `${Math.floor(viewport.width)}px`;
-					canvas.style.height = `${Math.floor(viewport.height)}px`;
-				}
+				const renderPage = async (page: number) => {
+					if (cancelled) return;
+					const pageNodes = pageElements.get(page)!;
+					const pageCanvas = pageNodes.canvas!;
+					const textLayerContainer = pageNodes.textLayer!;
+					const pdfPage = await document.getPage(page);
+					if (cancelled) return;
+					const twoPageLayout = pages.length > 1;
+					const { viewport, outputScale } = getPdfPageRenderConfig(pdfPage, width, height, scaleFactor, twoPageLayout);
+					const cachedPreview = visiblePreviews.get(page)?.signature === expectedSignatures.get(page) ? visiblePreviews.get(page) : undefined;
+					if (cachedPreview) {
+						pageCanvas.width = cachedPreview.bitmap.width;
+						pageCanvas.height = cachedPreview.bitmap.height;
+						pageCanvas.style.width = `${cachedPreview.width}px`;
+						pageCanvas.style.height = `${cachedPreview.height}px`;
+					} else {
+						pageCanvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
+						pageCanvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
+						pageCanvas.style.width = `${Math.floor(viewport.width)}px`;
+						pageCanvas.style.height = `${Math.floor(viewport.height)}px`;
+					}
+					const context = pageCanvas.getContext("2d");
+					if (!context) throw Error("PDF_CANVAS_UNAVAILABLE");
+					if (cachedPreview) context.drawImage(cachedPreview.bitmap, 0, 0);
+
+					const renderPromise = cachedPreview ? Promise.resolve() : (async () => {
+						const task = pdfPage.render({
+							canvas: pageCanvas,
+							canvasContext: context,
+							viewport,
+							transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0],
+							background: "#fff",
+						});
+						pageRenderTasks.set(page, task);
+						try {
+							await task.promise;
+						} finally {
+							if (pageRenderTasks.get(page) === task) pageRenderTasks.delete(page);
+						}
+					})();
+					let currentTextLayerTask: TextLayer | undefined;
+					const textLayerPromise = (async () => {
+						try {
+							const textContent = await pdfPage.getTextContent();
+							if (cancelled) return;
+							textLayerContainer.style.setProperty("--scale-factor", String(viewport.scale));
+							textLayerContainer.style.setProperty("--user-unit", String(viewport.userUnit));
+							currentTextLayerTask = new TextLayer({ textContentSource: textContent, container: textLayerContainer, viewport });
+							textLayerTasks.set(page, currentTextLayerTask);
+							await currentTextLayerTask.render();
+							if (!cancelled) setTextLayerReadyPages(current => new Set(current).add(page));
+						} catch {
+							if (!cancelled) setHighlightError("pdfTextLayerFailed");
+						} finally {
+							if (textLayerTasks.get(page) === currentTextLayerTask) textLayerTasks.delete(page);
+						}
+					})();
+					await Promise.all([renderPromise, textLayerPromise]);
+				};
+				const results = await Promise.allSettled(pages.map(renderPage));
+				if (cancelled) return;
+				const failedPage = results.find(result => result.status === "rejected");
+				if (failedPage?.status === "rejected") throw failedPage.reason;
 				if (centerHorizontalScrollOnRender && host) {
 					host.scrollLeft = Math.max(0, (host.scrollWidth - host.clientWidth) / 2);
 					centerHorizontalScrollOnRender = false;
 				}
-				const context = canvas.getContext("2d");
-				if (!context) throw Error("PDF_CANVAS_UNAVAILABLE");
-				const textLayerPromise = (async () => {
-					try {
-						const textContent = await pdfPage.getTextContent();
-						if (cancelled || !textLayerContainer) return;
-						textLayerContainer.style.setProperty("--scale-factor", String(viewport.scale));
-						textLayerContainer.style.setProperty("--user-unit", String(viewport.userUnit));
-						currentTextLayer = new TextLayer({ textContentSource: textContent, container: textLayerContainer, viewport });
-						textLayerTask = currentTextLayer;
-						await currentTextLayer.render();
-						if (!cancelled) setTextLayerReady(true);
-					} catch {
-						if (!cancelled) setHighlightError("pdfTextLayerFailed");
-					}
-				})();
-				if (cachedPreview) {
-					setBusy(false);
-					props.onProgress(props.document.id, page, document.numPages);
-					void preloadAdjacentPages(document, page, width, height, scaleFactor, signature);
-					await textLayerPromise;
-				} else {
-					task = pdfPage.render({ canvas, canvasContext: context, viewport, transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0], background: "#fff" });
-					renderTask = task;
-					await task.promise;
-					await textLayerPromise;
-					if (!cancelled) {
-						setBusy(false);
-						props.onProgress(props.document.id, page, document.numPages);
-						void preloadAdjacentPages(document, page, width, height, scaleFactor, signature);
-					}
-				}
+				setBusy(false);
+				props.onProgress(props.document.id, progressPage(), document.numPages);
+				void preloadAdjacentPages(document, pages, document.numPages, width, height, scaleFactor, spread);
 			} catch (error) {
 				if (!cancelled && !(error instanceof Error && error.name === "RenderingCancelledException")) {
 					setBusy(false);
@@ -365,17 +458,13 @@ const PdfReader: Component<Props> = props => {
 		})();
 		onCleanup(() => {
 			cancelled = true;
-			task?.cancel();
-			currentTextLayer?.cancel();
+			cancelPageRenderTasks();
 			cancelPagePreviewTasks();
-			if (renderTask === task) renderTask = undefined;
-			if (textLayerTask === currentTextLayer) textLayerTask = undefined;
 		});
 	}));
 
 	type ClientRectBounds = { left: number; top: number; right: number; bottom: number };
-	const getSelectionData = (): { text: string; rects: PdfHighlightRect[] } | undefined => {
-		if (!textLayerContainer) return undefined;
+	const getSelectionData = (textLayerContainer: HTMLDivElement): { text: string; rects: PdfHighlightRect[] } | undefined => {
 		const selection = window.getSelection();
 		if (!selection || selection.isCollapsed || !selection.rangeCount) return undefined;
 		const range = selection.getRangeAt(0);
@@ -423,18 +512,17 @@ const PdfReader: Component<Props> = props => {
 		}).filter(rect => rect.width > 0 && rect.height > 0);
 		return rects.length ? { text, rects } : undefined;
 	};
-	const getHighlightAt = (clientX: number, clientY: number): PdfHighlight | undefined => {
-		if (!textLayerContainer) return;
+	const getHighlightAt = (page: number, textLayerContainer: HTMLDivElement, clientX: number, clientY: number): PdfHighlight | undefined => {
 		const bounds = textLayerContainer.getBoundingClientRect();
 		if (bounds.width < 1 || bounds.height < 1) return;
 		const x = (clientX - bounds.left) / bounds.width;
 		const y = (clientY - bounds.top) / bounds.height;
-		return highlights().find(highlight => highlight.page === pageNumber()
+		return highlights().find(highlight => highlight.page === page
 			&& highlight.rects.some(rect => x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height));
 	};
-	const openSelectionMenu = (event: MouseEvent) => {
-		const selection = getSelectionData();
-		const existingHighlight = getHighlightAt(event.clientX, event.clientY);
+	const openSelectionMenu = (page: number, textLayerContainer: HTMLDivElement, event: MouseEvent) => {
+		const selection = getSelectionData(textLayerContainer);
+		const existingHighlight = getHighlightAt(page, textLayerContainer, event.clientX, event.clientY);
 		if (!host || (!selection && !existingHighlight)) return;
 		event.preventDefault();
 		event.stopPropagation();
@@ -446,7 +534,7 @@ const PdfReader: Component<Props> = props => {
 			text: selection?.text ?? existingHighlight!.text,
 			selection: existingHighlight ? undefined : selection,
 			highlightId: existingHighlight?.id,
-			page: pageNumber(),
+			page,
 			x: Math.max(host.scrollLeft + 8, Math.min(event.clientX - bounds.left + host.scrollLeft, host.scrollLeft + host.clientWidth - menuWidth - 8)),
 			y: Math.max(host.scrollTop + 8, Math.min(event.clientY - bounds.top + host.scrollTop, host.scrollTop + host.clientHeight - menuHeight - 8)),
 			mode: "actions",
@@ -467,8 +555,8 @@ const PdfReader: Component<Props> = props => {
 			return { ...current, mode: "edit", y: Math.max(host!.scrollTop + 8, Math.min(current.y, maxY)) };
 		});
 	};
-	const openLinkedHighlight = (event: MouseEvent) => {
-		const highlight = getHighlightAt(event.clientX, event.clientY);
+	const openLinkedHighlight = (page: number, textLayerContainer: HTMLDivElement, event: MouseEvent) => {
+		const highlight = getHighlightAt(page, textLayerContainer, event.clientX, event.clientY);
 		setSelectedHighlightId(highlight?.id);
 		if (!highlight?.noteId) return;
 		const note = props.notes.find(item => item.id === highlight.noteId);
@@ -501,7 +589,7 @@ const PdfReader: Component<Props> = props => {
 		const vaultId = props.vaultId;
 		const menu = textMenu();
 		const selected = menu?.selection;
-		if (!vaultId || !menu || !selected || !textLayerReady() || highlightSaving()) return;
+		if (!vaultId || !menu || !selected || !textLayerReadyPages().has(menu.page) || highlightSaving()) return;
 		const documentId = props.document.id;
 		const revision = loadRevision;
 		const highlight: PdfHighlight = { id: crypto.randomUUID(), page: menu.page, ...selected, color: "yellow", noteId: null };
@@ -572,12 +660,23 @@ const PdfReader: Component<Props> = props => {
 		setTextMenu(undefined);
 	};
 
-	const movePage = (delta: number) => {
+	const movePage = (direction: -1 | 1) => {
 		setSelectedHighlightId(undefined);
 		setTextMenu(undefined);
 		window.getSelection()?.removeAllRanges();
-		setPageNumber(current => Math.max(1, Math.min(pageCount(), current + delta)));
+		setPageNumber(current => getPdfPageNavigationTarget(current, pageCount(), spreadEnabled(), direction));
 	};
+	const ReaderToolbar = () => (
+		<div class={styles.readerToolbar}>
+			<Button class={styles.iconButton} type="button" disabled={(visiblePages()[0] ?? pageNumber()) <= 1 || busy()} onClick={() => movePage(-1)}><Icon name="back" size={15} /></Button>
+			<span class={styles.pageLabel}>{pageCount() ? `${visiblePages()[0]}${visiblePages().length > 1 ? `–${progressPage()}` : ""} / ${pageCount()}` : "—"}</span>
+			<Button class={styles.iconButton} type="button" disabled={!pageCount() || progressPage() >= pageCount() || busy()} onClick={() => movePage(1)}><Icon name="chevronRight" size={15} /></Button>
+			<span style={{ width: "8px" }} />
+			<Button class={styles.iconButton} type="button" disabled={zoom() <= 0.5} onClick={() => changeZoom(-0.1)}><Icon name="zoomOut" size={15} /></Button>
+			<span class={styles.pageLabel}>{Math.round(zoom() * 100)}%</span>
+			<Button class={styles.iconButton} type="button" disabled={zoom() >= 2} onClick={() => changeZoom(0.1)}><Icon name="zoomIn" size={15} /></Button>
+		</div>
+	);
 	const changeZoom = (delta: number) => setZoom(current => {
 		const next = Math.max(0.5, Math.min(2, Math.round((current + delta) * 10) / 10));
 		if (next !== current) centerHorizontalScrollOnRender = true;
@@ -586,20 +685,15 @@ const PdfReader: Component<Props> = props => {
 
 	return (
 		<>
-			<div class={styles.header}>
-				<Button class={styles.iconButton} type="button" onClick={props.onBack}><Icon name="back" size={16} /></Button>
-				<h2 class={styles.headerTitle}>{props.document.title}</h2>
-				<Button class={styles.iconButton} type="button" onClick={props.onClose}><Icon name="close" size={16} /></Button>
+			<div class={`${styles.header} ${spreadEnabled() ? styles.readerSpreadHeader : ""}`}>
+				<div class={styles.readerHeaderStart}>
+					<Button class={styles.iconButton} type="button" onClick={props.onBack}><Icon name="back" size={16} /></Button>
+					<h2 class={styles.headerTitle}>{props.document.title}</h2>
+				</div>
+				<Show when={spreadEnabled()}><ReaderToolbar /></Show>
+				<Button class={`${styles.iconButton} ${styles.readerHeaderClose}`} type="button" onClick={props.onClose}><Icon name="close" size={16} /></Button>
 			</div>
-			<div class={styles.readerToolbar}>
-				<Button class={styles.iconButton} type="button" disabled={pageNumber() <= 1 || busy()} onClick={() => movePage(-1)}><Icon name="back" size={15} /></Button>
-				<span class={styles.pageLabel}>{pageCount() ? `${pageNumber()} / ${pageCount()}` : "—"}</span>
-				<Button class={styles.iconButton} type="button" disabled={!pageCount() || pageNumber() >= pageCount() || busy()} onClick={() => movePage(1)}><Icon name="chevronRight" size={15} /></Button>
-				<span style={{ width: "8px" }} />
-				<Button class={styles.iconButton} type="button" disabled={zoom() <= 0.5} onClick={() => changeZoom(-0.1)}><Icon name="zoomOut" size={15} /></Button>
-				<span class={styles.pageLabel}>{Math.round(zoom() * 100)}%</span>
-				<Button class={styles.iconButton} type="button" disabled={zoom() >= 2} onClick={() => changeZoom(0.1)}><Icon name="zoomIn" size={15} /></Button>
-			</div>
+			<Show when={!spreadEnabled()}><ReaderToolbar /></Show>
 			<Show when={highlightError()}>{key => <p class={styles.highlightError}>{props.t(key())}</p>}</Show>
 			<div class={styles.readerScrollRoot} ref={scroll.setRoot}
 				onPointerMove={scroll.moveThumb}
@@ -608,19 +702,31 @@ const PdfReader: Component<Props> = props => {
 				onLostPointerCapture={scroll.finishDrag}
 			>
 				<div class={styles.readerSurface} ref={element => { host = element; scroll.setViewport(element); }} data-omega-scroll-viewport="" onScroll={scroll.updateMetrics}>
-				<div class={styles.pageFrame} ref={scroll.setContent}>
-					<canvas class={styles.canvas} ref={canvas} />
-					<div class={styles.highlightLayer}>
-						<For each={highlights().filter(highlight => highlight.page === pageNumber())}>{highlight =>
-							<For each={highlight.rects}>{rect =>
+				<div class={styles.pageSpread} ref={scroll.setContent}>
+					<For each={visiblePages()}>{page => {
+						onCleanup(() => pageElements.delete(page));
+						return (
+							<div class={styles.pageFrame}>
+								<canvas class={styles.canvas} ref={element => registerPageElement(page, "canvas", element)} />
+								<div class={styles.highlightLayer}>
+									<For each={highlights().filter(highlight => highlight.page === page)}>{highlight =>
+										<For each={highlight.rects}>{rect =>
+											<div
+												class={`${styles.highlightMark} ${selectedHighlightId() === highlight.id ? styles.highlightMarkSelected : ""}`}
+												style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%`, background: selectedHighlightId() === highlight.id ? highlightColors[highlight.color].selected : highlightColors[highlight.color].background }}
+											/>
+										}</For>
+									}</For>
+								</div>
 								<div
-									class={`${styles.highlightMark} ${selectedHighlightId() === highlight.id ? styles.highlightMarkSelected : ""}`}
-									style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%`, background: selectedHighlightId() === highlight.id ? highlightColors[highlight.color].selected : highlightColors[highlight.color].background }}
+									class={styles.textLayer}
+									ref={element => registerPageElement(page, "textLayer", element)}
+									onClick={event => openLinkedHighlight(page, event.currentTarget, event)}
+									onContextMenu={event => openSelectionMenu(page, event.currentTarget, event)}
 								/>
-							}</For>
-						}</For>
-					</div>
-					<div class={styles.textLayer} ref={textLayerContainer} onClick={openLinkedHighlight} onContextMenu={openSelectionMenu} />
+							</div>
+						);
+					}}</For>
 				</div>
 				<Show when={textMenu()}>{menu =>
 					<div

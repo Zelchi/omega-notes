@@ -231,13 +231,27 @@ test('PDF zoom recenters horizontal scrolling after resizing the page', async ()
 	assert.match(reader, /if \(centerHorizontalScrollOnRender && host\) \{\s*host\.scrollLeft = Math\.max\(0, \(host\.scrollWidth - host\.clientWidth\) \/ 2\);\s*centerHorizontalScrollOnRender = false;/);
 });
 
-test('PDF reader pre-renders the previous and next page and shows a cached page without loading', async () => {
+test('PDF reader waits for resizing to settle before rerendering pages', async () => {
 	const reader = await source('../src/features/manage-pdfs/ui/pdf-reader.tsx');
-	assert.match(reader, /const candidates = \[page \+ 1, page - 1\]/);
+	assert.match(reader, /const pdfReaderResizeDebounceMs = 50/);
+	assert.match(reader, /if \(!hasInitialSize\) \{\s*hasInitialSize = true;\s*setSize\(nextSize\)/);
+	assert.match(reader, /resizeTimeout = setTimeout\(\(\) => \{\s*resizeTimeout = undefined;\s*setSize\(nextSize\);\s*\}, pdfReaderResizeDebounceMs\)/);
+	assert.match(reader, /observer\.disconnect\(\);\s*if \(resizeTimeout !== undefined\) clearTimeout\(resizeTimeout\)/);
+});
+
+test('PDF reader pre-renders adjacent pages or spreads and renders text layers per page', async () => {
+	const reader = await source('../src/features/manage-pdfs/ui/pdf-reader.tsx');
+	assert.match(reader, /getPdfAdjacentPreviewPages\(/);
 	assert.match(reader, /const bitmap = await createImageBitmap\(previewCanvas\)/);
-	assert.match(reader, /void preloadAdjacentPages\(document, page, width, height, scaleFactor, signature\)/);
-	assert.match(reader, /previewContext\.drawImage\(cachedPreview\.bitmap, 0, 0\)/);
-	assert.match(reader, /setBusy\(!cachedPreview\)/);
+	assert.match(reader, /void preloadAdjacentPages\(document, pages, document\.numPages, width, height, scaleFactor, spread\)/);
+	assert.match(reader, /context\.drawImage\(cachedPreview\.bitmap, 0, 0\)/);
+	assert.match(reader, /registerPageElement\(page, "canvas", element\)/);
+	assert.match(reader, /openSelectionMenu\(page, event\.currentTarget, event\)/);
+	assert.match(reader, /getPdfPageNavigationTarget\(current, pageCount\(\), spreadEnabled\(\), direction\)/);
+	assert.match(reader, /const results = await Promise\.allSettled\(pages\.map\(renderPage\)\)/);
+	assert.match(reader, /class=\{`\$\{styles\.header\} \$\{spreadEnabled\(\) \? styles\.readerSpreadHeader : ""\}`\}/);
+	assert.match(reader, /<Show when=\{spreadEnabled\(\)\}><ReaderToolbar \/><\/Show>/);
+	assert.match(reader, /<Show when=\{!spreadEnabled\(\)\}><ReaderToolbar \/><\/Show>/);
 	assert.match(reader, /cancelPagePreviewTasks\(\)/);
 });
 

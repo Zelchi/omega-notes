@@ -1,5 +1,12 @@
 # Histórico de atualizações
 
+## v0.7.6
+
+### Biblioteca de PDFs
+
+- Pré-carregamento das páginas vizinhas para agilizar a navegação no leitor.
+- Exibição automática de duas páginas lado a lado quando o espaço e o zoom permitem.
+
 ## v0.7.5
 
 ### Fundos
