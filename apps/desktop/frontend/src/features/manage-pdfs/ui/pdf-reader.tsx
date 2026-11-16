@@ -685,7 +685,7 @@ const PdfReader: Component<Props> = props => {
 
 	return (
 		<>
-			<div class={`${styles.header} ${spreadEnabled() ? styles.readerSpreadHeader : ""}`}>
+			<div class={`${styles.header} ${spreadEnabled() ? styles.readerSpreadHeader : styles.readerCompactHeader}`}>
 				<div class={styles.readerHeaderStart}>
 					<Button class={styles.iconButton} type="button" onClick={props.onBack}><Icon name="back" size={16} /></Button>
 					<h2 class={styles.headerTitle}>{props.document.title}</h2>
