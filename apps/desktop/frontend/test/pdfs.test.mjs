@@ -270,12 +270,12 @@ test('PDF library cards render lazy first-page covers through range streaming', 
 	assert.match(reader, /new TextLayer\(/);
 	assert.match(reader, /saveSelectionAsHighlight/);
 	assert.match(reader, /deletePdfHighlight/);
-	assert.match(reader, /onContextMenu=\{openSelectionMenu\}/);
+	assert.match(reader, /onContextMenu=\{event => openSelectionMenu\(page, event\.currentTarget, event\)\}/);
 	assert.match(reader, /useNoteLinkSuggestions/);
 	assert.match(reader, /<NoteLinkSuggestions/);
 	assert.doesNotMatch(reader, /import Dropdown/);
 	assert.match(reader, /pdfEditHighlight/);
-	assert.match(reader, /onClick=\{openLinkedHighlight\}/);
+	assert.match(reader, /onClick=\{event => openLinkedHighlight\(page, event\.currentTarget, event\)\}/);
 	assert.match(reader, /updatePdfHighlight/);
 	assert.match(reader, /https:\/\/www\.google\.com\/search\?q=/);
 	assert.match(reader, /<Icon name="highlight" size=\{15\} \/>/);
