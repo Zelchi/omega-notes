@@ -114,7 +114,7 @@ export const styles = {
 	}),
 	editHighlightTitle: style({ padding: "1px 5px 3px", color: "var(--ink)", fontSize: 12, fontWeight: 650 }),
 	editHighlightField: style({ display: "grid", gap: 7, color: "var(--muted)", fontSize: 11 }),
-	highlightColorOptions: style({ display: "flex", alignItems: "center", gap: 10, padding: "2px 4px 4px" }),
+	highlightColorOptions: style({ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "2px 4px 4px" }),
 	highlightColorButton: style({
 		boxSizing: "border-box", display: "grid", placeItems: "center", width: 21, height: 21, padding: 0,
 		border: "1px solid rgb(0 0 0 / 25%)", borderRadius: 5, color: "#18181b", cursor: "pointer",
@@ -131,6 +131,7 @@ globalStyle(`${styles.textLayer} :is(span, br)`, {
 	transformOrigin: "0% 0%", userSelect: "text", WebkitUserSelect: "text",
 });
 globalStyle(`${styles.readerPanning} ${styles.textLayer} :is(span, br)`, { cursor: "inherit" });
+globalStyle(`${styles.editHighlightActions} > button`, { minWidth: 0, paddingInline: 5, gap: 5, fontSize: 11, whiteSpace: "nowrap" });
 globalStyle(`${styles.textLayer} > :not(.markedContent), ${styles.textLayer} .markedContent span:not(.markedContent)`, {
 	zIndex: 1,
 	vars: { "--font-height": "0", "--scale-x": "1", "--rotate": "0deg" },

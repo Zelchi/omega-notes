@@ -252,7 +252,29 @@ test('PDF zoom buttons recenter while pointer zoom restores the anchored positio
 	assert.match(reader, /host\.scrollTop \+= bounds\.top \+ anchor\.y \* bounds\.height - anchor\.clientY/);
 	assert.match(reader, /onWheel=\{handlePdfWheel\}/);
 	assert.match(reader, /if \(!event\.ctrlKey\) return;\s*event\.preventDefault\(\)/);
-	assert.match(reader, /changeZoom\(event\.deltaY < 0 \? 0\.1 : -0\.1, getPdfZoomAnchor\(event\)\)/);
+	assert.match(reader, /changeZoom\(event\.deltaY < 0 \? pdfZoomStep : -pdfZoomStep, getPdfZoomAnchor\(event\)\)/);
+	assert.match(reader, /const minPdfZoom = 1;\s*const maxPdfZoom = 3;/);
+	assert.match(reader, /Math\.max\(minPdfZoom, Math\.min\(maxPdfZoom,/);
+	assert.match(reader, /disabled=\{zoom\(\) <= minPdfZoom\}/);
+	assert.match(reader, /disabled=\{zoom\(\) >= maxPdfZoom\}/);
+	assert.match(reader, /const resetZoom = \(\) => changeZoom\(minPdfZoom - zoom\(\)\)/);
+	assert.match(reader, /class=\{styles\.pageJumpButton\} type="button" onClick=\{resetZoom\}>\{Math\.round\(zoom\(\) \* 100\)\}%/);
+});
+
+test('PDF highlight editor groups unmark with edit actions and centers color choices', async () => {
+	const [reader, style] = await Promise.all([
+		source('../src/features/manage-pdfs/ui/pdf-reader.tsx'),
+		source('../src/features/manage-pdfs/ui/pdf-panel/style.css.ts'),
+	]);
+	const actionsStart = reader.indexOf('<div class={styles.editHighlightActions}>');
+	const actionsEnd = reader.indexOf('</div>', actionsStart);
+	const editActions = reader.slice(actionsStart, actionsEnd);
+	assert.ok(actionsStart >= 0 && actionsEnd > actionsStart);
+	assert.ok(editActions.indexOf('props.t("pdfRemoveHighlight")') < editActions.indexOf('props.t("cancel")'));
+	assert.ok(editActions.indexOf('props.t("cancel")') < editActions.indexOf('props.t("save")'));
+	assert.equal((reader.match(/props\.t\("pdfRemoveHighlight"\)/g) ?? []).length, 1);
+	assert.match(reader, /<Show when=\{!menu\(\)\.highlightId\}>[\s\S]*?props\.t\("pdfHighlightSelection"\)/);
+	assert.match(style, /highlightColorOptions: style\(\{ display: "flex", alignItems: "center", justifyContent: "center"/);
 });
 
 test('PDF page range label opens a bounded field for jumping to a page', async () => {
