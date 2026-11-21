@@ -216,6 +216,7 @@ else {
             contents === window.webContents && (
                 permission === 'clipboard-sanitized-write' ||
                 permission === 'clipboard-read' && isTrustedMainAppFrame(contents, details.requestingUrl, details.isMainFrame) ||
+                permission === 'pointerLock' && isTrustedMainAppFrame(contents, details.requestingUrl, details.isMainFrame) ||
                 permission === 'fullscreen' && isTrustedMainFrame(contents, details.requestingUrl, details.isMainFrame)
             )
         ));
@@ -223,6 +224,7 @@ else {
             contents === window.webContents && (
                 permission === 'clipboard-sanitized-write' ||
                 permission === 'clipboard-read' && isTrustedMainAppFrame(contents, details.requestingUrl, details.isMainFrame) ||
+                permission === 'pointerLock' && isTrustedMainAppFrame(contents, details.requestingUrl, details.isMainFrame) ||
                 permission === 'fullscreen' && isTrustedMainFrame(contents, details.requestingUrl, details.isMainFrame)
             )
         );

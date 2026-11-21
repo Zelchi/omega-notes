@@ -1,5 +1,16 @@
 # Histórico de atualizações
 
+## v0.7.8
+
+### Canvas
+
+- Notas agora se empurram em cadeia no layout estático, respeitando notas bloqueadas.
+
+### Biblioteca de PDFs
+
+- Arraste o conteúdo com `Alt` pressionado, amplie com `Ctrl` + rolagem e salte para uma página pelo indicador.
+- A ampliação pela rolagem mantém o ponto sob o cursor; o modo de duas páginas permanece disponível conforme o espaço.
+
 ## v0.7.7
 
 ### Biblioteca de PDFs

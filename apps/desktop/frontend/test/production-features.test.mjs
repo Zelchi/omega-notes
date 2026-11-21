@@ -225,10 +225,42 @@ test('PDF reader uses the shared custom scrollbar component', async () => {
 	assert.match(scrollbarStyle, /horizontalTrack: style\(\{[\s\S]*?bottom: "var\(--omega-scrollbar-bottom, 4px\)"/);
 });
 
-test('PDF zoom recenters horizontal scrolling after resizing the page', async () => {
+test('PDF reader scrolls in the direction of mouse movement with Alt and no button pressed', async () => {
 	const reader = await source('../src/features/manage-pdfs/ui/pdf-reader.tsx');
-	assert.match(reader, /if \(next !== current\) centerHorizontalScrollOnRender = true/);
+	assert.match(reader, /const active = event\.altKey && event\.buttons === 0/);
+	assert.match(reader, /if \(!active \|\| !previous\) return;\s*event\.currentTarget\.scrollLeft \+= event\.clientX - previous\.x;\s*event\.currentTarget\.scrollTop \+= event\.clientY - previous\.y/);
+	assert.match(reader, /onPointerMove=\{movePan\}\s*onMouseMove=\{moveLockedPan\}\s*onPointerLeave=\{finishPan\}/);
+	assert.match(reader, /event\.key !== "Alt" \|\| event\.repeat \|\| !viewport\.matches\(":hover"\)/);
+	assert.match(reader, /viewport\.requestPointerLock\(\)/);
+	assert.match(reader, /scrollLeft \+= event\.movementX;\s*event\.currentTarget\.scrollTop \+= event\.movementY/);
+	assert.match(reader, /if \(!event\.altKey\) stopLockedPan\(\)/);
+	assert.match(reader, /if \(document\.pointerLockElement === viewport\) document\.exitPointerLock\(\)/);
+});
+
+test('Electron grants PDF pointer lock only to the trusted main app frame', async () => {
+	const electron = await source('../../bridge/electron/main.mjs');
+	assert.equal((electron.match(/permission === 'pointerLock'/g) ?? []).length, 2);
+	assert.equal((electron.match(/permission === 'pointerLock' && isTrustedMainAppFrame\(contents, details\.requestingUrl, details\.isMainFrame\)/g) ?? []).length, 2);
+});
+
+test('PDF zoom buttons recenter while pointer zoom restores the anchored position', async () => {
+	const reader = await source('../src/features/manage-pdfs/ui/pdf-reader.tsx');
+	assert.match(reader, /shouldUsePdfPageSpread\(size\(\)\.width, size\(\)\.height, pageAspectRatio\(\), pageCount\(\)\)/);
+	assert.match(reader, /centerHorizontalScrollOnRender = !anchor/);
 	assert.match(reader, /if \(centerHorizontalScrollOnRender && host\) \{\s*host\.scrollLeft = Math\.max\(0, \(host\.scrollWidth - host\.clientWidth\) \/ 2\);\s*centerHorizontalScrollOnRender = false;/);
+	assert.match(reader, /host\.scrollLeft \+= bounds\.left \+ anchor\.x \* bounds\.width - anchor\.clientX/);
+	assert.match(reader, /host\.scrollTop \+= bounds\.top \+ anchor\.y \* bounds\.height - anchor\.clientY/);
+	assert.match(reader, /onWheel=\{handlePdfWheel\}/);
+	assert.match(reader, /if \(!event\.ctrlKey\) return;\s*event\.preventDefault\(\)/);
+	assert.match(reader, /changeZoom\(event\.deltaY < 0 \? 0\.1 : -0\.1, getPdfZoomAnchor\(event\)\)/);
+});
+
+test('PDF page range label opens a bounded field for jumping to a page', async () => {
+	const reader = await source('../src/features/manage-pdfs/ui/pdf-reader.tsx');
+	assert.match(reader, /class=\{styles\.pageJumpButton\}[^]*?onClick=\{openPageJump\}/);
+	assert.match(reader, /class=\{styles\.pageJumpInput\}[^]*?type="number"[^]*?min="1"[^]*?max=\{pageCount\(\)\}/);
+	assert.match(reader, /if \(!Number\.isInteger\(target\) \|\| target < 1 \|\| target > pageCount\(\)\) return/);
+	assert.match(reader, /setPageNumber\(target\)/);
 });
 
 test('PDF reader waits for resizing to settle before rerendering pages', async () => {
