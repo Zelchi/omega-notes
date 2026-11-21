@@ -63,8 +63,24 @@ export const styles = {
 	empty: style({ margin: "auto", padding: 24, color: "var(--muted)", fontSize: 12, textAlign: "center" }),
 	readerToolbar: style({ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, flexShrink: 0 }),
 	pageLabel: style({ minWidth: 88, color: "var(--muted)", fontSize: 12, fontVariantNumeric: "tabular-nums", textAlign: "center" }),
+	pageJumpButton: style({
+		boxSizing: "border-box", display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 88, minHeight: 32,
+		padding: "0 4px", border: "1px solid transparent", borderRadius: 5, color: "var(--muted)", background: "transparent",
+		font: "inherit", fontSize: 12, fontVariantNumeric: "tabular-nums", textAlign: "center", cursor: "pointer",
+		selectors: {
+			"&:hover": { color: "var(--ink)", background: "var(--surface-hover)" },
+			"&:disabled": { opacity: 0.45, cursor: "default", background: "transparent" },
+		},
+	}),
+	pageJumpInput: style({
+		boxSizing: "border-box", width: 88, minWidth: 88, height: 32, padding: "4px 6px", border: "1px solid var(--border-strong)",
+		borderRadius: 5, outline: 0, color: "var(--ink)", background: "var(--surface-input)", font: "inherit", fontSize: 12,
+		fontVariantNumeric: "tabular-nums", textAlign: "center", appearance: "textfield",
+		selectors: { "&::-webkit-inner-spin-button, &::-webkit-outer-spin-button": { appearance: "none", margin: 0 } },
+	}),
 	readerScrollRoot: style({ position: "relative", display: "block", flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", borderRadius: 8, background: "transparent", vars: { "--omega-scrollbar-right": "0px", "--omega-scrollbar-bottom": "0px" } }),
 	readerSurface: style({ position: "relative", display: "block", width: "100%", height: "100%", overflow: "auto", overscrollBehavior: "contain" }),
+	readerPanning: style({ cursor: "none" }),
 	pageSpread: style({ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, width: "fit-content", height: "fit-content", margin: "14px auto" }),
 	pageFrame: style({ position: "relative", display: "grid", flex: "0 0 auto", width: "fit-content", height: "fit-content", placeItems: "center", border: "1px solid #d6d6d6", background: "#fff", boxShadow: "0 8px 28px rgb(0 0 0 / 20%)" }),
 	canvas: style({ display: "block" }),
@@ -114,6 +130,7 @@ globalStyle(`${styles.textLayer} :is(span, br)`, {
 	color: "transparent", position: "absolute", whiteSpace: "pre", cursor: "text",
 	transformOrigin: "0% 0%", userSelect: "text", WebkitUserSelect: "text",
 });
+globalStyle(`${styles.readerPanning} ${styles.textLayer} :is(span, br)`, { cursor: "inherit" });
 globalStyle(`${styles.textLayer} > :not(.markedContent), ${styles.textLayer} .markedContent span:not(.markedContent)`, {
 	zIndex: 1,
 	vars: { "--font-height": "0", "--scale-x": "1", "--rotate": "0deg" },

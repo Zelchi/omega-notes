@@ -5,12 +5,10 @@ export const shouldUsePdfPageSpread = (
 	viewportHeight: number,
 	pageAspectRatio: number | undefined,
 	pageCount: number,
-	zoomFactor = 1,
 ): boolean => {
-	if (pageCount < 2 || !pageAspectRatio || !Number.isFinite(pageAspectRatio) || !Number.isFinite(zoomFactor) || zoomFactor <= 0) return false;
+	if (pageCount < 2 || !pageAspectRatio || !Number.isFinite(pageAspectRatio)) return false;
 	const pageHeight = Math.max(0, viewportHeight - 30);
-	if (pageHeight * zoomFactor > pageHeight) return false;
-	const requiredWidth = 32 + pdfPageSpreadGap + pageHeight * zoomFactor * pageAspectRatio * 2;
+	const requiredWidth = 32 + pdfPageSpreadGap + pageHeight * pageAspectRatio * 2;
 	return viewportWidth >= requiredWidth;
 };
 

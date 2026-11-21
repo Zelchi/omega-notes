@@ -11,7 +11,6 @@ import {
 test('PDF double-page mode activates when two pages fit in the available height and width', () => {
 	assert.equal(shouldUsePdfPageSpread(994, 700, 0.707, 8), false);
 	assert.equal(shouldUsePdfPageSpread(996, 700, 0.707, 8), true);
-	assert.equal(shouldUsePdfPageSpread(1400, 700, 0.707, 8, 1.1), false);
 	assert.equal(shouldUsePdfPageSpread(600, 700, 0.707, 2), false);
 	assert.equal(shouldUsePdfPageSpread(996, 700, 0.707, 2), true);
 });

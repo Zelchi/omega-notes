@@ -47,6 +47,7 @@ type CachedPdfPagePreview = {
 	width: number;
 	height: number;
 };
+type PdfZoomAnchor = { page: number; x: number; y: number; clientX: number; clientY: number };
 
 const getPdfPageRenderConfig = (page: PDFPageProxy, width: number, height: number, scaleFactor: number, spreadEnabled: boolean): PdfPageRenderConfig => {
 	const baseViewport = page.getViewport({ scale: 1 });
@@ -82,12 +83,15 @@ const PdfReader: Component<Props> = props => {
 	const [pageNumber, setPageNumber] = createSignal(Math.max(1, props.document.lastPage));
 	const [pageAspectRatio, setPageAspectRatio] = createSignal<number>();
 	const [zoom, setZoom] = createSignal(1);
+	const [panning, setPanning] = createSignal(false);
 	const [busy, setBusy] = createSignal(true);
 	const [renderFailed, setRenderFailed] = createSignal(false);
 	const [size, setSize] = createSignal({ width: 0, height: 0 });
 	const [highlights, setHighlights] = createSignal<PdfHighlight[]>([]);
 	const [selectedHighlightId, setSelectedHighlightId] = createSignal<string>();
 	const [textMenu, setTextMenu] = createSignal<PdfTextMenu>();
+	const [pageJumpOpen, setPageJumpOpen] = createSignal(false);
+	const [pageJumpValue, setPageJumpValue] = createSignal("");
 	const [editColor, setEditColor] = createSignal<PdfHighlightColor>("yellow");
 	const [editNoteId, setEditNoteId] = createSignal("");
 	const [editNoteQuery, setEditNoteQuery] = createSignal("");
@@ -107,8 +111,10 @@ const PdfReader: Component<Props> = props => {
 	const textLayerTasks = new Map<number, TextLayer>();
 	const pageElements = new Map<number, { canvas?: HTMLCanvasElement; textLayer?: HTMLDivElement }>();
 	let centerHorizontalScrollOnRender = false;
+	let zoomAnchor: PdfZoomAnchor | undefined;
+	let panPointer: { x: number; y: number } | undefined;
 	const noteSuggestionsId = createUniqueId();
-	const spreadEnabled = createMemo(() => shouldUsePdfPageSpread(size().width, size().height, pageAspectRatio(), pageCount(), zoom()));
+	const spreadEnabled = createMemo(() => shouldUsePdfPageSpread(size().width, size().height, pageAspectRatio(), pageCount()));
 	const visiblePages = createMemo(() => getPdfPageSpreadPages(pageNumber(), pageCount(), spreadEnabled()));
 	const progressPage = createMemo(() => {
 		const pages = visiblePages();
@@ -214,6 +220,22 @@ const PdfReader: Component<Props> = props => {
 			}
 		}
 	};
+	const restoreZoomPosition = () => {
+		const anchor = zoomAnchor;
+		zoomAnchor = undefined;
+		if (anchor && host) {
+			const bounds = pageElements.get(anchor.page)?.canvas?.getBoundingClientRect();
+			if (bounds) {
+				host.scrollLeft += bounds.left + anchor.x * bounds.width - anchor.clientX;
+				host.scrollTop += bounds.top + anchor.y * bounds.height - anchor.clientY;
+				return;
+			}
+		}
+		if (centerHorizontalScrollOnRender && host) {
+			host.scrollLeft = Math.max(0, (host.scrollWidth - host.clientWidth) / 2);
+			centerHorizontalScrollOnRender = false;
+		}
+	};
 	const noteLinkSuggestions = useNoteLinkSuggestions({
 			notes: () => props.notes,
 			text: () => `[[${editNoteQuery()}]]`,
@@ -254,6 +276,8 @@ const PdfReader: Component<Props> = props => {
 		setPdf(undefined);
 		setPageCount(0);
 		setPageNumber(Math.max(1, props.document.lastPage));
+		setPageJumpOpen(false);
+		setPageJumpValue("");
 		setPageAspectRatio(undefined);
 		setBusy(true);
 		setRenderFailed(false);
@@ -263,6 +287,8 @@ const PdfReader: Component<Props> = props => {
 		setTextLayerReadyPages(new Set<number>());
 		setHighlightError(undefined);
 		setHighlightSaving(false);
+		zoomAnchor = undefined;
+		centerHorizontalScrollOnRender = false;
 		if (vaultId && documentId) {
 			void (async () => {
 				try {
@@ -442,10 +468,7 @@ const PdfReader: Component<Props> = props => {
 				if (cancelled) return;
 				const failedPage = results.find(result => result.status === "rejected");
 				if (failedPage?.status === "rejected") throw failedPage.reason;
-				if (centerHorizontalScrollOnRender && host) {
-					host.scrollLeft = Math.max(0, (host.scrollWidth - host.clientWidth) / 2);
-					centerHorizontalScrollOnRender = false;
-				}
+				restoreZoomPosition();
 				setBusy(false);
 				props.onProgress(props.document.id, progressPage(), document.numPages);
 				void preloadAdjacentPages(document, pages, document.numPages, width, height, scaleFactor, spread);
@@ -661,15 +684,149 @@ const PdfReader: Component<Props> = props => {
 	};
 
 	const movePage = (direction: -1 | 1) => {
+		zoomAnchor = undefined;
 		setSelectedHighlightId(undefined);
 		setTextMenu(undefined);
 		window.getSelection()?.removeAllRanges();
 		setPageNumber(current => getPdfPageNavigationTarget(current, pageCount(), spreadEnabled(), direction));
 	};
+	const openPageJump = () => {
+		if (!pageCount() || busy()) return;
+		setPageJumpValue(String(visiblePages()[0] ?? pageNumber()));
+		setPageJumpOpen(true);
+	};
+	const goToPage = () => {
+		if (!pageJumpOpen()) return;
+		const target = Number(pageJumpValue());
+		setPageJumpOpen(false);
+		if (!Number.isInteger(target) || target < 1 || target > pageCount()) return;
+		zoomAnchor = undefined;
+		setSelectedHighlightId(undefined);
+		setTextMenu(undefined);
+		window.getSelection()?.removeAllRanges();
+		setPageNumber(target);
+	};
+	const getPdfZoomAnchor = (event: WheelEvent): PdfZoomAnchor | undefined => {
+		for (const [page, elements] of pageElements) {
+			const bounds = elements.canvas?.getBoundingClientRect();
+			if (!bounds || bounds.width < 1 || bounds.height < 1
+				|| event.clientX < bounds.left || event.clientX > bounds.right
+				|| event.clientY < bounds.top || event.clientY > bounds.bottom) continue;
+			return {
+				page,
+				x: (event.clientX - bounds.left) / bounds.width,
+				y: (event.clientY - bounds.top) / bounds.height,
+				clientX: event.clientX,
+				clientY: event.clientY,
+			};
+		}
+	};
+	const changeZoom = (delta: number, anchor?: PdfZoomAnchor) => {
+		const current = zoom();
+		const next = Math.max(0.5, Math.min(2, Math.round((current + delta) * 10) / 10));
+		if (next === current) return;
+		zoomAnchor = anchor;
+		centerHorizontalScrollOnRender = !anchor;
+		setZoom(next);
+	};
+	const handlePdfWheel = (event: WheelEvent) => {
+		if (!event.ctrlKey) return;
+		event.preventDefault();
+		if (!pageCount() || event.deltaY === 0) return;
+		changeZoom(event.deltaY < 0 ? 0.1 : -0.1, getPdfZoomAnchor(event));
+	};
+	const movePan = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
+		if (event.pointerType !== "mouse" || document.pointerLockElement === event.currentTarget) return;
+		const previous = panPointer;
+		panPointer = { x: event.clientX, y: event.clientY };
+		const active = event.altKey && event.buttons === 0
+			&& !(event.target instanceof Element && event.target.closest(`.${styles.contextMenu}`));
+		setPanning(active);
+		if (!active || !previous) return;
+		event.currentTarget.scrollLeft += event.clientX - previous.x;
+		event.currentTarget.scrollTop += event.clientY - previous.y;
+	};
+	const moveLockedPan = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
+		if (!event.altKey || document.pointerLockElement !== event.currentTarget) return;
+		event.currentTarget.scrollLeft += event.movementX;
+		event.currentTarget.scrollTop += event.movementY;
+	};
+	const finishPan = () => {
+		panPointer = undefined;
+		setPanning(false);
+	};
+	onMount(() => {
+		const viewport = host;
+		if (!viewport) return;
+		let altHeld = false;
+		const unlock = () => {
+			if (document.pointerLockElement === viewport) document.exitPointerLock();
+		};
+		const stopLockedPan = () => {
+			altHeld = false;
+			unlock();
+			finishPan();
+		};
+		const onPointerLockChange = () => {
+			panPointer = undefined;
+			if (!altHeld) unlock();
+		};
+		const pressAlt = (event: KeyboardEvent) => {
+			if (event.key !== "Alt" || event.repeat || !viewport.matches(":hover")) return;
+			altHeld = true;
+			setPanning(true);
+			if (document.pointerLockElement || !viewport.requestPointerLock) return;
+			try {
+				const request = viewport.requestPointerLock();
+				void request?.then(() => { if (!altHeld) unlock(); }).catch(() => {});
+			} catch {
+				// Keep the existing hover scrolling if pointer lock is unavailable.
+			}
+		};
+		const releaseAlt = (event: KeyboardEvent) => {
+			if (!event.altKey) stopLockedPan();
+		};
+		window.addEventListener("keydown", pressAlt, true);
+		window.addEventListener("keyup", releaseAlt, true);
+		window.addEventListener("blur", stopLockedPan);
+		document.addEventListener("pointerlockchange", onPointerLockChange);
+		onCleanup(() => {
+			window.removeEventListener("keydown", pressAlt, true);
+			window.removeEventListener("keyup", releaseAlt, true);
+			window.removeEventListener("blur", stopLockedPan);
+			document.removeEventListener("pointerlockchange", onPointerLockChange);
+			stopLockedPan();
+		});
+	});
 	const ReaderToolbar = () => (
 		<div class={styles.readerToolbar}>
 			<Button class={styles.iconButton} type="button" disabled={(visiblePages()[0] ?? pageNumber()) <= 1 || busy()} onClick={() => movePage(-1)}><Icon name="back" size={15} /></Button>
-			<span class={styles.pageLabel}>{pageCount() ? `${visiblePages()[0]}${visiblePages().length > 1 ? `–${progressPage()}` : ""} / ${pageCount()}` : "—"}</span>
+			<Show when={pageJumpOpen()} fallback={
+				<Button class={styles.pageJumpButton} type="button" disabled={!pageCount() || busy()} onClick={openPageJump}>
+					{pageCount() ? `${visiblePages()[0]}${visiblePages().length > 1 ? `–${progressPage()}` : ""} / ${pageCount()}` : "—"}
+				</Button>
+			}>
+				<input
+					class={styles.pageJumpInput}
+					ref={element => { element.focus(); element.select(); }}
+					type="number"
+					min="1"
+					max={pageCount()}
+					step="1"
+					value={pageJumpValue()}
+					onInput={event => setPageJumpValue(event.currentTarget.value)}
+					onBlur={goToPage}
+					onKeyDown={event => {
+						if (event.key === "Enter") {
+							event.preventDefault();
+							goToPage();
+						} else if (event.key === "Escape") {
+							event.preventDefault();
+							setPageJumpOpen(false);
+						}
+					}}
+				/>
+			</Show>
 			<Button class={styles.iconButton} type="button" disabled={!pageCount() || progressPage() >= pageCount() || busy()} onClick={() => movePage(1)}><Icon name="chevronRight" size={15} /></Button>
 			<span style={{ width: "8px" }} />
 			<Button class={styles.iconButton} type="button" disabled={zoom() <= 0.5} onClick={() => changeZoom(-0.1)}><Icon name="zoomOut" size={15} /></Button>
@@ -677,11 +834,6 @@ const PdfReader: Component<Props> = props => {
 			<Button class={styles.iconButton} type="button" disabled={zoom() >= 2} onClick={() => changeZoom(0.1)}><Icon name="zoomIn" size={15} /></Button>
 		</div>
 	);
-	const changeZoom = (delta: number) => setZoom(current => {
-		const next = Math.max(0.5, Math.min(2, Math.round((current + delta) * 10) / 10));
-		if (next !== current) centerHorizontalScrollOnRender = true;
-		return next;
-	});
 
 	return (
 		<>
@@ -701,7 +853,14 @@ const PdfReader: Component<Props> = props => {
 				onPointerCancel={scroll.finishDrag}
 				onLostPointerCapture={scroll.finishDrag}
 			>
-				<div class={styles.readerSurface} ref={element => { host = element; scroll.setViewport(element); }} data-omega-scroll-viewport="" onScroll={scroll.updateMetrics}>
+				<div class={styles.readerSurface} ref={element => { host = element; scroll.setViewport(element); }} data-omega-scroll-viewport="" onScroll={scroll.updateMetrics} onWheel={handlePdfWheel}
+					classList={{ [styles.readerPanning]: panning() }}
+					onPointerEnter={movePan}
+					onPointerMove={movePan}
+					onMouseMove={moveLockedPan}
+					onPointerLeave={finishPan}
+					onPointerCancel={finishPan}
+				>
 				<div class={styles.pageSpread} ref={scroll.setContent}>
 					<For each={visiblePages()}>{page => {
 						onCleanup(() => pageElements.delete(page));
