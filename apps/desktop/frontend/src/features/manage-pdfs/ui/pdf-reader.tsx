@@ -15,6 +15,9 @@ import { styles } from "./pdf-panel/style.css.ts";
 GlobalWorkerOptions.workerSrc = workerUrl;
 
 const pdfReaderResizeDebounceMs = 50;
+const minPdfZoom = 1;
+const maxPdfZoom = 3;
+const pdfZoomStep = 0.1;
 
 type Props = {
 	vaultId?: string;
@@ -723,17 +726,18 @@ const PdfReader: Component<Props> = props => {
 	};
 	const changeZoom = (delta: number, anchor?: PdfZoomAnchor) => {
 		const current = zoom();
-		const next = Math.max(0.5, Math.min(2, Math.round((current + delta) * 10) / 10));
+		const next = Math.max(minPdfZoom, Math.min(maxPdfZoom, Math.round((current + delta) * 10) / 10));
 		if (next === current) return;
 		zoomAnchor = anchor;
 		centerHorizontalScrollOnRender = !anchor;
 		setZoom(next);
 	};
+	const resetZoom = () => changeZoom(minPdfZoom - zoom());
 	const handlePdfWheel = (event: WheelEvent) => {
 		if (!event.ctrlKey) return;
 		event.preventDefault();
 		if (!pageCount() || event.deltaY === 0) return;
-		changeZoom(event.deltaY < 0 ? 0.1 : -0.1, getPdfZoomAnchor(event));
+		changeZoom(event.deltaY < 0 ? pdfZoomStep : -pdfZoomStep, getPdfZoomAnchor(event));
 	};
 	const movePan = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
 		if (event.pointerType !== "mouse" || document.pointerLockElement === event.currentTarget) return;
@@ -829,9 +833,9 @@ const PdfReader: Component<Props> = props => {
 			</Show>
 			<Button class={styles.iconButton} type="button" disabled={!pageCount() || progressPage() >= pageCount() || busy()} onClick={() => movePage(1)}><Icon name="chevronRight" size={15} /></Button>
 			<span style={{ width: "8px" }} />
-			<Button class={styles.iconButton} type="button" disabled={zoom() <= 0.5} onClick={() => changeZoom(-0.1)}><Icon name="zoomOut" size={15} /></Button>
-			<span class={styles.pageLabel}>{Math.round(zoom() * 100)}%</span>
-			<Button class={styles.iconButton} type="button" disabled={zoom() >= 2} onClick={() => changeZoom(0.1)}><Icon name="zoomIn" size={15} /></Button>
+			<Button class={styles.iconButton} type="button" disabled={zoom() <= minPdfZoom} onClick={() => changeZoom(-pdfZoomStep)}><Icon name="zoomOut" size={15} /></Button>
+			<Button class={styles.pageJumpButton} type="button" onClick={resetZoom}>{Math.round(zoom() * 100)}%</Button>
+			<Button class={styles.iconButton} type="button" disabled={zoom() >= maxPdfZoom} onClick={() => changeZoom(pdfZoomStep)}><Icon name="zoomIn" size={15} /></Button>
 		</div>
 	);
 
@@ -938,6 +942,9 @@ const PdfReader: Component<Props> = props => {
 									/>
 								</div>
 								<div class={styles.editHighlightActions}>
+									<Button class={styles.contextMenuButton} type="button" disabled={highlightSaving()} onClick={() => { const id = menu().highlightId; if (id) void removeHighlight(id); }}>
+										<Icon name="highlight" size={15} />{props.t("pdfRemoveHighlight")}
+									</Button>
 									<Button class={styles.contextMenuButton} type="button" disabled={highlightSaving()} onClick={() => setTextMenu(current => current ? { ...current, mode: "actions" } : current)}>
 										{props.t("cancel")}
 									</Button>
@@ -950,15 +957,17 @@ const PdfReader: Component<Props> = props => {
 							<Button class={styles.contextMenuButton} type="button" onClick={() => copyMenuText(menu())}>
 								<Icon name="copy" size={15} />{props.t("aiSelectionCopy")}
 							</Button>
-							<Button
-								class={styles.contextMenuButton}
-								type="button"
-								disabled={highlightSaving() || (!menu().selection && !menu().highlightId)}
-								onClick={() => { const id = menu().highlightId; if (id) void removeHighlight(id); else void saveSelectionAsHighlight(); }}
-							>
-								<Icon name="highlight" size={15} />
-								{props.t(menu().highlightId ? "pdfRemoveHighlight" : "pdfHighlightSelection")}
-							</Button>
+							<Show when={!menu().highlightId}>
+								<Button
+									class={styles.contextMenuButton}
+									type="button"
+									disabled={highlightSaving() || !menu().selection}
+									onClick={() => void saveSelectionAsHighlight()}
+								>
+									<Icon name="highlight" size={15} />
+									{props.t("pdfHighlightSelection")}
+								</Button>
+							</Show>
 							<Show when={menu().highlightId}>
 								<Button class={styles.contextMenuButton} type="button" onClick={() => beginEditHighlight(menu().highlightId!)}>
 									<Icon name="edit" size={15} />{props.t("pdfEditHighlight")}
