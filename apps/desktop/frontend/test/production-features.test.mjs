@@ -618,7 +618,8 @@ test('static note locks are exposed and excluded from dragging and auto-separati
 	assert.doesNotMatch(canvas, /lockBadge/);
 	assert.match(style, /lockedBubble: style\(\{[\s\S]*?borderColor: "var\(--ink\)"/);
 	assert.match(controller, /if \(isLocked\(note\.id\)\) \{ setSelectedIds\(new Set\(\[note\.id\]\)\); return; \}/);
-	assert.match(controller, /separateStaticNodes\(next, layoutNodes\(\), priority, new Set\(lockedNoteIds\(\)\)\)/);
+	assert.match(controller, /const locked = new Set\(lockedNoteIds\(\)\);[\s\S]*?pushStaticNodes\(current, layoutNodes\(\), dragged, locked,/);
+	assert.match(controller, /separateStaticNodes\(changed \? next : current, nodes, priority, new Set\(nextLockedNoteIds\)\)/);
 });
 
 test('Lo-fi radio controls remain in Pomodoro while its player lives for the app lifetime', async () => {

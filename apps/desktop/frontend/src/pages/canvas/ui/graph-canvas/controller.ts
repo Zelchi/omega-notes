@@ -4,7 +4,7 @@ import { createEffect, createMemo, createSignal, onCleanup, onMount, untrack } f
 import type { NoteSummary } from "@/entities/note";
 import type { ContextMenu, Gesture, PendingMove, Point, NodeSize, SelectionBox, View, ZipTie } from "./types";
 import { defaultPosition, graphEdgeKey, graphEdgePath, graphEdges, graphEdgesCrossedByStroke, HOME_HEIGHT, HOME_WIDTH, nodeSize, routeGraphEdges, slideZipTie, zipTiesAfterNodeMove, zipTieClearOfNotes, zipTiePlacement } from "../../lib/graph";
-import { separateStaticNodes } from "../../lib/static-layout";
+import { pushStaticNodes, separateStaticNodes } from "../../lib/static-layout";
 import { readGraphState, saveGraphState as persistGraphState } from "../../api/graph.repository";
 import type { GraphCanvasProps } from "./types";
 
@@ -445,19 +445,22 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			return;
 		}
 		if (!active.nodeOrigins || props.mode !== "edit") return;
-		const priority = new Set(Object.keys(active.nodeOrigins));
+		const dragged = new Set(Object.keys(active.nodeOrigins));
 		const scale = view().scale;
 		setPositions((current) => {
-			const next = { ...current };
-			for (const [id, origin] of Object.entries(active.nodeOrigins!)) {
-				if (current[id]) next[id] = { x: origin.x + dx / scale, y: origin.y + dy / scale };
-			}
-			return separateStaticNodes(next, layoutNodes(), priority, new Set(lockedNoteIds()));
+			const locked = new Set(lockedNoteIds());
+			const reference = Object.entries(active.nodeOrigins!).find(([id]) => current[id] && !locked.has(id));
+			if (!reference) return current;
+			const [id, origin] = reference;
+			return pushStaticNodes(current, layoutNodes(), dragged, locked, {
+				x: origin.x + dx / scale - current[id].x,
+				y: origin.y + dy / scale - current[id].y,
+			});
 		});
 		if (active.beforeSnapshot) {
 			setZipTies(zipTiesAfterNodeMove(
 				active.beforeSnapshot.zipTies ?? [], edgesByKey(), active.beforeSnapshot.positions, positions(), props.notes.length,
-				new Set(Object.keys(active.nodeOrigins)),
+				dragged,
 			));
 		}
 	};
