@@ -1,0 +1,52 @@
+import { style } from "@vanilla-extract/css";
+import { windowLayout } from "@/shared/ui/window-layout";
+
+export const styles = {
+	stack: style({
+		position: "absolute",
+		top: windowLayout.titlebarHeight + 56,
+		left: "50%",
+		zIndex: 30,
+		display: "flex",
+		flexDirection: "column",
+		alignItems: "center",
+		gap: 8,
+		width: "max-content",
+		maxWidth: "calc(100% - 32px)",
+		transform: "translateX(-50%)",
+		pointerEvents: "none",
+	}),
+	toast: style({
+		display: "flex",
+		alignItems: "center",
+		gap: 12,
+		maxWidth: "100%",
+		padding: "9px 12px",
+		color: "var(--ink)",
+		backgroundColor: "var(--surface-panel)",
+		border: "1px solid var(--border-soft)",
+		borderRadius: 6,
+		boxShadow: "0 4px 16px rgb(0 0 0 / 18%)",
+		fontSize: 12,
+		pointerEvents: "auto",
+	}),
+	error: style({ color: "var(--danger)" }),
+	action: style({
+		padding: 0,
+		color: "var(--ink)",
+		background: "transparent",
+		border: 0,
+		font: "inherit",
+		whiteSpace: "nowrap",
+		cursor: "pointer",
+	}),
+	close: style({
+		display: "grid",
+		placeItems: "center",
+		padding: 0,
+		color: "var(--text-control)",
+		background: "transparent",
+		border: 0,
+		cursor: "pointer",
+	}),
+};

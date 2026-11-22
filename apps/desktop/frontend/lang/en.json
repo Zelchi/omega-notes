@@ -185,6 +185,7 @@
   "checkingUpdates": "Checking…",
   "appUpToDate": "You are up to date",
   "updateAvailable": "Update available:",
+  "toastViewUpdate": "View update",
   "updateDownloading": "Downloading",
   "updateInstalling": "Installing",
   "updateCheckFailed": "Update failed — try again",

@@ -185,6 +185,7 @@
   "checkingUpdates": "Verificando…",
   "appUpToDate": "Você está atualizado",
   "updateAvailable": "Atualização disponível:",
+  "toastViewUpdate": "Ver atualização",
   "updateDownloading": "Baixando",
   "updateInstalling": "Instalando",
   "updateCheckFailed": "Atualização falhou — tentar novamente",

@@ -1,5 +1,15 @@
 # Histórico de atualizações
 
+## v0.7.9
+
+### Notificações
+
+- Avisos de atualização e erros aparecem em notificações abaixo da busca, com ações para abrir as configurações ou tentar novamente.
+
+### Biblioteca de PDFs
+
+- Refinados o zoom do leitor e os controles de edição de marcações.
+
 ## v0.7.8
 
 ### Canvas
