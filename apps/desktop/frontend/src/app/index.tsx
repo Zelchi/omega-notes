@@ -1,5 +1,5 @@
 import Button from "@/shared/ui/button";
-import { createEffect, createSignal, lazy, Show, Suspense, type Component } from "solid-js";
+import { createEffect, createSignal, lazy, on, onMount, Show, Suspense, type Component } from "solid-js";
 import { createPresence } from "@/shared/lib/presence";
 
 import { formatAiChatShortcut, formatKeyboardShortcut } from "@/features/change-preferences/model/ai-chat-shortcut";
@@ -10,6 +10,7 @@ import { useAppController } from "./controller";
 import { styles } from "./style.css.ts";
 import { BackgroundIntensityProvider, BackgroundThemeProvider } from "@/shared/ui/ascii-backdrop";
 import { LofiPlayerProvider } from "@/features/lofi-player/model/player";
+import ToastStack, { type ToastMessage } from "@/shared/ui/toast";
 
 const StudyToolbar = lazy(() => import("@/features/study-notes/ui/study-toolbar"));
 const Canvas = lazy(() => import("@/pages/canvas/ui/canvas"));
@@ -37,6 +38,50 @@ const mountOnFirstOpen = (isOpen: () => boolean) => {
 
 const AppView: Component = () => {
 	const app = useAppController();
+	const [toasts, setToasts] = createSignal<ToastMessage[]>([]);
+	let nextToastId = 0;
+	const dismissToast = (id: number) => setToasts(items => items.filter(item => item.id !== id));
+	const clearToastSource = (source: string) => setToasts(items => items.filter(item => item.source !== source));
+	const notify = (toast: Omit<ToastMessage, "id">) => setToasts(items => [...items.filter(item => item.source !== toast.source), { ...toast, id: ++nextToastId }]);
+	createEffect(on(app.updates.status, status => {
+		clearToastSource("updates");
+		if (status === "available") notify({
+			source: "updates",
+			kind: "info",
+			message: () => `${app.t("updateAvailable")} ${app.updates.version()}`,
+			action: { label: () => app.t("toastViewUpdate"), run: () => { if (!app.settingsOpen()) app.toggleSettings(); } },
+		});
+		else if (status === "failed") notify({
+			source: "updates",
+			kind: "error",
+			message: () => app.t("updateCheckFailed"),
+			action: { label: () => app.t("retry"), run: () => void app.updates.activate() },
+		});
+	}));
+	createEffect(on(app.notes.saveError, failed => {
+		clearToastSource("save");
+		if (failed) notify({
+			source: "save",
+			kind: "error",
+			message: () => app.t("saveFailed"),
+			action: { label: () => app.t("retry"), run: () => void app.notes.flushSave() },
+		});
+	}));
+	onMount(() => {
+		if (!import.meta.env.DEV) return;
+		const preview = new URLSearchParams(window.location.search).get("toast-preview");
+		if (preview === "update") notify({
+			source: "preview",
+			kind: "info",
+			message: () => `${app.t("updateAvailable")} 0.0.0`,
+			action: { label: () => app.t("toastViewUpdate"), run: () => { if (!app.settingsOpen()) app.toggleSettings(); } },
+		});
+		else if (preview === "error") notify({
+			source: "preview",
+			kind: "error",
+			message: () => app.t("saveFailed"),
+		});
+	});
 	const studyToolbarVisible = () => Boolean(app.vaults.activeVaultId()) && !app.notes.loading() && app.navigation.mode() === "view" && !app.navigation.navigating();
 	const studyToolbarMounted = mountOnFirstOpen(studyToolbarVisible);
 	const settingsMounted = createPresence(app.settingsOpen, 210).present;
@@ -328,6 +373,7 @@ const AppView: Component = () => {
 						</Suspense>
 					</Show>
 
+					<ToastStack messages={toasts()} dismiss={dismissToast} />
 				</div>
 				<Show when={app.updates.installing()}>
 					<div class={styles.updateOverlay} style={{ "border-radius": app.windowControls.squareCorners() ? "0" : undefined }} role="alert" aria-live="assertive">{app.t("installingUpdate")}</div>
