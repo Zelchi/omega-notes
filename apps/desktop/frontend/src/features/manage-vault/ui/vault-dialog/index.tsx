@@ -2,7 +2,7 @@ import Input from "@/shared/ui/input";
 import Button from "@/shared/ui/button";
 import { registerExitSnapshot } from "@/shared/ui/exit-snapshot";
 import { createBackdropDismiss } from "@/shared/ui/backdrop-dismiss";
-import { For, Show, createEffect, createSignal, untrack, type Component } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, untrack, type Component } from "solid-js";
 import Icon from "@/shared/ui/icon";
 import ModalError from "@/shared/ui/modal-error";
 import DeleteConfirmationDialog from "@/shared/ui/delete-confirmation-dialog";
@@ -64,13 +64,47 @@ const VaultDialog: Component<Props> = (props) => {
 	const [vaultActionsVisibleId, setVaultActionsVisibleId] = createSignal<string>();
 	const [displayedDetails, setDisplayedDetails] = createSignal<VaultDetails>();
 	const state = props.dialogState;
+	const search = () => state.name().trim();
+	const [page, setPage] = createSignal(0);
+	const [pageSize, setPageSize] = createSignal(1);
+	const [pageJumpOpen, setPageJumpOpen] = createSignal(false);
+	const [pageJumpValue, setPageJumpValue] = createSignal("");
 	const backdropDismiss = createBackdropDismiss(props.onClose);
 	const reorder = useVaultReorder({
 		vaults: () => props.vaults,
-		enabled: () => props.open && !props.saving && !state.editingVaultId() && !state.deleteConfirmationVisible(),
+		enabled: () => props.open && !props.saving && !state.editingVaultId() && !state.deleteConfirmationVisible() && !search().trim(),
 		getList: () => vaultList,
 		onReorder: ids => props.onReorder(ids),
 	});
+	const filteredVaults = createMemo(() => reorder.vaults().filter(vault => vault.name.toLocaleLowerCase().includes(search().toLocaleLowerCase())));
+	const pageCount = createMemo(() => Math.max(1, Math.ceil(filteredVaults().length / pageSize())));
+	const visibleVaults = createMemo(() => filteredVaults().slice(page() * pageSize(), (page() + 1) * pageSize()));
+	createEffect(() => setPage(current => Math.min(current, pageCount() - 1)));
+	let listObserver: ResizeObserver | undefined;
+	const observeList = (element: HTMLDivElement) => {
+		vaultList = element;
+		listObserver?.disconnect();
+		let initial = true;
+		const update = () => {
+			const size = Math.max(1, Math.floor((element.clientHeight + 8) / 44));
+			setPageSize(size);
+			if (initial) {
+				initial = false;
+				const index = filteredVaults().findIndex(vault => vault.id === state.selectedVaultId());
+				setPage(index < 0 ? 0 : Math.floor(index / size));
+			}
+		};
+		update();
+		listObserver = new ResizeObserver(update);
+		listObserver.observe(element);
+	};
+	onCleanup(() => listObserver?.disconnect());
+	const goToPage = () => {
+		if (!pageJumpOpen()) return;
+		const target = Number(pageJumpValue());
+		setPageJumpOpen(false);
+		if (Number.isInteger(target) && target >= 1 && target <= pageCount()) setPage(target - 1);
+	};
 	const selectedVault = () => props.vaults.find((vault) => vault.id === state.selectedVaultId());
 	const toggleVaultActions = (vaultId: string) => setVaultActionsVisibleId(current => current === vaultId ? undefined : vaultId);
 	createEffect(() => {
@@ -81,9 +115,9 @@ const VaultDialog: Component<Props> = (props) => {
 			setDisplayedDetails(undefined);
 			return;
 		}
-		if (!vaultId) return;
+		if (!vaultId) { setDisplayedDetails(undefined); return; }
 		const cachedDetails = untrack(() => state.details()[vaultId]);
-		if (cachedDetails) setDisplayedDetails(cachedDetails);
+		setDisplayedDetails(cachedDetails);
 		void props.getDetails(vaultId).then(details => {
 			if (props.open && state.selectedVaultId() === vaultId) setDisplayedDetails(details);
 		}).catch(error => console.error(error));
@@ -202,7 +236,7 @@ const VaultDialog: Component<Props> = (props) => {
 										autofocus
 										maxLength={64}
 										value={state.name()}
-										onInput={(event) => state.setName(event.currentTarget.value)}
+										onInput={(event) => { state.setName(event.currentTarget.value); setPage(0); }}
 										placeholder={props.t("vaultName")}
 										aria-label={props.t("vaultName")}
 										disabled={props.saving}
@@ -228,10 +262,10 @@ const VaultDialog: Component<Props> = (props) => {
 								</Show>
 							</form>
 							<Show when={props.vaults.length > 0}>
-								<div class={styles.list} ref={vaultList}>
-									<For each={reorder.vaults()}>
+								<div class={styles.list} ref={observeList}>
+									<For each={visibleVaults()}>
 										{(vault) => (
-											<div data-vault-row={vault.id} class={cx(styles.vaultRow, reorder.draggedId() === vault.id && styles.draggingVault)} onContextMenu={event => {
+											<div data-vault-row={vault.id} class={cx(styles.vaultRow, vault.id === state.selectedVaultId() && styles.previewVault, reorder.draggedId() === vault.id && styles.draggingVault)} onContextMenu={event => {
 												if (state.editingVaultId() === vault.id) return;
 												event.preventDefault();
 												event.stopPropagation();
@@ -244,10 +278,9 @@ const VaultDialog: Component<Props> = (props) => {
 															<Button
 																class={cx(
 																	styles.vault,
+																	Boolean(search().trim()) && styles.filteredVault,
 																	vault.id === props.activeVaultId &&
 																		styles.activeVault,
-											vault.id === state.selectedVaultId() &&
-																		styles.previewVault,
 																)}
 																type="button"
 										aria-pressed={vault.id === state.selectedVaultId()}
@@ -271,6 +304,9 @@ const VaultDialog: Component<Props> = (props) => {
 													toggleVaultActions(vault.id);
 												}
 											}}>
+																<Show when={vaultActionsVisibleId() !== vault.id}>
+																	<span class={styles.actionHint}><Icon name="chevronRight" size={12} /></span>
+																</Show>
 																<Button
 																	class={cx(styles.iconAction, styles.vaultActionNoBackground)}
 																	classList={{ [styles.vaultActionReveal]: true, [styles.vaultActionRevealVisible]: vaultActionsVisibleId() === vault.id }}
@@ -349,6 +385,23 @@ const VaultDialog: Component<Props> = (props) => {
 											</div>
 										)}
 									</For>
+								</div>
+								<div class={styles.pagination}>
+									<Button class={styles.paginationButton} type="button" disabled={page() === 0} onClick={() => setPage(current => Math.max(0, current - 1))}><Icon name="back" size={15} /></Button>
+									<Show when={pageJumpOpen()} fallback={
+										<Button class={styles.pageJumpButton} type="button" disabled={!filteredVaults().length} onClick={() => { setPageJumpValue(String(page() + 1)); setPageJumpOpen(true); }}>
+											{filteredVaults().length ? `${page() + 1} / ${pageCount()}` : "—"}
+										</Button>
+									}>
+										<input class={styles.pageJumpInput} ref={element => { element.focus(); element.select(); }} type="number"
+											min="1" max={pageCount()} step="1" value={pageJumpValue()}
+											onInput={event => setPageJumpValue(event.currentTarget.value)} onBlur={goToPage}
+											onKeyDown={event => {
+												if (event.key === "Enter") { event.preventDefault(); goToPage(); }
+												else if (event.key === "Escape") { event.preventDefault(); setPageJumpOpen(false); }
+											}} />
+									</Show>
+									<Button class={styles.paginationButton} type="button" disabled={page() >= pageCount() - 1} onClick={() => setPage(current => Math.min(pageCount() - 1, current + 1))}><Icon name="chevronRight" size={15} /></Button>
 								</div>
 							</Show>
 						</div>

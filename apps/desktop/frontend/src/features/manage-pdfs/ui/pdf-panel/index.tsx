@@ -1,4 +1,4 @@
-import { createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type Component } from "solid-js";
 import type { NoteSummary } from "@/entities/note";
 import DeleteConfirmationDialog from "@/shared/ui/delete-confirmation-dialog";
 import Button from "@/shared/ui/button";
@@ -27,6 +27,33 @@ const PdfPanel: Component<Props> = props => {
 	const [renameDraft, setRenameDraft] = createSignal("");
 	const [cardActionsVisibleId, setCardActionsVisibleId] = createSignal<string>();
 	const [canResize, setCanResize] = createSignal(false);
+	const [page, setPage] = createSignal(0);
+	const [pageSize, setPageSize] = createSignal(1);
+	const [pageJumpOpen, setPageJumpOpen] = createSignal(false);
+	const [pageJumpValue, setPageJumpValue] = createSignal("");
+	const [search, setSearch] = createSignal("");
+	const filteredDocuments = createMemo(() => {
+		const query = search().trim().toLocaleLowerCase();
+		return props.library.documents().filter(document => document.title.toLocaleLowerCase().includes(query));
+	});
+	const pageCount = createMemo(() => Math.max(1, Math.ceil(filteredDocuments().length / pageSize())));
+	const visibleDocuments = createMemo(() => filteredDocuments().slice(page() * pageSize(), (page() + 1) * pageSize()));
+	createEffect(() => setPage(current => Math.min(current, pageCount() - 1)));
+	const goToPage = () => {
+		if (!pageJumpOpen()) return;
+		const target = Number(pageJumpValue());
+		setPageJumpOpen(false);
+		if (Number.isInteger(target) && target >= 1 && target <= pageCount()) setPage(target - 1);
+	};
+	let listObserver: ResizeObserver | undefined;
+	const observeList = (element: HTMLDivElement) => {
+		listObserver?.disconnect();
+		const update = () => setPageSize(Math.max(1, Math.floor((element.clientHeight + 8) / 90)));
+		update();
+		listObserver = new ResizeObserver(update);
+		listObserver.observe(element);
+	};
+	onCleanup(() => listObserver?.disconnect());
 	let renameInput: HTMLInputElement | undefined;
 	let panelElement: HTMLElement | undefined;
 	let resizePointer: { pointerId: number; startX: number; startWidth: number } | undefined;
@@ -104,6 +131,11 @@ const PdfPanel: Component<Props> = props => {
 							<Button class={styles.iconButton} type="button" onClick={props.onClose}><Icon name="close" size={16} /></Button>
 						</div>
 						<div class={styles.content}>
+							<label class={styles.searchBox}>
+								<Icon name="search" size={16} />
+								<input class={styles.searchInput} value={search()} placeholder={props.t("searchPlaceholder")}
+									onInput={event => { setSearch(event.currentTarget.value); setPage(0); }} />
+							</label>
 							<Show when={props.library.importSource()}>
 								<form class={styles.importForm} onSubmit={event => { event.preventDefault(); void props.library.importSelected(); }}>
 									<input
@@ -125,8 +157,12 @@ const PdfPanel: Component<Props> = props => {
 							<Show when={!props.library.loading() && !props.library.readFailed() && props.library.documents().length === 0 && !props.library.importSource()}>
 								<p class={styles.empty}>{props.t("pdfLibraryEmpty")}</p>
 							</Show>
-							<div class={styles.list}>
-								<For each={props.library.documents()}>{document =>
+							<div class={styles.list} ref={observeList} style={{
+								"grid-template-rows": visibleDocuments().length
+									? `repeat(${visibleDocuments().length}, minmax(0, min(96px, calc((100% - ${(visibleDocuments().length - 1) * 8}px) / ${visibleDocuments().length}))))`
+									: undefined,
+							}}>
+								<For each={visibleDocuments()}>{document =>
 										<div class={styles.card} onContextMenu={event => {
 											if (editingId() === document.id) return;
 											event.preventDefault();
@@ -165,6 +201,23 @@ const PdfPanel: Component<Props> = props => {
 										</Show>
 									</div>
 								}</For>
+							</div>
+							<div class={styles.pagination}>
+								<Button class={styles.iconButton} type="button" disabled={page() === 0} onClick={() => setPage(current => Math.max(0, current - 1))}><Icon name="back" size={16} /></Button>
+								<Show when={pageJumpOpen()} fallback={
+									<Button class={styles.pageJumpButton} type="button" disabled={!filteredDocuments().length} onClick={() => { setPageJumpValue(String(page() + 1)); setPageJumpOpen(true); }}>
+										{filteredDocuments().length ? `${page() + 1} / ${pageCount()}` : "—"}
+									</Button>
+								}>
+									<input class={styles.pageJumpInput} ref={element => { element.focus(); element.select(); }}
+										type="number" min="1" max={pageCount()} step="1" value={pageJumpValue()}
+										onInput={event => setPageJumpValue(event.currentTarget.value)} onBlur={goToPage}
+										onKeyDown={event => {
+											if (event.key === "Enter") { event.preventDefault(); goToPage(); }
+											else if (event.key === "Escape") { event.preventDefault(); setPageJumpOpen(false); }
+										}} />
+								</Show>
+								<Button class={styles.iconButton} type="button" disabled={page() >= pageCount() - 1} onClick={() => setPage(current => Math.min(pageCount() - 1, current + 1))}><span class={styles.forwardIcon}><Icon name="back" size={16} /></span></Button>
 							</div>
 						</div>
 					</>

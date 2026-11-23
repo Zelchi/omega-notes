@@ -205,8 +205,28 @@ test('PDF import title input stays at the start of the library content', async (
 		source('../src/features/manage-pdfs/ui/pdf-panel/style.css.ts'),
 	]);
 	assert.match(panel, /<form class=\{styles\.importForm\} onSubmit=\{event => \{ event\.preventDefault\(\); void props\.library\.importSelected\(\); \}\}>/);
-	assert.ok(panel.indexOf('<form class={styles.importForm}') < panel.indexOf('<div class={styles.list}>'));
+	assert.ok(panel.indexOf('<form class={styles.importForm}') < panel.indexOf('<div class={styles.list}'));
 	assert.match(style, /importForm: style\(\{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, flex: "0 0 auto" \}\)/);
+});
+
+test('PDF library paginates cards according to available height without a scrollbar', async () => {
+	const panel = await source('../src/features/manage-pdfs/ui/pdf-panel/index.tsx');
+	const style = await source('../src/features/manage-pdfs/ui/pdf-panel/style.css.ts');
+	assert.match(panel, /new ResizeObserver\(update\)/);
+	assert.match(panel, /<For each=\{visibleDocuments\(\)\}>/);
+	assert.match(panel, /disabled=\{page\(\) === 0\}/);
+	assert.match(panel, /disabled=\{page\(\) >= pageCount\(\) - 1\}/);
+	assert.match(panel, /target >= 1 && target <= pageCount\(\)/);
+	assert.match(panel, /setPage\(target - 1\)/);
+	assert.match(panel, /min\(96px, calc/);
+	assert.match(style, /list: style\(\{[^}]*overflow: "hidden"/);
+});
+
+test('PDF library search filters titles and returns to the first page', async () => {
+	const panel = await source('../src/features/manage-pdfs/ui/pdf-panel/index.tsx');
+	assert.match(panel, /document\.title\.toLocaleLowerCase\(\)\.includes\(query\)/);
+	assert.match(panel, /setSearch\(event\.currentTarget\.value\); setPage\(0\)/);
+	assert.match(panel, /Math\.ceil\(filteredDocuments\(\)\.length \/ pageSize\(\)\)/);
 });
 
 test('PDF reader uses the shared custom scrollbar component', async () => {
@@ -563,6 +583,31 @@ test('Kanban lanes keep equal horizontal padding beside the overlay scrollbar', 
 	const style = await source('../src/features/manage-kanban/ui/kanban-panel/style.css.ts');
 	assert.match(kanban, /viewportStyle=\{\{ padding: "2px 12px 12px" \}\}/);
 	assert.match(style, /toolbar: style\(\{[^}]*paddingInline: 12[^}]*\}\)/);
+});
+
+test('vault name filters the list without reordering a partial result', async () => {
+	const dialog = await source('../src/features/manage-vault/ui/vault-dialog/index.tsx');
+	assert.match(dialog, /const search = \(\) => state\.name\(\)\.trim\(\)/);
+	assert.match(dialog, /vault\.name\.toLocaleLowerCase\(\)\.includes\(search\(\)\.toLocaleLowerCase\(\)\)/);
+	assert.match(dialog, /!state\.deleteConfirmationVisible\(\) && !search\(\)\.trim\(\)/);
+	assert.match(dialog, /setDisplayedDetails\(cachedDetails\)/);
+	assert.match(dialog, /<For each=\{visibleVaults\(\)\}>/);
+	assert.match(dialog, /new ResizeObserver\(update\)/);
+});
+
+test('reopening the vault dialog targets the active vault and reveals its page', async () => {
+	const controller = await source('../src/features/manage-vault/model/vaults.controller.ts');
+	const dialog = await source('../src/features/manage-vault/ui/vault-dialog/index.tsx');
+	assert.match(controller, /setDialogOpen\(false\);\s*setSelectedVaultId\(activeVaultId\(\)\);\s*setName\(""\)/);
+	assert.match(controller, /setSelectedVaultId\(activeVaultId\(\) \?\? list\[0\]\?\.id\)/);
+	assert.match(dialog, /Math\.floor\(index \/ size\)/);
+});
+
+test('Pomodoro tasks and input keep equal side spacing with or without the overlay scrollbar', async () => {
+	const panel = await source('../src/features/pomodoro/ui/pomodoro-panel/index.tsx');
+	const style = await source('../src/features/pomodoro/ui/pomodoro-panel/style.css.ts');
+	assert.match(panel, /viewportStyle=\{\{ padding: "2px 20px 10px" \}\}/);
+	assert.match(style, /taskForm: style\(\{[^}]*margin: "0 20px"/);
 });
 
 test('Kanban priority filter uses the shared dropdown component', async () => {

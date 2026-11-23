@@ -41,9 +41,8 @@ export const styles = {
 	numberInput: style({ boxSizing: "border-box", width: "100%", minWidth: 0, height: 30, padding: "5px 8px", border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-panel)", color: "var(--ink)", font: "inherit", fontSize: 12 }),
 	tasks: style({ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, gap: 8 }),
 	taskForm: style({
-		display: "flex", alignItems: "center", boxSizing: "border-box", height: 36, margin: "0 20px 0 10px", gap: 0,
+		display: "flex", alignItems: "center", boxSizing: "border-box", height: 36, margin: "0 20px", gap: 0,
 		border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-controls)", overflow: "hidden",
-		selectors: { "&:focus-within": { borderColor: "var(--ink)" } },
 	}),
 	taskInput: style({ boxSizing: "border-box", flex: 1, minWidth: 0, height: "100%", padding: "0 12px", border: 0, borderRadius: 0, background: "transparent", color: "var(--ink)", font: "inherit", fontSize: 13, outline: "none" }),
 	addButton: style({
@@ -63,7 +62,7 @@ export const styles = {
 		border: 0, borderRight: "1px solid var(--border-soft)", borderRadius: "4px 0 0 4px", background: "var(--surface-controls)", color: "var(--button-confirm-fg)", cursor: "pointer",
 		transition: "background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease",
 		selectors: {
-			"&::after": { width: 6, height: 11, border: "solid currentColor", borderWidth: "0 2px 2px 0", content: "", transform: "rotate(45deg) scale(0)", transition: "transform 140ms cubic-bezier(0.2, 0.7, 0.3, 1)" },
+			"&::after": { width: 6, height: 11, marginTop: -2, border: "solid currentColor", borderWidth: "0 2px 2px 0", content: "", transform: "rotate(45deg) scale(0)", transition: "transform 140ms cubic-bezier(0.2, 0.7, 0.3, 1)" },
 			"&:checked": { background: "var(--button-confirm-bg)" },
 			"&:checked::after": { transform: "rotate(45deg) scale(1)" },
 			"&:hover:not(:disabled):not(:checked)": { background: "var(--surface-hover)" },
@@ -79,7 +78,7 @@ export const styles = {
 	actionRevealTrailing: style({ marginInlineStart: 0, transition: "margin-inline-start 210ms cubic-bezier(0.2, 0.7, 0.3, 1)" }),
 	actionRevealTrailingVisible: style({ marginInlineStart: 5 }),
 	taskEditor: style({ display: "flex", flex: 1, minWidth: 0, gap: 4, marginInlineStart: 12 }),
-	taskEditInput: style({ boxSizing: "border-box", flex: 1, minWidth: 0, height: 30, padding: "5px 7px", border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-input)", color: "var(--ink)", font: "inherit", fontSize: 12, outline: "none", selectors: { "&:focus-visible": { borderColor: "var(--ink)" } } }),
+	taskEditInput: style({ boxSizing: "border-box", flex: 1, minWidth: 0, height: 30, padding: "5px 7px", border: "1px solid var(--border-strong)", borderRadius: 5, background: "var(--surface-input)", color: "var(--ink)", font: "inherit", fontSize: 12, outline: "none" }),
 	deleteButton: style({ color: "var(--danger)" }),
 	error: style({ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--danger)" }),
 	loading: style({ margin: 0, fontSize: 12, color: "var(--muted)" }),

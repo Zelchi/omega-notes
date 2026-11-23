@@ -152,7 +152,7 @@ const PomodoroPanel: Component<Props> = (props) => {
 							</form>
 						<Show when={props.pomodoro.error()}><p class={styles.error} role="alert">{props.t("pomodoroStorageFailed")}</p></Show>
 						<Show when={props.pomodoro.loading()}><p class={styles.loading}>{props.t("pomodoroLoading")}</p></Show>
-						<CustomScrollArea ariaLabel={props.t("pomodoroTasks")} contentClass={styles.taskList} viewportStyle={{ padding: "2px 20px 10px 10px" }}>
+						<CustomScrollArea ariaLabel={props.t("pomodoroTasks")} contentClass={styles.taskList} viewportStyle={{ padding: "2px 20px 10px" }}>
 							<For each={orderedTasks()}>{(task) => (
 								<article class={styles.taskRow}
 									onContextMenu={(event) => {

@@ -1,6 +1,12 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import type { Vault } from "@/entities/vault";
 
+export const mergeVisibleVaultOrder = (order: string[], visibleIds: string[]): string[] => {
+	const visibleSet = new Set(visibleIds);
+	let visibleIndex = 0;
+	return order.map(id => visibleSet.has(id) ? visibleIds[visibleIndex++] : id);
+};
+
 /** Eventos de ponteiro funcionam em WebViews onde o arraste nativo de arquivos consome eventos de arraste HTML. */
 export const useVaultReorder = (options: {
 	vaults: () => Vault[];
@@ -35,8 +41,9 @@ export const useVaultReorder = (options: {
 		const rows = [...(options.getList()?.querySelectorAll<HTMLElement>("[data-vault-row]") ?? [])]
 			.filter(row => row.dataset.vaultRow !== gesture!.id);
 		const index = rows.findIndex(row => { const rect = row.getBoundingClientRect(); return gesture!.currentY < rect.top + rect.height / 2; });
-		const ids = rows.map(row => row.dataset.vaultRow!);
-		ids.splice(index < 0 ? ids.length : index, 0, gesture.id);
+		const visibleIds = rows.map(row => row.dataset.vaultRow!);
+		visibleIds.splice(index < 0 ? visibleIds.length : index, 0, gesture.id);
+		const ids = mergeVisibleVaultOrder(order() ?? gesture.original, visibleIds);
 		if (ids.join("\0") !== order()?.join("\0")) setOrder(ids);
 	};
 	const scroll = () => {

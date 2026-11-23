@@ -185,7 +185,12 @@ export const useVaults = () => {
 			setSaving(false);
 		}
 	};
-	const hideDialog = (): void => { if (activeVaultId()) setDialogOpen(false); };
+	const hideDialog = (): void => {
+		if (!activeVaultId()) return;
+		setDialogOpen(false);
+		setSelectedVaultId(activeVaultId());
+		setName("");
+	};
 
 	const select = async (vault: Vault): Promise<void> => {
 		if (saving()) return;
@@ -224,7 +229,7 @@ export const useVaults = () => {
 		errorAction,
 		openDialog: () => {
 			const list = vaults();
-			if (!selectedVaultId() || !list.some(vault => vault.id === selectedVaultId())) setSelectedVaultId(activeVaultId() ?? list[0]?.id);
+			setSelectedVaultId(activeVaultId() ?? list[0]?.id);
 			setDialogOpen(true);
 		},
 		retryLoad,
