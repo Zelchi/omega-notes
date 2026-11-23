@@ -64,9 +64,25 @@ export const useAppController = () => {
 	const kanban = useKanban(vaults.activeVaultId);
 	const pdfs = usePdfLibrary(vaults.activeVaultId, (key) => translate(preferences.language(), key));
 	const pomodoro = usePomodoro(vaults.activeVaultId, () => {
+		if (!preferences.pomodoroEnabled()) return;
 		hideOtherWindows("pomodoro");
 		pomodoro.setOpen(true);
 		void showMainWindowIfHidden().catch(console.error);
+	});
+	createEffect(() => {
+		if (!preferences.kanbanEnabled()) kanban.setOpen(false);
+	});
+	createEffect(() => {
+		if (!preferences.pdfEnabled()) {
+			pdfs.setOpen(false);
+			pdfs.openDocument(undefined);
+		}
+	});
+	createEffect(() => {
+		if (!preferences.pomodoroEnabled()) {
+			pomodoro.setOpen(false);
+			if (pomodoro.running()) pomodoro.pause();
+		}
 	});
 	createEffect(() => lofiPlayer.setPomodoroMuted(pomodoro.muteLofi()));
 	const notes = useNotes(vaults.activeVaultId, preferences.gambiarraEnabled);
@@ -101,7 +117,7 @@ export const useAppController = () => {
 			musicNext: t("musicPlayerNext"),
 			update: t("updateAction"),
 			exit: t("trayExit"),
-		}, pomodoro.running(), lofiPlayer.isActive()).catch(console.error);
+		}, pomodoro.running(), lofiPlayer.isActive(), preferences.pomodoroEnabled()).catch(console.error);
 	});
 	const navigation = useNoteNavigationController({
 		notes,
@@ -187,17 +203,17 @@ export const useAppController = () => {
 		else aiChat.setOpen(open);
 	};
 	const toggleKanban = () => {
-		if (!vaults.activeVaultId()) return;
+		if (!preferences.kanbanEnabled() || !vaults.activeVaultId()) return;
 		if (!kanban.open()) hideOtherWindows("kanban");
 		kanban.setOpen((open) => !open);
 	};
 	const togglePdfLibrary = () => {
-		if (!vaults.activeVaultId()) return;
+		if (!preferences.pdfEnabled() || !vaults.activeVaultId()) return;
 		if (!pdfs.open()) hideOtherWindows("pdfs");
 		pdfs.setOpen((open) => !open);
 	};
 	const togglePomodoro = () => {
-		if (!vaults.activeVaultId()) return;
+		if (!preferences.pomodoroEnabled() || !vaults.activeVaultId()) return;
 		if (!pomodoro.open()) hideOtherWindows("pomodoro");
 		pomodoro.setOpen((open) => !open);
 	};
@@ -432,8 +448,8 @@ export const useAppController = () => {
 		let unlistenTray: (() => void) | undefined;
 		void onTrayAction(action => {
 			switch (action) {
-				case "pomodoro-toggle": pomodoro.running() ? pomodoro.pause() : pomodoro.start(); break;
-				case "pomodoro-reset": pomodoro.reset(); break;
+				case "pomodoro-toggle": if (preferences.pomodoroEnabled()) pomodoro.running() ? pomodoro.pause() : pomodoro.start(); break;
+				case "pomodoro-reset": if (preferences.pomodoroEnabled()) pomodoro.reset(); break;
 				case "music-play-pause": toggleTrayMusic(); break;
 				case "music-next": lofiPlayer.nextSource(); break;
 				case "update": void updates.activate(); break;
@@ -451,8 +467,8 @@ export const useAppController = () => {
 			if (event.defaultPrevented || event.isComposing || isTerminalTarget(event.target) || !vaults.activeVaultId()
 				|| navigation.nameDialogVisible() || vaults.dialogOpen() || settingsOpen() || studies.open()
 				|| noteDeletion.open() || noteDeletion.pending() || updates.installing()) return;
-			const pomodoroMatch = matchesKeyboardShortcut(event, preferences.pomodoroShortcut());
-			const kanbanMatch = matchesKeyboardShortcut(event, preferences.kanbanShortcut());
+			const pomodoroMatch = preferences.pomodoroEnabled() && matchesKeyboardShortcut(event, preferences.pomodoroShortcut());
+			const kanbanMatch = preferences.kanbanEnabled() && matchesKeyboardShortcut(event, preferences.kanbanShortcut());
 			if (!pomodoroMatch && !kanbanMatch) return;
 			event.preventDefault();
 			event.stopPropagation();

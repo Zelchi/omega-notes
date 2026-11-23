@@ -377,7 +377,7 @@ test('Pomodoro focus completion can reveal a hidden window on both desktop hosts
 		source('../src/shared/lib/desktop-tauri.ts'),
 	]);
 	assert.match(pomodoro, /playPhaseChange && phase\(\) !== snapshot\.phase\) \{\s*onPhaseEnd\?\.\(\)/);
-	assert.match(app, /usePomodoro\(vaults\.activeVaultId, \(\) => \{\s*hideOtherWindows\("pomodoro"\);\s*pomodoro\.setOpen\(true\);\s*void showMainWindowIfHidden\(\)/);
+	assert.match(app, /usePomodoro\(vaults\.activeVaultId, \(\) => \{\s*(?:if \(!preferences\.pomodoroEnabled\(\)\) return;\s*)?hideOtherWindows\("pomodoro"\);\s*pomodoro\.setOpen\(true\);\s*void showMainWindowIfHidden\(\)/);
 	assert.match(windowApi, /isDesktopRuntime\(\) && !\(await isMainWindowVisible\(\)\)\) await showMainWindow\(\)/);
 	assert.match(electron, /case 'window_is_visible': return window\.isVisible\(\)/);
 	assert.match(tauri, /case 'window_is_visible': return await webviewWindow\.isVisible\(\)/);
@@ -488,11 +488,55 @@ test('Pomodoro and Kanban shortcuts are configurable and Kanban is available in 
 	assert.match(titlebar, /aria-keyshortcuts=\{props\.kanbanShortcut\}/);
 	assert.match(app, /createPresence\(app\.kanban\.open, 210\)/);
 	assert.match(app, /<Show when=\{kanbanMounted\(\)\}>[\s\S]*?<KanbanPanel/);
-	assert.match(controller, /const toggleKanban = \(\) => \{\s*if \(!vaults\.activeVaultId\(\)\) return/);
-	assert.match(controller, /matchesKeyboardShortcut\(event, preferences\.pomodoroShortcut\(\)\)/);
-	assert.match(controller, /matchesKeyboardShortcut\(event, preferences\.kanbanShortcut\(\)\)/);
+	assert.match(controller, /const toggleKanban = \(\) => \{\s*if \(!preferences\.kanbanEnabled\(\) \|\| !vaults\.activeVaultId\(\)\) return/);
+	assert.match(controller, /preferences\.pomodoroEnabled\(\) && matchesKeyboardShortcut\(event, preferences\.pomodoroShortcut\(\)\)/);
+	assert.match(controller, /preferences\.kanbanEnabled\(\) && matchesKeyboardShortcut\(event, preferences\.kanbanShortcut\(\)\)/);
 	assert.match(settings, /value=\{props\.pomodoroShortcut\} onChange=\{props\.onPomodoroShortcutChange\}/);
 	assert.match(settings, /value=\{props\.kanbanShortcut\} onChange=\{props\.onKanbanShortcutChange\}/);
+});
+
+test('Features settings toggle Pomodoro, Kanban, and PDF and long-press AI settings for Gambiarra', async () => {
+	const [settings, aiToggle, longPress, controller, titlebar, tray, electron, tauri, pt, en] = await Promise.all([
+		source('../src/features/change-preferences/ui/settings-dialog/index.tsx'),
+		source('../src/features/change-preferences/ui/settings-dialog/ai-features-toggle.tsx'),
+		source('../src/features/change-preferences/model/long-press.ts'),
+		source('../src/app/controller.ts'),
+		source('../src/app/ui/window-titlebar/index.tsx'),
+		source('../src/app/api/tray.repository.ts'),
+		source('../../bridge/electron/main.mjs'),
+		source('../../bridge/tauri/src/main.rs'),
+		source('../lang/pt-br.json'),
+		source('../lang/en.json'),
+	]);
+	assert.match(settings, /id: "features", label: "settingsCategoryFeatures"/);
+	assert.match(settings, /props\.category\(\) === "features"/);
+	assert.doesNotMatch(settings, /settings-category-|selectedCategory\(\)/);
+	assert.match(settings, /onPomodoroEnabledChange/);
+	assert.match(settings, /onKanbanEnabledChange/);
+	assert.match(settings, /pdfFeature/);
+	assert.match(settings, /onPdfEnabledChange/);
+	assert.match(settings, /<AiFeaturesToggle/);
+	assert.doesNotMatch(settings, /props\.t\("gambiarra"\)/);
+	assert.match(settings, /onGambiarraLongPress=\{\(\) => props\.setConfirmGambiarra\(true\)\}/);
+	assert.match(settings, /props\.onAiFeaturesEnabledChange\(false\);\s*props\.onGambiarraEnabledChange\(true\)/);
+	assert.match(aiToggle, /createLongPress\(props\.onGambiarraLongPress\)/);
+	assert.match(aiToggle, /onPointerDown/);
+	assert.match(longPress, /delayMs = 3000/);
+	assert.match(controller, /if \(!preferences\.kanbanEnabled\(\)\) kanban\.setOpen\(false\)/);
+	assert.match(controller, /if \(!preferences\.pomodoroEnabled\(\)\) \{/);
+	assert.match(titlebar, /<Show when=\{props\.kanbanEnabled\}>/);
+	assert.match(titlebar, /<Show when=\{props\.pomodoroEnabled\}>/);
+	assert.match(titlebar, /<Show when=\{props\.pdfEnabled\}>/);
+	assert.match(controller, /if \(!preferences\.pdfEnabled\(\)\) \{/);
+	assert.match(controller, /if \(!preferences\.pdfEnabled\(\) \|\| !vaults\.activeVaultId\(\)\) return/);
+	assert.match(pt, /"pdfFeature": "Leitor de PDF"/);
+	assert.match(en, /"pdfFeature": "PDF Reader"/);
+	assert.match(tray, /pomodoroEnabled: boolean/);
+	assert.match(electron, /enabled: trayPomodoroEnabled/);
+	assert.match(electron, /typeof args\.pomodoroEnabled !== 'boolean'/);
+	assert.match(tauri, /set_enabled\(pomodoro_enabled\)/);
+	assert.equal(JSON.parse(pt).settingsCategoryFeatures, 'Features');
+	assert.equal(JSON.parse(en).settingsCategoryFeatures, 'Features');
 });
 
 test('Electron and Tauri enforce one app instance and focus the existing window', async () => {

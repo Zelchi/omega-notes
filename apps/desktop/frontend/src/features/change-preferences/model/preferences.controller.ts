@@ -10,6 +10,12 @@ import {
 	readAiFeaturesEnabled,
 	readGambiarraEnabled,
 	saveGambiarraEnabled,
+	readPomodoroEnabled,
+	savePomodoroEnabled,
+	readKanbanEnabled,
+	saveKanbanEnabled,
+	readPdfEnabled,
+	savePdfEnabled,
 	readSoundVolume,
 	saveSoundVolume,
 	readAiChatShortcut,
@@ -63,6 +69,9 @@ export const usePreferences = () => {
 	applySoundVolume(soundVolume());
 	const [aiFeaturesEnabled, setAiFeaturesEnabled] = createSignal(readAiFeaturesEnabled());
 	const [gambiarraEnabled, setGambiarraEnabled] = createSignal(!aiFeaturesEnabled() && readGambiarraEnabled());
+	const [pomodoroEnabled, setPomodoroEnabled] = createSignal(readPomodoroEnabled());
+	const [kanbanEnabled, setKanbanEnabled] = createSignal(readKanbanEnabled());
+	const [pdfEnabled, setPdfEnabled] = createSignal(readPdfEnabled());
 	const [aiChatShortcut, setAiChatShortcut] = createSignal(shortcuts.aiChat);
 	const [pomodoroShortcut, setPomodoroShortcut] = createSignal(shortcuts.pomodoro);
 	const [kanbanShortcut, setKanbanShortcut] = createSignal(shortcuts.kanban);
@@ -104,6 +113,21 @@ export const usePreferences = () => {
 			saveSoundVolume(volume);
 		},
 		aiFeaturesEnabled,
+		pomodoroEnabled,
+		setPomodoroEnabled: (value: boolean) => {
+			setPomodoroEnabled(value);
+			savePomodoroEnabled(value);
+		},
+		kanbanEnabled,
+		setKanbanEnabled: (value: boolean) => {
+			setKanbanEnabled(value);
+			saveKanbanEnabled(value);
+		},
+		pdfEnabled,
+		setPdfEnabled: (value: boolean) => {
+			setPdfEnabled(value);
+			savePdfEnabled(value);
+		},
 		gambiarraEnabled,
 		aiChatShortcut,
 		pomodoroShortcut,

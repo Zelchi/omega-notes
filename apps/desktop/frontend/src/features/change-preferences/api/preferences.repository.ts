@@ -22,6 +22,9 @@ const LANGUAGE_KEY = "omega-notes.settings.language";
 const TEXT_CURSOR_KEY = "omega-notes.settings.text-cursor";
 const AI_FEATURES_KEY = "omega-notes.settings.ai-features-enabled";
 const GAMBIARRA_KEY = "omega-notes.settings.gambiarra-enabled";
+const POMODORO_ENABLED_KEY = "omega-notes.settings.pomodoro-enabled";
+const KANBAN_ENABLED_KEY = "omega-notes.settings.kanban-enabled";
+const PDF_ENABLED_KEY = "omega-notes.settings.pdf-enabled";
 const AI_CHAT_SHORTCUT_KEY = "omega-notes.settings.ai-chat-shortcut";
 const POMODORO_SHORTCUT_KEY = "omega-notes.settings.pomodoro-shortcut";
 const KANBAN_SHORTCUT_KEY = "omega-notes.settings.kanban-shortcut";
@@ -146,6 +149,12 @@ export const readAiFeaturesEnabled = (): boolean => readBoolean(AI_FEATURES_KEY,
 export const saveAiFeaturesEnabled = (value: boolean): void => writeBoolean(AI_FEATURES_KEY, value);
 export const readGambiarraEnabled = (): boolean => readBoolean(GAMBIARRA_KEY, false);
 export const saveGambiarraEnabled = (value: boolean): void => writeBoolean(GAMBIARRA_KEY, value);
+export const readPomodoroEnabled = (): boolean => readBoolean(POMODORO_ENABLED_KEY, true);
+export const savePomodoroEnabled = (value: boolean): void => writeBoolean(POMODORO_ENABLED_KEY, value);
+export const readKanbanEnabled = (): boolean => readBoolean(KANBAN_ENABLED_KEY, true);
+export const saveKanbanEnabled = (value: boolean): void => writeBoolean(KANBAN_ENABLED_KEY, value);
+export const readPdfEnabled = (): boolean => readBoolean(PDF_ENABLED_KEY, true);
+export const savePdfEnabled = (value: boolean): void => writeBoolean(PDF_ENABLED_KEY, value);
 
 export const readLanguage = (): Language => {
 	try {

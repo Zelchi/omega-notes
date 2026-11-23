@@ -38,11 +38,14 @@ type Props = {
 	aiChatOpen: boolean;
 	aiChatShortcut: string;
 	aiFeaturesEnabled: boolean;
+	kanbanEnabled: boolean;
 	kanbanOpen: boolean;
 	kanbanShortcut: string;
 	onKanban: () => void;
+	pdfEnabled: boolean;
 	onPdfs: () => void;
 	pomodoroOpen: boolean;
+	pomodoroEnabled: boolean;
 	onPomodoro: () => void;
 	onMinimize: () => void;
 	onToggleMaximize: () => void;
@@ -62,16 +65,20 @@ const WindowTitlebar: Component<Props> = (props) => (
 			<div class={styles.brand} data-omega-drag-region data-tauri-drag-region>
 				<img class={styles.mark} data-omega-drag-region data-tauri-drag-region src={iconUrl} alt="" />
 			</div>
-			<Button class={cx(styles.button, styles.kanbanButton)} type="button" disabled={!props.vaultName} aria-label={props.t("kanbanOpen")}
-				aria-expanded={props.kanbanOpen} aria-controls="kanban-panel" aria-keyshortcuts={props.kanbanShortcut}
-				onClick={() => runAppAction(props.onKanban, "panel", props.vaultDialogOpen, props.vaultDialogCanHide)}>
-				<Icon name="bulletList" size={16} />
-			</Button>
-			<Button class={cx(styles.button, styles.pomodoroButton)} type="button" disabled={!props.vaultName} aria-label={props.t("pomodoroOpen")}
-				aria-expanded={props.pomodoroOpen} aria-controls="pomodoro-panel"
-				onClick={() => runAppAction(props.onPomodoro, "panel", props.vaultDialogOpen, props.vaultDialogCanHide)}>
-				<Icon name="clock" size={16} />
-			</Button>
+			<Show when={props.kanbanEnabled}>
+				<Button class={cx(styles.button, styles.kanbanButton)} type="button" disabled={!props.vaultName} aria-label={props.t("kanbanOpen")}
+					aria-expanded={props.kanbanOpen} aria-controls="kanban-panel" aria-keyshortcuts={props.kanbanShortcut}
+					onClick={() => runAppAction(props.onKanban, "panel", props.vaultDialogOpen, props.vaultDialogCanHide)}>
+					<Icon name="bulletList" size={16} />
+				</Button>
+			</Show>
+			<Show when={props.pomodoroEnabled}>
+				<Button class={cx(styles.button, styles.pomodoroButton)} type="button" disabled={!props.vaultName} aria-label={props.t("pomodoroOpen")}
+					aria-expanded={props.pomodoroOpen} aria-controls="pomodoro-panel"
+					onClick={() => runAppAction(props.onPomodoro, "panel", props.vaultDialogOpen, props.vaultDialogCanHide)}>
+					<Icon name="clock" size={16} />
+				</Button>
+			</Show>
 			<div class={styles.drag} data-omega-drag-region data-tauri-drag-region />
 		</div>
 		<Show when={props.vaultName}>
@@ -83,10 +90,12 @@ const WindowTitlebar: Component<Props> = (props) => (
 			<div class={styles.right}>
 				<div class={styles.drag} data-omega-drag-region data-tauri-drag-region />
 				<div class={styles.controls} onPointerDown={(event) => event.stopPropagation()}>
-					<Button class={styles.button} type="button" disabled={!props.vaultName}
-						onClick={() => runAppAction(props.onPdfs, "panel", props.vaultDialogOpen, props.vaultDialogCanHide)}>
-						<Icon name="file" size={16} />
-					</Button>
+					<Show when={props.pdfEnabled}>
+						<Button class={styles.button} type="button" disabled={!props.vaultName}
+							onClick={() => runAppAction(props.onPdfs, "panel", props.vaultDialogOpen, props.vaultDialogCanHide)}>
+							<Icon name="file" size={16} />
+						</Button>
+					</Show>
 					<Show when={props.aiFeaturesEnabled}>
 						<Button class={styles.button} type="button" disabled={!props.vaultName} aria-label={props.t("aiChat")}
 							aria-expanded={props.aiChatOpen} aria-controls="ai-chat-panel" aria-keyshortcuts={props.aiChatShortcut}

@@ -25,7 +25,7 @@ const settingsCategories: { id: SettingsCategory; label: TranslationKey; icon: I
 	{ id: "preferences", label: "settingsCategoryPreferences", icon: "sliders" },
 	{ id: "graphics", label: "settingsCategoryGraphics", icon: "display" },
 	{ id: "hotkeys", label: "settingsCategoryHotkeys", icon: "keyboard" },
-	{ id: "ai", label: "settingsCategoryAi", icon: "chat" },
+	{ id: "features", label: "settingsCategoryFeatures", icon: "settings" },
 ];
 
 type Props = {
@@ -35,7 +35,9 @@ type Props = {
 	confirmGambiarra: Accessor<boolean>;
 	setConfirmGambiarra: (value: boolean) => void;
 	aiFeaturesEnabled: boolean;
-	gambiarraEnabled: boolean;
+	pomodoroEnabled: boolean;
+	kanbanEnabled: boolean;
+	pdfEnabled: boolean;
 	onGambiarraEnabledChange: (value: boolean) => void;
 	aiChatShortcut: AiChatShortcut;
 	onAiChatShortcutChange: (value: AiChatShortcut) => boolean;
@@ -52,6 +54,9 @@ type Props = {
 	aiResetting?: boolean;
 	aiCleanupError?: string;
 	onAiFeaturesEnabledChange: (value: boolean) => void;
+	onPomodoroEnabledChange: (value: boolean) => void;
+	onKanbanEnabledChange: (value: boolean) => void;
+	onPdfEnabledChange: (value: boolean) => void;
 	canvasLayout: CanvasLayout;
 	onCanvasLayoutChange: (value: CanvasLayout) => void;
 	centerCanvasOnLaunch: boolean;
@@ -78,7 +83,6 @@ type Props = {
 };
 
 const SettingsDialog: Component<Props> = (props) => {
-	const selectedCategory = () => settingsCategories.find((item) => item.id === props.category())!;
 	const backdropDismiss = createBackdropDismiss(() => props.onClose());
 	return (
 		<Show when={props.open}>
@@ -96,10 +100,7 @@ const SettingsDialog: Component<Props> = (props) => {
 						</Button>
 					</header>
 
-					<div class={styles.content} aria-labelledby={`settings-category-${props.category()}`}>
-						<h3 class={styles.sectionTitle} id={`settings-category-${props.category()}`}>
-							{props.t(selectedCategory().label)}
-						</h3>
+					<div class={styles.content}>
 						<div class={styles.options}>
 							<Show when={props.category() === "hotkeys"}>
 								<div class={styles.option}>
@@ -214,20 +215,25 @@ const SettingsDialog: Component<Props> = (props) => {
 								</label>
 							</Show>
 
-							<Show when={props.category() === "ai"}>
-								<AiFeaturesToggle aiEnabled={props.aiFeaturesEnabled} disabled={props.aiResetting}
-									onAiChange={props.onAiFeaturesEnabledChange} t={props.t} />
+							<Show when={props.category() === "features"}>
 								<label class={styles.option}>
-									<span>{props.t("gambiarra")}</span>
-									<Input class={styles.toggle} type="checkbox" checked={props.gambiarraEnabled}
-										disabled={props.aiFeaturesEnabled || props.aiResetting}
-										onChange={(event) => {
-											if (event.currentTarget.checked) {
-												event.currentTarget.checked = false;
-												props.setConfirmGambiarra(true);
-											} else props.onGambiarraEnabledChange(false);
-										}} />
+									<span>{props.t("kanbanFeature")}</span>
+									<Input class={styles.toggle} type="checkbox" checked={props.kanbanEnabled}
+										onChange={(event) => props.onKanbanEnabledChange(event.currentTarget.checked)} />
 								</label>
+								<label class={styles.option}>
+									<span>{props.t("pomodoroFeature")}</span>
+									<Input class={styles.toggle} type="checkbox" checked={props.pomodoroEnabled}
+										onChange={(event) => props.onPomodoroEnabledChange(event.currentTarget.checked)} />
+								</label>
+								<label class={styles.option}>
+									<span>{props.t("pdfFeature")}</span>
+									<Input class={styles.toggle} type="checkbox" checked={props.pdfEnabled}
+										onChange={(event) => props.onPdfEnabledChange(event.currentTarget.checked)} />
+								</label>
+								<AiFeaturesToggle aiEnabled={props.aiFeaturesEnabled} disabled={props.aiResetting}
+									onAiChange={props.onAiFeaturesEnabledChange}
+									onGambiarraLongPress={() => props.setConfirmGambiarra(true)} t={props.t} />
 								<Show when={props.aiCleanupError}>{(error) => <p role="alert" class={styles.error}>{error()}</p>}</Show>
 							</Show>
 						</div>
@@ -247,6 +253,7 @@ const SettingsDialog: Component<Props> = (props) => {
 				</section>
 				<Show when={props.confirmGambiarra()}>
 					<GambiarraWarningDialog t={props.t} onCancel={() => props.setConfirmGambiarra(false)} onConfirm={() => {
+						props.onAiFeaturesEnabledChange(false);
 						props.onGambiarraEnabledChange(true);
 						props.setConfirmGambiarra(false);
 					}} />

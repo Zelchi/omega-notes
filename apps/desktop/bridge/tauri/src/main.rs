@@ -33,6 +33,7 @@ struct TrayLabels {
 struct TrayMenuState {
     labels: Mutex<TrayLabels>,
     pomodoro_running: Mutex<bool>,
+    pomodoro_enabled: Mutex<bool>,
     music_playing: Mutex<bool>,
     tray_icon: Mutex<Option<TrayIcon<tauri::Wry>>>,
     visibility: MenuItem<tauri::Wry>,
@@ -118,6 +119,10 @@ impl TrayMenuState {
             .music_playing
             .lock()
             .map_err(|_| "Tray menu unavailable")?;
+        let pomodoro_enabled = *self
+            .pomodoro_enabled
+            .lock()
+            .map_err(|_| "Tray menu unavailable")?;
         let tray_icon = self
             .tray_icon
             .lock()
@@ -147,6 +152,12 @@ impl TrayMenuState {
             .map_err(|error| error.to_string())?;
         self.reset
             .set_text(labels.reset)
+            .map_err(|error| error.to_string())?;
+        self.pomodoro
+            .set_enabled(pomodoro_enabled)
+            .map_err(|error| error.to_string())?;
+        self.reset
+            .set_enabled(pomodoro_enabled)
             .map_err(|error| error.to_string())?;
         self.music_play_pause
             .set_text(dynamic.music_play_pause)
@@ -212,6 +223,7 @@ fn configure_tray_menu(
     labels: TrayLabels,
     pomodoro_running: bool,
     music_playing: bool,
+    pomodoro_enabled: bool,
 ) -> Result<(), String> {
     if [
         &labels.show,
@@ -235,6 +247,10 @@ fn configure_tray_menu(
         .pomodoro_running
         .lock()
         .map_err(|_| "Tray menu unavailable")? = pomodoro_running;
+    *tray
+        .pomodoro_enabled
+        .lock()
+        .map_err(|_| "Tray menu unavailable")? = pomodoro_enabled;
     *tray
         .music_playing
         .lock()
@@ -478,6 +494,7 @@ fn main() {
                     exit: "Exit".into(),
                 }),
                 pomodoro_running: Mutex::new(false),
+                pomodoro_enabled: Mutex::new(true),
                 music_playing: Mutex::new(false),
                 tray_icon: Mutex::new(None),
                 visibility: visibility.clone(),

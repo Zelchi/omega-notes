@@ -116,10 +116,13 @@ const AppView: Component = () => {
 						aiChatShortcut={formatAiChatShortcut(app.preferences.aiChatShortcut(), true)}
 						aiFeaturesEnabled={app.chatAvailable()}
 						kanbanOpen={app.kanban.open()}
+						kanbanEnabled={app.preferences.kanbanEnabled()}
+						pdfEnabled={app.preferences.pdfEnabled()}
 						kanbanShortcut={formatKeyboardShortcut(app.preferences.kanbanShortcut(), true)}
 						onKanban={app.toggleKanban}
 						onPdfs={app.togglePdfLibrary}
 						pomodoroOpen={app.pomodoro.open()}
+						pomodoroEnabled={app.preferences.pomodoroEnabled()}
 						onPomodoro={app.togglePomodoro}
 						onMinimize={app.windowControls.minimize}
 						onToggleMaximize={() => void app.windowControls.toggleMaximize()}
@@ -265,6 +268,12 @@ const AppView: Component = () => {
 								canvasLayout={app.preferences.canvasLayout()}
 								onCanvasLayoutChange={app.preferences.setCanvasLayout}
 								aiFeaturesEnabled={app.preferences.aiFeaturesEnabled()}
+								pomodoroEnabled={app.preferences.pomodoroEnabled()}
+								onPomodoroEnabledChange={app.preferences.setPomodoroEnabled}
+								kanbanEnabled={app.preferences.kanbanEnabled()}
+								onKanbanEnabledChange={app.preferences.setKanbanEnabled}
+								pdfEnabled={app.preferences.pdfEnabled()}
+								onPdfEnabledChange={app.preferences.setPdfEnabled}
 								aiChatShortcut={app.preferences.aiChatShortcut()}
 								onAiChatShortcutChange={app.preferences.setAiChatShortcut}
 								pomodoroShortcut={app.preferences.pomodoroShortcut()}
@@ -278,7 +287,6 @@ const AppView: Component = () => {
 								noteLockShortcut={app.preferences.noteLockShortcut()}
 								onNoteLockShortcutChange={app.preferences.setNoteLockShortcut}
 								onAiFeaturesEnabledChange={app.preferences.setAiFeaturesEnabled}
-								gambiarraEnabled={app.preferences.gambiarraEnabled()}
 								onGambiarraEnabledChange={app.preferences.setGambiarraEnabled}
 								versionControl={() => <CheckForUpdatesButton t={app.t} updates={app.updates} />}
 								open={app.settingsOpen()}

@@ -16,8 +16,8 @@ export type TrayLabels = {
 	exit: string;
 };
 
-export const configureTrayMenu = (labels: TrayLabels, pomodoroRunning: boolean, musicPlaying: boolean): Promise<void> =>
-	isDesktopRuntime() ? invoke("configure_tray_menu", { labels, pomodoroRunning, musicPlaying }) : Promise.resolve();
+export const configureTrayMenu = (labels: TrayLabels, pomodoroRunning: boolean, musicPlaying: boolean, pomodoroEnabled: boolean): Promise<void> =>
+	isDesktopRuntime() ? invoke("configure_tray_menu", { labels, pomodoroRunning, musicPlaying, pomodoroEnabled }) : Promise.resolve();
 
 export const onTrayAction = (handler: (action: TrayAction) => void): Promise<() => void> =>
 	isDesktopRuntime() ? listen<TrayAction>("omega-tray-action", event => handler(event.payload)) : Promise.resolve(() => {});

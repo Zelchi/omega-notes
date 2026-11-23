@@ -32,3 +32,10 @@ test('Electron refreshes tray labels after app-driven show and hide', async () =
 	assert.match(main, /tray\.setImage\(trayIcons\[nextTrayIconState\]\)/);
 	assert.match(main, /icon: windowIcon/);
 });
+
+test('Electron disables Pomodoro tray actions when the feature is off', async () => {
+	const main = await readFile(new URL('../main.mjs', import.meta.url), 'utf8');
+	assert.match(main, /enabled: trayPomodoroEnabled, click: \(\) => emit\('omega-tray-action', 'pomodoro-toggle'\)/);
+	assert.match(main, /enabled: trayPomodoroEnabled, click: \(\) => emit\('omega-tray-action', 'pomodoro-reset'\)/);
+	assert.match(main, /trayPomodoroEnabled = args\.pomodoroEnabled/);
+});

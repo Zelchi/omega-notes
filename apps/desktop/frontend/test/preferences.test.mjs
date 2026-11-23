@@ -4,7 +4,8 @@ import {
 	readBackgroundIntensity, saveBackgroundIntensity, readBackgroundTheme, saveBackgroundTheme,
 	readCanvasLayout, saveCanvasLayout, readTheme, saveTheme,
 	readKanbanShortcut, saveKanbanShortcut, readNoteLockShortcut, saveNoteLockShortcut,
-	readPomodoroShortcut, savePomodoroShortcut,
+	readPomodoroShortcut, savePomodoroShortcut, readKanbanEnabled, saveKanbanEnabled,
+	readPomodoroEnabled, savePomodoroEnabled, readPdfEnabled, savePdfEnabled,
 } from '../src/features/change-preferences/api/preferences.repository.ts';
 import { usePreferences } from '../src/features/change-preferences/model/preferences.controller.ts';
 import { DEFAULT_NOTE_LOCK_SHORTCUT } from '../src/features/change-preferences/model/note-lock-shortcut.ts';
@@ -99,6 +100,27 @@ test('Pomodoro and Kanban shortcuts have defaults, persist, and reject invalid v
 	data.set('omega-notes.settings.kanban-shortcut', '{broken json');
 	assert.deepEqual(readPomodoroShortcut(), DEFAULT_POMODORO_SHORTCUT);
 	assert.deepEqual(readKanbanShortcut(), DEFAULT_KANBAN_SHORTCUT);
+});
+
+test('Pomodoro, Kanban, and PDF feature toggles default enabled and persist independently', t => {
+	const data = storage(t);
+	assert.equal(readPomodoroEnabled(), true);
+	assert.equal(readKanbanEnabled(), true);
+	assert.equal(readPdfEnabled(), true);
+
+	savePomodoroEnabled(false);
+	saveKanbanEnabled(false);
+	savePdfEnabled(false);
+	assert.equal(data.get('omega-notes.settings.pomodoro-enabled'), 'false');
+	assert.equal(data.get('omega-notes.settings.kanban-enabled'), 'false');
+	assert.equal(data.get('omega-notes.settings.pdf-enabled'), 'false');
+	assert.equal(readPomodoroEnabled(), false);
+	assert.equal(readKanbanEnabled(), false);
+	assert.equal(readPdfEnabled(), false);
+
+	savePomodoroEnabled(true);
+	assert.equal(readPomodoroEnabled(), true);
+	assert.equal(readKanbanEnabled(), false);
 });
 
 test('panel shortcuts match only the configured key and modifiers', () => {
