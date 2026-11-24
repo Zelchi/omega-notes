@@ -279,6 +279,7 @@ test('PDF reader connects zoom controls to the position controller', async () =>
 	assert.match(reader, /zoomController\.resetDocument\(\)/);
 	assert.match(reader, /onWheel=\{handlePdfWheel\}/);
 	assert.match(reader, /handlePdfReaderWheelZoom\(event, pageCount\(\), \(\) => getPdfZoomAnchor\(event\), changeZoom\)/);
+	assert.match(reader, /handlePdfReaderWheelPageNavigation\(event, pageCount\(\), busy\(\), navigation\.movePage\)/);
 	assert.match(reader, /disabled=\{zoom\(\) <= minPdfZoom\}/);
 	assert.match(reader, /disabled=\{zoom\(\) >= maxPdfZoom\}/);
 	assert.match(reader, /class=\{styles\.pageJumpButton\} type="button" onClick=\{resetZoom\}>\{Math\.round\(zoom\(\) \* 100\)\}%/);

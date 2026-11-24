@@ -20,7 +20,7 @@ import { createPdfHighlightActions } from "../model/highlight-actions";
 import { createPdfHighlightMenu, type PdfHighlightTextMenu } from "../model/highlight-menu";
 import { observePdfHighlightMenuDismissal } from "../model/highlight-menu-dismissal";
 import {
-	createPdfReaderNavigationController, handlePdfReaderWheelZoom,
+	createPdfReaderNavigationController, handlePdfReaderWheelPageNavigation, handlePdfReaderWheelZoom,
 	maxPdfZoom, minPdfZoom, pdfZoomStep,
 } from "../model/reader-controls";
 import { createPdfPageJumpInputHandlers } from "../model/page-jump-input";
@@ -393,8 +393,13 @@ const PdfReader: Component<Props> = props => {
 	const changeZoom = (delta: number, anchor?: ReturnType<typeof getPdfZoomAnchor>) =>
 		zoomController.change(delta, anchor);
 	const resetZoom = zoomController.reset;
-	const handlePdfWheel = (event: WheelEvent) =>
-		handlePdfReaderWheelZoom(event, pageCount(), () => getPdfZoomAnchor(event), changeZoom);
+	const handlePdfWheel = (event: WheelEvent) => {
+		if (event.ctrlKey) {
+			handlePdfReaderWheelZoom(event, pageCount(), () => getPdfZoomAnchor(event), changeZoom);
+			return;
+		}
+		handlePdfReaderWheelPageNavigation(event, pageCount(), busy(), navigation.movePage);
+	};
 	const finishPan = panController.finish;
 	onMount(() => {
 		const viewport = host;

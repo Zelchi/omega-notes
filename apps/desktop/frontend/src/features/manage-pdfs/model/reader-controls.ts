@@ -38,6 +38,20 @@ export const handlePdfReaderWheelZoom = <Anchor>(
 	changeZoom(event.deltaY < 0 ? pdfZoomStep : -pdfZoomStep, getAnchor());
 };
 
+export const handlePdfReaderWheelPageNavigation = (
+	event: Pick<WheelEvent, "shiftKey" | "deltaX" | "deltaY" | "preventDefault">,
+	pageCount: number,
+	busy: boolean,
+	movePage: (direction: -1 | 1) => void,
+) => {
+	if (!event.shiftKey) return;
+	const delta = event.deltaY || event.deltaX;
+	if (!delta) return;
+	event.preventDefault();
+	if (!pageCount || busy) return;
+	movePage(delta < 0 ? -1 : 1);
+};
+
 export const parsePdfPageJump = (value: string, pageCount: number): number | undefined => {
 	const target = Number(value);
 	return Number.isInteger(target) && target >= 1 && target <= pageCount ? target : undefined;

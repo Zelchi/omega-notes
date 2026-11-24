@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createPdfPageJumpInputHandlers } from '../src/features/manage-pdfs/model/page-jump-input.ts';
 import {
-	getPdfZoomScrollAdjustment, getPdfZoomTarget, handlePdfReaderWheelZoom,
+	getPdfZoomScrollAdjustment, getPdfZoomTarget, handlePdfReaderWheelPageNavigation, handlePdfReaderWheelZoom,
 	maxPdfZoom, minPdfZoom, parsePdfPageJump, pdfZoomStep,
 } from '../src/features/manage-pdfs/model/reader-controls.ts';
 
@@ -47,6 +47,39 @@ test('wheel zoom only handles Ctrl gestures, prevents their default, and passes 
 	handlePdfReaderWheelZoom(event, 8, getAnchor, changeZoom);
 	handlePdfReaderWheelZoom({ ...event, deltaY: 20 }, 8, getAnchor, changeZoom);
 	assert.deepEqual(calls, [[pdfZoomStep, anchor], [-pdfZoomStep, anchor]]);
+});
+
+test('Shift+wheel navigates pages in both directions and accepts remapped horizontal deltas', () => {
+	const calls = [];
+	const event = { shiftKey: false, deltaX: 0, deltaY: 50, prevented: 0, preventDefault() { this.prevented += 1; } };
+	const movePage = direction => calls.push(direction);
+
+	handlePdfReaderWheelPageNavigation(event, 8, false, movePage);
+	assert.equal(event.prevented, 0);
+	assert.deepEqual(calls, []);
+
+	event.shiftKey = true;
+	handlePdfReaderWheelPageNavigation(event, 8, false, movePage);
+	event.deltaY = -50;
+	handlePdfReaderWheelPageNavigation(event, 8, false, movePage);
+	event.deltaY = 0;
+	event.deltaX = 50;
+	handlePdfReaderWheelPageNavigation(event, 8, false, movePage);
+
+	assert.equal(event.prevented, 3);
+	assert.deepEqual(calls, [1, -1, 1]);
+});
+
+test('Shift+wheel prevents viewport scrolling while the reader is busy or has no pages', () => {
+	const calls = [];
+	const event = { shiftKey: true, deltaX: 0, deltaY: 50, prevented: 0, preventDefault() { this.prevented += 1; } };
+	const movePage = direction => calls.push(direction);
+
+	handlePdfReaderWheelPageNavigation(event, 8, true, movePage);
+	handlePdfReaderWheelPageNavigation(event, 0, false, movePage);
+
+	assert.equal(event.prevented, 2);
+	assert.deepEqual(calls, []);
 });
 
 test('page jump accepts only an integer within the loaded document', () => {

@@ -83,7 +83,7 @@ syncBuiltinESMExports();
 	assert.match(rejected.stderr, /A assinatura Tauri/);
 });
 
-test('release CI prepares stable website aliases and the homepage links to the v0.7.9 assets', async () => {
+test('release CI prepares stable website aliases and the homepage links to the v0.8.0 assets', async () => {
 	const config = JSON.parse(await readFile(new URL('../../bridge/tauri/tauri.release.conf.json', import.meta.url), 'utf8'));
 	assert.equal(config.bundle.createUpdaterArtifacts, true);
 	const workflow = await readFile(new URL('../../../../.github/workflows/release.yml', import.meta.url), 'utf8');
@@ -98,10 +98,10 @@ test('release CI prepares stable website aliases and the homepage links to the v
 		assert.ok(workflow.includes(`cp release-assets/${source} release-assets/${alias}`), `Release workflow alias missing ${alias}`);
 	}
 	for (const asset of [
-		'Omega.Notes_0.7.9_x64-setup.exe',
-		'omega-notes-0.7.9-amd64.deb',
-		'omega-notes-0.7.9-x86_64.rpm',
+		'Omega.Notes_0.8.0_x64-setup.exe',
+		'omega-notes-0.8.0-amd64.deb',
+		'omega-notes-0.8.0-x86_64.rpm',
 	]) {
-		assert.ok(homepage.includes(`/releases/download/v0.7.9/${asset}`), `Homepage download link missing ${asset}`);
+		assert.ok(homepage.includes(`/releases/download/v0.8.0/${asset}`), `Homepage download link missing ${asset}`);
 	}
 });

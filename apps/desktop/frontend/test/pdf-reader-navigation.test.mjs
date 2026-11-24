@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createPdfReaderNavigationController } from '../src/features/manage-pdfs/model/reader-controls.ts';
+import {
+	createPdfReaderNavigationController, handlePdfReaderWheelPageNavigation,
+} from '../src/features/manage-pdfs/model/reader-controls.ts';
 
 const setup = (overrides = {}) => {
 	const state = {
@@ -55,6 +57,20 @@ test('page navigation clears zoom and highlight selection state before moving', 
 		['clearSelection'],
 		['page'],
 	]);
+});
+
+test('Shift+wheel navigation stays within the first and last PDF pages', () => {
+	const { navigation, state } = setup();
+	const event = { shiftKey: true, deltaX: 0, deltaY: -1, preventDefault() {} };
+
+	state.pageNumber = 1;
+	handlePdfReaderWheelPageNavigation(event, state.pageCount, state.busy, navigation.movePage);
+	assert.equal(state.pageNumber, 1);
+
+	state.pageNumber = state.pageCount;
+	event.deltaY = 1;
+	handlePdfReaderWheelPageNavigation(event, state.pageCount, state.busy, navigation.movePage);
+	assert.equal(state.pageNumber, state.pageCount);
 });
 
 test('page jump opens at the first visible page and does nothing while loading or empty', () => {

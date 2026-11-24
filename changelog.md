@@ -1,5 +1,15 @@
 # Histórico de atualizações
 
+## v0.8.0
+
+### Biblioteca de PDFs
+
+- Avance ou volte entre páginas usando `Shift` + rolagem.
+
+### Melhorias internas
+
+- Reorganizados módulos do desktop e ampliada a cobertura de testes.
+
 ## v0.7.9
 
 ### Notificações
