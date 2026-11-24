@@ -16,6 +16,7 @@ import { useTextareaCaret } from "@/shared/ui/text-caret/use-textarea-caret";
 import CustomScrollArea, { CustomScrollbars, useCustomScrollArea } from "@/shared/ui/custom-scroll-area";
 import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
 import { openUrl } from "@/shared/lib/desktop";
+import { observeChatMessageScroll } from "../../model/message-scroll";
 
 type Props = {
     aiChat: AiChatController;
@@ -90,7 +91,6 @@ const ChatBody: Component<Props> = (props) => {
     let messages: HTMLDivElement | undefined;
     let body: HTMLDivElement | undefined;
     let composerInput: HTMLTextAreaElement | undefined;
-    let scrollFrame = 0;
     const [textMenu, setTextMenu] = createSignal<{ text: string; x: number; y: number }>();
     createEffect(() => {
         if (!textMenu()) return;
@@ -133,16 +133,14 @@ const ChatBody: Component<Props> = (props) => {
         setTextMenu(undefined);
         composerInput?.focus({ preventScroll: true });
     };
-    createEffect(() => {
-        props.aiChat.chat().messages;
-        props.aiChat.chat().busy;
-        const view = untrack(() => props.aiChat.messageView());
-        cancelAnimationFrame(scrollFrame);
-        scrollFrame = requestAnimationFrame(() => {
-            if (messages) messages.scrollTop = view.follow ? messages.scrollHeight : view.scrollTop;
-        });
+    observeChatMessageScroll({
+        readMessages: () => props.aiChat.chat().messages,
+        readBusy: () => props.aiChat.chat().busy,
+        readView: props.aiChat.messageView,
+        getViewport: () => messages,
+        requestFrame: callback => requestAnimationFrame(callback),
+        cancelFrame: frame => cancelAnimationFrame(frame),
     });
-    onCleanup(() => cancelAnimationFrame(scrollFrame));
     return <div class={styles.body} ref={body}>
         <header class={styles.header}>
             <h2 id="ai-chat-heading" class={styles.title}>{props.t("aiChat")}</h2>

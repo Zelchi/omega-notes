@@ -6,6 +6,7 @@ import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import Button from "@/shared/ui/button";
 import { cx } from "@/shared/lib/classes";
 import AsciiBackdrop from "@/shared/ui/ascii-backdrop";
+import { retainExitingMessage } from "./message";
 import { styles } from "./style.css.ts";
 
 type Props = {
@@ -24,7 +25,7 @@ type Props = {
 const DeleteConfirmationDialog: Component<Props> = (props) => {
 	const presence = createPresence(() => props.open, 210);
 	const name = createMemo<string | undefined>(previous => props.name ?? previous);
-	const message = createMemo<string>(previous => props.open ? props.message : previous ?? props.message);
+	const message = createMemo<string>(previous => retainExitingMessage(props.open, props.message, previous));
 	const headingId = createUniqueId(), messageId = createUniqueId();
 	const backdrop = createBackdropDismiss(() => props.onClose());
 	onMount(() => {

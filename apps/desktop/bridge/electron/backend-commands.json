@@ -47,7 +47,6 @@
   "note_media_stream_url",
   "music_stream_url",
   "import_clipboard_image",
-  "cleanup_orphaned_media",
   "read_ai_chat",
   "save_ai_chat",
   "clear_ai_chats",

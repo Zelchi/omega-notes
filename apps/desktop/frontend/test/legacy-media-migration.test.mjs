@@ -13,6 +13,7 @@ test('browser storage preserves legacy audio and video elements in active and de
 	const note = {
 		id: 'legacy-note',
 		title: 'Legacy media',
+		preview: 'old cached preview',
 		updatedAt: 1,
 		document: {
 			format: 'omega-document',
@@ -34,13 +35,16 @@ test('browser storage preserves legacy audio and video elements in active and de
 		const active = await getNote('legacy-media-test', 'legacy-note');
 		const deleted = await listDeletedNotes();
 		for (const migrated of [active, deleted[0]]) {
+			assert.equal(Object.hasOwn(migrated, 'preview'), false);
 			assert.deepEqual(migrated.document.elements.map(element => element.type), ['text', 'image', 'audio', 'video']);
 			assert.equal(migrated.document.elements[2].audioId, '00000000-0000-7000-8000-000000000004');
 			assert.equal(migrated.document.elements[2].volume, 0.5);
 			assert.equal(migrated.document.elements[3].videoId, '00000000-0000-7000-8000-000000000006');
 		}
 		for (const key of [notesKey, `${notesKey}:deleted`]) {
-			assert.deepEqual(JSON.parse(storage.get(key))[0].document.elements.map(element => element.type), ['text', 'image', 'audio', 'video']);
+			const stored = JSON.parse(storage.get(key))[0];
+			assert.equal(Object.hasOwn(stored, 'preview'), false);
+			assert.deepEqual(stored.document.elements.map(element => element.type), ['text', 'image', 'audio', 'video']);
 		}
 	} finally {
 		setNotesVaultId(undefined);

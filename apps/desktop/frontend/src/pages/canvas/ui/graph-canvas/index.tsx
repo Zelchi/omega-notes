@@ -8,6 +8,7 @@ import { cx } from "@/shared/lib/classes";
 import { styles } from "./style.css.ts";
 import { useGraphCanvas } from "./controller";
 import type { GraphCanvasProps } from "./types";
+import { beginCanvasNotePointerInteraction } from "../../model/preload-note";
 
 const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 	let board!: HTMLDivElement;
@@ -79,8 +80,14 @@ const GraphCanvas: Component<GraphCanvasProps> = (props) => {
 										cursor: props.mode === "view" ? "pointer" : graph.isLocked(note.id) ? "default" : "grab",
 									}}
 									onPointerDown={(event) => {
-										if (event.button === 0 && !graph.shouldIgnoreClick(event)) props.onPreloadNote(note.id);
-										graph.beginNodeDrag(event, note);
+										beginCanvasNotePointerInteraction({
+											noteId: note.id,
+											button: event.button,
+											isOnNote: true,
+											shouldIgnoreClick: () => graph.shouldIgnoreClick(event),
+											preloadNote: props.onPreloadNote,
+											beginGesture: () => graph.beginNodeDrag(event, note),
+										});
 									}}
 									onContextMenu={(event) => graph.openContextMenu(event, note)}
 									onClick={(event) => {

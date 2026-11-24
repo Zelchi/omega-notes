@@ -1,8 +1,8 @@
 export type KeyboardShortcut = { code: string; ctrl: boolean; alt: boolean; shift: boolean };
 export type AiChatShortcut = KeyboardShortcut;
 
-export type ConfiguredShortcutName = "aiChat" | "pomodoro" | "kanban" | "search" | "canvasLayout" | "noteLock";
-export type ConfiguredShortcuts = Record<ConfiguredShortcutName, KeyboardShortcut>;
+type ConfiguredShortcutName = "aiChat" | "pomodoro" | "kanban" | "search" | "canvasLayout" | "noteLock";
+type ConfiguredShortcuts = Record<ConfiguredShortcutName, KeyboardShortcut>;
 
 export const DEFAULT_AI_CHAT_SHORTCUT: AiChatShortcut = { code: "KeyJ", ctrl: true, alt: false, shift: false };
 export const DEFAULT_POMODORO_SHORTCUT: KeyboardShortcut = { code: "KeyP", ctrl: true, alt: false, shift: true };
@@ -10,7 +10,7 @@ export const DEFAULT_KANBAN_SHORTCUT: KeyboardShortcut = { code: "KeyB", ctrl: t
 export const DEFAULT_SEARCH_SHORTCUT: KeyboardShortcut = { code: "KeyP", ctrl: true, alt: false, shift: false };
 export const DEFAULT_CANVAS_LAYOUT_SHORTCUT: KeyboardShortcut = { code: "KeyV", ctrl: true, alt: false, shift: true };
 export const DEFAULT_NOTE_LOCK_SHORTCUT: KeyboardShortcut = { code: "KeyL", ctrl: true, alt: false, shift: true };
-export const DEFAULT_CONFIGURED_SHORTCUTS: ConfiguredShortcuts = {
+const DEFAULT_CONFIGURED_SHORTCUTS: ConfiguredShortcuts = {
     aiChat: DEFAULT_AI_CHAT_SHORTCUT,
     pomodoro: DEFAULT_POMODORO_SHORTCUT,
     kanban: DEFAULT_KANBAN_SHORTCUT,

@@ -13,6 +13,7 @@ files:
   - "!bridge/electron/test/**"
   - "!bridge/electron/smoke.mjs"
   - "!bridge/electron/electron-builder.yml"
+  - "!bridge/electron/updater.json"
   - package.json
   - "!node_modules/**"
 extraMetadata:

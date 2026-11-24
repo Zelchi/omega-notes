@@ -1,10 +1,8 @@
-import { DEFAULT_CANVAS_LAYOUT_SHORTCUT, formatKeyboardShortcut, isKeyboardShortcut, type KeyboardShortcut } from "./ai-chat-shortcut";
+import { DEFAULT_CANVAS_LAYOUT_SHORTCUT, isKeyboardShortcut, type KeyboardShortcut } from "./ai-chat-shortcut";
 export { DEFAULT_CANVAS_LAYOUT_SHORTCUT };
 
 export type CanvasLayoutShortcut = KeyboardShortcut;
 export const isCanvasLayoutShortcut = isKeyboardShortcut;
-export const formatCanvasLayoutShortcut = formatKeyboardShortcut;
-
 export const matchesCanvasLayoutShortcut = (event: KeyboardEvent, shortcut: CanvasLayoutShortcut): boolean => {
 	if (event.defaultPrevented || event.isComposing || event.metaKey || event.getModifierState("AltGraph")
 		|| event.code !== shortcut.code || event.ctrlKey !== shortcut.ctrl

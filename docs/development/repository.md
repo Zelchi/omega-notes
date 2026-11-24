@@ -36,4 +36,6 @@ As saídas Electron ficam em `apps/desktop/release` e incluem .deb/.rpm. O Tauri
 
 O site Astro mantém seus comandos `yarn dev:web`, `check:web`, `build:web` e `preview:web`. Sua publicação pelo workflow Pages é independente do desktop.
 
-Veja [arquitetura desktop](../architecture/desktop-runtime.md) e [releases](releases.md).
+O fallback executado por `yarn dev:frontend` usa implementações de navegador para dados que, no desktop, ficam no backend. Seus formatos antigos conhecidos, limites e restrições de armazenamento estão catalogados em [compatibilidade de dados](data-compatibility.md).
+
+O mapa das fronteiras internas da aplicação, do editor, do leitor de PDF e dos serviços Rust está em [arquitetura desktop](../architecture/desktop-runtime.md). Veja também o processo de [releases](releases.md).

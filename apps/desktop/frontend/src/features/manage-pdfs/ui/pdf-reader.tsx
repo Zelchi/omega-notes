@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createSignal, createUniqueId, For, on, onCleanup, onMount, Show, type Component } from "solid-js";
-import { GlobalWorkerOptions, getDocument, TextLayer, type PDFDocumentProxy, type PDFPageProxy, type RenderTask } from "pdfjs-dist";
+import { GlobalWorkerOptions, getDocument, TextLayer, type PDFDocumentProxy } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { displayNoteTitle, NOTE_TITLE_MAX_LENGTH, type NoteSummary } from "@/entities/note";
 import { NoteLinkSuggestions, useNoteLinkSuggestions } from "@/features/suggest-note-link";
@@ -7,17 +7,29 @@ import Button from "@/shared/ui/button";
 import Icon from "@/shared/ui/icon";
 import { openUrl } from "@/shared/lib/desktop";
 import { CustomScrollbars, useCustomScrollArea } from "@/shared/ui/custom-scroll-area";
-import { addPdfHighlight, deletePdfHighlight, getPdfDocumentStreamUrl, maxPdfHighlightRects, maxPdfHighlightTextLength, pdfHighlightColors, readPdfHighlights, updatePdfHighlight, type PdfDocument, type PdfHighlight, type PdfHighlightColor, type PdfHighlightRect } from "../api/pdfs.repository";
-import { getPdfAdjacentPreviewPages, getPdfPageNavigationTarget, getPdfPageSpreadPages, normalizePdfPageSpreadCursor, pdfPageSpreadGap, shouldUsePdfPageSpread } from "../model/page-spread";
+import { addPdfHighlight, deletePdfHighlight, getPdfDocumentStreamUrl, pdfHighlightColors, readPdfHighlights, updatePdfHighlight, type PdfDocument, type PdfHighlight, type PdfHighlightColor } from "../api/pdfs.repository";
+import { getPdfPageSpreadPages, normalizePdfPageSpreadCursor, shouldUsePdfPageSpread } from "../model/page-spread";
+import { createPdfPagePreviews, getPdfPagePreviewSignature, getPdfPageRenderConfig } from "../model/page-preview";
+import { arePdfPageElementsReady, type PdfPageNodes } from "../model/page-elements";
+import { createPdfPageRenderer } from "../model/page-renderer";
+import { createPdfReaderPanController, createPdfReaderPanHandlers } from "../model/page-pan";
+import { installPdfReaderPointerLockPan } from "../model/pointer-lock-pan";
+import { observePdfReaderResize } from "../model/resize-reporter";
+import { getPdfHighlightAt, getPdfSelectionData } from "../model/highlight-selection";
+import { createPdfHighlightActions } from "../model/highlight-actions";
+import { createPdfHighlightMenu, type PdfHighlightTextMenu } from "../model/highlight-menu";
+import { observePdfHighlightMenuDismissal } from "../model/highlight-menu-dismissal";
+import {
+	createPdfReaderNavigationController, handlePdfReaderWheelZoom,
+	maxPdfZoom, minPdfZoom, pdfZoomStep,
+} from "../model/reader-controls";
+import { createPdfPageJumpInputHandlers } from "../model/page-jump-input";
+import { createPdfReaderZoomController, findPdfReaderZoomAnchor } from "../model/zoom-position";
+import { getPdfSuggestionAnchor, observePdfSuggestionAnchor, type PdfSuggestionAnchor } from "../model/pdf-suggestion-anchor";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { styles } from "./pdf-panel/style.css.ts";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
-
-const pdfReaderResizeDebounceMs = 50;
-const minPdfZoom = 1;
-const maxPdfZoom = 3;
-const pdfZoomStep = 0.1;
 
 type Props = {
 	vaultId?: string;
@@ -31,45 +43,6 @@ type Props = {
 	onOpenNote: (note: NoteSummary) => void | Promise<void>;
 	onProgress: (documentId: string, page: number, pageCount: number) => void;
 };
-
-type PdfTextMenu = {
-	text: string;
-	selection?: { text: string; rects: PdfHighlightRect[] };
-	highlightId?: string;
-	page: number;
-	x: number;
-	y: number;
-	mode: "actions" | "edit";
-};
-
-type SuggestionAnchor = { left: number; top: number; height: number };
-type PdfPageRenderConfig = { viewport: ReturnType<PDFPageProxy["getViewport"]>; outputScale: number };
-type CachedPdfPagePreview = {
-	signature: string;
-	bitmap: ImageBitmap;
-	width: number;
-	height: number;
-};
-type PdfZoomAnchor = { page: number; x: number; y: number; clientX: number; clientY: number };
-
-const getPdfPageRenderConfig = (page: PDFPageProxy, width: number, height: number, scaleFactor: number, spreadEnabled: boolean): PdfPageRenderConfig => {
-	const baseViewport = page.getViewport({ scale: 1 });
-	const horizontalFrameSpace = 28 + (spreadEnabled ? pdfPageSpreadGap + 4 : 2);
-	const availableWidth = Math.max(1, width - horizontalFrameSpace);
-	const pageWidth = spreadEnabled ? availableWidth / 2 : availableWidth;
-	const fitScale = Math.min(pageWidth / baseViewport.width, Math.max(1, height - 30) / baseViewport.height);
-	const displayScale = Math.max(0.1, fitScale * scaleFactor);
-	return {
-		viewport: page.getViewport({ scale: displayScale }),
-		outputScale: Math.min(window.devicePixelRatio || 1, 2),
-	};
-};
-
-const getPdfPagePreviewBaseSignature = (width: number, height: number, scaleFactor: number): string =>
-	`${width}:${height}:${scaleFactor}:${Math.min(window.devicePixelRatio || 1, 2)}`;
-
-const getPdfPagePreviewSignature = (width: number, height: number, scaleFactor: number, twoPageLayout: boolean): string =>
-	`${getPdfPagePreviewBaseSignature(width, height, scaleFactor)}:${twoPageLayout}`;
 
 const highlightColors: Record<PdfHighlightColor, { swatch: string; background: string; selected: string }> = {
 	yellow: { swatch: "#facc15", background: "rgb(250 204 21 / 38%)", selected: "rgb(234 179 8 / 54%)" },
@@ -92,14 +65,14 @@ const PdfReader: Component<Props> = props => {
 	const [size, setSize] = createSignal({ width: 0, height: 0 });
 	const [highlights, setHighlights] = createSignal<PdfHighlight[]>([]);
 	const [selectedHighlightId, setSelectedHighlightId] = createSignal<string>();
-	const [textMenu, setTextMenu] = createSignal<PdfTextMenu>();
+	const [textMenu, setTextMenu] = createSignal<PdfHighlightTextMenu>();
 	const [pageJumpOpen, setPageJumpOpen] = createSignal(false);
 	const [pageJumpValue, setPageJumpValue] = createSignal("");
 	const [editColor, setEditColor] = createSignal<PdfHighlightColor>("yellow");
 	const [editNoteId, setEditNoteId] = createSignal("");
 	const [editNoteQuery, setEditNoteQuery] = createSignal("");
 	const [noteSuggestionCaret, setNoteSuggestionCaret] = createSignal<number>();
-	const [suggestionAnchor, setSuggestionAnchor] = createSignal<SuggestionAnchor>({ left: 0, top: 0, height: 32 });
+	const [suggestionAnchor, setSuggestionAnchor] = createSignal<PdfSuggestionAnchor>({ left: 0, top: 0, height: 32 });
 	const [textLayerReadyPages, setTextLayerReadyPages] = createSignal<Set<number>>(new Set());
 	const [pageElementsRevision, setPageElementsRevision] = createSignal(0);
 	const [highlightError, setHighlightError] = createSignal<TranslationKey>();
@@ -107,15 +80,27 @@ const PdfReader: Component<Props> = props => {
 	let host: HTMLDivElement | undefined;
 	let notePickerInput: HTMLInputElement | undefined;
 	let loadRevision = 0;
-	let pagePreviewRevision = 0;
-	const pagePreviewCache = new Map<number, CachedPdfPagePreview>();
-	const pagePreviewTasks = new Map<number, RenderTask>();
-	const pageRenderTasks = new Map<number, RenderTask>();
-	const textLayerTasks = new Map<number, TextLayer>();
-	const pageElements = new Map<number, { canvas?: HTMLCanvasElement; textLayer?: HTMLDivElement }>();
-	let centerHorizontalScrollOnRender = false;
-	let zoomAnchor: PdfZoomAnchor | undefined;
-	let panPointer: { x: number; y: number } | undefined;
+	const { cancelPagePreviewTasks, clearPagePreviewCache, visiblePreviews: getVisiblePreviews, preloadAdjacentPages } = createPdfPagePreviews();
+	const pageRenderer = createPdfPageRenderer({
+		getRenderConfig: getPdfPageRenderConfig,
+		createTextLayer: (textContent, container, viewport) => new TextLayer({
+			textContentSource: textContent,
+			container,
+			viewport,
+		}),
+	});
+	const panController = createPdfReaderPanController(setPanning);
+	const panHandlers = createPdfReaderPanHandlers(panController, {
+		isPointerLocked: viewport => document.pointerLockElement === viewport,
+		isOverContextMenu: target => target instanceof Element && Boolean(target.closest(`.${styles.contextMenu}`)),
+	});
+	const pageElements = new Map<number, PdfPageNodes>();
+	const zoomController = createPdfReaderZoomController({
+		getZoom: zoom,
+		setZoom: value => setZoom(value),
+		getHost: () => host,
+		getPageBounds: page => pageElements.get(page)?.canvas?.getBoundingClientRect(),
+	});
 	const noteSuggestionsId = createUniqueId();
 	const spreadEnabled = createMemo(() => shouldUsePdfPageSpread(size().width, size().height, pageAspectRatio(), pageCount()));
 	const visiblePages = createMemo(() => getPdfPageSpreadPages(pageNumber(), pageCount(), spreadEnabled()));
@@ -123,122 +108,39 @@ const PdfReader: Component<Props> = props => {
 		const pages = visiblePages();
 		return pages[pages.length - 1] ?? pageNumber();
 	});
+	const navigation = createPdfReaderNavigationController({
+		pageCount,
+		pageNumber,
+		visiblePages,
+		spreadEnabled,
+		busy,
+		pageJumpOpen,
+		pageJumpValue,
+		setPageJumpOpen: value => setPageJumpOpen(value),
+		setPageJumpValue: value => setPageJumpValue(value),
+		setPageNumber: update => setPageNumber(update),
+		clearZoomAnchor: zoomController.clearAnchor,
+		clearSelectedHighlight: () => setSelectedHighlightId(undefined),
+		closeTextMenu: () => setTextMenu(undefined),
+		clearBrowserSelection: () => window.getSelection()?.removeAllRanges(),
+	});
+	const pageJumpInput = createPdfPageJumpInputHandlers({
+		setValue: setPageJumpValue,
+		goToPage: navigation.goToPage,
+		close: () => setPageJumpOpen(false),
+	});
 	createEffect(on(spreadEnabled, enabled => {
 		if (enabled) setPageNumber(current => normalizePdfPageSpreadCursor(current, pageCount(), true));
 	}));
 	const registerPageElement = (page: number, key: "canvas" | "textLayer", element: HTMLCanvasElement | HTMLDivElement) => {
 		const current = pageElements.get(page) ?? {};
 		pageElements.set(page, { ...current, [key]: element });
-		if (visiblePages().every(visiblePage => {
-			const elements = pageElements.get(visiblePage);
-			return elements?.canvas && elements.textLayer;
-		})) setPageElementsRevision(revision => revision + 1);
-	};
-	const cancelPageRenderTasks = () => {
-		for (const task of pageRenderTasks.values()) task.cancel();
-		pageRenderTasks.clear();
-		for (const task of textLayerTasks.values()) task.cancel();
-		textLayerTasks.clear();
-	};
-	const cancelPagePreviewTasks = () => {
-		pagePreviewRevision += 1;
-		for (const task of pagePreviewTasks.values()) task.cancel();
-		pagePreviewTasks.clear();
-	};
-	const clearPagePreviewCache = () => {
-		for (const preview of pagePreviewCache.values()) preview.bitmap.close();
-		pagePreviewCache.clear();
-	};
-	const prunePagePreviewCache = (expectedSignatures: Map<number, string>) => {
-		for (const [page, preview] of pagePreviewCache) {
-			if (expectedSignatures.get(page) === preview.signature) continue;
-			preview.bitmap.close();
-			pagePreviewCache.delete(page);
+		if (arePdfPageElementsReady(visiblePages(), pageElements)) {
+			setPageElementsRevision(revision => revision + 1);
 		}
 	};
-	const preloadAdjacentPages = async (
-		document: PDFDocumentProxy,
-		pages: number[],
-		pageCount: number,
-		width: number,
-		height: number,
-		scaleFactor: number,
-		spread: boolean,
-	) => {
-		const revision = pagePreviewRevision;
-		const candidates = getPdfAdjacentPreviewPages(
-			pages[0] ?? pageNumber(),
-			pages,
-			Math.min(pageCount, document.numPages),
-			spread,
-		);
-		const expectedSignatures = new Map(candidates.map(candidate => {
-			const twoPageLayout = getPdfPageSpreadPages(candidate, pageCount, spread).length > 1;
-			return [candidate, getPdfPagePreviewSignature(width, height, scaleFactor, twoPageLayout)];
-		}));
-		prunePagePreviewCache(expectedSignatures);
-		for (const candidate of candidates) {
-			if (revision !== pagePreviewRevision) return;
-			const signature = expectedSignatures.get(candidate)!;
-			if (pagePreviewCache.get(candidate)?.signature === signature) continue;
-			const previewCanvas = window.document.createElement("canvas");
-			let task: RenderTask | undefined;
-			try {
-				const previewPage = await document.getPage(candidate);
-				if (revision !== pagePreviewRevision) return;
-				const twoPageLayout = getPdfPageSpreadPages(candidate, pageCount, spread).length > 1;
-				const config = getPdfPageRenderConfig(previewPage, width, height, scaleFactor, twoPageLayout);
-				const { viewport, outputScale } = config;
-				previewCanvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
-				previewCanvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
-				const context = previewCanvas.getContext("2d", { alpha: false });
-				if (!context) continue;
-				task = previewPage.render({
-					canvas: previewCanvas,
-					canvasContext: context,
-					viewport,
-					transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0],
-					background: "#fff",
-				});
-				pagePreviewTasks.set(candidate, task);
-				await task.promise;
-				if (revision !== pagePreviewRevision) return;
-				const bitmap = await createImageBitmap(previewCanvas);
-				if (revision !== pagePreviewRevision) {
-					bitmap.close();
-					return;
-				}
-				pagePreviewCache.set(candidate, {
-					signature,
-					bitmap,
-					width: Math.floor(viewport.width),
-					height: Math.floor(viewport.height),
-				});
-			} catch {
-				// A failed background preview should not interrupt normal page rendering.
-			} finally {
-				if (task && pagePreviewTasks.get(candidate) === task) pagePreviewTasks.delete(candidate);
-				previewCanvas.width = 0;
-				previewCanvas.height = 0;
-			}
-		}
-	};
-	const restoreZoomPosition = () => {
-		const anchor = zoomAnchor;
-		zoomAnchor = undefined;
-		if (anchor && host) {
-			const bounds = pageElements.get(anchor.page)?.canvas?.getBoundingClientRect();
-			if (bounds) {
-				host.scrollLeft += bounds.left + anchor.x * bounds.width - anchor.clientX;
-				host.scrollTop += bounds.top + anchor.y * bounds.height - anchor.clientY;
-				return;
-			}
-		}
-		if (centerHorizontalScrollOnRender && host) {
-			host.scrollLeft = Math.max(0, (host.scrollWidth - host.clientWidth) / 2);
-			centerHorizontalScrollOnRender = false;
-		}
-	};
+	const cancelPageRenderTasks = pageRenderer.cancel;
+	const restoreZoomPosition = zoomController.restoreAfterRender;
 	const noteLinkSuggestions = useNoteLinkSuggestions({
 			notes: () => props.notes,
 			text: () => `[[${editNoteQuery()}]]`,
@@ -249,27 +151,16 @@ const PdfReader: Component<Props> = props => {
 			setNoteSuggestionCaret(undefined);
 		},
 	});
-	const updateSuggestionAnchor = () => {
-		if (!notePickerInput?.isConnected) return;
-		const bounds = notePickerInput.getBoundingClientRect();
-		setSuggestionAnchor({ left: bounds.left + bounds.width / 2, top: bounds.top, height: bounds.height });
-	};
 	createEffect(() => {
 		if (!noteLinkSuggestions.open()) return;
-		let frame: number | undefined;
-		const update = () => updateSuggestionAnchor();
-		const schedule = () => {
-			if (frame !== undefined) cancelAnimationFrame(frame);
-			frame = requestAnimationFrame(update);
-		};
-		update();
-		window.addEventListener("resize", schedule);
-		host?.addEventListener("scroll", schedule);
-		onCleanup(() => {
-			if (frame !== undefined) cancelAnimationFrame(frame);
-			window.removeEventListener("resize", schedule);
-			host?.removeEventListener("scroll", schedule);
-		});
+		onCleanup(observePdfSuggestionAnchor({
+			getInput: () => notePickerInput,
+			windowTarget: window,
+			scrollTarget: host,
+			setAnchor: value => setSuggestionAnchor(value),
+			requestFrame: callback => requestAnimationFrame(callback),
+			cancelFrame: frame => cancelAnimationFrame(frame),
+		}));
 	});
 
 	createEffect(on(() => [props.vaultId, props.documentId] as const, ([vaultId, documentId]) => {
@@ -290,8 +181,7 @@ const PdfReader: Component<Props> = props => {
 		setTextLayerReadyPages(new Set<number>());
 		setHighlightError(undefined);
 		setHighlightSaving(false);
-		zoomAnchor = undefined;
-		centerHorizontalScrollOnRender = false;
+		zoomController.resetDocument();
 		if (vaultId && documentId) {
 			void (async () => {
 				try {
@@ -345,29 +235,7 @@ const PdfReader: Component<Props> = props => {
 	}));
 
 	onMount(() => {
-		if (!host) return;
-		let resizeTimeout: ReturnType<typeof setTimeout> | undefined;
-		let hasInitialSize = false;
-		const observer = new ResizeObserver(entries => {
-			const box = entries[0]?.contentRect;
-			if (!box) return;
-			const nextSize = { width: box.width, height: box.height };
-			if (!hasInitialSize) {
-				hasInitialSize = true;
-				setSize(nextSize);
-				return;
-			}
-			if (resizeTimeout !== undefined) clearTimeout(resizeTimeout);
-			resizeTimeout = setTimeout(() => {
-				resizeTimeout = undefined;
-				setSize(nextSize);
-			}, pdfReaderResizeDebounceMs);
-		});
-		observer.observe(host);
-		onCleanup(() => {
-			observer.disconnect();
-			if (resizeTimeout !== undefined) clearTimeout(resizeTimeout);
-		});
+		onCleanup(observePdfReaderResize(host, value => setSize(value)));
 	});
 
 	createEffect(on(() => [
@@ -382,21 +250,13 @@ const PdfReader: Component<Props> = props => {
 	] as const, ([document, , scaleFactor, width, height, spread]) => {
 		if (!document || width < 1 || height < 1) return;
 		const pages = [...visiblePages()];
-		const elements = pages.map(page => pageElements.get(page));
-		if (elements.some(pageElements => !pageElements?.canvas || !pageElements.textLayer)) return;
+		if (!arePdfPageElementsReady(pages, pageElements)) return;
 		let cancelled = false;
-		const baseSignature = getPdfPagePreviewBaseSignature(width, height, scaleFactor);
 		const expectedSignatures = new Map(pages.map(page => [
 			page,
 			getPdfPagePreviewSignature(width, height, scaleFactor, pages.length > 1),
 		]));
-		const visiblePreviews = new Map(pages.map(page => [page, pagePreviewCache.get(page)]));
-		for (const [cachedPage, preview] of pagePreviewCache) {
-			if (preview.signature.startsWith(`${baseSignature}:`)) continue;
-			preview.bitmap.close();
-			pagePreviewCache.delete(cachedPage);
-			visiblePreviews.delete(cachedPage);
-		}
+		const visiblePreviews = getVisiblePreviews(pages, width, height, scaleFactor);
 		cancelPagePreviewTasks();
 		cancelPageRenderTasks();
 		for (const page of pages) pageElements.get(page)?.textLayer?.replaceChildren();
@@ -407,80 +267,30 @@ const PdfReader: Component<Props> = props => {
 		setBusy(!pages.every(page => visiblePreviews.get(page)?.signature === expectedSignatures.get(page)));
 		setRenderFailed(false);
 		void (async () => {
-			try {
-				const renderPage = async (page: number) => {
-					if (cancelled) return;
-					const pageNodes = pageElements.get(page)!;
-					const pageCanvas = pageNodes.canvas!;
-					const textLayerContainer = pageNodes.textLayer!;
-					const pdfPage = await document.getPage(page);
-					if (cancelled) return;
-					const twoPageLayout = pages.length > 1;
-					const { viewport, outputScale } = getPdfPageRenderConfig(pdfPage, width, height, scaleFactor, twoPageLayout);
-					const cachedPreview = visiblePreviews.get(page)?.signature === expectedSignatures.get(page) ? visiblePreviews.get(page) : undefined;
-					if (cachedPreview) {
-						pageCanvas.width = cachedPreview.bitmap.width;
-						pageCanvas.height = cachedPreview.bitmap.height;
-						pageCanvas.style.width = `${cachedPreview.width}px`;
-						pageCanvas.style.height = `${cachedPreview.height}px`;
-					} else {
-						pageCanvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
-						pageCanvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
-						pageCanvas.style.width = `${Math.floor(viewport.width)}px`;
-						pageCanvas.style.height = `${Math.floor(viewport.height)}px`;
-					}
-					const context = pageCanvas.getContext("2d");
-					if (!context) throw Error("PDF_CANVAS_UNAVAILABLE");
-					if (cachedPreview) context.drawImage(cachedPreview.bitmap, 0, 0);
-
-					const renderPromise = cachedPreview ? Promise.resolve() : (async () => {
-						const task = pdfPage.render({
-							canvas: pageCanvas,
-							canvasContext: context,
-							viewport,
-							transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0],
-							background: "#fff",
-						});
-						pageRenderTasks.set(page, task);
-						try {
-							await task.promise;
-						} finally {
-							if (pageRenderTasks.get(page) === task) pageRenderTasks.delete(page);
-						}
-					})();
-					let currentTextLayerTask: TextLayer | undefined;
-					const textLayerPromise = (async () => {
-						try {
-							const textContent = await pdfPage.getTextContent();
-							if (cancelled) return;
-							textLayerContainer.style.setProperty("--scale-factor", String(viewport.scale));
-							textLayerContainer.style.setProperty("--user-unit", String(viewport.userUnit));
-							currentTextLayerTask = new TextLayer({ textContentSource: textContent, container: textLayerContainer, viewport });
-							textLayerTasks.set(page, currentTextLayerTask);
-							await currentTextLayerTask.render();
-							if (!cancelled) setTextLayerReadyPages(current => new Set(current).add(page));
-						} catch {
-							if (!cancelled) setHighlightError("pdfTextLayerFailed");
-						} finally {
-							if (textLayerTasks.get(page) === currentTextLayerTask) textLayerTasks.delete(page);
-						}
-					})();
-					await Promise.all([renderPromise, textLayerPromise]);
-				};
-				const results = await Promise.allSettled(pages.map(renderPage));
-				if (cancelled) return;
-				const failedPage = results.find(result => result.status === "rejected");
-				if (failedPage?.status === "rejected") throw failedPage.reason;
-				restoreZoomPosition();
-				setBusy(false);
-				props.onProgress(props.document.id, progressPage(), document.numPages);
-				void preloadAdjacentPages(document, pages, document.numPages, width, height, scaleFactor, spread);
-			} catch (error) {
-				if (!cancelled && !(error instanceof Error && error.name === "RenderingCancelledException")) {
+			const result = await pageRenderer.render({
+				document,
+				pages,
+				pageElements,
+				width,
+				height,
+				scaleFactor,
+				expectedSignatures,
+				previews: visiblePreviews,
+				onTextLayerReady: page => setTextLayerReadyPages(current => new Set(current).add(page)),
+				onTextLayerError: () => setHighlightError("pdfTextLayerFailed"),
+			});
+			if (cancelled || result.status === "cancelled") return;
+			if (result.status === "failed") {
+				if (!(result.error instanceof Error && result.error.name === "RenderingCancelledException")) {
 					setBusy(false);
 					setRenderFailed(true);
 				}
+				return;
 			}
+			restoreZoomPosition();
+			setBusy(false);
+			props.onProgress(props.document.id, progressPage(), document.numPages);
+			void preloadAdjacentPages(document, pages, document.numPages, width, height, scaleFactor, spread);
 		})();
 		onCleanup(() => {
 			cancelled = true;
@@ -489,82 +299,25 @@ const PdfReader: Component<Props> = props => {
 		});
 	}));
 
-	type ClientRectBounds = { left: number; top: number; right: number; bottom: number };
-	const getSelectionData = (textLayerContainer: HTMLDivElement): { text: string; rects: PdfHighlightRect[] } | undefined => {
-		const selection = window.getSelection();
-		if (!selection || selection.isCollapsed || !selection.rangeCount) return undefined;
-		const range = selection.getRangeAt(0);
-		if (!textLayerContainer.contains(range.startContainer) || !textLayerContainer.contains(range.endContainer)) return undefined;
-		const text = selection.toString().trim();
-		if (!text || Array.from(text).length > maxPdfHighlightTextLength) return undefined;
-		const bounds = textLayerContainer.getBoundingClientRect();
-		if (bounds.width < 1 || bounds.height < 1) return undefined;
-		const clientRects = Array.from(range.getClientRects())
-			.filter(rect => rect.width > 0 && rect.height > 0)
-			.map(rect => ({ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }))
-			.sort((left, right) => left.top - right.top || left.left - right.left);
-		const merged: ClientRectBounds[] = [];
-		for (const rect of clientRects) {
-			let line: ClientRectBounds | undefined;
-			for (let index = merged.length - 1; index >= 0; index -= 1) {
-				const candidate = merged[index];
-				const candidateHeight = candidate.bottom - candidate.top;
-				const rectHeight = rect.bottom - rect.top;
-				const sameLine = Math.abs((candidate.top + candidate.bottom) / 2 - (rect.top + rect.bottom) / 2)
-					<= Math.max(2, Math.min(candidateHeight, rectHeight) * 0.4);
-				const closeEnough = rect.left <= candidate.right + Math.max(3, rectHeight * 0.75)
-					&& rect.right >= candidate.left - Math.max(3, rectHeight * 0.75);
-				if (sameLine && closeEnough) { line = candidate; break; }
-			}
-			if (line) {
-				line.left = Math.min(line.left, rect.left);
-				line.top = Math.min(line.top, rect.top);
-				line.right = Math.max(line.right, rect.right);
-				line.bottom = Math.max(line.bottom, rect.bottom);
-			} else merged.push({ ...rect });
-		}
-		if (!merged.length || merged.length > maxPdfHighlightRects) return undefined;
-		const rects = merged.map(rect => {
-			const left = Math.max(bounds.left, Math.min(bounds.right, rect.left));
-			const top = Math.max(bounds.top, Math.min(bounds.bottom, rect.top));
-			const right = Math.max(left, Math.min(bounds.right, rect.right));
-			const bottom = Math.max(top, Math.min(bounds.bottom, rect.bottom));
-			return {
-				x: (left - bounds.left) / bounds.width,
-				y: (top - bounds.top) / bounds.height,
-				width: (right - left) / bounds.width,
-				height: (bottom - top) / bounds.height,
-			};
-		}).filter(rect => rect.width > 0 && rect.height > 0);
-		return rects.length ? { text, rects } : undefined;
-	};
-	const getHighlightAt = (page: number, textLayerContainer: HTMLDivElement, clientX: number, clientY: number): PdfHighlight | undefined => {
-		const bounds = textLayerContainer.getBoundingClientRect();
-		if (bounds.width < 1 || bounds.height < 1) return;
-		const x = (clientX - bounds.left) / bounds.width;
-		const y = (clientY - bounds.top) / bounds.height;
-		return highlights().find(highlight => highlight.page === page
-			&& highlight.rects.some(rect => x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height));
-	};
 	const openSelectionMenu = (page: number, textLayerContainer: HTMLDivElement, event: MouseEvent) => {
-		const selection = getSelectionData(textLayerContainer);
-		const existingHighlight = getHighlightAt(page, textLayerContainer, event.clientX, event.clientY);
-		if (!host || (!selection && !existingHighlight)) return;
+		const selection = getPdfSelectionData(textLayerContainer, window.getSelection());
+		const existingHighlight = getPdfHighlightAt(highlights(), page, textLayerContainer, event.clientX, event.clientY);
+		if (!host) return;
 		event.preventDefault();
 		event.stopPropagation();
 		const bounds = host.getBoundingClientRect();
-		const menuWidth = 208;
-		const menuHeight = existingHighlight ? 152 : 116;
-		setSelectedHighlightId(existingHighlight?.id);
-		setTextMenu({
-			text: selection?.text ?? existingHighlight!.text,
-			selection: existingHighlight ? undefined : selection,
-			highlightId: existingHighlight?.id,
+		const menu = createPdfHighlightMenu({
+			selection,
+			existingHighlight,
 			page,
-			x: Math.max(host.scrollLeft + 8, Math.min(event.clientX - bounds.left + host.scrollLeft, host.scrollLeft + host.clientWidth - menuWidth - 8)),
-			y: Math.max(host.scrollTop + 8, Math.min(event.clientY - bounds.top + host.scrollTop, host.scrollTop + host.clientHeight - menuHeight - 8)),
-			mode: "actions",
+			cursorX: event.clientX,
+			cursorY: event.clientY,
+			host,
+			hostBounds: bounds,
 		});
+		if (!menu) return;
+		setSelectedHighlightId(menu.highlightId);
+		setTextMenu(menu);
 	};
 	const beginEditHighlight = (highlightId: string) => {
 		const highlight = highlights().find(item => item.id === highlightId);
@@ -582,7 +335,7 @@ const PdfReader: Component<Props> = props => {
 		});
 	};
 	const openLinkedHighlight = (page: number, textLayerContainer: HTMLDivElement, event: MouseEvent) => {
-		const highlight = getHighlightAt(page, textLayerContainer, event.clientX, event.clientY);
+		const highlight = getPdfHighlightAt(highlights(), page, textLayerContainer, event.clientX, event.clientY);
 		setSelectedHighlightId(highlight?.id);
 		if (!highlight?.noteId) return;
 		const note = props.notes.find(item => item.id === highlight.noteId);
@@ -593,220 +346,75 @@ const PdfReader: Component<Props> = props => {
 	};
 	createEffect(() => {
 		if (!textMenu()) return;
-		const outside = (event: PointerEvent) => {
-			if (!(event.target instanceof Element)
-				|| (!event.target.closest(`.${styles.contextMenu}`) && !event.target.closest('[role="listbox"]'))) setTextMenu(undefined);
-		};
-		const escape = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") return;
-			if (event.target === notePickerInput && noteLinkSuggestions.open()) return;
-			event.preventDefault();
-			event.stopImmediatePropagation();
-			setTextMenu(undefined);
-		};
-		window.addEventListener("pointerdown", outside);
-		window.addEventListener("keydown", escape, true);
-		onCleanup(() => {
-			window.removeEventListener("pointerdown", outside);
-			window.removeEventListener("keydown", escape, true);
-		});
+		onCleanup(observePdfHighlightMenuDismissal({
+			windowTarget: window,
+			isInsideMenu: target => target instanceof Element
+				&& Boolean(target.closest(`.${styles.contextMenu}`) || target.closest('[role="listbox"]')),
+			isSuggestionInput: target => target === notePickerInput,
+			suggestionsOpen: noteLinkSuggestions.open,
+			closeMenu: () => setTextMenu(undefined),
+		}));
 	});
-	const saveSelectionAsHighlight = async () => {
-		const vaultId = props.vaultId;
-		const menu = textMenu();
-		const selected = menu?.selection;
-		if (!vaultId || !menu || !selected || !textLayerReadyPages().has(menu.page) || highlightSaving()) return;
-		const documentId = props.document.id;
-		const revision = loadRevision;
-		const highlight: PdfHighlight = { id: crypto.randomUUID(), page: menu.page, ...selected, color: "yellow", noteId: null };
-		setHighlightSaving(true);
-		setHighlightError(undefined);
-		try {
-			const saved = await addPdfHighlight(vaultId, documentId, highlight);
-			if (revision === loadRevision && props.vaultId === vaultId && props.document.id === documentId) {
-				setHighlights(saved);
-				setSelectedHighlightId(highlight.id);
-				setTextMenu(undefined);
-				window.getSelection()?.removeAllRanges();
-			}
-		} catch {
-			if (revision === loadRevision && props.vaultId === vaultId && props.document.id === documentId) setHighlightError("pdfHighlightSaveFailed");
-		} finally {
-			if (revision === loadRevision) setHighlightSaving(false);
-		}
-	};
-	const saveHighlightEdit = async (highlightId: string) => {
-		const vaultId = props.vaultId;
-		const highlight = highlights().find(item => item.id === highlightId);
-		if (!vaultId || !highlight || highlightSaving()) return;
-		const documentId = props.document.id;
-		const revision = loadRevision;
-		const updated = { ...highlight, color: editColor(), noteId: editNoteId() || null };
-		setHighlightSaving(true);
-		setHighlightError(undefined);
-		try {
-			const saved = await updatePdfHighlight(vaultId, documentId, updated);
-			if (revision === loadRevision && props.vaultId === vaultId && props.document.id === documentId) {
-				setHighlights(saved);
-				setSelectedHighlightId(highlightId);
-				setTextMenu(undefined);
-			}
-		} catch {
-			if (revision === loadRevision && props.vaultId === vaultId && props.document.id === documentId) setHighlightError("pdfHighlightUpdateFailed");
-		} finally {
-			if (revision === loadRevision) setHighlightSaving(false);
-		}
-	};
-	const removeHighlight = async (highlightId: string) => {
-		const vaultId = props.vaultId;
-		if (!vaultId || highlightSaving()) return;
-		const documentId = props.document.id;
-		const revision = loadRevision;
-		setHighlightSaving(true);
-		setHighlightError(undefined);
-		try {
-			const saved = await deletePdfHighlight(vaultId, documentId, highlightId);
-			if (revision === loadRevision && props.vaultId === vaultId && props.document.id === documentId) {
-				setHighlights(saved);
-				setSelectedHighlightId(undefined);
-				setTextMenu(undefined);
-			}
-		} catch {
-			if (revision === loadRevision && props.vaultId === vaultId && props.document.id === documentId) setHighlightError("pdfHighlightDeleteFailed");
-		} finally {
-			if (revision === loadRevision) setHighlightSaving(false);
-		}
-	};
-	const copyMenuText = (menu: PdfTextMenu) => {
+	const { saveSelectionAsHighlight, saveHighlightEdit, removeHighlight } = createPdfHighlightActions({
+		vaultId: () => props.vaultId,
+		documentId: () => props.document.id,
+		revision: () => loadRevision,
+		menu: textMenu,
+		readyPages: textLayerReadyPages,
+		highlights,
+		saving: highlightSaving,
+		editColor,
+		editNoteId,
+		setSaving: setHighlightSaving,
+		setError: setHighlightError,
+		setHighlights,
+		setSelected: setSelectedHighlightId,
+		closeMenu: () => setTextMenu(undefined),
+		clearSelection: () => window.getSelection()?.removeAllRanges(),
+		createId: () => crypto.randomUUID(),
+		add: addPdfHighlight,
+		update: updatePdfHighlight,
+		remove: deletePdfHighlight,
+	});
+	const copyMenuText = (menu: PdfHighlightTextMenu) => {
 		void navigator.clipboard.writeText(menu.text).catch(console.error);
 		setTextMenu(undefined);
 	};
-	const searchMenuText = (menu: PdfTextMenu) => {
+	const searchMenuText = (menu: PdfHighlightTextMenu) => {
 		void openUrl(`https://www.google.com/search?q=${encodeURIComponent(menu.text)}`).catch(console.error);
 		setTextMenu(undefined);
 	};
 
-	const movePage = (direction: -1 | 1) => {
-		zoomAnchor = undefined;
-		setSelectedHighlightId(undefined);
-		setTextMenu(undefined);
-		window.getSelection()?.removeAllRanges();
-		setPageNumber(current => getPdfPageNavigationTarget(current, pageCount(), spreadEnabled(), direction));
-	};
-	const openPageJump = () => {
-		if (!pageCount() || busy()) return;
-		setPageJumpValue(String(visiblePages()[0] ?? pageNumber()));
-		setPageJumpOpen(true);
-	};
-	const goToPage = () => {
-		if (!pageJumpOpen()) return;
-		const target = Number(pageJumpValue());
-		setPageJumpOpen(false);
-		if (!Number.isInteger(target) || target < 1 || target > pageCount()) return;
-		zoomAnchor = undefined;
-		setSelectedHighlightId(undefined);
-		setTextMenu(undefined);
-		window.getSelection()?.removeAllRanges();
-		setPageNumber(target);
-	};
-	const getPdfZoomAnchor = (event: WheelEvent): PdfZoomAnchor | undefined => {
-		for (const [page, elements] of pageElements) {
-			const bounds = elements.canvas?.getBoundingClientRect();
-			if (!bounds || bounds.width < 1 || bounds.height < 1
-				|| event.clientX < bounds.left || event.clientX > bounds.right
-				|| event.clientY < bounds.top || event.clientY > bounds.bottom) continue;
-			return {
-				page,
-				x: (event.clientX - bounds.left) / bounds.width,
-				y: (event.clientY - bounds.top) / bounds.height,
-				clientX: event.clientX,
-				clientY: event.clientY,
-			};
-		}
-	};
-	const changeZoom = (delta: number, anchor?: PdfZoomAnchor) => {
-		const current = zoom();
-		const next = Math.max(minPdfZoom, Math.min(maxPdfZoom, Math.round((current + delta) * 10) / 10));
-		if (next === current) return;
-		zoomAnchor = anchor;
-		centerHorizontalScrollOnRender = !anchor;
-		setZoom(next);
-	};
-	const resetZoom = () => changeZoom(minPdfZoom - zoom());
-	const handlePdfWheel = (event: WheelEvent) => {
-		if (!event.ctrlKey) return;
-		event.preventDefault();
-		if (!pageCount() || event.deltaY === 0) return;
-		changeZoom(event.deltaY < 0 ? pdfZoomStep : -pdfZoomStep, getPdfZoomAnchor(event));
-	};
-	const movePan = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
-		if (event.pointerType !== "mouse" || document.pointerLockElement === event.currentTarget) return;
-		const previous = panPointer;
-		panPointer = { x: event.clientX, y: event.clientY };
-		const active = event.altKey && event.buttons === 0
-			&& !(event.target instanceof Element && event.target.closest(`.${styles.contextMenu}`));
-		setPanning(active);
-		if (!active || !previous) return;
-		event.currentTarget.scrollLeft += event.clientX - previous.x;
-		event.currentTarget.scrollTop += event.clientY - previous.y;
-	};
-	const moveLockedPan = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
-		if (!event.altKey || document.pointerLockElement !== event.currentTarget) return;
-		event.currentTarget.scrollLeft += event.movementX;
-		event.currentTarget.scrollTop += event.movementY;
-	};
-	const finishPan = () => {
-		panPointer = undefined;
-		setPanning(false);
-	};
+	const getPdfZoomAnchor = (event: WheelEvent) => findPdfReaderZoomAnchor(
+		pageElements,
+		elements => elements.canvas?.getBoundingClientRect(),
+		event,
+	);
+	const changeZoom = (delta: number, anchor?: ReturnType<typeof getPdfZoomAnchor>) =>
+		zoomController.change(delta, anchor);
+	const resetZoom = zoomController.reset;
+	const handlePdfWheel = (event: WheelEvent) =>
+		handlePdfReaderWheelZoom(event, pageCount(), () => getPdfZoomAnchor(event), changeZoom);
+	const finishPan = panController.finish;
 	onMount(() => {
 		const viewport = host;
 		if (!viewport) return;
-		let altHeld = false;
-		const unlock = () => {
-			if (document.pointerLockElement === viewport) document.exitPointerLock();
-		};
-		const stopLockedPan = () => {
-			altHeld = false;
-			unlock();
-			finishPan();
-		};
-		const onPointerLockChange = () => {
-			panPointer = undefined;
-			if (!altHeld) unlock();
-		};
-		const pressAlt = (event: KeyboardEvent) => {
-			if (event.key !== "Alt" || event.repeat || !viewport.matches(":hover")) return;
-			altHeld = true;
-			setPanning(true);
-			if (document.pointerLockElement || !viewport.requestPointerLock) return;
-			try {
-				const request = viewport.requestPointerLock();
-				void request?.then(() => { if (!altHeld) unlock(); }).catch(() => {});
-			} catch {
-				// Keep the existing hover scrolling if pointer lock is unavailable.
-			}
-		};
-		const releaseAlt = (event: KeyboardEvent) => {
-			if (!event.altKey) stopLockedPan();
-		};
-		window.addEventListener("keydown", pressAlt, true);
-		window.addEventListener("keyup", releaseAlt, true);
-		window.addEventListener("blur", stopLockedPan);
-		document.addEventListener("pointerlockchange", onPointerLockChange);
-		onCleanup(() => {
-			window.removeEventListener("keydown", pressAlt, true);
-			window.removeEventListener("keyup", releaseAlt, true);
-			window.removeEventListener("blur", stopLockedPan);
-			document.removeEventListener("pointerlockchange", onPointerLockChange);
-			stopLockedPan();
-		});
+		onCleanup(installPdfReaderPointerLockPan({
+			isHovered: () => viewport.matches(":hover"),
+			hasPointerLock: () => Boolean(document.pointerLockElement),
+			isViewportLocked: () => document.pointerLockElement === viewport,
+			requestLock: viewport.requestPointerLock ? () => viewport.requestPointerLock() : undefined,
+			exitLock: () => document.exitPointerLock(),
+			activatePan: panController.activate,
+			resetPanPointer: panController.resetPointer,
+			finishPan,
+		}, { windowTarget: window, documentTarget: document }));
 	});
 	const ReaderToolbar = () => (
 		<div class={styles.readerToolbar}>
-			<Button class={styles.iconButton} type="button" disabled={(visiblePages()[0] ?? pageNumber()) <= 1 || busy()} onClick={() => movePage(-1)}><Icon name="back" size={15} /></Button>
+			<Button class={styles.iconButton} type="button" disabled={(visiblePages()[0] ?? pageNumber()) <= 1 || busy()} onClick={() => navigation.movePage(-1)}><Icon name="back" size={15} /></Button>
 			<Show when={pageJumpOpen()} fallback={
-				<Button class={styles.pageJumpButton} type="button" disabled={!pageCount() || busy()} onClick={openPageJump}>
+				<Button class={styles.pageJumpButton} type="button" disabled={!pageCount() || busy()} onClick={navigation.openPageJump}>
 					{pageCount() ? `${visiblePages()[0]}${visiblePages().length > 1 ? `–${progressPage()}` : ""} / ${pageCount()}` : "—"}
 				</Button>
 			}>
@@ -818,20 +426,12 @@ const PdfReader: Component<Props> = props => {
 					max={pageCount()}
 					step="1"
 					value={pageJumpValue()}
-					onInput={event => setPageJumpValue(event.currentTarget.value)}
-					onBlur={goToPage}
-					onKeyDown={event => {
-						if (event.key === "Enter") {
-							event.preventDefault();
-							goToPage();
-						} else if (event.key === "Escape") {
-							event.preventDefault();
-							setPageJumpOpen(false);
-						}
-					}}
+					onInput={pageJumpInput.input}
+					onBlur={pageJumpInput.blur}
+					onKeyDown={pageJumpInput.keyDown}
 				/>
 			</Show>
-			<Button class={styles.iconButton} type="button" disabled={!pageCount() || progressPage() >= pageCount() || busy()} onClick={() => movePage(1)}><Icon name="chevronRight" size={15} /></Button>
+			<Button class={styles.iconButton} type="button" disabled={!pageCount() || progressPage() >= pageCount() || busy()} onClick={() => navigation.movePage(1)}><Icon name="chevronRight" size={15} /></Button>
 			<span style={{ width: "8px" }} />
 			<Button class={styles.iconButton} type="button" disabled={zoom() <= minPdfZoom} onClick={() => changeZoom(-pdfZoomStep)}><Icon name="zoomOut" size={15} /></Button>
 			<Button class={styles.pageJumpButton} type="button" onClick={resetZoom}>{Math.round(zoom() * 100)}%</Button>
@@ -859,9 +459,9 @@ const PdfReader: Component<Props> = props => {
 			>
 				<div class={styles.readerSurface} ref={element => { host = element; scroll.setViewport(element); }} data-omega-scroll-viewport="" onScroll={scroll.updateMetrics} onWheel={handlePdfWheel}
 					classList={{ [styles.readerPanning]: panning() }}
-					onPointerEnter={movePan}
-					onPointerMove={movePan}
-					onMouseMove={moveLockedPan}
+					onPointerEnter={panHandlers.move}
+					onPointerMove={panHandlers.move}
+					onMouseMove={panHandlers.moveLocked}
 					onPointerLeave={finishPan}
 					onPointerCancel={finishPan}
 				>
@@ -928,7 +528,8 @@ const PdfReader: Component<Props> = props => {
 										disabled={highlightSaving()}
 										ref={element => { notePickerInput = element; }}
 										onFocus={() => {
-											updateSuggestionAnchor();
+											const anchor = getPdfSuggestionAnchor(notePickerInput);
+											if (anchor) setSuggestionAnchor(anchor);
 											setNoteSuggestionCaret(editNoteQuery().length + 2);
 										}}
 										onBlur={() => setNoteSuggestionCaret(undefined)}

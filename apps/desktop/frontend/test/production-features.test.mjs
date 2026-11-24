@@ -28,12 +28,10 @@ test('note text context menu supports clipboard actions and grants Electron clip
 	assert.match(node, /navigator\.clipboard\.writeText\(selectedText\(\)\)/);
 	assert.match(node, /<Icon name="copy" size=\{15\} \/>/);
 	assert.match(node, /props\.onOpenFind\(selectedText\)/);
-	assert.match(node, /if \(htmlItem && htmlType\)/);
-	assert.match(node, /htmlClipboardToNoteText\(await \(await htmlItem\.getType\(htmlType\)\)\.text\(\)\)/);
+	assert.match(node, /readNoteClipboard\(clipboard, plainText, Boolean\(props\.onPasteImages\)\)/);
 	assert.match(editor, /onOpenFind=\{find\.show\}/);
 	assert.match(controller, /const pasteTextFromMenu/);
-	assert.match(controller, /getData\("text\/html"\)/);
-	assert.match(controller, /htmlClipboardToNoteText\(htmlText\)/);
+	assert.match(controller, /readNoteClipboardEvent\(event\.clipboardData, pasteAsPlainText, Boolean\(props\.onPasteImages\)\)/);
 	assert.match(controller, /event\.shiftKey && !event\.altKey && event\.key\.toLowerCase\(\) === "v"/);
 	assert.match(controller, /const pasteAsPlainText = plainTextPasteRequested/);
 	assert.match(controller, /const url = pasteAsPlainText \? undefined : pastedUrl\(text\)/);
@@ -132,6 +130,12 @@ test('PDF panel and reader controls use the shared sound-enabled Button', async 
 	}
 });
 
+test('PDF panel wires pointer resize events to its resize controller', async () => {
+	const panel = await source('../src/features/manage-pdfs/ui/pdf-panel/index.tsx');
+	assert.match(panel, /onPointerDown=\{resizeHandlers\.start\} onPointerMove=\{resizeHandlers\.move\} onPointerUp=\{resizeHandlers\.stop\}/);
+	assert.match(panel, /onPointerCancel=\{resizeHandlers\.stop\} onLostPointerCapture=\{resizeHandlers\.stop\}/);
+});
+
 test('note renderers group adjacent Markdown list items into one list element', async () => {
 	const [canvasRenderer, contentRenderer] = await Promise.all([
 		source('../src/pages/notes/ui/note-canvas-editor/render-text.tsx'),
@@ -149,7 +153,8 @@ test('closing the PDF panel keeps its active reader mounted until returning to t
 		source('../src/features/manage-pdfs/ui/pdf-panel/index.tsx'),
 		source('../src/features/manage-pdfs/ui/pdf-reader.tsx'),
 	]);
-	assert.match(app, /const pdfPanelPresence = createPresence\(app\.pdfs\.open, 210\)\.present;\s*const pdfsMounted = \(\) => pdfPanelPresence\(\) \|\| Boolean\(app\.pdfs\.openedId\(\)\);/);
+	assert.match(app, /const pdfPanelPresence = createPresence\(app\.pdfs\.open, 210\)\.present;\s*const pdfsMounted = \(\) => shouldKeepPdfPanelMounted\(pdfPanelPresence\(\), app\.pdfs\.openedId\(\)\);/);
+	assert.match(app, /<Show when=\{pdfsMounted\(\)\}>/);
 	assert.match(panel, /<Show when=\{activeDocument\(\)\} fallback=/);
 	assert.match(panel, /onBack=\{\(\) => props\.library\.openDocument\(undefined\)\}/);
 	assert.match(panel, /documentId=\{props\.library\.openedId\(\)!\}/);
@@ -165,8 +170,8 @@ test('canvas starts loading a note on pointer down before navigation commits', a
 		source('../src/app/model/note-navigation.controller.ts'),
 	]);
 	assert.match(app, /onPreloadNote=\{\(noteId\) => \{ void app\.notes\.loadNote\(noteId\)\.catch\(\(\) => undefined\); \}\}/);
-	assert.match(staticCanvas, /event\.button === 0 && !graph\.shouldIgnoreClick\(event\)\) props\.onPreloadNote\(note\.id\)/);
-	assert.match(dynamicCanvas, /event\.button === 0 && hit && !graph\.shouldIgnoreClick\(\)\) props\.onPreloadNote\(note\.id\)/);
+	assert.match(staticCanvas, /beginCanvasNotePointerInteraction\(\{[\s\S]*?shouldIgnoreClick: \(\) => graph\.shouldIgnoreClick\(event\),[\s\S]*?preloadNote: props\.onPreloadNote,[\s\S]*?beginGesture: \(\) => graph\.beginNodeDrag\(event, note\)/);
+	assert.match(dynamicCanvas, /beginCanvasNotePointerInteraction\(\{[\s\S]*?isOnNote: hit,[\s\S]*?preloadNote: props\.onPreloadNote,[\s\S]*?beginGesture: \(\) => graph\.begin\(event, hit \? note\.id : undefined\)/);
 	assert.match(navigation, /const \[saved, loadedNote\] = await Promise\.all\(\[notes\.flushSave\(\), noteLoad\]\)/);
 });
 
@@ -212,21 +217,24 @@ test('PDF import title input stays at the start of the library content', async (
 test('PDF library paginates cards according to available height without a scrollbar', async () => {
 	const panel = await source('../src/features/manage-pdfs/ui/pdf-panel/index.tsx');
 	const style = await source('../src/features/manage-pdfs/ui/pdf-panel/style.css.ts');
-	assert.match(panel, /new ResizeObserver\(update\)/);
+	assert.match(panel, /observePdfLibraryPageSize\(element, value => setPageSize\(value\)\)/);
+	assert.match(panel, /onCleanup\(\(\) => stopListObserver\?\.\(\)\)/);
 	assert.match(panel, /<For each=\{visibleDocuments\(\)\}>/);
 	assert.match(panel, /disabled=\{page\(\) === 0\}/);
 	assert.match(panel, /disabled=\{page\(\) >= pageCount\(\) - 1\}/);
-	assert.match(panel, /target >= 1 && target <= pageCount\(\)/);
-	assert.match(panel, /setPage\(target - 1\)/);
+	assert.match(panel, /getPdfLibraryPageItems\(filteredDocuments\(\), page\(\), pageSize\(\)\)/);
 	assert.match(panel, /min\(96px, calc/);
 	assert.match(style, /list: style\(\{[^}]*overflow: "hidden"/);
 });
 
-test('PDF library search filters titles and returns to the first page', async () => {
+test('PDF library search and page-jump controls use their behavior controllers', async () => {
 	const panel = await source('../src/features/manage-pdfs/ui/pdf-panel/index.tsx');
-	assert.match(panel, /document\.title\.toLocaleLowerCase\(\)\.includes\(query\)/);
-	assert.match(panel, /setSearch\(event\.currentTarget\.value\); setPage\(0\)/);
-	assert.match(panel, /Math\.ceil\(filteredDocuments\(\)\.length \/ pageSize\(\)\)/);
+	assert.match(panel, /filterPdfDocuments\(props\.library\.documents\(\), search\(\)\)/);
+	assert.match(panel, /onInput=\{searchInput\}/);
+	assert.match(panel, /createPdfLibrarySearchInputHandler\(setSearch, setPage\)/);
+	assert.match(panel, /createPdfLibraryPageJumpController\(\{[\s\S]*?pageJumpOpen,[\s\S]*?pageJumpValue,[\s\S]*?setPage,/);
+	assert.match(panel, /onClick=\{pageJump\.open\}/);
+	assert.match(panel, /onInput=\{pageJumpInput\.input\} onBlur=\{pageJumpInput\.blur\}[\s\S]*?onKeyDown=\{pageJumpInput\.keyDown\}/);
 });
 
 test('PDF reader uses the shared custom scrollbar component', async () => {
@@ -245,16 +253,11 @@ test('PDF reader uses the shared custom scrollbar component', async () => {
 	assert.match(scrollbarStyle, /horizontalTrack: style\(\{[\s\S]*?bottom: "var\(--omega-scrollbar-bottom, 4px\)"/);
 });
 
-test('PDF reader scrolls in the direction of mouse movement with Alt and no button pressed', async () => {
+test('PDF reader connects panning to the Alt and pointer-lock lifecycle', async () => {
 	const reader = await source('../src/features/manage-pdfs/ui/pdf-reader.tsx');
-	assert.match(reader, /const active = event\.altKey && event\.buttons === 0/);
-	assert.match(reader, /if \(!active \|\| !previous\) return;\s*event\.currentTarget\.scrollLeft \+= event\.clientX - previous\.x;\s*event\.currentTarget\.scrollTop \+= event\.clientY - previous\.y/);
-	assert.match(reader, /onPointerMove=\{movePan\}\s*onMouseMove=\{moveLockedPan\}\s*onPointerLeave=\{finishPan\}/);
-	assert.match(reader, /event\.key !== "Alt" \|\| event\.repeat \|\| !viewport\.matches\(":hover"\)/);
-	assert.match(reader, /viewport\.requestPointerLock\(\)/);
-	assert.match(reader, /scrollLeft \+= event\.movementX;\s*event\.currentTarget\.scrollTop \+= event\.movementY/);
-	assert.match(reader, /if \(!event\.altKey\) stopLockedPan\(\)/);
-	assert.match(reader, /if \(document\.pointerLockElement === viewport\) document\.exitPointerLock\(\)/);
+	assert.match(reader, /createPdfReaderPanHandlers\(panController,\s*\{[\s\S]*?isPointerLocked: viewport => document\.pointerLockElement === viewport,[\s\S]*?isOverContextMenu: target => target instanceof Element/);
+	assert.match(reader, /onPointerMove=\{panHandlers\.move\}\s*onMouseMove=\{panHandlers\.moveLocked\}\s*onPointerLeave=\{finishPan\}/);
+	assert.match(reader, /onCleanup\(installPdfReaderPointerLockPan\([\s\S]*?isHovered: \(\) => viewport\.matches\(":hover"\)[\s\S]*?finishPan,[\s\S]*?\}, \{ windowTarget: window, documentTarget: document \}\)\)/);
 });
 
 test('Electron grants PDF pointer lock only to the trusted main app frame', async () => {
@@ -263,21 +266,21 @@ test('Electron grants PDF pointer lock only to the trusted main app frame', asyn
 	assert.equal((electron.match(/permission === 'pointerLock' && isTrustedMainAppFrame\(contents, details\.requestingUrl, details\.isMainFrame\)/g) ?? []).length, 2);
 });
 
-test('PDF zoom buttons recenter while pointer zoom restores the anchored position', async () => {
+test('PDF reader connects zoom controls to the position controller', async () => {
 	const reader = await source('../src/features/manage-pdfs/ui/pdf-reader.tsx');
 	assert.match(reader, /shouldUsePdfPageSpread\(size\(\)\.width, size\(\)\.height, pageAspectRatio\(\), pageCount\(\)\)/);
-	assert.match(reader, /centerHorizontalScrollOnRender = !anchor/);
-	assert.match(reader, /if \(centerHorizontalScrollOnRender && host\) \{\s*host\.scrollLeft = Math\.max\(0, \(host\.scrollWidth - host\.clientWidth\) \/ 2\);\s*centerHorizontalScrollOnRender = false;/);
-	assert.match(reader, /host\.scrollLeft \+= bounds\.left \+ anchor\.x \* bounds\.width - anchor\.clientX/);
-	assert.match(reader, /host\.scrollTop \+= bounds\.top \+ anchor\.y \* bounds\.height - anchor\.clientY/);
+	assert.match(reader, /createPdfReaderZoomController\(\{/);
+	assert.match(reader, /getPageBounds: page => pageElements\.get\(page\)\?\.canvas\?\.getBoundingClientRect\(\)/);
+	assert.match(reader, /findPdfReaderZoomAnchor\(\s*pageElements,\s*elements => elements\.canvas\?\.getBoundingClientRect\(\),\s*event,\s*\)/);
+	assert.match(reader, /zoomController\.change\(delta, anchor\)/);
+	assert.match(reader, /const resetZoom = zoomController\.reset/);
+	assert.match(reader, /const restoreZoomPosition = zoomController\.restoreAfterRender/);
+	assert.match(reader, /clearZoomAnchor: zoomController\.clearAnchor/);
+	assert.match(reader, /zoomController\.resetDocument\(\)/);
 	assert.match(reader, /onWheel=\{handlePdfWheel\}/);
-	assert.match(reader, /if \(!event\.ctrlKey\) return;\s*event\.preventDefault\(\)/);
-	assert.match(reader, /changeZoom\(event\.deltaY < 0 \? pdfZoomStep : -pdfZoomStep, getPdfZoomAnchor\(event\)\)/);
-	assert.match(reader, /const minPdfZoom = 1;\s*const maxPdfZoom = 3;/);
-	assert.match(reader, /Math\.max\(minPdfZoom, Math\.min\(maxPdfZoom,/);
+	assert.match(reader, /handlePdfReaderWheelZoom\(event, pageCount\(\), \(\) => getPdfZoomAnchor\(event\), changeZoom\)/);
 	assert.match(reader, /disabled=\{zoom\(\) <= minPdfZoom\}/);
 	assert.match(reader, /disabled=\{zoom\(\) >= maxPdfZoom\}/);
-	assert.match(reader, /const resetZoom = \(\) => changeZoom\(minPdfZoom - zoom\(\)\)/);
 	assert.match(reader, /class=\{styles\.pageJumpButton\} type="button" onClick=\{resetZoom\}>\{Math\.round\(zoom\(\) \* 100\)\}%/);
 });
 
@@ -299,18 +302,14 @@ test('PDF highlight editor groups unmark with edit actions and centers color cho
 
 test('PDF page range label opens a bounded field for jumping to a page', async () => {
 	const reader = await source('../src/features/manage-pdfs/ui/pdf-reader.tsx');
-	assert.match(reader, /class=\{styles\.pageJumpButton\}[^]*?onClick=\{openPageJump\}/);
+	assert.match(reader, /class=\{styles\.pageJumpButton\}[^]*?onClick=\{navigation\.openPageJump\}/);
 	assert.match(reader, /class=\{styles\.pageJumpInput\}[^]*?type="number"[^]*?min="1"[^]*?max=\{pageCount\(\)\}/);
-	assert.match(reader, /if \(!Number\.isInteger\(target\) \|\| target < 1 \|\| target > pageCount\(\)\) return/);
-	assert.match(reader, /setPageNumber\(target\)/);
+	assert.match(reader, /onInput=\{pageJumpInput\.input\}[\s\S]*?onBlur=\{pageJumpInput\.blur\}[\s\S]*?onKeyDown=\{pageJumpInput\.keyDown\}/);
 });
 
 test('PDF reader waits for resizing to settle before rerendering pages', async () => {
 	const reader = await source('../src/features/manage-pdfs/ui/pdf-reader.tsx');
-	assert.match(reader, /const pdfReaderResizeDebounceMs = 50/);
-	assert.match(reader, /if \(!hasInitialSize\) \{\s*hasInitialSize = true;\s*setSize\(nextSize\)/);
-	assert.match(reader, /resizeTimeout = setTimeout\(\(\) => \{\s*resizeTimeout = undefined;\s*setSize\(nextSize\);\s*\}, pdfReaderResizeDebounceMs\)/);
-	assert.match(reader, /observer\.disconnect\(\);\s*if \(resizeTimeout !== undefined\) clearTimeout\(resizeTimeout\)/);
+	assert.match(reader, /onCleanup\(observePdfReaderResize\(host, value => setSize\(value\)\)\)/);
 });
 
 test('PDF reader reserves a fixed right column for the close button in the compact header', async () => {
@@ -325,16 +324,16 @@ test('PDF reader reserves a fixed right column for the close button in the compa
 	assert.match(style, /headerTitle: style\(\{ flex: 1, minWidth: 0,[^}]*textOverflow: "ellipsis"/);
 });
 
-test('PDF reader pre-renders adjacent pages or spreads and renders text layers per page', async () => {
+test('PDF reader connects page rendering, previews, navigation, and highlight interactions', async () => {
 	const reader = await source('../src/features/manage-pdfs/ui/pdf-reader.tsx');
-	assert.match(reader, /getPdfAdjacentPreviewPages\(/);
-	assert.match(reader, /const bitmap = await createImageBitmap\(previewCanvas\)/);
+	assert.match(reader, /createPdfPageRenderer\(\{/);
+	assert.match(reader, /arePdfPageElementsReady\(visiblePages\(\), pageElements\)/);
+	assert.match(reader, /if \(!arePdfPageElementsReady\(pages, pageElements\)\) return/);
+	assert.match(reader, /const result = await pageRenderer\.render\(\{/);
 	assert.match(reader, /void preloadAdjacentPages\(document, pages, document\.numPages, width, height, scaleFactor, spread\)/);
-	assert.match(reader, /context\.drawImage\(cachedPreview\.bitmap, 0, 0\)/);
 	assert.match(reader, /registerPageElement\(page, "canvas", element\)/);
 	assert.match(reader, /openSelectionMenu\(page, event\.currentTarget, event\)/);
-	assert.match(reader, /getPdfPageNavigationTarget\(current, pageCount\(\), spreadEnabled\(\), direction\)/);
-	assert.match(reader, /const results = await Promise\.allSettled\(pages\.map\(renderPage\)\)/);
+	assert.match(reader, /navigation\.movePage\(1\)/);
 	assert.match(reader, /class=\{`\$\{styles\.header\} \$\{spreadEnabled\(\) \? styles\.readerSpreadHeader : styles\.readerCompactHeader\}`\}/);
 	assert.match(reader, /<Show when=\{spreadEnabled\(\)\}><ReaderToolbar \/><\/Show>/);
 	assert.match(reader, /<Show when=\{!spreadEnabled\(\)\}><ReaderToolbar \/><\/Show>/);
@@ -363,7 +362,7 @@ test('Shift-clicking Pomodoro Play starts the timer and hides the main window', 
 		source('../src/features/pomodoro/ui/pomodoro-panel/index.tsx'),
 		source('../src/app/index.tsx'),
 	]);
-	assert.match(panel, /const toggleTimer = \(event: MouseEvent\): void => \{\s*if \(props\.pomodoro\.running\(\)\) \{\s*props\.pomodoro\.pause\(\);\s*return;\s*\}\s*props\.pomodoro\.start\(\);\s*if \(event\.shiftKey\) props\.onHideWindow\(\);\s*\}/);
+	assert.match(panel, /createPomodoroPlayHandler\(\{[\s\S]*?isRunning: props\.pomodoro\.running,[\s\S]*?pause: props\.pomodoro\.pause,[\s\S]*?start: props\.pomodoro\.start,[\s\S]*?hideWindow: props\.onHideWindow/);
 	assert.match(panel, /onClick=\{toggleTimer\}/);
 	assert.match(app, /<PomodoroPanel pomodoro=\{app\.pomodoro\} t=\{app\.t\} onHideWindow=\{app\.windowControls\.close\} \/>/);
 });
@@ -385,12 +384,7 @@ test('Pomodoro focus completion can reveal a hidden window on both desktop hosts
 
 test('Chat scroll position updates do not retrigger automatic follow-to-bottom', async () => {
 	const chat = await source('../src/features/chat-with-ai/ui/ai-chat-panel/index.tsx');
-	const scrollEffectStart = chat.indexOf('    createEffect(() => {\n        props.aiChat.chat().messages;');
-	const scrollEffectEnd = chat.indexOf('\n    });', scrollEffectStart);
-	const scrollEffect = chat.slice(scrollEffectStart, scrollEffectEnd);
-	assert.ok(scrollEffectStart >= 0, 'chat scroll effect is present');
-	assert.ok(scrollEffectEnd > scrollEffectStart, 'chat scroll effect has a closing boundary');
-	assert.match(scrollEffect, /const view = untrack\(\(\) => props\.aiChat\.messageView\(\)\)/);
+	assert.match(chat, /observeChatMessageScroll\(\{[\s\S]*?readMessages: \(\) => props\.aiChat\.chat\(\)\.messages,[\s\S]*?readBusy: \(\) => props\.aiChat\.chat\(\)\.busy,[\s\S]*?readView: props\.aiChat\.messageView,[\s\S]*?getViewport: \(\) => messages/);
 });
 
 test('tray Exit saves before calling the native app exit command', async () => {
@@ -468,7 +462,8 @@ test('startup centering is labeled as camera centering and does not move notes',
 	assert.equal(JSON.parse(ptBr).centerCanvasOnLaunch, 'Centralizar câmera');
 	assert.equal(JSON.parse(en).centerCanvasOnLaunch, 'Center camera on launch');
 	assert.ok(centerCamera);
-	assert.match(centerCamera, /setView\(/);
+	assert.match(centerCamera, /getCanvasStartupView\(rect, scale, bounds, \{ width: HOME_WIDTH, height: HOME_HEIGHT \}\)/);
+	assert.match(centerCamera, /setView\(getCanvasStartupView/);
 	assert.doesNotMatch(centerCamera, /setPositions\(/);
 });
 
@@ -555,6 +550,8 @@ test('Electron and Tauri enforce one app instance and focus the existing window'
 
 test('Kanban card details link to notes instead of exposing a description', async () => {
 	const kanban = await source('../src/features/manage-kanban/ui/kanban-panel/index.tsx');
+	assert.match(kanban, /const draft = createKanbanDetailsDraft\(item, resolveNoteQuery\)/);
+	assert.match(kanban, /setDetailsId\(draft\.id\);[\s\S]*?setNoteQueryDraft\(draft\.noteQuery\);[\s\S]*?setPriorityDraft\(draft\.priority\);/);
 	assert.match(kanban, /props\.t\("kanbanLinkedNote"\)/);
 	assert.match(kanban, /props\.onCreateNote\(noteTitle\)/);
 	assert.match(kanban, /props\.onOpenNote\(note\(\)\)/);
@@ -573,13 +570,6 @@ test('Kanban card details link to notes instead of exposing a description', asyn
 	assert.match(kanban, /type="date"/);
 	assert.match(kanban, /props\.t\("kanbanLabels"\)/);
 	assert.match(kanban, /onSubmit=\{event => void saveDetails\(event\)\}/);
-});
-
-test('temporary note preview activates only with the left Alt key', async () => {
-	const preview = await source('../src/features/temporary-note-reading/model/temporary-reading.controller.ts');
-	assert.match(preview, /event\.code === "AltLeft"/);
-	assert.doesNotMatch(preview, /event\.key === "Alt"|event\.code === "AltRight"/);
-	assert.match(preview, /else if \(leftAltDown && !\["Shift", "Meta"\]\.includes\(event\.key\)\)/);
 });
 
 test('media catalog offers confirmed global deletion from the right-click menu', async () => {
@@ -618,7 +608,7 @@ test('vault deletion uses the shared confirmation dialog and its destructive sty
 
 test('delete confirmation keeps its message visible while the dialog exits', async () => {
 	const dialog = await source('../src/shared/ui/delete-confirmation-dialog/index.tsx');
-	assert.match(dialog, /const message = createMemo<string>\(previous => props\.open \? props\.message : previous \?\? props\.message\)/);
+	assert.match(dialog, /createMemo<string>\(previous => retainExitingMessage\(props\.open, props\.message, previous\)\)/);
 	assert.match(dialog, /<p class=\{styles\.message\} id=\{messageId\}>\{message\(\)\}<\/p>/);
 });
 
@@ -632,7 +622,7 @@ test('Kanban lanes keep equal horizontal padding beside the overlay scrollbar', 
 test('vault name filters the list without reordering a partial result', async () => {
 	const dialog = await source('../src/features/manage-vault/ui/vault-dialog/index.tsx');
 	assert.match(dialog, /const search = \(\) => state\.name\(\)\.trim\(\)/);
-	assert.match(dialog, /vault\.name\.toLocaleLowerCase\(\)\.includes\(search\(\)\.toLocaleLowerCase\(\)\)/);
+	assert.match(dialog, /filterVaultsByName\(reorder\.vaults\(\), search\(\)\)/);
 	assert.match(dialog, /!state\.deleteConfirmationVisible\(\) && !search\(\)\.trim\(\)/);
 	assert.match(dialog, /setDisplayedDetails\(cachedDetails\)/);
 	assert.match(dialog, /<For each=\{visibleVaults\(\)\}>/);
@@ -644,7 +634,7 @@ test('reopening the vault dialog targets the active vault and reveals its page',
 	const dialog = await source('../src/features/manage-vault/ui/vault-dialog/index.tsx');
 	assert.match(controller, /setDialogOpen\(false\);\s*setSelectedVaultId\(activeVaultId\(\)\);\s*setName\(""\)/);
 	assert.match(controller, /setSelectedVaultId\(activeVaultId\(\) \?\? list\[0\]\?\.id\)/);
-	assert.match(dialog, /Math\.floor\(index \/ size\)/);
+	assert.match(dialog, /getVaultPageForSelection\(filteredVaults\(\), state\.selectedVaultId\(\), size\)/);
 });
 
 test('Pomodoro tasks and input keep equal side spacing with or without the overlay scrollbar', async () => {
@@ -665,12 +655,13 @@ test('Kanban priority filter uses the shared dropdown component', async () => {
 test('Kanban WIP editor opens from the count and zero means unlimited', async () => {
 	const kanban = await source('../src/features/manage-kanban/ui/kanban-panel/index.tsx');
 	assert.match(kanban, /<Show when=\{wipEditorStatus\(\) === status\} fallback=\{[\s\S]*?<Button class=\{styles\.count\}/);
-	assert.match(kanban, /<input class=\{styles\.wipInput\}[\s\S]*?onBlur=\{event => finishWipEditor\(status, event\.currentTarget\)\}/);
+	assert.match(kanban, /<input class=\{styles\.wipInput\}[\s\S]*?onBlur=\{event => wipEditor\.finish\(status, event\.currentTarget\)\}/);
 	assert.match(kanban, /document\.addEventListener\("pointerdown", commitWipEditorOutside, true\)/);
+	assert.match(kanban, /wipEditor\.commitOutside\(event\.target\)/);
+	assert.match(kanban, /createKanbanWipEditorHandlers\(\{[\s\S]*?readStatus: wipEditorStatus,[\s\S]*?readInput: \(\) => wipInputElement,[\s\S]*?setLimit: \(status, limit\) => props\.kanban\.setWipLimit\(status, limit\)/);
 	assert.doesNotMatch(kanban, /styles\.wipEditor/);
 	assert.doesNotMatch(kanban, /Icon name="sliders"/);
 	assert.match(kanban, /type="number" min="0"/);
-	assert.match(kanban, /value === 0 \? undefined : value/);
 });
 
 test('empty Kanban lanes do not show an empty-state message or placeholder', async () => {
@@ -692,13 +683,14 @@ test('Kanban uses only a temporary drag insertion gap, not permanent empty slots
 	assert.doesNotMatch(kanban, /kanbanSlotCount|slotPositions|positionSlot/);
 	assert.doesNotMatch(kanban, /draggedItem/);
 	assert.match(kanban, /dropPlaceholder\(\)/);
-	assert.match(kanban, /getDropPosition\(lane, clientY\)/);
+	assert.match(kanban, /getKanbanDropPosition\(cards, clientY, card => card\.getBoundingClientRect\(\)\)/);
 	assert.match(kanban, /draggable=\{false\}/);
 	assert.match(kanban, /onPointerDown=\{event => startDrag\(event, item\)\}/);
-	assert.match(kanban, /window\.addEventListener\("pointermove", moveCardDrag, \{ capture: true, passive: false \}\)/);
-	assert.match(kanban, /Math\.hypot\(event\.clientX - drag\.startX, event\.clientY - drag\.startY\) < 5/);
+	assert.match(kanban, /installKanbanCardDragListeners\(\{[\s\S]*?move: moveCardDrag,[\s\S]*?up: finishCardDrag,[\s\S]*?cancel: cancelCardDrag,[\s\S]*?blur: cancelDragOnBlur/);
+	assert.match(kanban, /stopCardDragListeners\?\.\(\)/);
+	assert.match(kanban, /hasKanbanDragThreshold\(drag\.startX, drag\.startY, event\.clientX, event\.clientY\)/);
 	assert.match(kanban, /drag\.source\.cloneNode\(true\)/);
-	assert.match(kanban, /cardDrag\.preview\?\.remove\(\)/);
+	assert.match(kanban, /cardDrag\?\.preview\?\.remove\(\)/);
 	assert.doesNotMatch(kanban, /onDragStart|onDragOver|onDrop|setDragImage|dataTransfer/);
 	assert.match(kanban, /document\.documentElement\.classList\.toggle\(styles\.dragging, Boolean\(draggedId\(\)\)\)/);
 	assert.match(kanban, /document\.documentElement\.classList\.remove\(styles\.dragging\)/);
@@ -719,9 +711,8 @@ test('left-clicking the right edge of a vault row toggles its actions without se
 		source('../src/features/manage-vault/ui/vault-dialog/index.tsx'),
 		source('../src/features/manage-vault/ui/vault-dialog/style.css.ts'),
 	]);
-	assert.match(dialog, /if \(event\.target === event\.currentTarget\) \{\s*props\.onClearError\(\);\s*toggleVaultActions\(vault\.id\);\s*\}/);
-	assert.match(dialog, /event\.stopPropagation\(\);\s*toggleVaultActions\(vault\.id\)/);
-	assert.match(style, /vaultActionsHitArea: style\(\{ paddingRight: 6, marginRight: -5, cursor: "pointer" \}\)/);
+	assert.match(dialog, /handleVaultActionsBackgroundClick\(event, \(\) => \{/);
+	assert.match(style, /vaultActionsHitArea: style\(\{[^}]*paddingRight: 0[^}]*cursor: "pointer"[^}]*\}\)/);
 	assert.match(style, /"&:hover:not\(:has\(button:hover\)\)::after": \{ backgroundColor: "var\(--surface-hover\)" \}/);
 	const vaultActionsStyle = style.match(/vaultActions: style\(\{([\s\S]*?)\n\t\}\),/)?.[1] ?? "";
 	assert.doesNotMatch(vaultActionsStyle, /:hover/);

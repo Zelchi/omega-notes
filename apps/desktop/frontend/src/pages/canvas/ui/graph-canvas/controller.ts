@@ -7,6 +7,8 @@ import { defaultPosition, graphEdgeKey, graphEdgePath, graphEdges, graphEdgesCro
 import { pushStaticNodes, separateStaticNodes } from "../../lib/static-layout";
 import { readGraphState, saveGraphState as persistGraphState } from "../../api/graph.repository";
 import type { GraphCanvasProps } from "./types";
+import { getCanvasStartupView } from "../../model/startup-view";
+import { getZipTieStrokeOutcome, isZipTieModifierGesture } from "../../model/zip-tie-gesture";
 
 export const noteLockTargets = (noteId: string, selection: ReadonlySet<string>): string[] =>
 	selection.has(noteId) ? [...selection] : [noteId];
@@ -226,8 +228,8 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		if (props.centerOnMount) {
 			const rect = board.getBoundingClientRect();
 			const scale = view().scale;
-			if (props.notes.length > 0) {
-				const bounds = props.notes.reduce(
+			const bounds = props.notes.length > 0
+				? props.notes.reduce(
 					(current, note, index) => {
 						const size = nodeSize(note);
 						const point = positions()[note.id] ?? defaultPosition(index, props.notes.length, size);
@@ -239,13 +241,9 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 						};
 					},
 					{ left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity },
-				);
-				const centerX = (bounds.left + bounds.right) / 2;
-				const centerY = (bounds.top + bounds.bottom) / 2;
-				setView({ x: rect.width / 2 - centerX * scale, y: rect.height / 2 - centerY * scale, scale });
-			} else {
-				setView({ x: rect.width / 2 - HOME_WIDTH / 2, y: rect.height / 2 - HOME_HEIGHT / 2, scale });
-			}
+				)
+				: undefined;
+			setView(getCanvasStartupView(rect, scale, bounds, { width: HOME_WIDTH, height: HOME_HEIGHT }));
 		}
 		props.onCanvasMount();
 
@@ -316,7 +314,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 
 	const beginPan = (event: PointerEvent & { currentTarget: HTMLElement }): void => {
 		if (props.busy || gesture || (event.button !== 0 && event.button !== 1 && event.button !== 2)) return;
-		if (props.mode === "edit" && event.button === 0 && event.shiftKey && !event.ctrlKey && !event.metaKey) { beginZipTieStroke(event); return; }
+		if (props.mode === "edit" && event.button === 0 && isZipTieModifierGesture(event)) { beginZipTieStroke(event); return; }
 		event.preventDefault();
 		setContextMenu(undefined);
 		event.currentTarget.setPointerCapture(event.pointerId);
@@ -379,7 +377,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 		event.stopPropagation();
 		setContextMenu(undefined);
 		if (props.mode === "view") return;
-		if (event.shiftKey && !event.ctrlKey && !event.metaKey) {
+		if (isZipTieModifierGesture(event)) {
 			beginZipTieStroke(event, note.id);
 			return;
 		}
@@ -483,7 +481,7 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 	const beginZipTieDrag = (id: string, event: PointerEvent): void => {
 		event.stopPropagation();
 		if (event.button !== 0) return;
-		if (event.shiftKey && !event.ctrlKey && !event.metaKey) { beginZipTieStroke(event); return; }
+		if (isZipTieModifierGesture(event)) { beginZipTieStroke(event); return; }
 		event.preventDefault();
 		if (props.mode !== "edit" || props.busy || zipTieDrag || zipTieStroke()) return;
 		const tie = zipTies().find((item) => item.id === id);
@@ -564,10 +562,11 @@ export const useGraphCanvas = (props: GraphCanvasProps, getBoard: () => HTMLDivE
 			setZipTieStroke(undefined);
 			const end = boardPoint(event);
 			const distance = Math.hypot(end.x - stroke.start.x, end.y - stroke.start.y);
-			if (stroke.noteId || distance >= 4) suppressClickUntil = Date.now() + 200;
-			if (stroke.noteId) {
+			const outcome = getZipTieStrokeOutcome(stroke.noteId, distance);
+			if (outcome.suppressClick) suppressClickUntil = Date.now() + 200;
+			if (outcome.toggleNoteSelection && stroke.noteId) {
 				const noteId = stroke.noteId;
-				if (distance < 4) setSelectedIds((current) => {
+				setSelectedIds((current) => {
 					const next = new Set(current);
 					if (next.has(noteId)) next.delete(noteId);
 					else next.add(noteId);

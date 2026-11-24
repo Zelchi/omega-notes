@@ -22,8 +22,6 @@ export const useGambiarraTerminal = (options: {
 	let lastDimensions: { cols: number; rows: number } | undefined;
 	let history: Uint8Array[] = [], historyBytes = 0, outputTerminal: Terminal | undefined;
 	let input: Uint8Array[] = [], inputBytes = 0, sending = false;
-	const encoder = new TextEncoder();
-
 	const report = (failure?: unknown) => {
 		const code = failure instanceof Error ? failure.message : String(failure ?? "");
 		setError(vaultErrorKey(code) ?? "gambiarraTerminalFailed");

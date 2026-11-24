@@ -7,6 +7,7 @@ import { createPresence } from "@/shared/lib/presence";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import type { PomodoroTask } from "../../api/tasks.repository";
+import { createPomodoroPlayHandler } from "../../model/controller";
 import type { usePomodoro } from "../../model/controller";
 import { styles } from "./style.css.ts";
 
@@ -16,7 +17,7 @@ type Props = { pomodoro: ReturnType<typeof usePomodoro>; t: (key: TranslationKey
 
 const PomodoroPanel: Component<Props> = (props) => {
 	const presence = createPresence(props.pomodoro.open, 210);
-	const { draft, setDraft, showSettings, setShowSettings, focusDraft, setFocusDraft, shortBreakDraft,
+	const { draft, setDraft, showSettings, focusDraft, setFocusDraft, shortBreakDraft,
 		setShortBreakDraft, longBreakDraft, setLongBreakDraft, cyclesDraft, setCyclesDraft, editingTaskId,
 		setEditingTaskId, taskActionsVisibleId, setTaskActionsVisibleId, editDraft, setEditDraft } = props.pomodoro.view;
 	const orderedTasks = createMemo(() => [...props.pomodoro.tasks()].sort((left, right) => left.position - right.position));
@@ -55,14 +56,12 @@ const PomodoroPanel: Component<Props> = (props) => {
 		event.preventDefault();
 		if (props.pomodoro.renameTask(id, editDraft())) { setEditingTaskId(undefined); setTaskActionsVisibleId(undefined); }
 	};
-	const toggleTimer = (event: MouseEvent): void => {
-		if (props.pomodoro.running()) {
-			props.pomodoro.pause();
-			return;
-		}
-		props.pomodoro.start();
-		if (event.shiftKey) props.onHideWindow();
-	};
+	const toggleTimer = createPomodoroPlayHandler({
+		isRunning: props.pomodoro.running,
+		pause: props.pomodoro.pause,
+		start: props.pomodoro.start,
+		hideWindow: props.onHideWindow,
+	});
 	return <Show when={presence.present()}>
 		<aside id="pomodoro-panel" class={styles.panel} aria-labelledby="pomodoro-heading"
 			inert={presence.exiting()} aria-hidden={presence.exiting() ? "true" : undefined}

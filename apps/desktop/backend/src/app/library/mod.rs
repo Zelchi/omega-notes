@@ -66,7 +66,6 @@ pub(crate) fn lock_vault_title_operations_cancellable<'a>(
     }
 }
 
-pub(crate) use cleanup::{cleanup_orphaned_media, MediaCleanupSummary};
 pub(crate) use loading::{
     content_stats_from_index, list_notes, remove_cached_note_summary, stream_note_summaries,
     stream_note_summaries_cancellable, stream_note_summaries_with_text,

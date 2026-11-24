@@ -78,11 +78,11 @@ export type NoteDocument = {
 	elements: NoteElement[];
 };
 
-export const DEFAULT_PAGE_SIZE = { width: 794, height: 1123 };
+const DEFAULT_PAGE_SIZE = { width: 794, height: 1123 };
 export const MIN_AUDIO_WIDTH = 340;
 export const DEFAULT_AUDIO_VOLUME = 0.5;
 
-export const createTextElement = (text = "", x = 32, y = 32, width = 728): NoteTextElement => {
+const createTextElement = (text = "", x = 32, y = 32, width = 728): NoteTextElement => {
 	const lines = Math.max(1, text.split("\n").length);
 	return {
 		id: createUuidV7(),

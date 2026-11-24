@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -14,24 +13,6 @@ fn image_store_dir(notes_directory: &Path) -> Result<PathBuf, String> {
     Ok(vault_directory.join("images"))
 }
 
-fn image_entries(folder: &Path) -> Result<Vec<fs::DirEntry>, String> {
-    match fs::symlink_metadata(folder) {
-        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
-            Err("A pasta de imagens não é um diretório seguro.".to_string())
-        }
-        Ok(_) => fs::read_dir(folder)
-            .map_err(|error| format!("Não foi possível ler a pasta de imagens: {error}"))?
-            .map(|entry| {
-                entry.map_err(|error| format!("Não foi possível ler a pasta de imagens: {error}"))
-            })
-            .collect(),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
-        Err(error) => Err(format!(
-            "Não foi possível verificar a pasta de imagens: {error}"
-        )),
-    }
-}
-
 fn verify_image_directory(folder: &Path) -> Result<bool, String> {
     match fs::symlink_metadata(folder) {
         Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
@@ -43,36 +24,6 @@ fn verify_image_directory(folder: &Path) -> Result<bool, String> {
             "Não foi possível verificar a pasta de imagens: {error}"
         )),
     }
-}
-
-pub(super) fn existing_image_ids(directory: &Path) -> Result<HashSet<String>, String> {
-    let images = image_store_dir(directory)?;
-    let mut ids = HashSet::new();
-    for entry in image_entries(&images)? {
-        if !entry
-            .file_type()
-            .map_err(|error| format!("Não foi possível verificar um arquivo de imagem: {error}"))?
-            .is_file()
-        {
-            continue;
-        }
-        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
-            continue;
-        };
-        let Some((id, extension)) = name.rsplit_once('.') else {
-            continue;
-        };
-        if !IMAGE_EXTENSIONS.contains(&extension) {
-            continue;
-        }
-        let Ok(uuid) = uuid::Uuid::parse_str(id) else {
-            continue;
-        };
-        if uuid.to_string() == id {
-            ids.insert(id.to_string());
-        }
-    }
-    Ok(ids)
 }
 
 pub(super) fn extension_from_bytes(bytes: &[u8]) -> Result<&'static str, String> {

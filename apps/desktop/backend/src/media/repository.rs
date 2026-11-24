@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
@@ -42,52 +41,6 @@ fn ensure_media_directory(folder: &Path) -> Result<(), String> {
     } else {
         Err("A pasta de mídia não foi criada.".to_string())
     }
-}
-
-fn media_entries(folder: &Path) -> Result<Vec<fs::DirEntry>, String> {
-    if !verify_media_directory(folder)? {
-        return Ok(Vec::new());
-    }
-    fs::read_dir(folder)
-        .map_err(|error| format!("Não foi possível ler a pasta de mídia: {error}"))?
-        .map(|entry| {
-            entry.map_err(|error| format!("Não foi possível ler a pasta de mídia: {error}"))
-        })
-        .collect()
-}
-
-pub(super) fn existing_media_ids(
-    notes_directory: &Path,
-    media_type: &str,
-) -> Result<HashSet<String>, String> {
-    let folder = media_directory(notes_directory, media_type)?;
-    let extensions = media_extensions(media_type)?;
-    let mut ids = HashSet::new();
-    for entry in media_entries(&folder)? {
-        if !entry
-            .file_type()
-            .map_err(|error| format!("Não foi possível verificar um arquivo de mídia: {error}"))?
-            .is_file()
-        {
-            continue;
-        }
-        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
-            continue;
-        };
-        let Some((id, extension)) = name.rsplit_once('.') else {
-            continue;
-        };
-        if !extensions.contains(&extension) {
-            continue;
-        }
-        let Ok(uuid) = Uuid::parse_str(id) else {
-            continue;
-        };
-        if uuid.to_string() == id {
-            ids.insert(id.to_string());
-        }
-    }
-    Ok(ids)
 }
 
 pub(super) fn extension_from_path(source: &Path, media_type: &str) -> Result<&'static str, String> {

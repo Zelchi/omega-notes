@@ -1,6 +1,6 @@
 import { invoke, isDesktopRuntime } from './desktop.ts';
 
-export const storageSnapshot = (storage: Storage): Record<string, string> => Object.fromEntries(
+const storageSnapshot = (storage: Storage): Record<string, string> => Object.fromEntries(
     Array.from({ length: storage.length }, (_, index) => storage.key(index))
         .filter((key): key is string => !!key?.startsWith('omega-'))
         .map(key => [key, storage.getItem(key)!]),

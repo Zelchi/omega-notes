@@ -10,6 +10,20 @@ const alarmMuteMs = 700;
 export const shouldMuteLofi = (phase: PomodoroPhase, muteDuringBreaks: boolean, alarmActive: boolean): boolean =>
 	alarmActive || (muteDuringBreaks && phase !== "focus");
 
+export const createPomodoroPlayHandler = (options: {
+	isRunning: () => boolean;
+	pause: () => void;
+	start: () => void;
+	hideWindow: () => void;
+}) => (event: { shiftKey: boolean }): void => {
+	if (options.isRunning()) {
+		options.pause();
+		return;
+	}
+	options.start();
+	if (event.shiftKey) options.hideWindow();
+};
+
 export const usePomodoro = (vaultId: Accessor<string | undefined>, onPhaseEnd?: () => void) => {
 	const [open, setOpen] = createSignal(false);
 	const [tasks, setTasks] = createSignal<PomodoroTask[]>([]);

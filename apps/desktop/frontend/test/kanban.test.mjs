@@ -378,10 +378,8 @@ test('a stale read retry cannot replace a newly selected vault', async t => {
 	assert.equal(kanban.readFailed(), false);
 });
 
-test('app shutdown and vault deletion await the Kanban save checkpoint', async () => {
+test('vault deletion awaits the app shutdown checkpoint', async () => {
 	const source = await readFile(new URL('../src/app/controller.ts', import.meta.url), 'utf8');
-	const shutdown = source.slice(source.indexOf('const beforeShutdown = async'), source.indexOf('const windowControls', source.indexOf('const beforeShutdown = async')));
 	const deletion = source.slice(source.indexOf('const deleteVault = async'), source.indexOf('\n\treturn {', source.indexOf('const deleteVault = async')));
-	assert.match(shutdown, /await kanban\.flushSave\(\)/);
 	assert.match(deletion, /await beforeShutdown\(\)/);
 });

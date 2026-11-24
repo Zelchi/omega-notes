@@ -1,5 +1,8 @@
+use super::chat_prompt::chat_prompt;
+use super::run::Run;
 use super::Client;
-use crate::ai::providers::{opencode, opencode_error, process};
+use crate::ai::providers::{opencode, opencode_catalog, opencode_error, process};
+use crate::ai::{repository, tools};
 use crate::runtime::AppContext;
 use serde_json::{json, Value};
 use std::{
@@ -738,4 +741,272 @@ fn opencode_event(value: &Value) -> (&str, &Value) {
         .or_else(|| event.get("data"))
         .unwrap_or(event);
     (kind, properties)
+}
+
+impl Client {
+    pub(super) fn send_persistent_opencode(
+        self: &Arc<Self>,
+        vault_id: &str,
+        request_id: &str,
+        text: &str,
+        model: Option<&str>,
+    ) -> Result<Value, String> {
+        if model.is_none_or(|model| !opencode_catalog::supported_model(model)) {
+            return Err("AI_OPENCODE_MODELS_UNAVAILABLE".into());
+        }
+        if !self.is_alive() {
+            return Err("AI_DISCONNECTED".into());
+        }
+        tools::resolve_vault(&self.app, vault_id)?;
+        if self
+            .runs
+            .lock()
+            .map_err(|_| "AI_DISCONNECTED")?
+            .contains_key(vault_id)
+        {
+            return Err("AI_BUSY".into());
+        }
+        let root = repository::workspace(&self.app, vault_id, self.provider)?;
+        let existing = self
+            .open_sessions
+            .lock()
+            .map_err(|_| "AI_DISCONNECTED")?
+            .get(vault_id)
+            .cloned();
+        let session = if let Some(session) = existing.filter(|session| session.is_alive()) {
+            session
+        } else {
+            if let Ok(mut sessions) = self.open_sessions.lock() {
+                if let Some(old) = sessions.remove(vault_id) {
+                    old.stop();
+                }
+            }
+            let session = OpenCodeSession::start(
+                &self.app,
+                vault_id,
+                &self.connection_id,
+                root,
+                self.binary.clone(),
+            )?;
+            self.open_sessions
+                .lock()
+                .map_err(|_| "AI_DISCONNECTED")?
+                .insert(vault_id.into(), session.clone());
+            self.prune_persistent_vaults(vault_id);
+            session
+        };
+        if !session.is_alive() {
+            return Err("AI_DISCONNECTED".into());
+        }
+        session.start_events(Arc::downgrade(self))?;
+        let first_turn = !session.has_conversation.load(Ordering::SeqCst);
+        let prompt = if !first_turn {
+            text.to_string()
+        } else {
+            chat_prompt(&self.app, vault_id, self.provider, request_id, text)?
+        };
+        let model = model.expect("validated OpenCode model");
+        let model_is_go = model.starts_with("opencode-go/");
+        let user_message_id = format!("msg_{}", uuid::Uuid::now_v7().simple());
+        session.begin_turn(request_id, &user_message_id, model_is_go)?;
+        let run = Arc::new(Run::new(request_id, None, None));
+        let mut runs = self.runs.lock().map_err(|_| "AI_DISCONNECTED")?;
+        if runs.contains_key(vault_id) {
+            session.abort_turn(request_id);
+            return Err("AI_BUSY".into());
+        }
+        runs.insert(vault_id.into(), run.clone());
+        drop(runs);
+
+        let (cancel_timer, timer_worker) = std::sync::mpsc::channel();
+        *run.timer_cancel.lock().map_err(|_| "AI_DISCONNECTED")? = Some(cancel_timer);
+        let client = Arc::downgrade(self);
+        let session_for_timer = Arc::downgrade(&session);
+        let request_for_timer = request_id.to_string();
+        let run_for_timer = Arc::downgrade(&run);
+        let timer_worker = std::thread::spawn(move || {
+            if matches!(
+                timer_worker.recv_timeout(std::time::Duration::from_secs(900)),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            ) {
+                if let (Some(client), Some(session), Some(run)) = (
+                    client.upgrade(),
+                    session_for_timer.upgrade(),
+                    run_for_timer.upgrade(),
+                ) {
+                    run.timed_out.store(true, Ordering::SeqCst);
+                    client.finish_opencode_turn(
+                        &session,
+                        &request_for_timer,
+                        Some("AI_TIMEOUT"),
+                        false,
+                    );
+                    session.interrupt();
+                }
+            }
+        });
+        *run.worker.lock().map_err(|_| "AI_DISCONNECTED")? = Some(timer_worker);
+
+        let result = (|| {
+            let selected_model = session.model.lock().map_err(|_| "AI_DISCONNECTED")?.clone();
+            if selected_model.as_deref() != Some(model) {
+                session.select_model(model)?;
+                *session.model.lock().map_err(|_| "AI_DISCONNECTED")? = Some(model.into());
+            }
+            let path = session.session_path("/prompt")?;
+            session.api_sync(
+                "POST",
+                &path,
+                Some(json!({"id":user_message_id,"text":prompt,"resume":true})),
+                model_is_go,
+            )?;
+            Ok::<(), String>(())
+        })();
+        if let Err(error) = result {
+            session.abort_turn(request_id);
+            session.interrupt();
+            if let Ok(mut runs) = self.runs.lock() {
+                if runs
+                    .get(vault_id)
+                    .is_some_and(|current| Arc::ptr_eq(current, &run))
+                {
+                    runs.remove(vault_id);
+                }
+            }
+            run.stop_timer();
+            return Err(error);
+        }
+        session.has_conversation.store(true, Ordering::SeqCst);
+        Ok(json!({"threadId":request_id}))
+    }
+}
+
+impl Client {
+    pub(super) fn finish_opencode_turn(
+        &self,
+        session: &OpenCodeSession,
+        request_id: &str,
+        forced_error: Option<&str>,
+        interrupted: bool,
+    ) {
+        let turn = session.active.lock().ok().and_then(|mut active| {
+            active
+                .as_ref()
+                .is_some_and(|turn| turn.request_id == request_id)
+                .then(|| active.take())
+                .flatten()
+        });
+        let Some(turn) = turn else { return };
+        session.bridge.deactivate(request_id);
+        let error = if interrupted {
+            None
+        } else {
+            forced_error
+                .or(turn.error_code)
+                .or_else(|| (!turn.answered).then_some("AI_OPENCODE_EMPTY_RESPONSE"))
+        };
+        let failed = error.is_some();
+        self.emit(
+            &session.vault_id,
+            request_id,
+            json!({
+                "kind":"completed",
+                "failed":failed,
+                "status":if interrupted { "interrupted" } else if failed { "failed" } else { "completed" },
+                "errorCode":error,
+                "errorDetail":if error.is_some_and(|code| code.starts_with("AI_OPENCODE_")) { turn.error_detail } else { None }
+            }),
+        );
+        if let Ok(mut runs) = self.runs.lock() {
+            let run = runs
+                .get(&session.vault_id)
+                .filter(|run| run.request_id == request_id)
+                .cloned();
+            if run.is_some() {
+                runs.remove(&session.vault_id);
+            }
+            drop(runs);
+            if let Some(run) = run {
+                run.stop_timer();
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{opencode_event, read_opencode_session, validate_opencode_session_id};
+    use serde_json::json;
+    use std::fs;
+
+    #[test]
+    fn opencode_session_ids_accept_only_the_expected_prefix_and_ascii_characters() {
+        assert!(validate_opencode_session_id("ses_abc123"));
+        assert!(validate_opencode_session_id("ses_A0_z9"));
+        assert!(!validate_opencode_session_id("abc123"));
+        assert!(!validate_opencode_session_id("ses_bad/id"));
+        assert!(!validate_opencode_session_id("ses_é"));
+    }
+
+    #[test]
+    fn opencode_events_support_nested_properties_and_data_envelopes() {
+        let nested = json!({
+            "event": {
+                "type": "session.message.updated",
+                "properties": {"sessionID": "ses_nested"}
+            }
+        });
+        let (kind, properties) = opencode_event(&nested);
+        assert_eq!(kind, "session.message.updated");
+        assert_eq!(properties["sessionID"], "ses_nested");
+
+        let data = json!({
+            "type": "message.part.delta",
+            "data": {"messageID": "msg_1", "delta": "Hello"}
+        });
+        let (kind, properties) = opencode_event(&data);
+        assert_eq!(kind, "message.part.delta");
+        assert_eq!(properties["delta"], "Hello");
+    }
+
+    #[test]
+    fn persisted_opencode_session_ids_must_be_valid_bounded_json_strings() {
+        let root = tempfile::tempdir().expect("create temporary directory");
+        assert_eq!(read_opencode_session(root.path()).unwrap(), None);
+
+        let path = root.path().join("session.json");
+        fs::write(&path, br#""ses_saved123""#).expect("write session id");
+        assert_eq!(
+            read_opencode_session(root.path()).unwrap(),
+            Some("ses_saved123".into())
+        );
+
+        fs::write(&path, br#""ses_invalid/id""#).expect("write invalid session id");
+        assert_eq!(
+            read_opencode_session(root.path()).unwrap_err(),
+            "AI_STORAGE_FAILED"
+        );
+
+        fs::write(&path, vec![b'x'; 1025]).expect("write oversized session file");
+        assert_eq!(
+            read_opencode_session(root.path()).unwrap_err(),
+            "AI_STORAGE_FAILED"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn persisted_opencode_session_id_rejects_symbolic_links() {
+        let root = tempfile::tempdir().expect("create temporary directory");
+        let outside = tempfile::tempdir().expect("create external directory");
+        let target = outside.path().join("session.json");
+        fs::write(&target, br#""ses_external123""#).expect("write external session id");
+        std::os::unix::fs::symlink(&target, root.path().join("session.json"))
+            .expect("create session symlink");
+
+        assert_eq!(
+            read_opencode_session(root.path()).unwrap_err(),
+            "AI_STORAGE_FAILED"
+        );
+    }
 }

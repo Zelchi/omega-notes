@@ -2,7 +2,7 @@ import { invoke, isDesktopRuntime } from "@/shared/lib/desktop";
 
 export const maxPdfTitleLength = 500;
 export const maxPdfBytes = 512 * 1024 * 1024;
-export const maxPdfHighlights = 1000;
+const maxPdfHighlights = 1000;
 export const maxPdfHighlightTextLength = 10_000;
 export const maxPdfHighlightRects = 500;
 export const pdfHighlightColors = ["yellow", "green", "blue", "pink", "purple"] as const;

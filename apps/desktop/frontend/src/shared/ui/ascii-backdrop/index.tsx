@@ -2,6 +2,7 @@ import { createContext, createEffect, onCleanup, Show, useContext, type Accessor
 import type { BackgroundHandle, BackgroundPreset } from "asciify-engine/kit";
 import type { BackgroundTheme } from "@/features/change-preferences";
 import { cx } from "@/shared/lib/classes";
+import { getBackgroundDensityLimit, getMatrixRainPosition, isBackgroundMarkVisible } from "./rendering";
 import { styles } from "./style.css.ts";
 
 type AsciiTheme = Exclude<BackgroundTheme, "default">;
@@ -14,9 +15,9 @@ const CONSTELLATION_CELL_SIZE = 12;
 const CONSTELLATION_LETTER_SPACING = 0.08;
 const defaultBackgroundTheme: Accessor<BackgroundTheme> = () => "default";
 const defaultBackgroundIntensity: Accessor<number> = () => 0.6;
-export const BackgroundThemeContext = createContext<Accessor<BackgroundTheme>>(defaultBackgroundTheme);
+const BackgroundThemeContext = createContext<Accessor<BackgroundTheme>>(defaultBackgroundTheme);
 export const BackgroundThemeProvider = BackgroundThemeContext.Provider;
-export const BackgroundIntensityContext = createContext<Accessor<number>>(defaultBackgroundIntensity);
+const BackgroundIntensityContext = createContext<Accessor<number>>(defaultBackgroundIntensity);
 export const BackgroundIntensityProvider = BackgroundIntensityContext.Provider;
 
 const tileScene = (scene: string, columns = 3, rows = 3): string => {
@@ -124,14 +125,21 @@ const createMatrixPreset = (
 		const bounds = context.host.getBoundingClientRect();
 		const duration = codeFallDuration();
 		const elapsed = codeRainElapsed();
-		const densityLimit = intensity() * CODE_RAIN_MAX_DENSITY;
+		const densityLimit = getBackgroundDensityLimit(intensity(), CODE_RAIN_MAX_DENSITY);
 
 		matrixMarks.forEach(({ character, column, seed, density }) => {
-			if (density >= densityLimit) return;
+			if (!isBackgroundMarkVisible(density, densityLimit)) return;
 			const phase = (elapsed + randomAt(seed + 2) * duration) % duration;
-			const x = column / matrixColumns * viewportWidth - bounds.left;
-			const y = -12 + phase / duration * viewportHeight - bounds.top;
-			pen.fillText(character, x, y);
+			const position = getMatrixRainPosition(
+				column,
+				matrixColumns,
+				viewportWidth,
+				viewportHeight,
+				phase,
+				duration,
+				bounds,
+			);
+			pen.fillText(character, position.x, position.y);
 		});
 	}),
 });
@@ -153,11 +161,11 @@ const createConstellationPreset = (
 		const cellWidth = pen.measureText("M").width + frame.fontSize * CONSTELLATION_LETTER_SPACING;
 		const left = (width - constellationColumns * cellWidth) / 2;
 		const top = (height - constellationLines.length * frame.fontSize) / 2;
-		const densityLimit = intensity();
+		const densityLimit = getBackgroundDensityLimit(intensity());
 		const reducedMotion = context.reducedMotion() === true;
 
 		constellationMarks.forEach(({ character, row, column, seed: markSeed, density }) => {
-			if (density >= densityLimit) return;
+			if (!isBackgroundMarkVisible(density, densityLimit)) return;
 
 			let opacity = 1;
 			if (character === "*" && !reducedMotion) {

@@ -7,6 +7,13 @@ import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { normalizeWindowsUpdaterAsset } from '../../../../scripts/desktop-release-assets.mjs';
 
+test('Electron package excludes the updater source embedded by the backend', async () => {
+	const builder = await readFile(new URL('../../bridge/electron/electron-builder.yml', import.meta.url), 'utf8');
+	const backend = await readFile(new URL('../../backend/src/updates.rs', import.meta.url), 'utf8');
+	assert.match(builder, /^\s*-\s*"!bridge\/electron\/updater\.json"\s*$/m);
+	assert.match(backend, /include_str!\("..\/..\/bridge\/electron\/updater\.json"\)/);
+});
+
 test('normalizes and renames the Windows updater package and signature to their published names', async t => {
 	const directory = await mkdtemp(join(tmpdir(), 'omega-release-'));
 	t.after(() => rm(directory, { recursive: true, force: true }));

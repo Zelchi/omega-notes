@@ -8,6 +8,7 @@ import type { GraphCanvasProps } from "../graph-canvas/types";
 import { styles as menuStyles } from "../graph-canvas/style.css.ts";
 import { styles } from "./style.css.ts";
 import { useDynamicGraph } from "./controller";
+import { beginCanvasNotePointerInteraction } from "../../model/preload-note";
 
 const NODE_HIT_MARGIN = 20;
 
@@ -46,8 +47,14 @@ const DynamicGraph: Component<GraphCanvasProps> = (props) => {
 						style={{ width: `${hitDiameter()}px`, height: `${hitDiameter()}px`, left: `${-hitDiameter() / 2}px`, top: `${-hitDiameter() / 2}px` }}
 						onPointerDown={(event) => {
 							const hit = hitsNodeCircle(event);
-							if (event.button === 0 && hit && !graph.shouldIgnoreClick()) props.onPreloadNote(note.id);
-							graph.begin(event, hit ? note.id : undefined);
+							beginCanvasNotePointerInteraction({
+								noteId: note.id,
+								button: event.button,
+								isOnNote: hit,
+								shouldIgnoreClick: graph.shouldIgnoreClick,
+								preloadNote: props.onPreloadNote,
+								beginGesture: () => graph.begin(event, hit ? note.id : undefined),
+							});
 						}}
 					onContextMenu={(event) => { if (hitsNodeCircle(event)) graph.openMenu(event, note.id); else event.preventDefault(); }}
 					onPointerEnter={(event) => { if (hitsNodeCircle(event)) graph.setHoveredId(note.id); }}

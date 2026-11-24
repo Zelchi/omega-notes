@@ -32,25 +32,6 @@ pub(crate) fn remove_media_asset(
     repository::remove_media(notes_directory, media_id, media_type)
 }
 
-pub(crate) fn orphaned_media_candidates(
-    notes_directory: &Path,
-    media_type: &str,
-    referenced: &std::collections::HashSet<String>,
-) -> Result<std::collections::HashSet<String>, String> {
-    let ids = repository::existing_media_ids(notes_directory, media_type)?;
-    Ok(ids.difference(referenced).cloned().collect())
-}
-
-pub(crate) fn remove_orphaned_media_files(
-    notes_directory: &Path,
-    media_type: &str,
-    candidates: &std::collections::HashSet<String>,
-) -> Result<usize, String> {
-    candidates.iter().try_fold(0, |removed, media_id| {
-        repository::remove_media(notes_directory, media_id, media_type).map(|count| removed + count)
-    })
-}
-
 pub(crate) fn collect_unreferenced_media(
     notes_directory: &Path,
     media_type: &str,

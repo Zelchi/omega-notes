@@ -1,6 +1,6 @@
 import type { NodeSize, Point } from "../model/graph";
 
-export type StaticNode = NodeSize & { id: string };
+type StaticNode = NodeSize & { id: string };
 type Bounds = Point & NodeSize;
 const GAP = 12;
 const CELL_SIZE = 256;

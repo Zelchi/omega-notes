@@ -12,7 +12,6 @@ export { summarizeNote } from "./model/note-summary";
 export {
 	createAudioElement,
 	createImageElement,
-	createTextElement,
 	createVideoElement,
 	documentText,
 	DEFAULT_AUDIO_VOLUME,

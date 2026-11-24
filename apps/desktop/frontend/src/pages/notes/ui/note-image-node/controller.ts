@@ -4,7 +4,7 @@ import type { NoteImageElement, NotePositionedElement } from "@/entities/note";
 import type { TranslationKey } from "@/shared/lib/i18n";
 import { isDesktopRuntime } from "@/shared/lib/desktop";
 import { createEdgeAutoScroll } from "../../model/edge-auto-scroll";
-import { noteImageUrl } from "../../model/note-image-url";
+import { resolveNoteImageSource } from "../../model/note-image-url";
 
 type Point = { x: number; y: number; width: number; height: number };
 type Interaction = {
@@ -77,12 +77,8 @@ export const useNoteImageNodeController = (props: NoteImageNodeProps) => {
 	createEffect(() => {
 		const key = sourceKey();
 		setSource("");
-		if (key.startsWith("data:")) {
-			setSource(key);
-			return;
-		}
-		if (!key || !isDesktopRuntime() || !props.vaultId) return;
-		setSource(noteImageUrl(props.vaultId, key));
+		const nextSource = resolveNoteImageSource(key, props.vaultId, isDesktopRuntime());
+		if (nextSource) setSource(nextSource);
 	});
 
 	const currentPoint = (): Point => {

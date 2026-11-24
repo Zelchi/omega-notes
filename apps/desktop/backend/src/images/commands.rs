@@ -46,22 +46,3 @@ pub(crate) async fn import_clipboard_image(
     .await
     .map_err(|error| format!("Não foi possível colar a imagem: {error}"))?
 }
-
-pub(crate) async fn cleanup_orphaned_media(
-    app: AppContext,
-) -> Result<crate::app::library::MediaCleanupSummary, String> {
-    crate::runtime::spawn_blocking(move || {
-        let _title_lock = crate::app::library::lock_title_mutations()?;
-        let _asset_lock = service::lock_asset_mutations()?;
-        let directories = runtime::notes_and_backups_dirs(&app)?;
-        let vault_lock = crate::app::library::title_lock_for_vault(&directories.0)?;
-        let _vault_lock = crate::app::library::lock_vault_title_operations(&vault_lock)?;
-        let summary = crate::app::library::cleanup_orphaned_media(&directories.0, &directories.1)?;
-        if runtime::notes_and_backups_dirs(&app)? != directories {
-            return Err("O vault ativo mudou durante a limpeza de mídias.".to_string());
-        }
-        Ok(summary)
-    })
-    .await
-    .map_err(|error| format!("Não foi possível limpar as mídias: {error}"))?
-}

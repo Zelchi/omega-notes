@@ -11,6 +11,7 @@ import { styles } from "./style.css.ts";
 import { BackgroundIntensityProvider, BackgroundThemeProvider } from "@/shared/ui/ascii-backdrop";
 import { LofiPlayerProvider } from "@/features/lofi-player/model/player";
 import ToastStack, { type ToastMessage } from "@/shared/ui/toast";
+import { shouldKeepPdfPanelMounted } from "@/features/manage-pdfs/model/panel-presence";
 
 const StudyToolbar = lazy(() => import("@/features/study-notes/ui/study-toolbar"));
 const Canvas = lazy(() => import("@/pages/canvas/ui/canvas"));
@@ -92,7 +93,7 @@ const AppView: Component = () => {
 	const chatMounted = createPresence(app.chatOpen, 210).present;
 	const kanbanMounted = createPresence(app.kanban.open, 210).present;
 	const pdfPanelPresence = createPresence(app.pdfs.open, 210).present;
-	const pdfsMounted = () => pdfPanelPresence() || Boolean(app.pdfs.openedId());
+	const pdfsMounted = () => shouldKeepPdfPanelMounted(pdfPanelPresence(), app.pdfs.openedId());
 	const pomodoroMounted = createPresence(app.pomodoro.open, 210).present;
 
 	return (

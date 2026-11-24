@@ -1,7 +1,7 @@
 import { parseTableCells, type FormattedBlock } from "@/shared/lib/formatted-text";
 
 export type TableBlock = Extract<FormattedBlock, { kind: "table" }>;
-export type TableSource = { cells: string[][]; delimiters: string[] };
+type TableSource = { cells: string[][]; delimiters: string[] };
 export const readTableSource = (block: TableBlock): TableSource => {
     const lines = block.text.split("\n");
     return { cells: [parseTableCells(lines[0]!), ...lines.slice(2).map(parseTableCells)]

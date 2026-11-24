@@ -2,9 +2,7 @@ import { invoke, isTauriRuntime } from "@/shared/lib/desktop";
 import { pathForFile } from "@/shared/lib/desktop";
 import { open } from "@/shared/lib/desktop";
 
-export type MediaCleanupSummary = { images: number; audio: number; video: number };
-
-export type DroppedMediaFiles = {
+type DroppedMediaFiles = {
 	paths: string[];
 	x: number;
 	y: number;
@@ -49,6 +47,3 @@ export const importNoteMedia = (sourcePath: string, mediaType: "audio" | "video"
 
 export const getNoteMediaStreamUrl = (mediaId: string, mediaType: "audio" | "video"): Promise<string> =>
   invoke<string>("note_media_stream_url", { mediaId, mediaType });
-
-export const cleanupOrphanedMedia = (): Promise<MediaCleanupSummary> =>
-	invoke<MediaCleanupSummary>("cleanup_orphaned_media");

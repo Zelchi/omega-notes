@@ -72,7 +72,7 @@ export const useAiChat = (options: {
         const id = options.vaultId();
         return id ? chats()[id] ?? emptyChat() : emptyChat();
     });
-    const selectedModel = createMemo(() => models().find((model) => model.id === chat().model) ?? models().find((model) => model.isDefault) ?? models()[0]);
+    const selectedModel = createMemo<AiModel | undefined>(() => models().find((model) => model.id === chat().model) ?? models().find((model) => model.isDefault) ?? models()[0]);
     const selectedEffort = createMemo(() => {
         const model = selectedModel();
         return model?.efforts.includes(chat().effort) ? chat().effort : model?.defaultEffort ?? "";

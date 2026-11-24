@@ -56,23 +56,6 @@ pub(crate) fn collect_unreferenced_images(
     Ok(())
 }
 
-pub(crate) fn orphaned_image_candidates(
-    directory: &Path,
-    referenced: &HashSet<String>,
-) -> Result<HashSet<String>, String> {
-    let image_ids = repository::existing_image_ids(directory)?;
-    Ok(image_ids.difference(referenced).cloned().collect())
-}
-
-pub(crate) fn remove_orphaned_image_files(
-    directory: &Path,
-    candidates: &HashSet<String>,
-) -> Result<usize, String> {
-    candidates.iter().try_fold(0, |removed, image_id| {
-        repository::remove_image(directory, image_id).map(|count| removed + count)
-    })
-}
-
 fn safe_directory_exists(path: &Path) -> Result<bool, String> {
     match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => Ok(true),

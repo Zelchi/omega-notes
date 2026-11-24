@@ -1,4 +1,4 @@
-export type ExternalMarkdownLink = { start: number; end: number; label: string; url: string };
+type ExternalMarkdownLink = { start: number; end: number; label: string; url: string };
 
 export const externalLinkUrl = (value: string): string | undefined => {
     const url = /^www\./i.test(value) ? `https://${value}` : value;

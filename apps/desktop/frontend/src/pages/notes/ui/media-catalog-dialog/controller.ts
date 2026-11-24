@@ -12,7 +12,7 @@ type DeletableMedia = { mediaType: NoteMediaType; mediaId: string };
 type MediaContextMenu = DeletableMedia & { x: number; y: number };
 const PREVIEW_LOAD_CONCURRENCY = 4;
 
-export type MediaCatalogDialogProps = {
+type MediaCatalogDialogProps = {
 	open: boolean;
 	vaultId: string;
 	currentNote: () => StudyNote;
@@ -319,7 +319,7 @@ export const useMediaCatalogDialogController = (props: MediaCatalogDialogProps) 
 	};
 };
 
-export type MediaCatalogController = ReturnType<typeof useMediaCatalogDialogController>;
+type MediaCatalogController = ReturnType<typeof useMediaCatalogDialogController>;
 export type MediaCatalogViewProps = {
 	open: boolean;
 	exiting: boolean;

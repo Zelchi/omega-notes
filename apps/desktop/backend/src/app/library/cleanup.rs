@@ -1,40 +1,10 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use serde::Serialize;
 use uuid::Uuid;
 
 use crate::notes::NoteLoadIssue;
 use crate::{images, media, notes};
-
-#[derive(Serialize)]
-pub(crate) struct MediaCleanupSummary {
-    pub(crate) images: usize,
-    pub(crate) audio: usize,
-    pub(crate) video: usize,
-}
-
-pub(crate) fn cleanup_orphaned_media(
-    directory: &Path,
-    backups_directory: &Path,
-) -> Result<MediaCleanupSummary, String> {
-    let (referenced_images, referenced_audio, referenced_video) =
-        notes::referenced_media_ids(directory, backups_directory)?;
-    let referenced_images = canonical_ids(referenced_images);
-    let referenced_audio = canonical_ids(referenced_audio);
-    let referenced_video = canonical_ids(referenced_video);
-    let orphaned_images = images::orphaned_image_candidates(directory, &referenced_images)?;
-    let orphaned_audio = media::orphaned_media_candidates(directory, "audio", &referenced_audio)?;
-    let orphaned_video = media::orphaned_media_candidates(directory, "video", &referenced_video)?;
-    let removed_images = images::remove_orphaned_image_files(directory, &orphaned_images)?;
-    let removed_audio = media::remove_orphaned_media_files(directory, "audio", &orphaned_audio)?;
-    let removed_video = media::remove_orphaned_media_files(directory, "video", &orphaned_video)?;
-    Ok(MediaCleanupSummary {
-        images: removed_images,
-        audio: removed_audio,
-        video: removed_video,
-    })
-}
 
 fn canonical_ids(ids: HashSet<String>) -> HashSet<String> {
     ids.into_iter()
@@ -92,7 +62,8 @@ mod tests {
 
     impl TestDirectory {
         fn new() -> Self {
-            let path = std::env::temp_dir().join(format!("omega-image-cleanup-{}", Uuid::now_v7()));
+            let path =
+                std::env::temp_dir().join(format!("omega-media-collection-{}", Uuid::now_v7()));
             fs::create_dir_all(&path).expect("create temporary vault");
             Self(path)
         }
@@ -126,7 +97,8 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_keeps_media_referenced_by_notes_and_recovery_snapshots() {
+    fn automatic_media_collection_keeps_references_and_removes_only_candidates_without_references()
+    {
         let temp = TestDirectory::new();
         let vault = &temp.0;
         let notes = vault.join("notes");
@@ -260,11 +232,43 @@ mod tests {
             .expect("write orphan video");
         fs::write(images.join("unrecognized.png"), b"unknown").expect("write unknown file");
 
-        let result = cleanup_orphaned_media(&notes, &backups).expect("cleanup orphaned media");
-
-        assert_eq!(result.images, 1);
-        assert_eq!(result.audio, 1);
-        assert_eq!(result.video, 1);
+        let image_candidates: HashSet<String> = [
+            active.clone(),
+            backup.clone(),
+            deleted_image.clone(),
+            recovery_image.clone(),
+            journal_image.clone(),
+            journal_backup_image.clone(),
+            orphan.clone(),
+        ]
+        .into_iter()
+        .collect();
+        let audio_candidates: HashSet<String> = [
+            active_audio.clone(),
+            backup_audio.clone(),
+            deleted_audio.clone(),
+            recovery_audio.clone(),
+            journal_audio.clone(),
+            journal_backup_audio.clone(),
+            orphan_audio.clone(),
+        ]
+        .into_iter()
+        .collect();
+        let video_candidates: HashSet<String> = [
+            active_video.clone(),
+            backup_video.clone(),
+            deleted_video.clone(),
+            recovery_video.clone(),
+            journal_video.clone(),
+            journal_backup_video.clone(),
+            orphan_video.clone(),
+        ]
+        .into_iter()
+        .collect();
+        collect_unreferenced_images(&notes, &backups, &image_candidates)
+            .expect("collect unreferenced images");
+        collect_unreferenced_audio_video(&notes, &backups, &audio_candidates, &video_candidates)
+            .expect("collect unreferenced audio and video");
         for (image, audio, video) in [
             (&active, &active_audio, &active_video),
             (&backup, &backup_audio, &backup_video),

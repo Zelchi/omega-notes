@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { noteImageUrl } from '../src/pages/notes/model/note-image-url.ts';
+import { noteImageUrl, resolveNoteImageSource } from '../src/pages/notes/model/note-image-url.ts';
 
 test('Electron image URLs remain scoped to both vault and image IDs', () => {
     assert.equal(
@@ -26,7 +26,10 @@ test('Tauri image URLs use the Windows localhost custom-protocol origin', () => 
 });
 
 test('legacy data URLs remain a direct image source', async () => {
-    const controller = await readFile(new URL('../src/pages/notes/ui/note-image-node/controller.ts', import.meta.url), 'utf8');
-    assert.match(controller, /if \(key\.startsWith\("data:"\)\) \{\s*setSource\(key\);\s*return;/);
-    assert.match(controller, /setSource\(noteImageUrl\(props\.vaultId, key\)\)/);
+	const controller = await readFile(new URL('../src/pages/notes/ui/note-image-node/controller.ts', import.meta.url), 'utf8');
+	assert.equal(resolveNoteImageSource('data:image/png;base64,AA==', '', false), 'data:image/png;base64,AA==');
+	assert.equal(resolveNoteImageSource('image-id', 'vault-id', true, 'electron'), 'omega-image://vault-id/image-id');
+	assert.equal(resolveNoteImageSource('image-id', 'vault-id', true, 'tauri'), 'http://omega-image.localhost/vault-id/image-id');
+	assert.equal(resolveNoteImageSource('image-id', 'vault-id', false), '');
+	assert.match(controller, /resolveNoteImageSource\(key, props\.vaultId, isDesktopRuntime\(\)\)/);
 });

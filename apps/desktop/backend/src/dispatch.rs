@@ -381,10 +381,6 @@ pub(crate) async fn dispatch(
                 .await?,
         )
         .map_err(|error| error.to_string()),
-        "cleanup_orphaned_media" => serde_json::to_value(
-            crate::images::commands::cleanup_orphaned_media(app.clone()).await?,
-        )
-        .map_err(|error| error.to_string()),
         "read_ai_chat" => serde_json::to_value(
             crate::ai::commands::read_ai_chat(
                 app.clone(),

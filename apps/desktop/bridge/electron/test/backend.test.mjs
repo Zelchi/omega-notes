@@ -9,7 +9,7 @@ import { Backend } from '../backend.mjs';
 const directory = dirname(fileURLToPath(import.meta.url));
 const executable = join(directory, '../../../backend/target/debug', `omega-notes-backend${process.platform === 'win32' ? '.exe' : ''}`);
 
-test('Electron backend allowlist includes PDF and global media deletion commands', async () => {
+test('Electron backend allowlist includes PDF and cross-vault media asset deletion commands', async () => {
     const commands = JSON.parse(await readFile(join(directory, '../backend-commands.json'), 'utf8'));
     for (const command of [
         'read_pdf_documents', 'import_pdf_document', 'rename_pdf_document',
@@ -73,6 +73,7 @@ test('real Rust process preserves vaults, notes, streams, images and errors acro
     assert.equal((await stat(resolvedImagePath)).size, payload.length);
     await assert.rejects(backend.invoke('save_note', { vaultId, noteId: original.id, noteTitle: original.title, document: original.document, expectedNote: { title: original.title, document: original.document } }), /CONFLICT|ALTERAD|changed/i);
     await assert.rejects(backend.invoke('not_a_command'), /Unknown backend command/);
+    await assert.rejects(backend.invoke('cleanup_orphaned_media'), /Unknown backend command/);
     await assert.rejects(backend.invoke('get_note', { vaultId }), /Invalid argument noteId/);
     await assert.rejects(backend.invoke('music_stream_url', { url: 'https://127.0.0.1/live.mp3' }), /MUSIC_URL_INVALID/);
     const musicUrl = await backend.invoke('music_stream_url', { url: 'https://radio.example/live.mp3' });
@@ -125,6 +126,38 @@ test('note summaries remain available after repeated vault round trips', async t
         assert.equal(stream.at(-1).event, 'complete');
         assert.ok(stream.some(event => event.event === 'item' && event.data.id === expectedNoteId));
     }
+});
+
+test('saved notes and vault registry survive a backend process restart', async t => {
+    const temp = await mkdtemp(join(tmpdir(), 'omega-backend-restart-'));
+    const cache = join(temp, 'cache');
+    const startBackend = () => new Backend(executable, ['--documents-dir', temp, '--cache-dir', cache], () => {}, () => {});
+    let backend = startBackend();
+    t.after(async () => { await backend.stop(); await rm(temp, { recursive: true, force: true }); });
+    await backend.ready();
+
+    const created = await backend.invoke('create_vault', { name: 'Restart persistence' });
+    const vaultId = created.vaults.at(-1).id;
+    await backend.invoke('switch_vault', { vaultId });
+    const note = await backend.invoke('create_note', { noteTitle: 'Persisted note' });
+    const document = structuredClone(note.document);
+    document.elements[0].text = 'Persists across backend restart';
+    await backend.invoke('save_note', {
+        vaultId,
+        noteId: note.id,
+        noteTitle: note.title,
+        document,
+        expectedNote: { title: note.title, document: note.document },
+    });
+
+    await backend.stop();
+    backend = startBackend();
+    await backend.ready();
+    await backend.invoke('switch_vault', { vaultId });
+
+    const library = await backend.invoke('list_notes', { vaultId, external: false });
+    assert.ok(library.notes.some(saved =>
+        saved.id === note.id && saved.document.elements[0].text === 'Persists across backend restart'));
 });
 
 test('note summary loading survives entries the external observer cannot index', async t => {

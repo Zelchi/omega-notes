@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { getMatrixRainPosition, isBackgroundMarkVisible } from '../src/shared/ui/ascii-backdrop/rendering.ts';
 
 test('Matrix rain uses global coordinates in the Engine canvas', async () => {
 	const source = await readFile(new URL('../src/shared/ui/ascii-backdrop/index.tsx', import.meta.url), 'utf8');
 	assert.match(source, /createMatrixPreset\(mountCanvas, intensity\)/);
 	assert.match(source, /const bounds = context\.host\.getBoundingClientRect\(\)/);
-	assert.match(source, /const x = column \/ matrixColumns \* viewportWidth - bounds\.left/);
-	assert.match(source, /const y = -12 \+ phase \/ duration \* viewportHeight - bounds\.top/);
+	assert.match(source, /getMatrixRainPosition\(/);
+	assert.match(source, /pen\.fillText\(character, position\.x, position\.y\)/);
 	assert.match(source, /ink: getComputedStyle\(engineElement\)\.color/);
-	assert.match(source, /pen\.fillText\(character, x, y\)/);
+	assert.deepEqual(getMatrixRainPosition(25, 100, 1000, 800, 1, 4, { left: 120, top: 30 }), { x: 130, y: 158 });
+	assert.equal(isBackgroundMarkVisible(0.5, 0.5), false);
 });
 
 test('background intensity controls effect density, not opacity', async () => {
@@ -19,10 +21,10 @@ test('background intensity controls effect density, not opacity', async () => {
 		readFile(new URL('../src/app/index.tsx', import.meta.url), 'utf8'),
 	]);
 	assert.ok(app.includes('<BackgroundIntensityProvider value={app.preferences.backgroundIntensity}>'));
-	assert.match(source, /const densityLimit = intensity\(\) \* CODE_RAIN_MAX_DENSITY/);
+	assert.match(source, /const densityLimit = getBackgroundDensityLimit\(intensity\(\), CODE_RAIN_MAX_DENSITY\)/);
 	assert.match(source, /createConstellationPreset\(mountCanvas, intensity, animationSeed\)/);
-	assert.match(source, /if \(density >= densityLimit\) return/);
-	assert.match(source, /const densityLimit = intensity\(\)/);
+	assert.match(source, /if \(!isBackgroundMarkVisible\(density, densityLimit\)\) return/);
+	assert.match(source, /const densityLimit = getBackgroundDensityLimit\(intensity\(\)\)/);
 	assert.match(source, /const interval = 0\.7 \+ randomAt\(seed\) \* 3\.3/);
 	assert.match(source, /if \(character === "\*" && !reducedMotion\)/);
 	assert.doesNotMatch(source, /opacity: intensity\(\)/);

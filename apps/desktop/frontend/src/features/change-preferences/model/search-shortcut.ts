@@ -1,11 +1,9 @@
-import { DEFAULT_SEARCH_SHORTCUT, formatKeyboardShortcut, isKeyboardShortcut, type KeyboardShortcut } from "./ai-chat-shortcut";
+import { DEFAULT_SEARCH_SHORTCUT, isKeyboardShortcut, type KeyboardShortcut } from "./ai-chat-shortcut";
 export { DEFAULT_SEARCH_SHORTCUT };
 
 export type SearchShortcut = KeyboardShortcut;
 
 export const isSearchShortcut = isKeyboardShortcut;
-export const formatSearchShortcut = formatKeyboardShortcut;
-
 export const matchesSearchShortcut = (event: KeyboardEvent, shortcut: SearchShortcut): boolean => {
 	if (event.defaultPrevented || event.isComposing || event.metaKey || event.getModifierState("AltGraph")
 		|| event.code !== shortcut.code || event.ctrlKey !== shortcut.ctrl

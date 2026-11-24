@@ -3,10 +3,10 @@ import { Portal } from "solid-js/web";
 import type { TableBlock } from "@/features/edit-table";
 import { NoteLinkSuggestions } from "@/features/suggest-note-link";
 import { cx } from "@/shared/lib/classes";
-import { htmlClipboardToNoteText } from "@/shared/lib/html-clipboard-to-note-text";
 import Button from "@/shared/ui/button";
 import Icon from "@/shared/ui/icon";
 import { useNoteTextNodeController, type NoteTextNodeProps } from "./controller";
+import { readNoteClipboard } from "./clipboard";
 import { styles } from "./style.css.ts";
 import { playSound } from "@/shared/ui/sound";
 
@@ -49,47 +49,13 @@ const NoteTextNode: Component<NoteTextNodeProps> = (props) => {
 		try {
 			const clipboard = navigator.clipboard;
 			if (!clipboard) throw new Error("Clipboard API is unavailable");
-			if (!plainText && clipboard.read) {
-				let items: ClipboardItems | undefined;
-				try {
-					items = await clipboard.read();
-				} catch {
-					// Fall back to text-only clipboard access when reading clipboard items is unavailable.
-				}
-				const imageTypes = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "image/avif"]);
-				const images: File[] = [];
-				for (const item of items ?? []) {
-					const type = item.types.find((candidate) => imageTypes.has(candidate.toLowerCase()));
-					if (!type) continue;
-					const normalizedType = type.toLowerCase();
-					const blob = await item.getType(type);
-					const extension = normalizedType.split("/")[1] ?? "png";
-					images.push(new File([blob], `clipboard-image-${images.length + 1}.${extension}`, { type: normalizedType }));
-				}
-				if (images.length && props.onPasteImages) {
-					props.onPasteImages(images);
-					setContextMenu(undefined);
-					return;
-					}
-					const textItem = items?.find((item) => item.types.some((type) => type.toLowerCase() === "text/plain"));
-					const htmlItem = items?.find((item) => item.types.some((type) => type.toLowerCase() === "text/html"));
-					const htmlType = htmlItem?.types.find((type) => type.toLowerCase() === "text/html");
-					let formattedText: string | undefined;
-					if (htmlItem && htmlType) {
-						try {
-							formattedText = htmlClipboardToNoteText(await (await htmlItem.getType(htmlType)).text());
-						} catch {
-						// Fall back to the plain-text clipboard representation.
-					}
-					}
-					const text = formattedText ?? (textItem
-						? await (await textItem.getType("text/plain")).text()
-						: await clipboard.readText());
-					editor.pasteText(text, false);
-			} else {
-				const text = await clipboard.readText();
-				editor.pasteText(text, plainText);
+			const paste = await readNoteClipboard(clipboard, plainText, Boolean(props.onPasteImages));
+			if (paste.images.length && props.onPasteImages) {
+				props.onPasteImages(paste.images);
+				setContextMenu(undefined);
+				return;
 			}
+			if (paste.text !== undefined) editor.pasteText(paste.text, plainText);
 			setContextMenu(undefined);
 		} catch (error) {
 			console.error(error);

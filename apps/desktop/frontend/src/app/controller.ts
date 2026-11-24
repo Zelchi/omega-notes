@@ -7,7 +7,7 @@ import type { StudyKind } from "@/entities/study";
 import { useNoteDeletion } from "@/features/delete-note/model/controller";
 import { useCanvasHistory } from "@/features/undo-canvas-edit";
 import { deleteNoteMediaEverywhere, normalizeNoteTitle, NOTE_TITLE_MAX_LENGTH, useNotes, type NoteMediaType, type NoteSummary } from "@/entities/note";
-import { createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner } from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { translate, type TranslationKey } from "@/shared/lib/i18n";
 import { configureTrayMenu, onTrayAction } from "./api/tray.repository";
 import { showMainWindowIfHidden } from "./api/window.repository";
@@ -30,32 +30,8 @@ import { useLofiPlayer } from "@/features/lofi-player/model/player";
 import { useGambiarraTerminal } from "@/features/gambiarra-terminal/model/controller";
 import { syncTerminalInstructions } from "@/features/gambiarra-terminal/api/terminal.repository";
 import type { SettingsCategory } from "@/features/change-preferences/model/preferences";
-
-const createLazyController = <T,>(loadModule: () => Promise<() => T>) => {
-	const owner = getOwner();
-	const [controller, setController] = createSignal<T>();
-	let pending: Promise<T | undefined> | undefined;
-	let disposed = false;
-	const load = (): Promise<T | undefined> => {
-		const current = controller();
-		if (current) return Promise.resolve(current);
-		if (pending) return pending;
-		if (!owner || disposed) return Promise.resolve(undefined);
-		let request: Promise<T | undefined>;
-		request = Promise.resolve().then(loadModule).then((create) => {
-			if (disposed) return undefined;
-			const value = runWithOwner(owner, create);
-			if (value !== undefined) setController(() => value);
-			return value;
-		}).finally(() => {
-			if (pending === request) pending = undefined;
-		});
-		pending = request;
-		return request;
-	};
-	onCleanup(() => { disposed = true; });
-	return { controller, load };
-};
+import { createLazyController } from "./model/lazy-controller";
+import { createSaveCheckpoints } from "./model/save-checkpoints";
 
 export const useAppController = () => {
 	const lofiPlayer = useLofiPlayer();
@@ -91,19 +67,16 @@ export const useAppController = () => {
 	let saveAiChats: (() => Promise<boolean>) | undefined;
 	let saveStudies: (() => Promise<boolean>) | undefined;
 	const [vaultActionPending, setVaultActionPending] = createSignal(false);
-	const beforeAiRequest = async () => {
-		if (notes.resolvingConflict()) return false;
-		if (saveNoteTitle && !(await saveNoteTitle())) return false;
-		if (!(await notes.flushSave())) return false;
-		return saveAiChats ? saveAiChats() : true;
-	};
-	const beforeShutdown = async () => {
-		if (!(await beforeAiRequest())) return false;
-		if (!(await kanban.flushSave())) return false;
-		if (!(await pdfs.flushSave())) return false;
-		if (!(await pomodoro.flushSave())) return false;
-		return saveStudies ? saveStudies() : true;
-	};
+	const { beforeAiRequest, beforeShutdown } = createSaveCheckpoints({
+		resolvingConflict: () => notes.resolvingConflict(),
+		saveNoteTitle: () => saveNoteTitle?.() ?? Promise.resolve(true),
+		saveNotes: () => notes.flushSave(),
+		saveAiChats: () => saveAiChats?.() ?? Promise.resolve(true),
+		saveKanban: () => kanban.flushSave(),
+		savePdfs: () => pdfs.flushSave(),
+		savePomodoro: () => pomodoro.flushSave(),
+		saveStudies: () => saveStudies?.() ?? Promise.resolve(true),
+	});
 	const windowControls = useWindowControls(beforeShutdown, t);
 	createEffect(() => {
 		void configureTrayMenu({
@@ -140,7 +113,7 @@ export const useAppController = () => {
 	createEffect(() => {
 		if (preferences.aiFeaturesEnabled()) void aiChatLazy.load().catch(error => console.warn("Could not load AI chat", error));
 	});
-	const aiChatFallbacks: Record<string, unknown> = {
+	const aiChatFallbacks = {
 		canUndoLinks: () => false,
 		providers: [],
 		installedProviders: () => ({ codex: false, claude: false, opencode: false, antigravity: false }),
@@ -152,13 +125,13 @@ export const useAppController = () => {
 		cleanupError: () => undefined,
 		models: () => [],
 		selectedModel: () => undefined,
-		selectedEffort: () => undefined,
+		selectedEffort: () => "",
 		fastAvailable: () => false,
 		pending: () => false,
 		ready: () => false,
 		error: () => undefined,
 		chat: () => ({ messages: [], referenceTitles: {}, draft: "", model: "", effort: "", fast: false, busy: false }),
-	};
+	} satisfies Partial<AiChatController>;
 	const aiChat = new Proxy({} as AiChatController, {
 		get: (_target, property) => {
 			const current = aiChatLazy.controller();
@@ -176,7 +149,9 @@ export const useAppController = () => {
 			};
 			if (property === "flushSave") return () => Promise.resolve(true);
 			if (property === "describeError") return (_failure: unknown) => t("aiRequestFailed");
-			if (property in aiChatFallbacks) return aiChatFallbacks[property as string];
+			if (typeof property === "string" && property in aiChatFallbacks) {
+				return aiChatFallbacks[property as keyof typeof aiChatFallbacks];
+			}
 			return (...args: unknown[]) => {
 				const request = aiChatLazy.load().then(controller => {
 					if (!controller) return undefined;

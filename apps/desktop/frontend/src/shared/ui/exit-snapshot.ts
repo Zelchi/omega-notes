@@ -5,7 +5,7 @@ type ExitOptions = { kind?: ExitKind; key?: string; enabled?: () => boolean };
 const activeExits = new Map<string, () => void>();
 
 /** Mantenha uma cópia visual inerte depois que o Solid desmontar a interface interativa. */
-export const animateExitSnapshot = (
+const animateExitSnapshot = (
 	element: HTMLElement, duration: number, options: ExitOptions = {},
 ): (() => void) => {
 	const preference = window.matchMedia("(prefers-reduced-motion: reduce)");

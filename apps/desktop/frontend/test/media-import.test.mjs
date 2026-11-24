@@ -1,17 +1,43 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { readVideoThumbnailSource } from '../src/pages/notes/model/media-import.ts';
+import { importMediaPaths, readMediaSource, readVideoThumbnailSource } from '../src/pages/notes/model/media-import.ts';
+import { mockDesktop } from './helpers.mjs';
 
 const source = path => readFile(new URL(path, import.meta.url), 'utf8');
 
-test('media imports recognize the image, audio, and video formats supported by the backend', async () => {
-	const importer = await source('../src/pages/notes/model/media-import.ts');
-	assert.match(importer, /imageExtensions = new Set\(\[.*"gif"/);
-	assert.match(importer, /audioExtensions = new Set\(\[.*"opus"/);
-	assert.match(importer, /videoExtensions = new Set\(\[.*"ogv"/);
-	assert.match(importer, /importNoteMedia/);
-	assert.match(importer, /getNoteMediaStreamUrl/);
+const withDesktop = (t, invoke) => {
+	const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+	globalThis.window = { omegaDesktop: mockDesktop(invoke) };
+	t.after(() => {
+		if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow);
+		else delete globalThis.window;
+	});
+};
+
+test('media imports route supported image, audio, and video files through desktop commands', async t => {
+	const calls = [];
+	withDesktop(t, async (command, args) => {
+		calls.push({ command, args });
+		if (command === 'import_note_image') return 'image-id';
+		if (command === 'import_note_media') return `${args.mediaType}-id`;
+		if (command === 'note_media_stream_url') return `omega-media://${args.mediaType}/${args.mediaId}`;
+		throw Error(`Unexpected command: ${command}`);
+	});
+
+	const imported = await importMediaPaths(['/tmp/cover.GIF', '/tmp/voice.opus', '/tmp/clip.ogv']);
+	assert.deepEqual(imported, [
+		{ type: 'image', imageId: 'image-id' },
+		{ type: 'audio', audioId: 'audio-id', extension: 'opus' },
+		{ type: 'video', videoId: 'video-id', extension: 'ogv' },
+	]);
+	assert.equal(await readMediaSource('audio-id', 'audio'), 'omega-media://audio/audio-id');
+	assert.deepEqual(calls, [
+		{ command: 'import_note_image', args: { sourcePath: '/tmp/cover.GIF' } },
+		{ command: 'import_note_media', args: { sourcePath: '/tmp/voice.opus', mediaType: 'audio' } },
+		{ command: 'import_note_media', args: { sourcePath: '/tmp/clip.ogv', mediaType: 'video' } },
+		{ command: 'note_media_stream_url', args: { mediaId: 'audio-id', mediaType: 'audio' } },
+	]);
 });
 
 test('video thumbnails capture and downscale the midpoint frame', async t => {
@@ -70,10 +96,35 @@ test('video thumbnails capture and downscale the midpoint frame', async t => {
 	assert.equal(video.currentTime, 12);
 });
 
-test('failed files notify the editor without aborting successful files in the same batch', async () => {
-	const importer = await source('../src/pages/notes/model/media-import.ts');
-	assert.match(importer, /for \(const sourcePath of paths\)/);
-	assert.match(importer, /catch \(error\) \{\s*console\.error\(error\);\s*onError\(\);\s*\}/);
+test('failed files notify the editor without aborting successful files in the same batch', async t => {
+	const previousConsoleError = console.error;
+	const calls = [];
+	const errors = [];
+	let notified = 0;
+	withDesktop(t, async (command, args) => {
+		calls.push({ command, args });
+		return `${args.mediaType}-id`;
+	});
+	console.error = error => errors.push(error);
+	t.after(() => { console.error = previousConsoleError; });
+
+	const media = await importMediaPaths(
+		['/tmp/voice.mp3', '/tmp/unsupported.txt', '/tmp/clip.webm'],
+		() => true,
+		() => { notified++; },
+	);
+	assert.deepEqual(media, [
+		{ type: 'audio', audioId: 'audio-id', extension: 'mp3' },
+		{ type: 'video', videoId: 'video-id', extension: 'webm' },
+	]);
+	assert.equal(notified, 1);
+	assert.equal(errors.length, 1);
+	assert.match(errors[0].message, /Unsupported media format/);
+	assert.deepEqual(calls, [
+		{ command: 'import_note_media', args: { sourcePath: '/tmp/voice.mp3', mediaType: 'audio' } },
+		{ command: 'import_note_media', args: { sourcePath: '/tmp/clip.webm', mediaType: 'video' } },
+	]);
+
 	const editor = await source('../src/pages/notes/ui/note-canvas-editor/index.tsx');
 	assert.match(editor, /role="alert" class=\{styles\.pasteError\}>\{props\.t\("mediaImportFailed"\)\}/);
 });

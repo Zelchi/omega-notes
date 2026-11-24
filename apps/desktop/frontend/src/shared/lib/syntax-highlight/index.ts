@@ -21,7 +21,7 @@ import "prismjs/components/prism-markdown";
 
 Prism.manual = true;
 
-export type CodeToken = { text: string; types: string[] };
+type CodeToken = { text: string; types: string[] };
 const aliases: Record<string, string> = {
     js: "javascript", mjs: "javascript", cjs: "javascript", ts: "typescript",
     rs: "rust", py: "python", sh: "bash", shell: "bash", html: "markup", xml: "markup", svg: "markup",

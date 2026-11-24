@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {
+	handlePdfCardActionsBackgroundClick, handlePdfCardContextMenu, togglePdfCardActions,
+} from '../src/features/manage-pdfs/model/library-card-actions.ts';
 import { createRoot, createSignal } from 'solid-js';
 import { decodePdfDocuments, decodePdfHighlights, maxPdfBytes, maxPdfHighlightTextLength, maxPdfTitleLength, updatePdfHighlight } from '../src/features/manage-pdfs/api/pdfs.repository.ts';
 import { usePdfLibrary } from '../src/features/manage-pdfs/model/controller.ts';
@@ -232,9 +235,8 @@ test('PDF library cards reveal edit and delete actions from the card edge or con
 		import('node:fs/promises').then(fs => fs.readFile(new URL('../src/features/manage-pdfs/ui/pdf-panel/index.tsx', import.meta.url), 'utf8')),
 		import('node:fs/promises').then(fs => fs.readFile(new URL('../src/features/manage-pdfs/ui/pdf-panel/style.css.ts', import.meta.url), 'utf8')),
 	]);
-	assert.match(panel, /const toggleCardActions = \(id: string\) => setCardActionsVisibleId/);
-	assert.match(panel, /onContextMenu=\{event => \{[\s\S]*?toggleCardActions\(document\.id\);/);
-	assert.match(panel, /event\.target === event\.currentTarget\) toggleCardActions\(document\.id\)/);
+	assert.match(panel, /handlePdfCardContextMenu\(event, editingId\(\) === document\.id, \(\) => toggleCardActions\(document\.id\)\)/);
+	assert.match(panel, /handlePdfCardActionsBackgroundClick\(event, \(\) => toggleCardActions\(document\.id\)\)/);
 	assert.match(panel, /cardActionsVisibleId\(\) === document\.id/);
 	assert.match(panel, /cardActionVisible/);
 	assert.match(panel, /setCardActionsVisibleId\(undefined\);[\s\S]*?void props\.library\.removeDocument\(document\.id\)/);
@@ -243,6 +245,33 @@ test('PDF library cards reveal edit and delete actions from the card edge or con
 	assert.match(styles, /marginRight: -7/);
 	assert.match(styles, /cardActionVisible: style\(\{ height: 28/);
 	assert.match(styles, /paddingLeft: 5, paddingRight: 5/);
+});
+
+test('PDF card action visibility toggles by card, ignores editing context menus, and only handles background clicks', () => {
+	assert.equal(togglePdfCardActions(undefined, 'document-a'), 'document-a');
+	assert.equal(togglePdfCardActions('document-a', 'document-a'), undefined);
+	assert.equal(togglePdfCardActions('document-a', 'document-b'), 'document-b');
+
+	const calls = [];
+	const event = {
+		preventDefault: () => calls.push('prevent'),
+		stopPropagation: () => calls.push('stop'),
+	};
+	handlePdfCardContextMenu(event, true, () => calls.push('toggle'));
+	assert.deepEqual(calls, []);
+	handlePdfCardContextMenu(event, false, () => calls.push('toggle'));
+	assert.deepEqual(calls, ['prevent', 'stop', 'toggle']);
+
+	const background = {};
+	handlePdfCardActionsBackgroundClick(
+		{ target: background, currentTarget: background },
+		() => calls.push('background'),
+	);
+	handlePdfCardActionsBackgroundClick(
+		{ target: {}, currentTarget: background },
+		() => calls.push('nested'),
+	);
+	assert.deepEqual(calls, ['prevent', 'stop', 'toggle', 'background']);
 });
 
 test('PDF library cards render lazy first-page covers through range streaming', async () => {

@@ -1,6 +1,6 @@
 import { invoke, isDesktopRuntime, isTauriRuntime, listen } from '@/shared/lib/desktop';
 export type Update = { version: string; body?: string };
-export type DownloadEvent =
+type DownloadEvent =
     | { event: 'Started'; data: { contentLength?: number } }
     | { event: 'Progress'; data: { chunkLength: number } }
     | { event: 'Finished' };

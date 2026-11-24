@@ -2,8 +2,8 @@ import { invoke } from "@/shared/lib/desktop";
 import { listen } from "@/shared/lib/desktop";
 import { isDesktopRuntime } from "@/shared/lib/desktop";
 
-export type TrayAction = "pomodoro-toggle" | "pomodoro-reset" | "music-play-pause" | "music-next" | "update" | "exit";
-export type TrayLabels = {
+type TrayAction = "pomodoro-toggle" | "pomodoro-reset" | "music-play-pause" | "music-next" | "update" | "exit";
+type TrayLabels = {
 	show: string;
 	hide: string;
 	start: string;

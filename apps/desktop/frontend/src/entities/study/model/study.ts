@@ -70,16 +70,6 @@ export const parseStudyJson = (response: string): Record<string, unknown> => {
 	const content = response.trim().replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```$/, "");
 	return object(JSON.parse(content));
 };
-export const parseStudyResponse = (response: string, kind: StudyKind, allowedIds: ReadonlySet<string>, expected: number): Pick<StudyDeck, "title" | "items"> => {
-	const data = parseStudyJson(response);
-	if (data.error === "STUDY_INSUFFICIENT_CONTENT") {
-		if (!Array.isArray(data.noteIds) || !data.noteIds.length || data.noteIds.length > expected || data.noteIds.some(id => typeof id !== "string" || !allowedIds.has(id))) throw Error("STUDY_INVALID_RESPONSE");
-		throw new StudyInsufficientContentError(data.noteIds as string[]);
-	}
-	if (Array.isArray(data.items) && data.items.length !== expected) throw new StudyItemCountError(expected, data.items.length);
-	return decodeMaterial(data, kind, allowedIds, expected);
-};
-
 export const decodeStudyDeck = (value: unknown): StudyDeck => {
 	const data = object(value);
 	if (typeof data.id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.id) ||

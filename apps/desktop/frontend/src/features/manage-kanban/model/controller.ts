@@ -1,7 +1,7 @@
 import { createEffect, createSignal, on } from "solid-js";
 import type { Accessor } from "solid-js";
 import { readKanban, saveKanban } from "../api/kanban.repository";
-import { isValidKanbanDueDate, kanbanPriorities, kanbanStatuses, maxKanbanItems, maxKanbanPosition, type KanbanItem, type KanbanPriority, type KanbanStatus, type KanbanWipLimits } from "./kanban";
+import { isValidKanbanDueDate, kanbanPriorities, kanbanStatuses, maxKanbanItems, maxKanbanPosition, type KanbanItem, type KanbanStatus, type KanbanWipLimits } from "./kanban";
 
 export const useKanban = (vaultId: Accessor<string | undefined>) => {
 	const [open, setOpen] = createSignal(false);

@@ -1,4 +1,4 @@
-export type TextRange = { start: number; end: number };
+type TextRange = { start: number; end: number };
 type Change = TextRange & { length: number };
 
 /** Acompanhe substituições assíncronas sem sobrescrever edições feitas enquanto o resultado era aguardado. */

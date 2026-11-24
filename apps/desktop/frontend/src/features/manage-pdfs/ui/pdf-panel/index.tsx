@@ -8,6 +8,16 @@ import type { TranslationKey } from "@/shared/lib/i18n";
 import { registerVisibilityAnimation } from "@/shared/ui/visibility-animation";
 import { Portal } from "solid-js/web";
 import { clampPdfPanelWidth, getPdfPanelWidthLimits } from "../../model/panel-size";
+import { createPdfPanelResizeController, createPdfPanelResizeHandlers } from "../../model/panel-resize";
+import {
+	clampPdfLibraryPage, createPdfLibraryPageJumpController, createPdfLibrarySearchInputHandler,
+	filterPdfDocuments, getPdfLibraryPageCount, getPdfLibraryPageItems,
+} from "../../model/library-pagination";
+import {
+	handlePdfCardActionsBackgroundClick, handlePdfCardContextMenu, togglePdfCardActions,
+} from "../../model/library-card-actions";
+import { createPdfPageJumpInputHandlers } from "../../model/page-jump-input";
+import { observePdfLibraryPageSize } from "../../model/library-page-size-observer";
 import type { PdfLibraryController } from "../../model/controller";
 import PdfCoverThumbnail from "../pdf-cover-thumbnail";
 import PdfReader from "../pdf-reader";
@@ -32,31 +42,41 @@ const PdfPanel: Component<Props> = props => {
 	const [pageJumpOpen, setPageJumpOpen] = createSignal(false);
 	const [pageJumpValue, setPageJumpValue] = createSignal("");
 	const [search, setSearch] = createSignal("");
-	const filteredDocuments = createMemo(() => {
-		const query = search().trim().toLocaleLowerCase();
-		return props.library.documents().filter(document => document.title.toLocaleLowerCase().includes(query));
+	const searchInput = createPdfLibrarySearchInputHandler(setSearch, setPage);
+	const filteredDocuments = createMemo(() => filterPdfDocuments(props.library.documents(), search()));
+	const pageCount = createMemo(() => getPdfLibraryPageCount(filteredDocuments().length, pageSize()));
+	const visibleDocuments = createMemo(() => getPdfLibraryPageItems(filteredDocuments(), page(), pageSize()));
+	createEffect(() => setPage(current => clampPdfLibraryPage(current, pageCount())));
+	const pageJump = createPdfLibraryPageJumpController({
+		page,
+		pageCount,
+		pageJumpOpen,
+		pageJumpValue,
+		setPageJumpOpen,
+		setPageJumpValue,
+		setPage,
 	});
-	const pageCount = createMemo(() => Math.max(1, Math.ceil(filteredDocuments().length / pageSize())));
-	const visibleDocuments = createMemo(() => filteredDocuments().slice(page() * pageSize(), (page() + 1) * pageSize()));
-	createEffect(() => setPage(current => Math.min(current, pageCount() - 1)));
-	const goToPage = () => {
-		if (!pageJumpOpen()) return;
-		const target = Number(pageJumpValue());
-		setPageJumpOpen(false);
-		if (Number.isInteger(target) && target >= 1 && target <= pageCount()) setPage(target - 1);
-	};
-	let listObserver: ResizeObserver | undefined;
+	const pageJumpInput = createPdfPageJumpInputHandlers({
+		setValue: setPageJumpValue,
+		goToPage: pageJump.goToPage,
+		close: () => setPageJumpOpen(false),
+	});
+	let stopListObserver: (() => void) | undefined;
 	const observeList = (element: HTMLDivElement) => {
-		listObserver?.disconnect();
-		const update = () => setPageSize(Math.max(1, Math.floor((element.clientHeight + 8) / 90)));
-		update();
-		listObserver = new ResizeObserver(update);
-		listObserver.observe(element);
+		stopListObserver?.();
+		stopListObserver = observePdfLibraryPageSize(element, value => setPageSize(value));
 	};
-	onCleanup(() => listObserver?.disconnect());
+	onCleanup(() => stopListObserver?.());
 	let renameInput: HTMLInputElement | undefined;
 	let panelElement: HTMLElement | undefined;
-	let resizePointer: { pointerId: number; startX: number; startWidth: number } | undefined;
+	const panelResize = createPdfPanelResizeController(width => props.library.setPanelWidth(width));
+	const resizeHandlers = createPdfPanelResizeHandlers({
+		controller: panelResize,
+		isEnabled: canResize,
+		getPanelWidth: () => props.library.panelWidth(),
+		getPanelElement: () => panelElement,
+		getViewportWidth: () => window.innerWidth,
+	});
 
 	const updateViewport = () => {
 		const width = window.innerWidth;
@@ -76,32 +96,11 @@ const PdfPanel: Component<Props> = props => {
 		setRenameDraft(title);
 		queueMicrotask(() => renameInput?.focus());
 	};
-	const toggleCardActions = (id: string) => setCardActionsVisibleId(current => current === id ? undefined : id);
+	const toggleCardActions = (id: string) => setCardActionsVisibleId(current => togglePdfCardActions(current, id));
 	const finishRename = async (id: string) => {
 		if (editingId() !== id) return;
 		const saved = await props.library.renameDocument(id, renameDraft());
 		if (saved) setEditingId(undefined);
-	};
-	const startResize = (event: PointerEvent & { currentTarget: HTMLDivElement }) => {
-		if (event.button !== 0 || !canResize()) return;
-		event.preventDefault();
-		event.stopPropagation();
-		resizePointer = {
-			pointerId: event.pointerId,
-			startX: event.clientX,
-			startWidth: panelElement?.getBoundingClientRect().width ?? props.library.panelWidth(),
-		};
-		event.currentTarget.setPointerCapture(event.pointerId);
-	};
-	const resize = (event: PointerEvent) => {
-		if (!resizePointer || resizePointer.pointerId !== event.pointerId) return;
-		event.preventDefault();
-		props.library.setPanelWidth(clampPdfPanelWidth(resizePointer.startWidth + resizePointer.startX - event.clientX, window.innerWidth));
-	};
-	const stopResize = (event: PointerEvent) => {
-		if (!resizePointer || resizePointer.pointerId !== event.pointerId) return;
-		resize(event);
-		resizePointer = undefined;
 	};
 	const activeDocument = () => props.library.documents().find(document => document.id === props.library.openedId());
 	const errorText = () => {
@@ -119,7 +118,7 @@ const PdfPanel: Component<Props> = props => {
 			ref={element => { panelElement = element; registerVisibilityAnimation(element, () => !props.library.open(), "panel"); }}>
 			<AsciiBackdrop placement="modal" />
 			<Show when={canResize()}>
-				<div class={styles.resizeHandle} onPointerDown={startResize} onPointerMove={resize} onPointerUp={stopResize} onPointerCancel={stopResize} onLostPointerCapture={stopResize} />
+				<div class={styles.resizeHandle} onPointerDown={resizeHandlers.start} onPointerMove={resizeHandlers.move} onPointerUp={resizeHandlers.stop} onPointerCancel={resizeHandlers.stop} onLostPointerCapture={resizeHandlers.stop} />
 			</Show>
 			<div class={styles.body}>
 				<Show when={errorText()}><p class={styles.error}>{errorText()}</p></Show>
@@ -134,7 +133,7 @@ const PdfPanel: Component<Props> = props => {
 							<label class={styles.searchBox}>
 								<Icon name="search" size={16} />
 								<input class={styles.searchInput} value={search()} placeholder={props.t("searchPlaceholder")}
-									onInput={event => { setSearch(event.currentTarget.value); setPage(0); }} />
+									onInput={searchInput} />
 							</label>
 							<Show when={props.library.importSource()}>
 								<form class={styles.importForm} onSubmit={event => { event.preventDefault(); void props.library.importSelected(); }}>
@@ -163,12 +162,9 @@ const PdfPanel: Component<Props> = props => {
 									: undefined,
 							}}>
 								<For each={visibleDocuments()}>{document =>
-										<div class={styles.card} onContextMenu={event => {
-											if (editingId() === document.id) return;
-											event.preventDefault();
-											event.stopPropagation();
-											toggleCardActions(document.id);
-										}}>
+										<div class={styles.card} onContextMenu={event =>
+											handlePdfCardContextMenu(event, editingId() === document.id, () => toggleCardActions(document.id))
+										}>
 										<Show when={editingId() === document.id} fallback={
 											<Button class={styles.openDocument} type="button" onClick={() => {
 												setCardActionsVisibleId(undefined);
@@ -189,9 +185,9 @@ const PdfPanel: Component<Props> = props => {
 											<div class={styles.cardActions} classList={{
 												[styles.cardActionsHitArea]: true,
 												[styles.cardActionsOpen]: cardActionsVisibleId() === document.id,
-											}} onClick={event => {
-												if (event.target === event.currentTarget) toggleCardActions(document.id);
-											}}>
+											}} onClick={event =>
+												handlePdfCardActionsBackgroundClick(event, () => toggleCardActions(document.id))
+											}>
 												<Button class={`${styles.iconButton} ${styles.cardAction}`} classList={{ [styles.cardActionVisible]: cardActionsVisibleId() === document.id }} type="button" disabled={props.library.busy() || props.library.readFailed() || cardActionsVisibleId() !== document.id} onClick={() => beginRename(document.id, document.title)}><Icon name="edit" size={14} /></Button>
 												<Button class={`${styles.iconButton} ${styles.cardAction}`} classList={{ [styles.cardActionVisible]: cardActionsVisibleId() === document.id }} type="button" disabled={props.library.busy() || props.library.readFailed() || cardActionsVisibleId() !== document.id} onClick={() => {
 													setCardActionsVisibleId(undefined);
@@ -205,17 +201,14 @@ const PdfPanel: Component<Props> = props => {
 							<div class={styles.pagination}>
 								<Button class={styles.iconButton} type="button" disabled={page() === 0} onClick={() => setPage(current => Math.max(0, current - 1))}><Icon name="back" size={16} /></Button>
 								<Show when={pageJumpOpen()} fallback={
-									<Button class={styles.pageJumpButton} type="button" disabled={!filteredDocuments().length} onClick={() => { setPageJumpValue(String(page() + 1)); setPageJumpOpen(true); }}>
+									<Button class={styles.pageJumpButton} type="button" disabled={!filteredDocuments().length} onClick={pageJump.open}>
 										{filteredDocuments().length ? `${page() + 1} / ${pageCount()}` : "—"}
 									</Button>
 								}>
 									<input class={styles.pageJumpInput} ref={element => { element.focus(); element.select(); }}
 										type="number" min="1" max={pageCount()} step="1" value={pageJumpValue()}
-										onInput={event => setPageJumpValue(event.currentTarget.value)} onBlur={goToPage}
-										onKeyDown={event => {
-											if (event.key === "Enter") { event.preventDefault(); goToPage(); }
-											else if (event.key === "Escape") { event.preventDefault(); setPageJumpOpen(false); }
-										}} />
+										onInput={pageJumpInput.input} onBlur={pageJumpInput.blur}
+										onKeyDown={pageJumpInput.keyDown} />
 								</Show>
 								<Button class={styles.iconButton} type="button" disabled={page() >= pageCount() - 1} onClick={() => setPage(current => Math.min(pageCount() - 1, current + 1))}><span class={styles.forwardIcon}><Icon name="back" size={16} /></span></Button>
 							</div>

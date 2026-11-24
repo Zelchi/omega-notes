@@ -1,4 +1,4 @@
-export type MusicSource = {
+type MusicSource = {
 	id: string;
 	name: string;
 	url: string;
@@ -6,7 +6,7 @@ export type MusicSource = {
 	somaFmChannelId?: string;
 };
 
-export type SomaFmChannel = { id: string; title: string; lastPlaying?: string };
+type SomaFmChannel = { id: string; title: string; lastPlaying?: string };
 
 const fixedSomaFmSources: MusicSource[] = [
 	{

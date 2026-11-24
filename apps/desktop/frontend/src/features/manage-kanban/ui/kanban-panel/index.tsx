@@ -13,6 +13,10 @@ import type { TranslationKey } from "@/shared/lib/i18n";
 import { clampKanbanPanelWidth, getKanbanLayoutColumnCount, getKanbanPanelSnapPoints, getKanbanPanelStage, getKanbanPanelWidthLimits, resizeKanbanPanelForViewport, snapKanbanPanelWidth } from "../../model/panel-size";
 import { kanbanPriorityLabels, kanbanPriorities, kanbanStatusLabels, kanbanStatuses, maxKanbanItems, type KanbanItem, type KanbanPriority, type KanbanStatus } from "../../model/kanban";
 import type { useKanban } from "../../model/controller";
+import { getKanbanDropPosition, hasKanbanDragThreshold } from "../../model/card-drag";
+import { installKanbanCardDragListeners } from "../../model/card-drag-listeners";
+import { createKanbanDetailsDraft } from "../../model/details-editor";
+import { createKanbanWipEditorHandlers } from "../../model/wip-editor";
 import { styles } from "./style.css.ts";
 
 type Props = {
@@ -73,6 +77,7 @@ const KanbanPanel: Component<Props> = (props) => {
 		source: HTMLElement;
 		preview?: HTMLElement;
 	} | undefined;
+	let stopCardDragListeners: (() => void) | undefined;
 	let suppressCardClick = false;
 	let suppressCardClickFrame: number | undefined;
 	let noteOptionsFrame: number | undefined;
@@ -92,6 +97,10 @@ const KanbanPanel: Component<Props> = (props) => {
 	const displayedItem = createMemo<KanbanItem | undefined>((previous) =>
 		selectedItem() ?? (detailPresence.present() ? previous : undefined),
 	);
+	const resolveNoteQuery = (noteId: string) => {
+		const note = noteForId(noteId);
+		return note ? displayNoteTitle(note) : props.notes.referenceTitles()[noteId] ?? "";
+	};
 	const matchingNotes = () => {
 		const query = normalizeNoteTitle(noteQueryDraft());
 		return props.notes.sortedNotes().filter(note => !query
@@ -128,15 +137,16 @@ const KanbanPanel: Component<Props> = (props) => {
 		});
 	};
 	const openDetails = (item: KanbanItem) => {
-		setDetailsId(item.id);
-		setTitleDraft(item.title);
-		setNoteIdDraft(item.noteId);
-		setNoteQueryDraft(noteForId(item.noteId) ? displayNoteTitle(noteForId(item.noteId)!) : item.noteId ? props.notes.referenceTitles()[item.noteId] ?? "" : "");
-		setNotePickerOpen(false);
-		setNoteLinkError(false);
-		setPriorityDraft(item.priority === "none" ? "low" : item.priority);
-		setLabelsDraft(item.labels.join(", "));
-		setDueDateDraft(item.dueDate ?? "");
+		const draft = createKanbanDetailsDraft(item, resolveNoteQuery);
+		setDetailsId(draft.id);
+		setTitleDraft(draft.title);
+		setNoteIdDraft(draft.noteId);
+		setNoteQueryDraft(draft.noteQuery);
+		setNotePickerOpen(draft.notePickerOpen);
+		setNoteLinkError(draft.noteLinkError);
+		setPriorityDraft(draft.priority);
+		setLabelsDraft(draft.labels);
+		setDueDateDraft(draft.dueDate);
 	};
 	const closeDetails = () => {
 		if (savingDetails()) return;
@@ -144,17 +154,16 @@ const KanbanPanel: Component<Props> = (props) => {
 		setNotePickerOpen(false);
 	};
 	const detailBackdropDismiss = createBackdropDismiss(closeDetails);
-	const finishWipEditor = (status: KanbanStatus, input: HTMLInputElement) => {
-		if (wipEditorStatus() !== status) return;
-		const value = input.valueAsNumber;
-		props.kanban.setWipLimit(status, Number.isNaN(value) || value === 0 ? undefined : value);
-		setWipEditorStatus(undefined);
-	};
+	const wipEditor = createKanbanWipEditorHandlers({
+		readStatus: wipEditorStatus,
+		readInput: () => wipInputElement,
+		setLimit: (status, limit) => props.kanban.setWipLimit(status, limit),
+		close: () => setWipEditorStatus(undefined),
+		isInsideInput: (target, input) =>
+			target === input || target instanceof Node && input.contains(target),
+	});
 	const commitWipEditorOutside = (event: PointerEvent) => {
-		const status = wipEditorStatus();
-		const input = wipInputElement;
-		if (!status || !input || event.target === input || event.target instanceof Node && input.contains(event.target)) return;
-		finishWipEditor(status, input);
+		wipEditor.commitOutside(event.target);
 	};
 	const parsedLabels = () => labelsDraft().split(",").map(label => label.trim()).filter(Boolean);
 	const detailsValid = () => {
@@ -292,25 +301,13 @@ const KanbanPanel: Component<Props> = (props) => {
 	const getDropPosition = (lane: HTMLElement, clientY: number) => {
 		const cards = [...lane.querySelectorAll<HTMLElement>("[data-kanban-card]")]
 			.filter(card => card.dataset.kanbanCard !== draggedId());
-		let low = 0;
-		let high = cards.length;
-		while (low < high) {
-			const middle = Math.floor((low + high) / 2);
-			const rect = cards[middle]!.getBoundingClientRect();
-			if (clientY < rect.top + rect.height / 2) high = middle;
-			else low = middle + 1;
-		}
-		return low;
+		return getKanbanDropPosition(cards, clientY, card => card.getBoundingClientRect());
 	};
 	const isCollapsed = (status: KanbanStatus) => collapsedStatuses().has(status);
 	const finishDrag = () => {
-		if (cardDrag) {
-			window.removeEventListener("pointermove", moveCardDrag, true);
-			window.removeEventListener("pointerup", finishCardDrag, true);
-			window.removeEventListener("pointercancel", cancelCardDrag, true);
-			window.removeEventListener("blur", cancelDragOnBlur);
-			cardDrag.preview?.remove();
-		}
+		stopCardDragListeners?.();
+		stopCardDragListeners = undefined;
+		cardDrag?.preview?.remove();
 		cardDrag = undefined;
 		setDraggedId(undefined);
 		setDropTarget(undefined);
@@ -333,7 +330,7 @@ const KanbanPanel: Component<Props> = (props) => {
 		const drag = cardDrag;
 		if (!drag || drag.pointerId !== event.pointerId) return;
 		if (!draggedId()) {
-			if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 5) return;
+			if (!hasKanbanDragThreshold(drag.startX, drag.startY, event.clientX, event.clientY)) return;
 			if (filtering() || mutationsBlocked()) {
 				finishDrag();
 				return;
@@ -384,10 +381,12 @@ const KanbanPanel: Component<Props> = (props) => {
 			height: rect.height, width: rect.width, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top,
 			source: event.currentTarget,
 		};
-		window.addEventListener("pointermove", moveCardDrag, { capture: true, passive: false });
-		window.addEventListener("pointerup", finishCardDrag, true);
-		window.addEventListener("pointercancel", cancelCardDrag, true);
-		window.addEventListener("blur", cancelDragOnBlur);
+		stopCardDragListeners = installKanbanCardDragListeners({
+			move: moveCardDrag,
+			up: finishCardDrag,
+			cancel: cancelCardDrag,
+			blur: cancelDragOnBlur,
+		});
 	};
 	onCleanup(() => {
 		finishDrag();
@@ -536,7 +535,7 @@ const KanbanPanel: Component<Props> = (props) => {
 											}>
 												<input class={styles.wipInput} classList={{ [styles.countExceeded]: exceeded() }} type="number" min="0" max={maxKanbanItems} value={wipLimit() ?? ""} placeholder="∞"
 													ref={element => { wipInputElement = element; element.focus({ preventScroll: true }); element.select(); }}
-													onBlur={event => finishWipEditor(status, event.currentTarget)}
+													onBlur={event => wipEditor.finish(status, event.currentTarget)}
 													onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
 											</Show>
 										</h3>

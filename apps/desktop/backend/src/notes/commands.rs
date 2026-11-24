@@ -1,13 +1,18 @@
+mod external_snapshot;
+
+use self::external_snapshot::{
+    acknowledge_external_snapshot, external_id, external_snapshot_diff, scan_external_snapshot,
+    stage_external_snapshot, store_external_snapshot,
+};
 use crate::runtime::{AppContext, Channel};
 use serde::Serialize;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{HashMap, HashSet},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, LazyLock, Mutex,
     },
-    time::{Duration, Instant, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
 use super::models::{
@@ -18,29 +23,6 @@ use super::models::{
 use crate::app::{library, runtime};
 
 const MAX_EXTERNAL_CHANGE_ITEMS: usize = 256;
-const MAX_EXTERNAL_OBSERVERS: usize = 32;
-const EXTERNAL_OBSERVER_TTL_SECONDS: u64 = 300;
-const FULL_RECONCILE_SECONDS: u64 = 300;
-type ExternalSnapshotChanges = (Vec<String>, Vec<String>, bool);
-
-#[derive(Clone, PartialEq, Eq)]
-struct ExternalFileStamp {
-    length: u64,
-    modified_nanos: u128,
-    identity: Option<(u64, u64)>,
-    regular: bool,
-}
-
-struct ExternalSnapshot {
-    directory: PathBuf,
-    files: BTreeMap<String, ExternalFileStamp>,
-    pending: Option<(String, BTreeMap<String, ExternalFileStamp>, bool)>,
-    last_seen: Instant,
-    last_full_reconcile: Instant,
-}
-
-static EXTERNAL_SNAPSHOTS: LazyLock<Mutex<HashMap<String, ExternalSnapshot>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
 struct NoteReadState {
     cancelled: Arc<AtomicBool>,
     active: bool,
@@ -164,188 +146,6 @@ pub(crate) enum NoteSummaryEvent {
 pub(crate) struct NoteSummaryCompletion {
     issues: Vec<NoteLoadIssue>,
     reference_titles: std::collections::HashMap<String, String>,
-}
-
-fn scan_external_snapshot(
-    directory: &Path,
-    cancelled: &AtomicBool,
-) -> Result<BTreeMap<String, ExternalFileStamp>, String> {
-    let entries = std::fs::read_dir(directory).map_err(|_| "NOTE_READ_FAILED")?;
-    let mut files = BTreeMap::new();
-    for entry in entries {
-        check_cancelled(cancelled)?;
-        let Ok(entry) = entry else { continue };
-        let path = entry.path();
-        if path.extension().and_then(|extension| extension.to_str()) != Some("omega") {
-            continue;
-        }
-        let Ok(metadata) = std::fs::symlink_metadata(&path) else {
-            continue;
-        };
-        let Ok(modified) = metadata.modified() else {
-            continue;
-        };
-        let Ok(modified_nanos) = modified.duration_since(UNIX_EPOCH) else {
-            continue;
-        };
-        #[cfg(unix)]
-        let identity = {
-            use std::os::unix::fs::MetadataExt;
-            Some((metadata.dev(), metadata.ino()))
-        };
-        #[cfg(not(unix))]
-        let identity = None;
-        let Ok(file_name) = entry.file_name().into_string() else {
-            continue;
-        };
-        files.insert(
-            file_name,
-            ExternalFileStamp {
-                length: metadata.len(),
-                modified_nanos: modified_nanos.as_nanos(),
-                identity,
-                regular: metadata.is_file() && !metadata.file_type().is_symlink(),
-            },
-        );
-    }
-    Ok(files)
-}
-
-fn store_external_snapshot(
-    observer_id: &str,
-    directory: &Path,
-    files: BTreeMap<String, ExternalFileStamp>,
-) -> Result<(), String> {
-    let now = Instant::now();
-    let mut snapshots = EXTERNAL_SNAPSHOTS.lock().map_err(|_| "NOTE_READ_FAILED")?;
-    snapshots.retain(|_, snapshot| {
-        now.duration_since(snapshot.last_seen).as_secs() < EXTERNAL_OBSERVER_TTL_SECONDS
-    });
-    if !snapshots.contains_key(observer_id) && snapshots.len() >= MAX_EXTERNAL_OBSERVERS {
-        if let Some(oldest) = snapshots
-            .iter()
-            .min_by_key(|(_, snapshot)| snapshot.last_seen)
-            .map(|(id, _)| id.clone())
-        {
-            snapshots.remove(&oldest);
-        }
-    }
-    snapshots.insert(
-        observer_id.to_string(),
-        ExternalSnapshot {
-            directory: directory.to_path_buf(),
-            files,
-            pending: None,
-            last_seen: now,
-            last_full_reconcile: now,
-        },
-    );
-    Ok(())
-}
-
-fn external_snapshot_diff(
-    observer_id: &str,
-    directory: &Path,
-    current: &BTreeMap<String, ExternalFileStamp>,
-    cancelled: &AtomicBool,
-) -> Result<Option<ExternalSnapshotChanges>, String> {
-    let now = Instant::now();
-    let mut snapshots = EXTERNAL_SNAPSHOTS.lock().map_err(|_| "NOTE_READ_FAILED")?;
-    snapshots.retain(|_, snapshot| {
-        now.duration_since(snapshot.last_seen).as_secs() < EXTERNAL_OBSERVER_TTL_SECONDS
-    });
-    let Some(previous) = snapshots.get_mut(observer_id) else {
-        return Ok(None);
-    };
-    if previous.directory != directory {
-        return Ok(None);
-    }
-    previous.last_seen = now;
-    let mut changed = Vec::new();
-    for (file_name, stamp) in current {
-        check_cancelled(cancelled)?;
-        if previous.files.get(file_name) != Some(stamp) {
-            changed.push(file_name.clone());
-        }
-    }
-    let mut removed = Vec::new();
-    for file_name in previous.files.keys() {
-        check_cancelled(cancelled)?;
-        if !current.contains_key(file_name) {
-            removed.push(file_name.clone());
-        }
-    }
-    let reconcile_due =
-        now.duration_since(previous.last_full_reconcile).as_secs() >= FULL_RECONCILE_SECONDS;
-    Ok(Some((changed, removed, reconcile_due)))
-}
-
-fn stage_external_snapshot(
-    observer_id: &str,
-    directory: &Path,
-    files: BTreeMap<String, ExternalFileStamp>,
-    full_reconcile: bool,
-) -> Result<String, String> {
-    let now = Instant::now();
-    let token = uuid::Uuid::now_v7().to_string();
-    let mut snapshots = EXTERNAL_SNAPSHOTS.lock().map_err(|_| "NOTE_READ_FAILED")?;
-    snapshots.retain(|_, snapshot| {
-        now.duration_since(snapshot.last_seen).as_secs() < EXTERNAL_OBSERVER_TTL_SECONDS
-    });
-    if !snapshots.contains_key(observer_id) && snapshots.len() >= MAX_EXTERNAL_OBSERVERS {
-        if let Some(oldest) = snapshots
-            .iter()
-            .min_by_key(|(_, snapshot)| snapshot.last_seen)
-            .map(|(id, _)| id.clone())
-        {
-            snapshots.remove(&oldest);
-        }
-    }
-    let snapshot = snapshots
-        .entry(observer_id.to_string())
-        .or_insert_with(|| ExternalSnapshot {
-            directory: directory.to_path_buf(),
-            files: BTreeMap::new(),
-            pending: None,
-            last_seen: now,
-            last_full_reconcile: now,
-        });
-    if snapshot.directory.as_path() != directory {
-        snapshot.directory = directory.to_path_buf();
-        snapshot.files.clear();
-        snapshot.last_full_reconcile = now;
-    }
-    snapshot.pending = Some((token.clone(), files, full_reconcile));
-    snapshot.last_seen = now;
-    Ok(token)
-}
-
-fn acknowledge_external_snapshot(observer_id: &str, token: &str) -> Result<(), String> {
-    let now = Instant::now();
-    let mut snapshots = EXTERNAL_SNAPSHOTS.lock().map_err(|_| "NOTE_READ_FAILED")?;
-    let Some(snapshot) = snapshots.get_mut(observer_id) else {
-        return Ok(());
-    };
-    if snapshot
-        .pending
-        .as_ref()
-        .is_some_and(|(pending_token, _, _)| pending_token == token)
-    {
-        if let Some((_, files, full_reconcile)) = snapshot.pending.take() {
-            snapshot.files = files;
-            if full_reconcile {
-                snapshot.last_full_reconcile = now;
-            }
-        }
-    }
-    snapshot.last_seen = now;
-    Ok(())
-}
-
-fn external_id(file_name: &str) -> Option<String> {
-    let id = file_name.strip_suffix(".omega")?;
-    super::validate_note_id(id).ok()?;
-    Some(id.to_string())
 }
 
 pub(crate) async fn list_notes(

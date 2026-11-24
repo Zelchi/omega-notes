@@ -1,12 +1,10 @@
 import { isDesktopRuntime } from "@/shared/lib/desktop";
 import * as browserNotesRepository from "./browser-notes.repository";
 import * as desktopNotesRepository from "./desktop-notes.repository";
-import type { NoteChangeSet, NoteLibrary, NoteLoadIssue, NoteMediaCatalogItem, NoteSaveResult, NoteSummary, NoteSummaryLibrary, StudyNote } from "../model/note";
+import type { NoteChangeSet, NoteLoadIssue, NoteMediaCatalogItem, NoteSaveResult, NoteSummary, NoteSummaryLibrary, StudyNote } from "../model/note";
 
 export const setNotesVaultId = browserNotesRepository.setNotesVaultId;
 
-export const listNotes = (vaultId?: string, external = false): Promise<NoteLibrary> =>
-	isDesktopRuntime() ? desktopNotesRepository.listNotes(vaultId, external) : browserNotesRepository.listNotes();
 export const streamNoteSummaries = (vaultId: string, observerId: string, external: boolean, resetObserverSnapshot: boolean, onItems: (notes: NoteSummary[]) => void, signal: AbortSignal): Promise<Omit<NoteSummaryLibrary, "notes">> =>
 	isDesktopRuntime() ? desktopNotesRepository.streamNoteSummaries(vaultId, observerId, external, resetObserverSnapshot, onItems, signal) : browserNotesRepository.streamNoteSummaries(vaultId, observerId, external, resetObserverSnapshot, onItems, signal);
 export const getNote = (vaultId: string, noteId: string, signal?: AbortSignal): Promise<StudyNote> =>
@@ -34,9 +32,6 @@ export const saveNote = (note: StudyNote, expected: StudyNote, vaultId: string):
 
 export const deleteNote = (noteId: string): Promise<NoteLoadIssue[]> =>
 	isDesktopRuntime() ? desktopNotesRepository.deleteNote(noteId) : browserNotesRepository.deleteNote(noteId);
-
-export const listDeletedNotes = (): Promise<StudyNote[]> =>
-	isDesktopRuntime() ? desktopNotesRepository.listDeletedNotes() : browserNotesRepository.listDeletedNotes();
 
 export const listDeletedNoteIds = (vaultId: string, signal?: AbortSignal): Promise<string[]> =>
 	isDesktopRuntime() ? desktopNotesRepository.listDeletedNoteIds(vaultId, signal) : browserNotesRepository.listDeletedNoteIds(vaultId, signal);

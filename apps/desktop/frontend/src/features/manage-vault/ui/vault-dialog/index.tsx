@@ -13,6 +13,11 @@ import type { Vault, VaultDetails } from "@/entities/vault";
 import type { VaultErrorAction } from "../../model/vault-error";
 import type { VaultDialogState } from "../../model/vaults.controller";
 import { useVaultReorder } from "../../model/vault-reorder";
+import { handleVaultActionsBackgroundClick } from "./action-click";
+import {
+	clampVaultPage, filterVaultsByName, getVaultPageCount, getVaultPageForSelection,
+	getVaultPageItems, parseVaultPageInput,
+} from "./list-pagination";
 import { styles } from "./style.css.ts";
 
 const formatStorageSize = (bytes: number, locale: string): string => {
@@ -76,10 +81,10 @@ const VaultDialog: Component<Props> = (props) => {
 		getList: () => vaultList,
 		onReorder: ids => props.onReorder(ids),
 	});
-	const filteredVaults = createMemo(() => reorder.vaults().filter(vault => vault.name.toLocaleLowerCase().includes(search().toLocaleLowerCase())));
-	const pageCount = createMemo(() => Math.max(1, Math.ceil(filteredVaults().length / pageSize())));
-	const visibleVaults = createMemo(() => filteredVaults().slice(page() * pageSize(), (page() + 1) * pageSize()));
-	createEffect(() => setPage(current => Math.min(current, pageCount() - 1)));
+	const filteredVaults = createMemo(() => filterVaultsByName(reorder.vaults(), search()));
+	const pageCount = createMemo(() => getVaultPageCount(filteredVaults().length, pageSize()));
+	const visibleVaults = createMemo(() => getVaultPageItems(filteredVaults(), page(), pageSize()));
+	createEffect(() => setPage(current => clampVaultPage(current, pageCount())));
 	let listObserver: ResizeObserver | undefined;
 	const observeList = (element: HTMLDivElement) => {
 		vaultList = element;
@@ -90,8 +95,7 @@ const VaultDialog: Component<Props> = (props) => {
 			setPageSize(size);
 			if (initial) {
 				initial = false;
-				const index = filteredVaults().findIndex(vault => vault.id === state.selectedVaultId());
-				setPage(index < 0 ? 0 : Math.floor(index / size));
+				setPage(getVaultPageForSelection(filteredVaults(), state.selectedVaultId(), size));
 			}
 		};
 		update();
@@ -101,9 +105,9 @@ const VaultDialog: Component<Props> = (props) => {
 	onCleanup(() => listObserver?.disconnect());
 	const goToPage = () => {
 		if (!pageJumpOpen()) return;
-		const target = Number(pageJumpValue());
 		setPageJumpOpen(false);
-		if (Number.isInteger(target) && target >= 1 && target <= pageCount()) setPage(target - 1);
+		const target = parseVaultPageInput(pageJumpValue(), pageCount());
+		if (target !== undefined) setPage(target);
 	};
 	const selectedVault = () => props.vaults.find((vault) => vault.id === state.selectedVaultId());
 	const toggleVaultActions = (vaultId: string) => setVaultActionsVisibleId(current => current === vaultId ? undefined : vaultId);
@@ -298,12 +302,10 @@ const VaultDialog: Component<Props> = (props) => {
 											<div class={styles.vaultActions} classList={{
 												[styles.vaultActionsHitArea]: true,
 												[styles.vaultActionsOpen]: vaultActionsVisibleId() === vault.id,
-											}} onClick={event => {
-												if (event.target === event.currentTarget) {
+											}} onClick={event => handleVaultActionsBackgroundClick(event, () => {
 													props.onClearError();
 													toggleVaultActions(vault.id);
-												}
-											}}>
+												})}>
 																<Show when={vaultActionsVisibleId() !== vault.id}>
 																	<span class={styles.actionHint}><Icon name="chevronRight" size={12} /></span>
 																</Show>

@@ -56,7 +56,7 @@ type EdgePoint = { point: Point; tangent: Point; speed: number };
 type EdgePorts = { start: EdgePoint; end: EdgePoint };
 type PortReference = { toward: Point; orderBy: Point };
 type EdgePortReferences = Partial<Record<keyof EdgePorts, PortReference>>;
-export type RoutedEdgeSegment = EdgeCurve & { startT: number; endT: number };
+type RoutedEdgeSegment = EdgeCurve & { startT: number; endT: number };
 type RouteAnchor = { t: number; point: Point; tangent: Point; speed: number };
 
 const noteBoundary = (size: NodeSize, position: Point, toward: Point): EdgePoint => {
@@ -317,7 +317,7 @@ export const graphEdgesCrossedByStroke = (
 	});
 };
 
-export type ZipTiePlacement = Point & { angle: number; width: number };
+type ZipTiePlacement = Point & { angle: number; width: number };
 const ZIP_TIE_WIRE_SPACING = 6;
 const ZIP_TIE_MARGIN = 12;
 const ZIP_TIE_DETACH_DISTANCE = 192;

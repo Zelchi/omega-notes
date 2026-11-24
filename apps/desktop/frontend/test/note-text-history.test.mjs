@@ -37,3 +37,35 @@ test('external text replacement clears incompatible history and pending snapshot
     assert.equal(history.undo()?.text, external.text);
     assert.equal(history.redo()?.text, nextLocalEdit.text);
 });
+
+test('undo and redo restore selection, scroll position, and paragraph alignment with the text', () => {
+    const history = createTextHistory();
+    const before = {
+        text: 'first line\nsecond line',
+        paragraphAlignments: ['left', 'center'],
+        selection: { start: 2, end: 7 },
+        scrollTop: 120,
+    };
+    const after = {
+        text: 'first line\nsecond line!',
+        paragraphAlignments: ['right', 'center'],
+        selection: { start: 4, end: 4 },
+        scrollTop: 180,
+    };
+
+    history.record(before, after, 'format');
+    assert.deepEqual(history.undo(), before);
+    assert.deepEqual(history.redo(), after);
+});
+
+test('typing edits with a continuous caret group into one undo checkpoint', () => {
+    const history = createTextHistory();
+    const initial = state('a');
+    const first = { ...state('ab'), selection: { start: 2, end: 2 } };
+    const second = { ...state('abc'), selection: { start: 3, end: 3 } };
+
+    history.record(initial, first, 'insertText');
+    history.record(first, second, 'insertText');
+    assert.deepEqual(history.undo(), initial);
+    assert.deepEqual(history.redo(), second);
+});

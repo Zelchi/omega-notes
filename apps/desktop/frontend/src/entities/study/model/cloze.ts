@@ -1,6 +1,6 @@
 /** Mantenha pontuação e números relevantes; normalize apenas maiúsculas/minúsculas, diacríticos e espaços. */
-export const normalizeClozeAnswer = (value: string): string => value.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().trim().replace(/\s+/gu, " ");
-export type ClozePart = { text: string; blankIndex?: number };
+const normalizeClozeAnswer = (value: string): string => value.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().trim().replace(/\s+/gu, " ");
+type ClozePart = { text: string; blankIndex?: number };
 export const splitClozeText = (text: string): ClozePart[] => {
 	const parts: ClozePart[] = [];
 	let offset = 0;
